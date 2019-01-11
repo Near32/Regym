@@ -5,7 +5,6 @@ sys.path.append(os.path.abspath('..'))
 import shutil
 
 from training_schemes import EmptySelfPlay, NaiveSelfPlay, HalfHistorySelfPlay, FullHistorySelfPlay
-from rl_algorithms import TabularQLearning
 
 from plot_util import create_plots
 
@@ -25,7 +24,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 from collections import namedtuple
-#from multiprocessing import Process, Queue
 from torch.multiprocessing import Process, Queue
 from concurrent.futures import ProcessPoolExecutor
 
@@ -108,6 +106,7 @@ def initialize_training_schemes(training_schemes_cli):
 def initialize_algorithms(environment, algorithms_cli):
     def parse_algorithm(algorithm, env):
         if algorithm.lower() == 'tabularqlearning':
+            from rl_algorithms import TabularQLearning
             return TabularQLearning(env.state_space_size, env.action_space_size, env.hash_state)
         if algorithm.lower() == 'deepqlearning':
             from rl_algorithms import build_DQN_Agent
