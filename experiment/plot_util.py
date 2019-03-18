@@ -177,9 +177,17 @@ def create_single_heatmap(source, target_dir, axis_labels):
     fig.savefig('{}/heatmap-{}.eps'.format(target_dir, file_name), format='eps')
 
 def create_multiline_per_opponent_winrate_violinplot(agent_name, df, target_dir ):
-    set_opponent = list(set( df.opponent ))
+    # Only care about FixedAgent Opponents:
+    df = df[ df.opponent.str.contains('EmptySelfPlay') ]  
+    true_set_opponent = list(set( df.opponent ))
+    set_opponent = []
+    if 'EmptySelfPlay-RockAgent' in true_set_opponent: set_opponent.append('EmptySelfPlay-RockAgent')
+    if 'EmptySelfPlay-PaperAgent' in true_set_opponent: set_opponent.append('EmptySelfPlay-PaperAgent')
+    if 'EmptySelfPlay-ScissorsAgent' in true_set_opponent: set_opponent.append('EmptySelfPlay-ScissorsAgent')
+    if 'EmptySelfPlay-RandomAgent' in true_set_opponent: set_opponent.append('EmptySelfPlay-RandomAgent')
+    
     y_max = 1
-    x_max = max(df.iteration/10) # wtf?
+    x_max = 10#max(df.iteration)/100 # wtf?
     
     dfs = [df[df.opponent == set_opponent[i] ] for i in range(len(set_opponent))]
     
@@ -209,17 +217,20 @@ def create_multiline_per_opponent_winrate_violinplot(agent_name, df, target_dir 
     plt.close(fig)
 
 def create_end_of_training_winrate_violinplot(agent_name, df, target_dir):
+    # Only care about not-FixedAgent Opponents:
+    df = df[ df.opponent.str.contains('SP') ]  
     y_max = 1
-    x_max = max(df.iteration)/100
+    x_max = 10#max(df.iteration)/100
     set_opponent = list(set( df.opponent ))
     
     fig, ax = plt.subplots()
     df_last = df[df.iteration == max(df.iteration)]
     
-    ax.plot( (x_max-(len(set_opponent))/2, x_max+(len(set_opponent)-2)/2 ), (y_max / 2, y_max / 2), '--')
+    #ax.plot( (x_max-(len(set_opponent)), x_max+(len(set_opponent)-2)/2 ), (y_max / 2, y_max / 2), '--')
+    ax.plot( (-1, x_max+(len(set_opponent)-2)/2 ), (y_max / 2, y_max / 2), '--')
     ax = sns.violinplot(x="iteration", y="winrate", hue="opponent", data=df_last, palette="Pastel1", ax=ax, cut=0, width=1.0, linewidth=1.75, saturation=2.0, inner='box', gridsize=1000)
     
-    plt.title('Winrates against all opponents at the end of training\nfor policy: {}'.format(agent_name))
+    #plt.title('Winrates at the end of training\nfor policy: {}'.format(agent_name))
     ax.set_ylim([0,1])
     
     plt.legend(loc='best')
@@ -231,14 +242,14 @@ def create_end_of_training_winrate_violinplot(agent_name, df, target_dir):
 def create_winrate_evolution_violinplot(agent_name, df, target_dir):
     set_opponent = list(set( df.opponent ))
     y_max = 1
-    x_max = max(df.iteration/10) # wtf?
+    x_max = 10#max(df.iteration)/100 
     
     fig, ax = plt.subplots()
     
     ax.plot( (-1, x_max ), (y_max / 2, y_max / 2), '--')
     ax = sns.violinplot(x="iteration", y="winrate", hue="opponent", data=df, palette="Pastel1", ax=ax, cut=0, width=0.75, linewidth=0.75, saturation=2.0, inner='box', gridsize=1000)
     
-    plt.title('Head to head winrates against all opponents\nfor policy: {}'.format(agent_name))
+    #plt.title('Head to head winrates against all opponents\nfor policy: {}'.format(agent_name))
     ax.set_ylim([0,1])
     
     plt.legend(loc='best')
