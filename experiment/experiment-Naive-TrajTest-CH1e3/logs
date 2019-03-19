@@ -1,0 +1,1494 @@
+[03-19 11:49:59]:INFO:__main__: Starting run: 0
+[03-19 11:50:02]:INFO:CreateTrainingProcesses: Training 2 jobs: [NaiveSP-ppo_h64_rnn, NaiveSP-ppo_h64_mlp]. 
+[03-19 11:50:02]:INFO:CreateTrainingProcesses: All training jobs submitted
+[03-19 11:50:04]:INFO:MatchMaking: Started
+[03-19 11:50:04]:INFO:MatchMaking: Received (100,EmptySelfPlay,RockAgent). 1/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (200,EmptySelfPlay,RockAgent). 2/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (300,EmptySelfPlay,RockAgent). 3/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (400,EmptySelfPlay,RockAgent). 4/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (500,EmptySelfPlay,RockAgent). 5/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (600,EmptySelfPlay,RockAgent). 6/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (700,EmptySelfPlay,RockAgent). 7/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (800,EmptySelfPlay,RockAgent). 8/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (900,EmptySelfPlay,RockAgent). 9/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (1000,EmptySelfPlay,RockAgent). 10/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (100,EmptySelfPlay,PaperAgent). 11/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (200,EmptySelfPlay,PaperAgent). 12/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (300,EmptySelfPlay,PaperAgent). 13/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (400,EmptySelfPlay,PaperAgent). 14/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (500,EmptySelfPlay,PaperAgent). 15/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (600,EmptySelfPlay,PaperAgent). 16/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (700,EmptySelfPlay,PaperAgent). 17/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (800,EmptySelfPlay,PaperAgent). 18/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (900,EmptySelfPlay,PaperAgent). 19/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (1000,EmptySelfPlay,PaperAgent). 20/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (100,EmptySelfPlay,ScissorsAgent). 21/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (200,EmptySelfPlay,ScissorsAgent). 22/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (300,EmptySelfPlay,ScissorsAgent). 23/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (400,EmptySelfPlay,ScissorsAgent). 24/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (500,EmptySelfPlay,ScissorsAgent). 25/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (600,EmptySelfPlay,ScissorsAgent). 26/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (700,EmptySelfPlay,ScissorsAgent). 27/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (800,EmptySelfPlay,ScissorsAgent). 28/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (900,EmptySelfPlay,ScissorsAgent). 29/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (1000,EmptySelfPlay,ScissorsAgent). 30/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (100,EmptySelfPlay,RandomAgent). 31/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (200,EmptySelfPlay,RandomAgent). 32/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (300,EmptySelfPlay,RandomAgent). 33/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (400,EmptySelfPlay,RandomAgent). 34/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (500,EmptySelfPlay,RandomAgent). 35/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (600,EmptySelfPlay,RandomAgent). 36/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (700,EmptySelfPlay,RandomAgent). 37/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (800,EmptySelfPlay,RandomAgent). 38/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (900,EmptySelfPlay,RandomAgent). 39/60 received
+[03-19 11:50:04]:INFO:MatchMaking: Received (1000,EmptySelfPlay,RandomAgent). 40/60 received
+[03-19 11:50:04]:INFO:Benchmarking: Started
+[03-19 11:50:04]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 100. 1/210 received. Started for 10 episodes
+[03-19 11:50:06]:INFO:Benchmarking: Benchmarking finished. Duration: 2.1487839221954346 seconds
+[03-19 11:50:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 200. 2/210 received. Started for 10 episodes
+[03-19 11:50:07]:INFO:ConfusionMatrixPopulate: Started
+[03-19 11:50:07]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:08]:INFO:Benchmarking: Benchmarking finished. Duration: 1.608196496963501 seconds
+[03-19 11:50:08]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 300. 3/210 received. Started for 10 episodes
+[03-19 11:50:08]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:09]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4332842826843262 seconds
+[03-19 11:50:09]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 400. 4/210 received. Started for 10 episodes
+[03-19 11:50:09]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:11]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4534213542938232 seconds
+[03-19 11:50:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 500. 5/210 received. Started for 10 episodes
+[03-19 11:50:11]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:12]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4501776695251465 seconds
+[03-19 11:50:12]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 600. 6/210 received. Started for 10 episodes
+[03-19 11:50:12]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:14]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4320037364959717 seconds
+[03-19 11:50:14]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 700. 7/210 received. Started for 10 episodes
+[03-19 11:50:14]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:15]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 100 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/100_iterations.pt
+[03-19 11:50:15]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [0,100]: 7.728468418121338 (seconds)
+[03-19 11:50:15]:INFO:MatchMaking: Received (100,NaiveSP,ppo_h64_mlp). 41/60 received
+[03-19 11:50:15]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4154064655303955 seconds
+[03-19 11:50:15]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 800. 8/210 received. Started for 10 episodes
+[03-19 11:50:15]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:15]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 100 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/100_iterations.pt
+[03-19 11:50:15]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [0,100]: 8.737816095352173 (seconds)
+[03-19 11:50:15]:INFO:MatchMaking: Received (100,NaiveSP,ppo_h64_rnn). 42/60 received
+[03-19 11:50:16]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4136180877685547 seconds
+[03-19 11:50:16]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 900. 9/210 received. Started for 10 episodes
+[03-19 11:50:16]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:18]:INFO:Benchmarking: Benchmarking finished. Duration: 1.460256814956665 seconds
+[03-19 11:50:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 1000. 10/210 received. Started for 10 episodes
+[03-19 11:50:18]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:19]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4588196277618408 seconds
+[03-19 11:50:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 100. 11/210 received. Started for 10 episodes
+[03-19 11:50:19]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 11:50:21]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5428149700164795 seconds
+[03-19 11:50:21]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 100. 12/210 received. Started for 10 episodes
+[03-19 11:50:21]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:22]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5594329833984375 seconds
+[03-19 11:50:22]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 200. 13/210 received. Started for 10 episodes
+[03-19 11:50:22]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:23]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 200 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/200_iterations.pt
+[03-19 11:50:23]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [100,200]: 8.19427227973938 (seconds)
+[03-19 11:50:23]:INFO:MatchMaking: Received (200,NaiveSP,ppo_h64_mlp). 43/60 received
+[03-19 11:50:24]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:24]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5256013870239258 seconds
+[03-19 11:50:24]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 200. 14/210 received. Started for 10 episodes
+[03-19 11:50:25]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 200 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/200_iterations.pt
+[03-19 11:50:25]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [100,200]: 9.365337371826172 (seconds)
+[03-19 11:50:25]:INFO:MatchMaking: Received (200,NaiveSP,ppo_h64_rnn). 44/60 received
+[03-19 11:50:26]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6598937511444092 seconds
+[03-19 11:50:26]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 300. 15/210 received. Started for 10 episodes
+[03-19 11:50:26]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:27]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6528027057647705 seconds
+[03-19 11:50:27]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 300. 16/210 received. Started for 10 episodes
+[03-19 11:50:27]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:29]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5588598251342773 seconds
+[03-19 11:50:29]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 400. 17/210 received. Started for 10 episodes
+[03-19 11:50:30]:INFO:Benchmarking: Benchmarking finished. Duration: 1.563476800918579 seconds
+[03-19 11:50:30]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 400. 18/210 received. Started for 10 episodes
+[03-19 11:50:30]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:31]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 300 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/300_iterations.pt
+[03-19 11:50:31]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [200,300]: 8.003206968307495 (seconds)
+[03-19 11:50:31]:INFO:MatchMaking: Received (300,NaiveSP,ppo_h64_mlp). 45/60 received
+[03-19 11:50:32]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5775680541992188 seconds
+[03-19 11:50:32]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 500. 19/210 received. Started for 10 episodes
+[03-19 11:50:32]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:33]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4710981845855713 seconds
+[03-19 11:50:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 500. 20/210 received. Started for 10 episodes
+[03-19 11:50:33]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:33]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 300 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/300_iterations.pt
+[03-19 11:50:34]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [200,300]: 8.603156566619873 (seconds)
+[03-19 11:50:34]:INFO:MatchMaking: Received (300,NaiveSP,ppo_h64_rnn). 46/60 received
+[03-19 11:50:35]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4427568912506104 seconds
+[03-19 11:50:35]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 600. 21/210 received. Started for 10 episodes
+[03-19 11:50:35]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:37]:INFO:Benchmarking: Benchmarking finished. Duration: 1.7129180431365967 seconds
+[03-19 11:50:37]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 600. 22/210 received. Started for 10 episodes
+[03-19 11:50:37]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:38]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5965988636016846 seconds
+[03-19 11:50:38]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 700. 23/210 received. Started for 10 episodes
+[03-19 11:50:38]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:39]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 400 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/400_iterations.pt
+[03-19 11:50:39]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [300,400]: 7.8046464920043945 (seconds)
+[03-19 11:50:39]:INFO:MatchMaking: Received (400,NaiveSP,ppo_h64_mlp). 47/60 received
+[03-19 11:50:40]:INFO:Benchmarking: Benchmarking finished. Duration: 1.562570333480835 seconds
+[03-19 11:50:40]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 700. 24/210 received. Started for 10 episodes
+[03-19 11:50:40]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:41]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5904734134674072 seconds
+[03-19 11:50:41]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 800. 25/210 received. Started for 10 episodes
+[03-19 11:50:41]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:43]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 400 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/400_iterations.pt
+[03-19 11:50:43]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [300,400]: 9.01337718963623 (seconds)
+[03-19 11:50:43]:INFO:MatchMaking: Received (400,NaiveSP,ppo_h64_rnn). 48/60 received
+[03-19 11:50:43]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4870123863220215 seconds
+[03-19 11:50:43]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 800. 26/210 received. Started for 10 episodes
+[03-19 11:50:43]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:44]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5647962093353271 seconds
+[03-19 11:50:44]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:44]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 900. 27/210 received. Started for 10 episodes
+[03-19 11:50:46]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4565236568450928 seconds
+[03-19 11:50:46]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 900. 28/210 received. Started for 10 episodes
+[03-19 11:50:46]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:47]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 500 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/500_iterations.pt
+[03-19 11:50:47]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [400,500]: 7.754204034805298 (seconds)
+[03-19 11:50:47]:INFO:MatchMaking: Received (500,NaiveSP,ppo_h64_mlp). 49/60 received
+[03-19 11:50:47]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4711647033691406 seconds
+[03-19 11:50:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 1000. 29/210 received. Started for 10 episodes
+[03-19 11:50:47]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:49]:INFO:Benchmarking: Benchmarking finished. Duration: 1.52561616897583 seconds
+[03-19 11:50:49]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 1000. 30/210 received. Started for 10 episodes
+[03-19 11:50:49]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:50]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4942772388458252 seconds
+[03-19 11:50:50]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 100. 31/210 received. Started for 10 episodes
+[03-19 11:50:50]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 11:50:51]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 500 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/500_iterations.pt
+[03-19 11:50:51]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [400,500]: 8.707058429718018 (seconds)
+[03-19 11:50:51]:INFO:MatchMaking: Received (500,NaiveSP,ppo_h64_rnn). 50/60 received
+[03-19 11:50:52]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5410616397857666 seconds
+[03-19 11:50:52]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 100. 32/210 received. Started for 10 episodes
+[03-19 11:50:52]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:50:53]:INFO:Benchmarking: Benchmarking finished. Duration: 1.457406997680664 seconds
+[03-19 11:50:53]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 100. 33/210 received. Started for 10 episodes
+[03-19 11:50:53]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:50:54]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 600 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/600_iterations.pt
+[03-19 11:50:54]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [500,600]: 7.476638317108154 (seconds)
+[03-19 11:50:54]:INFO:MatchMaking: Received (600,NaiveSP,ppo_h64_mlp). 51/60 received
+[03-19 11:50:55]:INFO:Benchmarking: Benchmarking finished. Duration: 1.611849308013916 seconds
+[03-19 11:50:55]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 200. 34/210 received. Started for 10 episodes
+[03-19 11:50:55]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:50:57]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6942620277404785 seconds
+[03-19 11:50:57]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 200. 35/210 received. Started for 10 episodes
+[03-19 11:50:57]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:50:58]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6041254997253418 seconds
+[03-19 11:50:58]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 200. 36/210 received. Started for 10 episodes
+[03-19 11:50:58]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:00]:INFO:Benchmarking: Benchmarking finished. Duration: 1.553328037261963 seconds
+[03-19 11:51:00]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 300. 37/210 received. Started for 10 episodes
+[03-19 11:51:00]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:00]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 600 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/600_iterations.pt
+[03-19 11:51:00]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [500,600]: 8.987651586532593 (seconds)
+[03-19 11:51:00]:INFO:MatchMaking: Received (600,NaiveSP,ppo_h64_rnn). 52/60 received
+[03-19 11:51:01]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5885965824127197 seconds
+[03-19 11:51:01]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 300. 38/210 received. Started for 10 episodes
+[03-19 11:51:01]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:03]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 700 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/700_iterations.pt
+[03-19 11:51:03]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [600,700]: 8.438846826553345 (seconds)
+[03-19 11:51:03]:INFO:MatchMaking: Received (700,NaiveSP,ppo_h64_mlp). 53/60 received
+[03-19 11:51:03]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5801677703857422 seconds
+[03-19 11:51:03]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 300. 39/210 received. Started for 10 episodes
+[03-19 11:51:03]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:05]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6750435829162598 seconds
+[03-19 11:51:05]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 400. 40/210 received. Started for 10 episodes
+[03-19 11:51:05]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:06]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5977718830108643 seconds
+[03-19 11:51:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 400. 41/210 received. Started for 10 episodes
+[03-19 11:51:06]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:08]:INFO:Benchmarking: Benchmarking finished. Duration: 1.628678798675537 seconds
+[03-19 11:51:08]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:08]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 400. 42/210 received. Started for 10 episodes
+[03-19 11:51:09]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5446536540985107 seconds
+[03-19 11:51:09]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 500. 43/210 received. Started for 10 episodes
+[03-19 11:51:09]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:10]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 700 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/700_iterations.pt
+[03-19 11:51:10]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [600,700]: 9.292553901672363 (seconds)
+[03-19 11:51:10]:INFO:MatchMaking: Received (700,NaiveSP,ppo_h64_rnn). 54/60 received
+[03-19 11:51:11]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5232658386230469 seconds
+[03-19 11:51:11]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 500. 44/210 received. Started for 10 episodes
+[03-19 11:51:11]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 800 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/800_iterations.pt
+[03-19 11:51:11]:INFO:MatchMaking: Received (800,NaiveSP,ppo_h64_mlp). 55/60 received
+[03-19 11:51:11]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [700,800]: 8.398021697998047 (seconds)
+[03-19 11:51:12]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5353784561157227 seconds
+[03-19 11:51:12]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 500. 45/210 received. Started for 10 episodes
+[03-19 11:51:13]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:14]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5671477317810059 seconds
+[03-19 11:51:14]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 600. 46/210 received. Started for 10 episodes
+[03-19 11:51:14]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:16]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6564679145812988 seconds
+[03-19 11:51:16]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 600. 47/210 received. Started for 10 episodes
+[03-19 11:51:16]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:17]:INFO:Benchmarking: Benchmarking finished. Duration: 1.7175047397613525 seconds
+[03-19 11:51:17]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 600. 48/210 received. Started for 10 episodes
+[03-19 11:51:17]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:19]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 800 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/800_iterations.pt
+[03-19 11:51:19]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [700,800]: 9.058263540267944 (seconds)
+[03-19 11:51:19]:INFO:MatchMaking: Received (800,NaiveSP,ppo_h64_rnn). 56/60 received
+[03-19 11:51:19]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6277134418487549 seconds
+[03-19 11:51:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 700. 49/210 received. Started for 10 episodes
+[03-19 11:51:19]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:19]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 900 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/900_iterations.pt
+[03-19 11:51:19]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [800,900]: 8.091944694519043 (seconds)
+[03-19 11:51:19]:INFO:MatchMaking: Received (900,NaiveSP,ppo_h64_mlp). 57/60 received
+[03-19 11:51:21]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5376100540161133 seconds
+[03-19 11:51:21]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:21]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 700. 50/210 received. Started for 10 episodes
+[03-19 11:51:22]:INFO:Benchmarking: Benchmarking finished. Duration: 1.642674207687378 seconds
+[03-19 11:51:22]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 700. 51/210 received. Started for 10 episodes
+[03-19 11:51:22]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:24]:INFO:Benchmarking: Benchmarking finished. Duration: 1.8561749458312988 seconds
+[03-19 11:51:24]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:24]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 800. 52/210 received. Started for 10 episodes
+[03-19 11:51:26]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6556098461151123 seconds
+[03-19 11:51:26]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 800. 53/210 received. Started for 10 episodes
+[03-19 11:51:26]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:27]:INFO:Benchmarking: Benchmarking finished. Duration: 1.527369737625122 seconds
+[03-19 11:51:27]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 800. 54/210 received. Started for 10 episodes
+[03-19 11:51:27]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:28]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 1000 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_mlp/1000_iterations.pt
+[03-19 11:51:28]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [900,1000]: 8.462235689163208 (seconds)
+[03-19 11:51:28]:INFO:NaiveSP-ppo_h64_mlp: All training completed. Total duration: 83.78678154945374 seconds
+[03-19 11:51:28]:INFO:MatchMaking: Received (1000,NaiveSP,ppo_h64_mlp). 58/60 received
+[03-19 11:51:28]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 900 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/900_iterations.pt
+[03-19 11:51:28]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [800,900]: 9.156830549240112 (seconds)
+[03-19 11:51:28]:INFO:MatchMaking: Received (900,NaiveSP,ppo_h64_rnn). 59/60 received
+[03-19 11:51:29]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5861594676971436 seconds
+[03-19 11:51:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 900. 55/210 received. Started for 10 episodes
+[03-19 11:51:29]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:30]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4534361362457275 seconds
+[03-19 11:51:30]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 900. 56/210 received. Started for 10 episodes
+[03-19 11:51:30]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:32]:INFO:Benchmarking: Benchmarking finished. Duration: 1.477755069732666 seconds
+[03-19 11:51:32]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:32]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 900. 57/210 received. Started for 10 episodes
+[03-19 11:51:33]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5012218952178955 seconds
+[03-19 11:51:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 1000. 58/210 received. Started for 10 episodes
+[03-19 11:51:33]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:35]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5547327995300293 seconds
+[03-19 11:51:35]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:35]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 1000. 59/210 received. Started for 10 episodes
+[03-19 11:51:36]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 1000 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-0/NaiveSP-ppo_h64_rnn/1000_iterations.pt
+[03-19 11:51:36]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [900,1000]: 7.706966161727905 (seconds)
+[03-19 11:51:36]:INFO:NaiveSP-ppo_h64_rnn: All training completed. Total duration: 89.11180806159973 seconds
+[03-19 11:51:36]:INFO:MatchMaking: Received (1000,NaiveSP,ppo_h64_rnn). 60/60 received
+[03-19 11:51:36]:INFO:MatchMaking: All expected trained agents have been recieved. Shutting down
+[03-19 11:51:36]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3856585025787354 seconds
+[03-19 11:51:36]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 1000. 60/210 received. Started for 10 episodes
+[03-19 11:51:36]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:38]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3928234577178955 seconds
+[03-19 11:51:38]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 61/210 received. Started for 10 episodes
+[03-19 11:51:38]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 11:51:39]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3473272323608398 seconds
+[03-19 11:51:39]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:39]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 62/210 received. Started for 10 episodes
+[03-19 11:51:40]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4290058612823486 seconds
+[03-19 11:51:40]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 63/210 received. Started for 10 episodes
+[03-19 11:51:40]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:42]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3158941268920898 seconds
+[03-19 11:51:42]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 64/210 received. Started for 10 episodes
+[03-19 11:51:42]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:43]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3591294288635254 seconds
+[03-19 11:51:43]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 65/210 received. Started for 10 episodes
+[03-19 11:51:43]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:45]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3913779258728027 seconds
+[03-19 11:51:45]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 66/210 received. Started for 10 episodes
+[03-19 11:51:45]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:46]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3344831466674805 seconds
+[03-19 11:51:46]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 67/210 received. Started for 10 episodes
+[03-19 11:51:46]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:47]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4217147827148438 seconds
+[03-19 11:51:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 68/210 received. Started for 10 episodes
+[03-19 11:51:47]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:49]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3812520503997803 seconds
+[03-19 11:51:49]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 69/210 received. Started for 10 episodes
+[03-19 11:51:49]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:50]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3726520538330078 seconds
+[03-19 11:51:50]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 70/210 received. Started for 10 episodes
+[03-19 11:51:50]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:51]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3742444515228271 seconds
+[03-19 11:51:51]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 71/210 received. Started for 10 episodes
+[03-19 11:51:51]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:53]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3483514785766602 seconds
+[03-19 11:51:53]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 72/210 received. Started for 10 episodes
+[03-19 11:51:53]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:54]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3626956939697266 seconds
+[03-19 11:51:54]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 73/210 received. Started for 10 episodes
+[03-19 11:51:54]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:55]:INFO:Benchmarking: Benchmarking finished. Duration: 1.326995611190796 seconds
+[03-19 11:51:55]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:55]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 74/210 received. Started for 10 episodes
+[03-19 11:51:57]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4735689163208008 seconds
+[03-19 11:51:57]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 75/210 received. Started for 10 episodes
+[03-19 11:51:57]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:51:58]:INFO:Benchmarking: Benchmarking finished. Duration: 1.373105525970459 seconds
+[03-19 11:51:58]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 76/210 received. Started for 10 episodes
+[03-19 11:51:58]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:00]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3670384883880615 seconds
+[03-19 11:52:00]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 77/210 received. Started for 10 episodes
+[03-19 11:52:00]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:01]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4204967021942139 seconds
+[03-19 11:52:01]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 78/210 received. Started for 10 episodes
+[03-19 11:52:01]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:03]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5253608226776123 seconds
+[03-19 11:52:03]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 79/210 received. Started for 10 episodes
+[03-19 11:52:03]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:04]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5347137451171875 seconds
+[03-19 11:52:04]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 80/210 received. Started for 10 episodes
+[03-19 11:52:04]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:06]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5018367767333984 seconds
+[03-19 11:52:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 81/210 received. Started for 10 episodes
+[03-19 11:52:06]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:07]:INFO:Benchmarking: Benchmarking finished. Duration: 1.528256893157959 seconds
+[03-19 11:52:07]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 82/210 received. Started for 10 episodes
+[03-19 11:52:07]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:09]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5341956615447998 seconds
+[03-19 11:52:09]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 83/210 received. Started for 10 episodes
+[03-19 11:52:09]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:10]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3885347843170166 seconds
+[03-19 11:52:10]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 84/210 received. Started for 10 episodes
+[03-19 11:52:10]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:11]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3727588653564453 seconds
+[03-19 11:52:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 85/210 received. Started for 10 episodes
+[03-19 11:52:11]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:13]:INFO:Benchmarking: Benchmarking finished. Duration: 1.430537223815918 seconds
+[03-19 11:52:13]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:13]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 86/210 received. Started for 10 episodes
+[03-19 11:52:15]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5852134227752686 seconds
+[03-19 11:52:15]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 87/210 received. Started for 10 episodes
+[03-19 11:52:15]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:16]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6152253150939941 seconds
+[03-19 11:52:16]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 88/210 received. Started for 10 episodes
+[03-19 11:52:16]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:18]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3757362365722656 seconds
+[03-19 11:52:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 89/210 received. Started for 10 episodes
+[03-19 11:52:18]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:19]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4258646965026855 seconds
+[03-19 11:52:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 90/210 received. Started for 10 episodes
+[03-19 11:52:19]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:20]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3196723461151123 seconds
+[03-19 11:52:20]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 91/210 received. Started for 10 episodes
+[03-19 11:52:20]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:22]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6794171333312988 seconds
+[03-19 11:52:22]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:22]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 92/210 received. Started for 10 episodes
+[03-19 11:52:23]:INFO:Benchmarking: Benchmarking finished. Duration: 1.37361741065979 seconds
+[03-19 11:52:23]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 93/210 received. Started for 10 episodes
+[03-19 11:52:23]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:25]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3948829174041748 seconds
+[03-19 11:52:25]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 94/210 received. Started for 10 episodes
+[03-19 11:52:25]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:26]:INFO:Benchmarking: Benchmarking finished. Duration: 1.441370964050293 seconds
+[03-19 11:52:26]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 95/210 received. Started for 10 episodes
+[03-19 11:52:26]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:28]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4381146430969238 seconds
+[03-19 11:52:28]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 96/210 received. Started for 10 episodes
+[03-19 11:52:28]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:29]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3603804111480713 seconds
+[03-19 11:52:29]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 97/210 received. Started for 10 episodes
+[03-19 11:52:30]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3305258750915527 seconds
+[03-19 11:52:30]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 98/210 received. Started for 10 episodes
+[03-19 11:52:30]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:32]:INFO:Benchmarking: Benchmarking finished. Duration: 1.396240234375 seconds
+[03-19 11:52:32]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 99/210 received. Started for 10 episodes
+[03-19 11:52:32]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:33]:INFO:Benchmarking: Benchmarking finished. Duration: 1.37711501121521 seconds
+[03-19 11:52:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 100/210 received. Started for 10 episodes
+[03-19 11:52:33]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:34]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4217257499694824 seconds
+[03-19 11:52:34]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 11:52:34]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 101/210 received. Started for 10 episodes
+[03-19 11:52:39]:INFO:Benchmarking: Benchmarking finished. Duration: 4.536010503768921 seconds
+[03-19 11:52:39]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 102/210 received. Started for 10 episodes
+[03-19 11:52:39]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:52:43]:INFO:Benchmarking: Benchmarking finished. Duration: 4.437494993209839 seconds
+[03-19 11:52:43]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 103/210 received. Started for 10 episodes
+[03-19 11:52:43]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:52:48]:INFO:Benchmarking: Benchmarking finished. Duration: 4.298562526702881 seconds
+[03-19 11:52:48]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:52:48]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 104/210 received. Started for 10 episodes
+[03-19 11:52:52]:INFO:Benchmarking: Benchmarking finished. Duration: 4.212048053741455 seconds
+[03-19 11:52:52]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:52:52]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 105/210 received. Started for 10 episodes
+[03-19 11:52:57]:INFO:Benchmarking: Benchmarking finished. Duration: 4.9872541427612305 seconds
+[03-19 11:52:57]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 106/210 received. Started for 10 episodes
+[03-19 11:52:57]:INFO:ConfusionMatrixPopulate: Received: it:100 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:53:01]:INFO:Benchmarking: Benchmarking finished. Duration: 4.354351997375488 seconds
+[03-19 11:53:01]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 107/210 received. Started for 10 episodes
+[03-19 11:53:01]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:53:06]:INFO:Benchmarking: Benchmarking finished. Duration: 4.555917501449585 seconds
+[03-19 11:53:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 108/210 received. Started for 10 episodes
+[03-19 11:53:06]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:53:11]:INFO:Benchmarking: Benchmarking finished. Duration: 4.689775705337524 seconds
+[03-19 11:53:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 109/210 received. Started for 10 episodes
+[03-19 11:53:11]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:53:15]:INFO:Benchmarking: Benchmarking finished. Duration: 4.734838008880615 seconds
+[03-19 11:53:15]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:53:15]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 110/210 received. Started for 10 episodes
+[03-19 11:53:20]:INFO:Benchmarking: Benchmarking finished. Duration: 4.589549779891968 seconds
+[03-19 11:53:20]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 111/210 received. Started for 10 episodes
+[03-19 11:53:20]:INFO:ConfusionMatrixPopulate: Received: it:100 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:53:25]:INFO:Benchmarking: Benchmarking finished. Duration: 5.072536945343018 seconds
+[03-19 11:53:25]:INFO:ConfusionMatrixPopulate: Received: it:100 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:53:25]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 112/210 received. Started for 10 episodes
+[03-19 11:53:29]:INFO:Benchmarking: Benchmarking finished. Duration: 4.1503376960754395 seconds
+[03-19 11:53:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 113/210 received. Started for 10 episodes
+[03-19 11:53:29]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:53:34]:INFO:Benchmarking: Benchmarking finished. Duration: 4.276493549346924 seconds
+[03-19 11:53:34]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:53:34]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 114/210 received. Started for 10 episodes
+[03-19 11:53:38]:INFO:Benchmarking: Benchmarking finished. Duration: 4.280425548553467 seconds
+[03-19 11:53:38]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:53:38]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 115/210 received. Started for 10 episodes
+[03-19 11:53:42]:INFO:Benchmarking: Benchmarking finished. Duration: 4.402463674545288 seconds
+[03-19 11:53:42]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 116/210 received. Started for 10 episodes
+[03-19 11:53:42]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:53:47]:INFO:Benchmarking: Benchmarking finished. Duration: 4.551003456115723 seconds
+[03-19 11:53:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 117/210 received. Started for 10 episodes
+[03-19 11:53:47]:INFO:ConfusionMatrixPopulate: Received: it:200 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:53:51]:INFO:Benchmarking: Benchmarking finished. Duration: 4.461740255355835 seconds
+[03-19 11:53:51]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:53:51]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 118/210 received. Started for 10 episodes
+[03-19 11:53:56]:INFO:Benchmarking: Benchmarking finished. Duration: 4.376938581466675 seconds
+[03-19 11:53:56]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 119/210 received. Started for 10 episodes
+[03-19 11:53:56]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:00]:INFO:Benchmarking: Benchmarking finished. Duration: 4.324580669403076 seconds
+[03-19 11:54:00]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 120/210 received. Started for 10 episodes
+[03-19 11:54:00]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:05]:INFO:Benchmarking: Benchmarking finished. Duration: 4.542843580245972 seconds
+[03-19 11:54:05]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:05]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 121/210 received. Started for 10 episodes
+[03-19 11:54:09]:INFO:Benchmarking: Benchmarking finished. Duration: 4.697033643722534 seconds
+[03-19 11:54:09]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 122/210 received. Started for 10 episodes
+[03-19 11:54:09]:INFO:ConfusionMatrixPopulate: Received: it:200 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:14]:INFO:Benchmarking: Benchmarking finished. Duration: 4.791384220123291 seconds
+[03-19 11:54:14]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 123/210 received. Started for 10 episodes
+[03-19 11:54:14]:INFO:ConfusionMatrixPopulate: Received: it:200 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:19]:INFO:Benchmarking: Benchmarking finished. Duration: 4.46977972984314 seconds
+[03-19 11:54:19]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:54:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 124/210 received. Started for 10 episodes
+[03-19 11:54:23]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3423357009887695 seconds
+[03-19 11:54:23]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:54:23]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 125/210 received. Started for 10 episodes
+[03-19 11:54:27]:INFO:Benchmarking: Benchmarking finished. Duration: 4.443556785583496 seconds
+[03-19 11:54:27]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 126/210 received. Started for 10 episodes
+[03-19 11:54:27]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:54:32]:INFO:Benchmarking: Benchmarking finished. Duration: 4.336076021194458 seconds
+[03-19 11:54:32]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 127/210 received. Started for 10 episodes
+[03-19 11:54:32]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:54:36]:INFO:Benchmarking: Benchmarking finished. Duration: 4.794992923736572 seconds
+[03-19 11:54:36]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 128/210 received. Started for 10 episodes
+[03-19 11:54:36]:INFO:ConfusionMatrixPopulate: Received: it:300 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:54:41]:INFO:Benchmarking: Benchmarking finished. Duration: 4.489014148712158 seconds
+[03-19 11:54:41]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:41]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 129/210 received. Started for 10 episodes
+[03-19 11:54:45]:INFO:Benchmarking: Benchmarking finished. Duration: 4.347768545150757 seconds
+[03-19 11:54:45]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:45]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 130/210 received. Started for 10 episodes
+[03-19 11:54:50]:INFO:Benchmarking: Benchmarking finished. Duration: 4.4557695388793945 seconds
+[03-19 11:54:50]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:50]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 131/210 received. Started for 10 episodes
+[03-19 11:54:55]:INFO:Benchmarking: Benchmarking finished. Duration: 4.754331588745117 seconds
+[03-19 11:54:55]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:54:55]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 132/210 received. Started for 10 episodes
+[03-19 11:54:59]:INFO:Benchmarking: Benchmarking finished. Duration: 4.812903881072998 seconds
+[03-19 11:54:59]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 133/210 received. Started for 10 episodes
+[03-19 11:54:59]:INFO:ConfusionMatrixPopulate: Received: it:300 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:05]:INFO:Benchmarking: Benchmarking finished. Duration: 5.11548113822937 seconds
+[03-19 11:55:05]:INFO:ConfusionMatrixPopulate: Received: it:300 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:05]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 134/210 received. Started for 10 episodes
+[03-19 11:55:09]:INFO:Benchmarking: Benchmarking finished. Duration: 4.359722137451172 seconds
+[03-19 11:55:09]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 135/210 received. Started for 10 episodes
+[03-19 11:55:09]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:55:13]:INFO:Benchmarking: Benchmarking finished. Duration: 4.329295635223389 seconds
+[03-19 11:55:13]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:55:13]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 136/210 received. Started for 10 episodes
+[03-19 11:55:18]:INFO:Benchmarking: Benchmarking finished. Duration: 4.540640115737915 seconds
+[03-19 11:55:18]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:55:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 137/210 received. Started for 10 episodes
+[03-19 11:55:22]:INFO:Benchmarking: Benchmarking finished. Duration: 4.351048946380615 seconds
+[03-19 11:55:22]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:55:22]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 138/210 received. Started for 10 episodes
+[03-19 11:55:27]:INFO:Benchmarking: Benchmarking finished. Duration: 4.860078811645508 seconds
+[03-19 11:55:27]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 139/210 received. Started for 10 episodes
+[03-19 11:55:27]:INFO:ConfusionMatrixPopulate: Received: it:400 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:55:31]:INFO:Benchmarking: Benchmarking finished. Duration: 4.31468391418457 seconds
+[03-19 11:55:31]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 140/210 received. Started for 10 episodes
+[03-19 11:55:31]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:36]:INFO:Benchmarking: Benchmarking finished. Duration: 4.20725417137146 seconds
+[03-19 11:55:36]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:36]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 141/210 received. Started for 10 episodes
+[03-19 11:55:40]:INFO:Benchmarking: Benchmarking finished. Duration: 4.581389665603638 seconds
+[03-19 11:55:40]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 142/210 received. Started for 10 episodes
+[03-19 11:55:40]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:44]:INFO:Benchmarking: Benchmarking finished. Duration: 4.31221866607666 seconds
+[03-19 11:55:44]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:44]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 143/210 received. Started for 10 episodes
+[03-19 11:55:49]:INFO:Benchmarking: Benchmarking finished. Duration: 4.700105667114258 seconds
+[03-19 11:55:49]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 144/210 received. Started for 10 episodes
+[03-19 11:55:49]:INFO:ConfusionMatrixPopulate: Received: it:400 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:54]:INFO:Benchmarking: Benchmarking finished. Duration: 4.683689832687378 seconds
+[03-19 11:55:54]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 145/210 received. Started for 10 episodes
+[03-19 11:55:54]:INFO:ConfusionMatrixPopulate: Received: it:400 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:55:58]:INFO:Benchmarking: Benchmarking finished. Duration: 4.1747729778289795 seconds
+[03-19 11:55:58]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 146/210 received. Started for 10 episodes
+[03-19 11:55:58]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:02]:INFO:Benchmarking: Benchmarking finished. Duration: 4.370431900024414 seconds
+[03-19 11:56:02]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 147/210 received. Started for 10 episodes
+[03-19 11:56:02]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:07]:INFO:Benchmarking: Benchmarking finished. Duration: 4.322143793106079 seconds
+[03-19 11:56:07]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 148/210 received. Started for 10 episodes
+[03-19 11:56:07]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:11]:INFO:Benchmarking: Benchmarking finished. Duration: 4.052594423294067 seconds
+[03-19 11:56:11]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:11]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 149/210 received. Started for 10 episodes
+[03-19 11:56:15]:INFO:Benchmarking: Benchmarking finished. Duration: 4.373962163925171 seconds
+[03-19 11:56:15]:INFO:ConfusionMatrixPopulate: Received: it:500 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:15]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 150/210 received. Started for 10 episodes
+[03-19 11:56:19]:INFO:Benchmarking: Benchmarking finished. Duration: 4.122397422790527 seconds
+[03-19 11:56:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 151/210 received. Started for 10 episodes
+[03-19 11:56:19]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:56:24]:INFO:Benchmarking: Benchmarking finished. Duration: 4.256481647491455 seconds
+[03-19 11:56:24]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:56:24]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 152/210 received. Started for 10 episodes
+[03-19 11:56:28]:INFO:Benchmarking: Benchmarking finished. Duration: 4.041278839111328 seconds
+[03-19 11:56:28]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:56:28]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 153/210 received. Started for 10 episodes
+[03-19 11:56:32]:INFO:Benchmarking: Benchmarking finished. Duration: 4.055521488189697 seconds
+[03-19 11:56:32]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:56:32]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 154/210 received. Started for 10 episodes
+[03-19 11:56:36]:INFO:Benchmarking: Benchmarking finished. Duration: 4.40140962600708 seconds
+[03-19 11:56:36]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 155/210 received. Started for 10 episodes
+[03-19 11:56:36]:INFO:ConfusionMatrixPopulate: Received: it:500 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:56:41]:INFO:Benchmarking: Benchmarking finished. Duration: 4.485997676849365 seconds
+[03-19 11:56:41]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 156/210 received. Started for 10 episodes
+[03-19 11:56:41]:INFO:ConfusionMatrixPopulate: Received: it:500 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:56:45]:INFO:Benchmarking: Benchmarking finished. Duration: 4.354104518890381 seconds
+[03-19 11:56:45]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 157/210 received. Started for 10 episodes
+[03-19 11:56:45]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:49]:INFO:Benchmarking: Benchmarking finished. Duration: 4.2000510692596436 seconds
+[03-19 11:56:49]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:49]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 158/210 received. Started for 10 episodes
+[03-19 11:56:53]:INFO:Benchmarking: Benchmarking finished. Duration: 4.202548503875732 seconds
+[03-19 11:56:53]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:53]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 159/210 received. Started for 10 episodes
+[03-19 11:56:58]:INFO:Benchmarking: Benchmarking finished. Duration: 4.174630880355835 seconds
+[03-19 11:56:58]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:56:58]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 160/210 received. Started for 10 episodes
+[03-19 11:57:02]:INFO:Benchmarking: Benchmarking finished. Duration: 4.599889278411865 seconds
+[03-19 11:57:02]:INFO:ConfusionMatrixPopulate: Received: it:600 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:57:02]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 161/210 received. Started for 10 episodes
+[03-19 11:57:06]:INFO:Benchmarking: Benchmarking finished. Duration: 4.253890752792358 seconds
+[03-19 11:57:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 162/210 received. Started for 10 episodes
+[03-19 11:57:06]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:57:11]:INFO:Benchmarking: Benchmarking finished. Duration: 4.383189678192139 seconds
+[03-19 11:57:11]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:57:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 163/210 received. Started for 10 episodes
+[03-19 11:57:15]:INFO:Benchmarking: Benchmarking finished. Duration: 4.543444633483887 seconds
+[03-19 11:57:15]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:57:15]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 164/210 received. Started for 10 episodes
+[03-19 11:57:20]:INFO:Benchmarking: Benchmarking finished. Duration: 4.434802532196045 seconds
+[03-19 11:57:20]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:57:20]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 165/210 received. Started for 10 episodes
+[03-19 11:57:25]:INFO:Benchmarking: Benchmarking finished. Duration: 4.836475372314453 seconds
+[03-19 11:57:25]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 166/210 received. Started for 10 episodes
+[03-19 11:57:25]:INFO:ConfusionMatrixPopulate: Received: it:600 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:57:29]:INFO:Benchmarking: Benchmarking finished. Duration: 4.704021215438843 seconds
+[03-19 11:57:29]:INFO:ConfusionMatrixPopulate: Received: it:600 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:57:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 167/210 received. Started for 10 episodes
+[03-19 11:57:34]:INFO:Benchmarking: Benchmarking finished. Duration: 4.187151193618774 seconds
+[03-19 11:57:34]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 168/210 received. Started for 10 episodes
+[03-19 11:57:34]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:57:38]:INFO:Benchmarking: Benchmarking finished. Duration: 4.246192216873169 seconds
+[03-19 11:57:38]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 169/210 received. Started for 10 episodes
+[03-19 11:57:38]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:57:42]:INFO:Benchmarking: Benchmarking finished. Duration: 4.277083396911621 seconds
+[03-19 11:57:42]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:57:42]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 170/210 received. Started for 10 episodes
+[03-19 11:57:46]:INFO:Benchmarking: Benchmarking finished. Duration: 4.112488508224487 seconds
+[03-19 11:57:46]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 171/210 received. Started for 10 episodes
+[03-19 11:57:46]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:57:51]:INFO:Benchmarking: Benchmarking finished. Duration: 4.366523265838623 seconds
+[03-19 11:57:51]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 172/210 received. Started for 10 episodes
+[03-19 11:57:51]:INFO:ConfusionMatrixPopulate: Received: it:700 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:57:55]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3324875831604 seconds
+[03-19 11:57:55]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 173/210 received. Started for 10 episodes
+[03-19 11:57:55]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:57:59]:INFO:Benchmarking: Benchmarking finished. Duration: 4.363361358642578 seconds
+[03-19 11:57:59]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 174/210 received. Started for 10 episodes
+[03-19 11:57:59]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:04]:INFO:Benchmarking: Benchmarking finished. Duration: 4.2072343826293945 seconds
+[03-19 11:58:04]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 175/210 received. Started for 10 episodes
+[03-19 11:58:04]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:08]:INFO:Benchmarking: Benchmarking finished. Duration: 4.1955530643463135 seconds
+[03-19 11:58:08]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:08]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 176/210 received. Started for 10 episodes
+[03-19 11:58:12]:INFO:Benchmarking: Benchmarking finished. Duration: 4.49391508102417 seconds
+[03-19 11:58:12]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 177/210 received. Started for 10 episodes
+[03-19 11:58:12]:INFO:ConfusionMatrixPopulate: Received: it:700 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:17]:INFO:Benchmarking: Benchmarking finished. Duration: 4.567169189453125 seconds
+[03-19 11:58:17]:INFO:ConfusionMatrixPopulate: Received: it:700 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:17]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 178/210 received. Started for 10 episodes
+[03-19 11:58:21]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3831703662872314 seconds
+[03-19 11:58:21]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 179/210 received. Started for 10 episodes
+[03-19 11:58:21]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:58:26]:INFO:Benchmarking: Benchmarking finished. Duration: 4.435381889343262 seconds
+[03-19 11:58:26]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 180/210 received. Started for 10 episodes
+[03-19 11:58:26]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:58:30]:INFO:Benchmarking: Benchmarking finished. Duration: 4.52547287940979 seconds
+[03-19 11:58:30]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 181/210 received. Started for 10 episodes
+[03-19 11:58:30]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:58:35]:INFO:Benchmarking: Benchmarking finished. Duration: 4.488390922546387 seconds
+[03-19 11:58:35]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:58:35]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 182/210 received. Started for 10 episodes
+[03-19 11:58:39]:INFO:Benchmarking: Benchmarking finished. Duration: 4.439066648483276 seconds
+[03-19 11:58:39]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 183/210 received. Started for 10 episodes
+[03-19 11:58:39]:INFO:ConfusionMatrixPopulate: Received: it:800 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:58:44]:INFO:Benchmarking: Benchmarking finished. Duration: 4.4615318775177 seconds
+[03-19 11:58:44]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 184/210 received. Started for 10 episodes
+[03-19 11:58:44]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:48]:INFO:Benchmarking: Benchmarking finished. Duration: 4.512915134429932 seconds
+[03-19 11:58:48]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:48]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 185/210 received. Started for 10 episodes
+[03-19 11:58:53]:INFO:Benchmarking: Benchmarking finished. Duration: 4.476714849472046 seconds
+[03-19 11:58:53]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:53]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 186/210 received. Started for 10 episodes
+[03-19 11:58:57]:INFO:Benchmarking: Benchmarking finished. Duration: 4.226141452789307 seconds
+[03-19 11:58:57]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:58:57]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 187/210 received. Started for 10 episodes
+[03-19 11:59:01]:INFO:Benchmarking: Benchmarking finished. Duration: 4.333665609359741 seconds
+[03-19 11:59:01]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 188/210 received. Started for 10 episodes
+[03-19 11:59:01]:INFO:ConfusionMatrixPopulate: Received: it:800 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:59:06]:INFO:Benchmarking: Benchmarking finished. Duration: 4.380833387374878 seconds
+[03-19 11:59:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 189/210 received. Started for 10 episodes
+[03-19 11:59:06]:INFO:ConfusionMatrixPopulate: Received: it:800 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:59:10]:INFO:Benchmarking: Benchmarking finished. Duration: 4.181089162826538 seconds
+[03-19 11:59:10]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 190/210 received. Started for 10 episodes
+[03-19 11:59:10]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:14]:INFO:Benchmarking: Benchmarking finished. Duration: 4.190641641616821 seconds
+[03-19 11:59:14]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:14]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 191/210 received. Started for 10 episodes
+[03-19 11:59:18]:INFO:Benchmarking: Benchmarking finished. Duration: 4.450127601623535 seconds
+[03-19 11:59:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 192/210 received. Started for 10 episodes
+[03-19 11:59:18]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:23]:INFO:Benchmarking: Benchmarking finished. Duration: 4.395050764083862 seconds
+[03-19 11:59:23]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:23]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 193/210 received. Started for 10 episodes
+[03-19 11:59:27]:INFO:Benchmarking: Benchmarking finished. Duration: 4.349124431610107 seconds
+[03-19 11:59:27]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 194/210 received. Started for 10 episodes
+[03-19 11:59:27]:INFO:ConfusionMatrixPopulate: Received: it:900 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:31]:INFO:Benchmarking: Benchmarking finished. Duration: 4.201689958572388 seconds
+[03-19 11:59:31]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:31]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 195/210 received. Started for 10 episodes
+[03-19 11:59:36]:INFO:Benchmarking: Benchmarking finished. Duration: 4.234985828399658 seconds
+[03-19 11:59:36]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 196/210 received. Started for 10 episodes
+[03-19 11:59:36]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:40]:INFO:Benchmarking: Benchmarking finished. Duration: 4.37451171875 seconds
+[03-19 11:59:40]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 197/210 received. Started for 10 episodes
+[03-19 11:59:40]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:44]:INFO:Benchmarking: Benchmarking finished. Duration: 4.274741888046265 seconds
+[03-19 11:59:44]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 198/210 received. Started for 10 episodes
+[03-19 11:59:44]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:49]:INFO:Benchmarking: Benchmarking finished. Duration: 4.400847434997559 seconds
+[03-19 11:59:49]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 199/210 received. Started for 10 episodes
+[03-19 11:59:49]:INFO:ConfusionMatrixPopulate: Received: it:1000 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 11:59:54]:INFO:Benchmarking: Benchmarking finished. Duration: 4.79846978187561 seconds
+[03-19 11:59:54]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 200/210 received. Started for 10 episodes
+[03-19 11:59:54]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 11:59:58]:INFO:Benchmarking: Benchmarking finished. Duration: 4.33455228805542 seconds
+[03-19 11:59:58]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 201/210 received. Started for 10 episodes
+[03-19 11:59:58]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:02]:INFO:Benchmarking: Benchmarking finished. Duration: 4.362958908081055 seconds
+[03-19 12:00:02]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:02]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 202/210 received. Started for 10 episodes
+[03-19 12:00:07]:INFO:Benchmarking: Benchmarking finished. Duration: 4.358505010604858 seconds
+[03-19 12:00:07]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:07]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 203/210 received. Started for 10 episodes
+[03-19 12:00:11]:INFO:Benchmarking: Benchmarking finished. Duration: 4.736722946166992 seconds
+[03-19 12:00:11]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 204/210 received. Started for 10 episodes
+[03-19 12:00:11]:INFO:ConfusionMatrixPopulate: Received: it:900 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:16]:INFO:Benchmarking: Benchmarking finished. Duration: 4.833285331726074 seconds
+[03-19 12:00:16]:INFO:ConfusionMatrixPopulate: Received: it:900 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:16]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 205/210 received. Started for 10 episodes
+[03-19 12:00:21]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3954081535339355 seconds
+[03-19 12:00:21]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 206/210 received. Started for 10 episodes
+[03-19 12:00:21]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:25]:INFO:Benchmarking: Benchmarking finished. Duration: 4.162143230438232 seconds
+[03-19 12:00:25]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:25]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 207/210 received. Started for 10 episodes
+[03-19 12:00:29]:INFO:Benchmarking: Benchmarking finished. Duration: 4.230503797531128 seconds
+[03-19 12:00:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 208/210 received. Started for 10 episodes
+[03-19 12:00:29]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:33]:INFO:Benchmarking: Benchmarking finished. Duration: 4.338571310043335 seconds
+[03-19 12:00:33]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:33]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 209/210 received. Started for 10 episodes
+[03-19 12:00:38]:INFO:Benchmarking: Benchmarking finished. Duration: 4.468394994735718 seconds
+[03-19 12:00:38]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 210/210 received. Started for 10 episodes
+[03-19 12:00:38]:INFO:ConfusionMatrixPopulate: Received: it:1000 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:42]:INFO:Benchmarking: Benchmarking finished. Duration: 4.400591135025024 seconds
+[03-19 12:00:42]:INFO:Benchmarking: All expected trained agents have been recieved. Shutting down
+[03-19 12:00:42]:INFO:ConfusionMatrixPopulate: Received: it:1000 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:00:42]:INFO:ConfusionMatrixPopulate: All confusion matrices completed. Writing to memory
+[03-19 12:00:42]:INFO:ConfusionMatrixPopulate: Writing completed
+[03-19 12:00:42]:INFO:__main__: Finished run: 0. Duration: 643.4344215393066 (seconds)
+
+[03-19 12:00:42]:INFO:__main__: Starting run: 1
+[03-19 12:00:42]:INFO:CreateTrainingProcesses: Training 2 jobs: [NaiveSP-ppo_h64_rnn, NaiveSP-ppo_h64_mlp]. 
+[03-19 12:00:42]:INFO:CreateTrainingProcesses: Training 2 jobs: [NaiveSP-ppo_h64_rnn, NaiveSP-ppo_h64_mlp]. 
+[03-19 12:00:42]:INFO:CreateTrainingProcesses: All training jobs submitted
+[03-19 12:00:42]:INFO:CreateTrainingProcesses: All training jobs submitted
+[03-19 12:00:44]:INFO:MatchMaking: Started
+[03-19 12:00:44]:INFO:MatchMaking: Received (100,EmptySelfPlay,RockAgent). 1/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (200,EmptySelfPlay,RockAgent). 2/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (300,EmptySelfPlay,RockAgent). 3/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (400,EmptySelfPlay,RockAgent). 4/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (500,EmptySelfPlay,RockAgent). 5/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (600,EmptySelfPlay,RockAgent). 6/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (700,EmptySelfPlay,RockAgent). 7/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (800,EmptySelfPlay,RockAgent). 8/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (900,EmptySelfPlay,RockAgent). 9/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (1000,EmptySelfPlay,RockAgent). 10/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (100,EmptySelfPlay,PaperAgent). 11/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (200,EmptySelfPlay,PaperAgent). 12/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (300,EmptySelfPlay,PaperAgent). 13/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (400,EmptySelfPlay,PaperAgent). 14/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (500,EmptySelfPlay,PaperAgent). 15/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (600,EmptySelfPlay,PaperAgent). 16/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (700,EmptySelfPlay,PaperAgent). 17/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (800,EmptySelfPlay,PaperAgent). 18/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (900,EmptySelfPlay,PaperAgent). 19/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (1000,EmptySelfPlay,PaperAgent). 20/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (100,EmptySelfPlay,ScissorsAgent). 21/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (200,EmptySelfPlay,ScissorsAgent). 22/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (300,EmptySelfPlay,ScissorsAgent). 23/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (400,EmptySelfPlay,ScissorsAgent). 24/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (500,EmptySelfPlay,ScissorsAgent). 25/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (600,EmptySelfPlay,ScissorsAgent). 26/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (700,EmptySelfPlay,ScissorsAgent). 27/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (800,EmptySelfPlay,ScissorsAgent). 28/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (900,EmptySelfPlay,ScissorsAgent). 29/60 received
+[03-19 12:00:44]:INFO:MatchMaking: Received (1000,EmptySelfPlay,ScissorsAgent). 30/60 received
+[03-19 12:00:44]:INFO:Benchmarking: Started
+[03-19 12:00:44]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 100. 1/210 received. Started for 10 episodes
+[03-19 12:00:45]:INFO:MatchMaking: Received (100,EmptySelfPlay,RandomAgent). 31/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (200,EmptySelfPlay,RandomAgent). 32/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (300,EmptySelfPlay,RandomAgent). 33/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (400,EmptySelfPlay,RandomAgent). 34/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (500,EmptySelfPlay,RandomAgent). 35/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (600,EmptySelfPlay,RandomAgent). 36/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (700,EmptySelfPlay,RandomAgent). 37/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (800,EmptySelfPlay,RandomAgent). 38/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (900,EmptySelfPlay,RandomAgent). 39/60 received
+[03-19 12:00:45]:INFO:MatchMaking: Received (1000,EmptySelfPlay,RandomAgent). 40/60 received
+[03-19 12:00:47]:INFO:Benchmarking: Benchmarking finished. Duration: 2.4486894607543945 seconds
+[03-19 12:00:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 200. 2/210 received. Started for 10 episodes
+[03-19 12:00:48]:INFO:ConfusionMatrixPopulate: Started
+[03-19 12:00:48]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:00:49]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6926193237304688 seconds
+[03-19 12:00:49]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 300. 3/210 received. Started for 10 episodes
+[03-19 12:00:49]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:00:50]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5170588493347168 seconds
+[03-19 12:00:50]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 400. 4/210 received. Started for 10 episodes
+[03-19 12:00:50]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:00:52]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5189595222473145 seconds
+[03-19 12:00:52]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 500. 5/210 received. Started for 10 episodes
+[03-19 12:00:52]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:00:53]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6455304622650146 seconds
+[03-19 12:00:53]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 600. 6/210 received. Started for 10 episodes
+[03-19 12:00:53]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:00:55]:INFO:Benchmarking: Benchmarking finished. Duration: 1.541825294494629 seconds
+[03-19 12:00:55]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:00:55]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 700. 7/210 received. Started for 10 episodes
+[03-19 12:00:56]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 100 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/100_iterations.pt
+[03-19 12:00:56]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [0,100]: 7.96595311164856 (seconds)
+[03-19 12:00:56]:INFO:MatchMaking: Received (100,NaiveSP,ppo_h64_mlp). 41/60 received
+[03-19 12:00:56]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5620508193969727 seconds
+[03-19 12:00:56]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 800. 8/210 received. Started for 10 episodes
+[03-19 12:00:56]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:00:57]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 100 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/100_iterations.pt
+[03-19 12:00:57]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [0,100]: 9.0344557762146 (seconds)
+[03-19 12:00:57]:INFO:MatchMaking: Received (100,NaiveSP,ppo_h64_rnn). 42/60 received
+[03-19 12:00:58]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6056997776031494 seconds
+[03-19 12:00:58]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 900. 9/210 received. Started for 10 episodes
+[03-19 12:00:58]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:01:00]:INFO:Benchmarking: Benchmarking finished. Duration: 1.8377058506011963 seconds
+[03-19 12:01:00]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RockAgent). iteration: 1000. 10/210 received. Started for 10 episodes
+[03-19 12:01:00]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:01:02]:INFO:Benchmarking: Benchmarking finished. Duration: 1.8803799152374268 seconds
+[03-19 12:01:02]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 100. 11/210 received. Started for 10 episodes
+[03-19 12:01:02]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RockAgent)
+[03-19 12:01:03]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6413965225219727 seconds
+[03-19 12:01:03]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 100. 12/210 received. Started for 10 episodes
+[03-19 12:01:03]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:05]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 200 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/200_iterations.pt
+[03-19 12:01:05]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [100,200]: 8.949683427810669 (seconds)
+[03-19 12:01:05]:INFO:MatchMaking: Received (200,NaiveSP,ppo_h64_mlp). 43/60 received
+[03-19 12:01:05]:INFO:Benchmarking: Benchmarking finished. Duration: 1.623584270477295 seconds
+[03-19 12:01:05]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 200. 13/210 received. Started for 10 episodes
+[03-19 12:01:05]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:07]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6614596843719482 seconds
+[03-19 12:01:07]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:07]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 200. 14/210 received. Started for 10 episodes
+[03-19 12:01:07]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 200 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/200_iterations.pt
+[03-19 12:01:07]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [100,200]: 10.052631139755249 (seconds)
+[03-19 12:01:07]:INFO:MatchMaking: Received (200,NaiveSP,ppo_h64_rnn). 44/60 received
+[03-19 12:01:08]:INFO:Benchmarking: Benchmarking finished. Duration: 1.634514570236206 seconds
+[03-19 12:01:08]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 300. 15/210 received. Started for 10 episodes
+[03-19 12:01:08]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:10]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5081636905670166 seconds
+[03-19 12:01:10]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 300. 16/210 received. Started for 10 episodes
+[03-19 12:01:10]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:11]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5722336769104004 seconds
+[03-19 12:01:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 400. 17/210 received. Started for 10 episodes
+[03-19 12:01:11]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:13]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 300 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/300_iterations.pt
+[03-19 12:01:13]:INFO:Benchmarking: Benchmarking finished. Duration: 1.650749683380127 seconds
+[03-19 12:01:13]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 400. 18/210 received. Started for 10 episodes
+[03-19 12:01:13]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:13]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [200,300]: 8.254125833511353 (seconds)
+[03-19 12:01:13]:INFO:MatchMaking: Received (300,NaiveSP,ppo_h64_mlp). 45/60 received
+[03-19 12:01:15]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6488392353057861 seconds
+[03-19 12:01:15]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:15]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 500. 19/210 received. Started for 10 episodes
+[03-19 12:01:16]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 300 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/300_iterations.pt
+[03-19 12:01:16]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6063077449798584 seconds
+[03-19 12:01:16]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:16]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 500. 20/210 received. Started for 10 episodes
+[03-19 12:01:16]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [200,300]: 9.449431896209717 (seconds)
+[03-19 12:01:16]:INFO:MatchMaking: Received (300,NaiveSP,ppo_h64_rnn). 46/60 received
+[03-19 12:01:18]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5336370468139648 seconds
+[03-19 12:01:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 600. 21/210 received. Started for 10 episodes
+[03-19 12:01:18]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:20]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6660702228546143 seconds
+[03-19 12:01:20]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 600. 22/210 received. Started for 10 episodes
+[03-19 12:01:20]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:21]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5931291580200195 seconds
+[03-19 12:01:21]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 700. 23/210 received. Started for 10 episodes
+[03-19 12:01:21]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:22]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 400 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/400_iterations.pt
+[03-19 12:01:22]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [300,400]: 8.609976768493652 (seconds)
+[03-19 12:01:22]:INFO:MatchMaking: Received (400,NaiveSP,ppo_h64_mlp). 47/60 received
+[03-19 12:01:23]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6755754947662354 seconds
+[03-19 12:01:23]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 700. 24/210 received. Started for 10 episodes
+[03-19 12:01:23]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:24]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6123580932617188 seconds
+[03-19 12:01:24]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 800. 25/210 received. Started for 10 episodes
+[03-19 12:01:24]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:26]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5962324142456055 seconds
+[03-19 12:01:26]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 800. 26/210 received. Started for 10 episodes
+[03-19 12:01:26]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:26]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 400 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/400_iterations.pt
+[03-19 12:01:26]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [300,400]: 9.68297815322876 (seconds)
+[03-19 12:01:26]:INFO:MatchMaking: Received (400,NaiveSP,ppo_h64_rnn). 48/60 received
+[03-19 12:01:28]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6581909656524658 seconds
+[03-19 12:01:28]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 900. 27/210 received. Started for 10 episodes
+[03-19 12:01:28]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:29]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6640079021453857 seconds
+[03-19 12:01:29]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 900. 28/210 received. Started for 10 episodes
+[03-19 12:01:30]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 500 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/500_iterations.pt
+[03-19 12:01:30]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [400,500]: 8.697798013687134 (seconds)
+[03-19 12:01:31]:INFO:MatchMaking: Received (500,NaiveSP,ppo_h64_mlp). 49/60 received
+[03-19 12:01:31]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6187117099761963 seconds
+[03-19 12:01:31]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,PaperAgent). iteration: 1000. 29/210 received. Started for 10 episodes
+[03-19 12:01:31]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:33]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6147918701171875 seconds
+[03-19 12:01:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,PaperAgent). iteration: 1000. 30/210 received. Started for 10 episodes
+[03-19 12:01:33]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:34]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6514475345611572 seconds
+[03-19 12:01:34]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 100. 31/210 received. Started for 10 episodes
+[03-19 12:01:34]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,PaperAgent)
+[03-19 12:01:36]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6509993076324463 seconds
+[03-19 12:01:36]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 100. 32/210 received. Started for 10 episodes
+[03-19 12:01:36]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:36]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 500 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/500_iterations.pt
+[03-19 12:01:36]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [400,500]: 9.95891547203064 (seconds)
+[03-19 12:01:36]:INFO:MatchMaking: Received (500,NaiveSP,ppo_h64_rnn). 50/60 received
+[03-19 12:01:38]:INFO:Benchmarking: Benchmarking finished. Duration: 1.75954008102417 seconds
+[03-19 12:01:38]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 100. 33/210 received. Started for 10 episodes
+[03-19 12:01:38]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:39]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 600 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/600_iterations.pt
+[03-19 12:01:39]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [500,600]: 8.489562273025513 (seconds)
+[03-19 12:01:39]:INFO:MatchMaking: Received (600,NaiveSP,ppo_h64_mlp). 51/60 received
+[03-19 12:01:39]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5649991035461426 seconds
+[03-19 12:01:39]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:39]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 200. 34/210 received. Started for 10 episodes
+[03-19 12:01:41]:INFO:Benchmarking: Benchmarking finished. Duration: 1.7497141361236572 seconds
+[03-19 12:01:41]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 200. 35/210 received. Started for 10 episodes
+[03-19 12:01:41]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:42]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4404807090759277 seconds
+[03-19 12:01:42]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 200. 36/210 received. Started for 10 episodes
+[03-19 12:01:42]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:44]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5766894817352295 seconds
+[03-19 12:01:44]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:44]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 300. 37/210 received. Started for 10 episodes
+[03-19 12:01:45]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 600 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/600_iterations.pt
+[03-19 12:01:46]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [500,600]: 9.376997232437134 (seconds)
+[03-19 12:01:46]:INFO:MatchMaking: Received (600,NaiveSP,ppo_h64_rnn). 52/60 received
+[03-19 12:01:46]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5176668167114258 seconds
+[03-19 12:01:46]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:46]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 300. 38/210 received. Started for 10 episodes
+[03-19 12:01:47]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5279436111450195 seconds
+[03-19 12:01:47]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 300. 39/210 received. Started for 10 episodes
+[03-19 12:01:47]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 700 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/700_iterations.pt
+[03-19 12:01:47]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [600,700]: 8.435455560684204 (seconds)
+[03-19 12:01:48]:INFO:MatchMaking: Received (700,NaiveSP,ppo_h64_mlp). 53/60 received
+[03-19 12:01:49]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5993683338165283 seconds
+[03-19 12:01:49]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 400. 40/210 received. Started for 10 episodes
+[03-19 12:01:49]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:50]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5992767810821533 seconds
+[03-19 12:01:50]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 400. 41/210 received. Started for 10 episodes
+[03-19 12:01:50]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:52]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6342520713806152 seconds
+[03-19 12:01:52]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:52]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 400. 42/210 received. Started for 10 episodes
+[03-19 12:01:53]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5794413089752197 seconds
+[03-19 12:01:53]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 500. 43/210 received. Started for 10 episodes
+[03-19 12:01:53]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:55]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5430102348327637 seconds
+[03-19 12:01:55]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 500. 44/210 received. Started for 10 episodes
+[03-19 12:01:55]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:55]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 700 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/700_iterations.pt
+[03-19 12:01:55]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [600,700]: 9.779294729232788 (seconds)
+[03-19 12:01:55]:INFO:MatchMaking: Received (700,NaiveSP,ppo_h64_rnn). 54/60 received
+[03-19 12:01:56]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 800 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/800_iterations.pt
+[03-19 12:01:56]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [700,800]: 8.506926774978638 (seconds)
+[03-19 12:01:56]:INFO:MatchMaking: Received (800,NaiveSP,ppo_h64_mlp). 55/60 received
+[03-19 12:01:57]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5433902740478516 seconds
+[03-19 12:01:57]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 500. 45/210 received. Started for 10 episodes
+[03-19 12:01:57]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:01:58]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5927777290344238 seconds
+[03-19 12:01:58]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 600. 46/210 received. Started for 10 episodes
+[03-19 12:01:58]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:00]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6113157272338867 seconds
+[03-19 12:02:00]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 600. 47/210 received. Started for 10 episodes
+[03-19 12:02:00]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:01]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5424656867980957 seconds
+[03-19 12:02:01]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 600. 48/210 received. Started for 10 episodes
+[03-19 12:02:01]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:03]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6098823547363281 seconds
+[03-19 12:02:03]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 700. 49/210 received. Started for 10 episodes
+[03-19 12:02:03]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:04]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 900 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/900_iterations.pt
+[03-19 12:02:04]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [800,900]: 8.43742299079895 (seconds)
+[03-19 12:02:05]:INFO:MatchMaking: Received (900,NaiveSP,ppo_h64_mlp). 56/60 received
+[03-19 12:02:05]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6055634021759033 seconds
+[03-19 12:02:05]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 700. 50/210 received. Started for 10 episodes
+[03-19 12:02:05]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:05]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 800 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/800_iterations.pt
+[03-19 12:02:05]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [700,800]: 9.627024173736572 (seconds)
+[03-19 12:02:05]:INFO:MatchMaking: Received (800,NaiveSP,ppo_h64_rnn). 57/60 received
+[03-19 12:02:06]:INFO:Benchmarking: Benchmarking finished. Duration: 1.7193219661712646 seconds
+[03-19 12:02:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 700. 51/210 received. Started for 10 episodes
+[03-19 12:02:06]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:08]:INFO:Benchmarking: Benchmarking finished. Duration: 1.683976411819458 seconds
+[03-19 12:02:08]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:08]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 800. 52/210 received. Started for 10 episodes
+[03-19 12:02:10]:INFO:Benchmarking: Benchmarking finished. Duration: 1.573293924331665 seconds
+[03-19 12:02:10]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 800. 53/210 received. Started for 10 episodes
+[03-19 12:02:10]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:11]:INFO:Benchmarking: Benchmarking finished. Duration: 1.837221384048462 seconds
+[03-19 12:02:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 800. 54/210 received. Started for 10 episodes
+[03-19 12:02:11]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:13]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5771384239196777 seconds
+[03-19 12:02:13]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 900. 55/210 received. Started for 10 episodes
+[03-19 12:02:13]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:13]:INFO:NaiveSP-ppo_h64_mlp: Submitted agent at iteration 1000 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_mlp/1000_iterations.pt
+[03-19 12:02:13]:INFO:NaiveSP-ppo_h64_mlp: Training duration between iterations [900,1000]: 8.706397294998169 (seconds)
+[03-19 12:02:13]:INFO:NaiveSP-ppo_h64_mlp: All training completed. Total duration: 88.72394156455994 seconds
+[03-19 12:02:13]:INFO:MatchMaking: Received (1000,NaiveSP,ppo_h64_mlp). 58/60 received
+[03-19 12:02:14]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 900 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/900_iterations.pt
+[03-19 12:02:14]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [800,900]: 9.191770315170288 (seconds)
+[03-19 12:02:14]:INFO:MatchMaking: Received (900,NaiveSP,ppo_h64_rnn). 59/60 received
+[03-19 12:02:15]:INFO:Benchmarking: Benchmarking finished. Duration: 1.573350191116333 seconds
+[03-19 12:02:15]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:15]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 900. 56/210 received. Started for 10 episodes
+[03-19 12:02:16]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4010670185089111 seconds
+[03-19 12:02:16]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 900. 57/210 received. Started for 10 episodes
+[03-19 12:02:16]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:17]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4713168144226074 seconds
+[03-19 12:02:17]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 1000. 58/210 received. Started for 10 episodes
+[03-19 12:02:17]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:19]:INFO:Benchmarking: Benchmarking finished. Duration: 1.496490240097046 seconds
+[03-19 12:02:19]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 1000. 59/210 received. Started for 10 episodes
+[03-19 12:02:21]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6843318939208984 seconds
+[03-19 12:02:21]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,ScissorsAgent). iteration: 1000. 60/210 received. Started for 10 episodes
+[03-19 12:02:21]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:23]:INFO:Benchmarking: Benchmarking finished. Duration: 1.9802887439727783 seconds
+[03-19 12:02:23]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 61/210 received. Started for 10 episodes
+[03-19 12:02:23]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,ScissorsAgent)
+[03-19 12:02:23]:INFO:NaiveSP-ppo_h64_rnn: Submitted agent at iteration 1000 :: saving at .//experiment-Naive-TrajTest-CH1e3/run-1/NaiveSP-ppo_h64_rnn/1000_iterations.pt
+[03-19 12:02:23]:INFO:NaiveSP-ppo_h64_rnn: Training duration between iterations [900,1000]: 8.438245058059692 (seconds)
+[03-19 12:02:23]:INFO:NaiveSP-ppo_h64_rnn: All training completed. Total duration: 95.09229063987732 seconds
+[03-19 12:02:23]:INFO:MatchMaking: Received (1000,NaiveSP,ppo_h64_rnn). 60/60 received
+[03-19 12:02:23]:INFO:MatchMaking: All expected trained agents have been recieved. Shutting down
+[03-19 12:02:24]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5403966903686523 seconds
+[03-19 12:02:24]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 62/210 received. Started for 10 episodes
+[03-19 12:02:24]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:26]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6986236572265625 seconds
+[03-19 12:02:26]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 63/210 received. Started for 10 episodes
+[03-19 12:02:26]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:27]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3762876987457275 seconds
+[03-19 12:02:27]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 100. 64/210 received. Started for 10 episodes
+[03-19 12:02:27]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:29]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3906960487365723 seconds
+[03-19 12:02:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 65/210 received. Started for 10 episodes
+[03-19 12:02:29]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:30]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4268786907196045 seconds
+[03-19 12:02:30]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 66/210 received. Started for 10 episodes
+[03-19 12:02:30]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:31]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3488795757293701 seconds
+[03-19 12:02:31]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 67/210 received. Started for 10 episodes
+[03-19 12:02:31]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:33]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4187350273132324 seconds
+[03-19 12:02:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 200. 68/210 received. Started for 10 episodes
+[03-19 12:02:33]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:34]:INFO:Benchmarking: Benchmarking finished. Duration: 1.409672737121582 seconds
+[03-19 12:02:34]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:34]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 69/210 received. Started for 10 episodes
+[03-19 12:02:36]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4303781986236572 seconds
+[03-19 12:02:36]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 70/210 received. Started for 10 episodes
+[03-19 12:02:36]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:37]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3534319400787354 seconds
+[03-19 12:02:37]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 71/210 received. Started for 10 episodes
+[03-19 12:02:37]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:38]:INFO:Benchmarking: Benchmarking finished. Duration: 1.324256420135498 seconds
+[03-19 12:02:38]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 300. 72/210 received. Started for 10 episodes
+[03-19 12:02:38]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:40]:INFO:Benchmarking: Benchmarking finished. Duration: 1.328566074371338 seconds
+[03-19 12:02:40]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 73/210 received. Started for 10 episodes
+[03-19 12:02:40]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:41]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3887732028961182 seconds
+[03-19 12:02:41]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:41]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 74/210 received. Started for 10 episodes
+[03-19 12:02:42]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3711881637573242 seconds
+[03-19 12:02:42]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 75/210 received. Started for 10 episodes
+[03-19 12:02:42]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:44]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3777899742126465 seconds
+[03-19 12:02:44]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 400. 76/210 received. Started for 10 episodes
+[03-19 12:02:44]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:45]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3515963554382324 seconds
+[03-19 12:02:45]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 77/210 received. Started for 10 episodes
+[03-19 12:02:45]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:46]:INFO:Benchmarking: Benchmarking finished. Duration: 1.320371150970459 seconds
+[03-19 12:02:46]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 78/210 received. Started for 10 episodes
+[03-19 12:02:46]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:48]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3389263153076172 seconds
+[03-19 12:02:48]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 79/210 received. Started for 10 episodes
+[03-19 12:02:48]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:49]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5055241584777832 seconds
+[03-19 12:02:49]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:49]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 500. 80/210 received. Started for 10 episodes
+[03-19 12:02:51]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6174561977386475 seconds
+[03-19 12:02:51]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 81/210 received. Started for 10 episodes
+[03-19 12:02:51]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:52]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5096979141235352 seconds
+[03-19 12:02:52]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:52]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 82/210 received. Started for 10 episodes
+[03-19 12:02:54]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5772771835327148 seconds
+[03-19 12:02:54]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 83/210 received. Started for 10 episodes
+[03-19 12:02:54]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:56]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6776697635650635 seconds
+[03-19 12:02:56]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 600. 84/210 received. Started for 10 episodes
+[03-19 12:02:56]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:57]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5228402614593506 seconds
+[03-19 12:02:57]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 85/210 received. Started for 10 episodes
+[03-19 12:02:57]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:02:59]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3934779167175293 seconds
+[03-19 12:02:59]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 86/210 received. Started for 10 episodes
+[03-19 12:02:59]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:00]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4348008632659912 seconds
+[03-19 12:03:00]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:00]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 87/210 received. Started for 10 episodes
+[03-19 12:03:02]:INFO:Benchmarking: Benchmarking finished. Duration: 1.5972096920013428 seconds
+[03-19 12:03:02]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 700. 88/210 received. Started for 10 episodes
+[03-19 12:03:02]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:03]:INFO:Benchmarking: Benchmarking finished. Duration: 1.7747249603271484 seconds
+[03-19 12:03:03]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 89/210 received. Started for 10 episodes
+[03-19 12:03:03]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:05]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6876740455627441 seconds
+[03-19 12:03:05]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 90/210 received. Started for 10 episodes
+[03-19 12:03:05]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:07]:INFO:Benchmarking: Benchmarking finished. Duration: 1.6944854259490967 seconds
+[03-19 12:03:07]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 91/210 received. Started for 10 episodes
+[03-19 12:03:07]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:08]:INFO:Benchmarking: Benchmarking finished. Duration: 1.450989007949829 seconds
+[03-19 12:03:08]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:08]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 800. 92/210 received. Started for 10 episodes
+[03-19 12:03:10]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4195239543914795 seconds
+[03-19 12:03:10]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 93/210 received. Started for 10 episodes
+[03-19 12:03:10]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:11]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4105346202850342 seconds
+[03-19 12:03:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 94/210 received. Started for 10 episodes
+[03-19 12:03:11]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:12]:INFO:Benchmarking: Benchmarking finished. Duration: 1.32716703414917 seconds
+[03-19 12:03:12]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 95/210 received. Started for 10 episodes
+[03-19 12:03:12]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:14]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3787178993225098 seconds
+[03-19 12:03:14]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 900. 96/210 received. Started for 10 episodes
+[03-19 12:03:14]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:15]:INFO:Benchmarking: Benchmarking finished. Duration: 1.332592248916626 seconds
+[03-19 12:03:15]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 97/210 received. Started for 10 episodes
+[03-19 12:03:15]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:17]:INFO:Benchmarking: Benchmarking finished. Duration: 1.4215638637542725 seconds
+[03-19 12:03:17]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 98/210 received. Started for 10 episodes
+[03-19 12:03:17]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:18]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3356773853302002 seconds
+[03-19 12:03:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 99/210 received. Started for 10 episodes
+[03-19 12:03:18]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:19]:INFO:Benchmarking: Benchmarking finished. Duration: 1.3122148513793945 seconds
+[03-19 12:03:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (EmptySelfPlay,RandomAgent). iteration: 1000. 100/210 received. Started for 10 episodes
+[03-19 12:03:19]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:21]:INFO:Benchmarking: Benchmarking finished. Duration: 1.307541847229004 seconds
+[03-19 12:03:21]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RandomAgent)-(EmptySelfPlay,RandomAgent)
+[03-19 12:03:21]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 101/210 received. Started for 10 episodes
+[03-19 12:03:25]:INFO:Benchmarking: Benchmarking finished. Duration: 4.170075178146362 seconds
+[03-19 12:03:25]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:03:25]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 102/210 received. Started for 10 episodes
+[03-19 12:03:29]:INFO:Benchmarking: Benchmarking finished. Duration: 4.187344789505005 seconds
+[03-19 12:03:29]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:03:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 103/210 received. Started for 10 episodes
+[03-19 12:03:33]:INFO:Benchmarking: Benchmarking finished. Duration: 4.136148691177368 seconds
+[03-19 12:03:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 104/210 received. Started for 10 episodes
+[03-19 12:03:33]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:03:37]:INFO:Benchmarking: Benchmarking finished. Duration: 4.193627595901489 seconds
+[03-19 12:03:37]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:03:37]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 100. 105/210 received. Started for 10 episodes
+[03-19 12:03:42]:INFO:Benchmarking: Benchmarking finished. Duration: 4.38024640083313 seconds
+[03-19 12:03:42]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 106/210 received. Started for 10 episodes
+[03-19 12:03:42]:INFO:ConfusionMatrixPopulate: Received: it:100 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:03:46]:INFO:Benchmarking: Benchmarking finished. Duration: 4.353747844696045 seconds
+[03-19 12:03:46]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 107/210 received. Started for 10 episodes
+[03-19 12:03:46]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:03:50]:INFO:Benchmarking: Benchmarking finished. Duration: 4.297180891036987 seconds
+[03-19 12:03:50]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:03:50]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 108/210 received. Started for 10 episodes
+[03-19 12:03:55]:INFO:Benchmarking: Benchmarking finished. Duration: 4.535317420959473 seconds
+[03-19 12:03:55]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 109/210 received. Started for 10 episodes
+[03-19 12:03:55]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:00]:INFO:Benchmarking: Benchmarking finished. Duration: 4.6372153759002686 seconds
+[03-19 12:04:00]:INFO:ConfusionMatrixPopulate: Received: it:100 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:00]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 110/210 received. Started for 10 episodes
+[03-19 12:04:05]:INFO:Benchmarking: Benchmarking finished. Duration: 5.27832555770874 seconds
+[03-19 12:04:05]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 100. 111/210 received. Started for 10 episodes
+[03-19 12:04:05]:INFO:ConfusionMatrixPopulate: Received: it:100 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:10]:INFO:Benchmarking: Benchmarking finished. Duration: 4.829807281494141 seconds
+[03-19 12:04:10]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 112/210 received. Started for 10 episodes
+[03-19 12:04:10]:INFO:ConfusionMatrixPopulate: Received: it:100 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:14]:INFO:Benchmarking: Benchmarking finished. Duration: 4.453996181488037 seconds
+[03-19 12:04:14]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 113/210 received. Started for 10 episodes
+[03-19 12:04:14]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:04:18]:INFO:Benchmarking: Benchmarking finished. Duration: 4.304503440856934 seconds
+[03-19 12:04:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 114/210 received. Started for 10 episodes
+[03-19 12:04:18]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:04:23]:INFO:Benchmarking: Benchmarking finished. Duration: 4.133251190185547 seconds
+[03-19 12:04:23]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:04:23]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 115/210 received. Started for 10 episodes
+[03-19 12:04:27]:INFO:Benchmarking: Benchmarking finished. Duration: 4.212791919708252 seconds
+[03-19 12:04:27]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 200. 116/210 received. Started for 10 episodes
+[03-19 12:04:27]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:04:31]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3615522384643555 seconds
+[03-19 12:04:31]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 117/210 received. Started for 10 episodes
+[03-19 12:04:31]:INFO:ConfusionMatrixPopulate: Received: it:200 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:04:35]:INFO:Benchmarking: Benchmarking finished. Duration: 4.2637999057769775 seconds
+[03-19 12:04:35]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 118/210 received. Started for 10 episodes
+[03-19 12:04:35]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:40]:INFO:Benchmarking: Benchmarking finished. Duration: 4.129114866256714 seconds
+[03-19 12:04:40]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:40]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 119/210 received. Started for 10 episodes
+[03-19 12:04:44]:INFO:Benchmarking: Benchmarking finished. Duration: 4.310762405395508 seconds
+[03-19 12:04:44]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:44]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 120/210 received. Started for 10 episodes
+[03-19 12:04:48]:INFO:Benchmarking: Benchmarking finished. Duration: 4.577532529830933 seconds
+[03-19 12:04:48]:INFO:ConfusionMatrixPopulate: Received: it:200 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:48]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 121/210 received. Started for 10 episodes
+[03-19 12:04:53]:INFO:Benchmarking: Benchmarking finished. Duration: 4.418548822402954 seconds
+[03-19 12:04:53]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 200. 122/210 received. Started for 10 episodes
+[03-19 12:04:53]:INFO:ConfusionMatrixPopulate: Received: it:200 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:57]:INFO:Benchmarking: Benchmarking finished. Duration: 4.430151462554932 seconds
+[03-19 12:04:57]:INFO:ConfusionMatrixPopulate: Received: it:200 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:04:57]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 123/210 received. Started for 10 episodes
+[03-19 12:05:02]:INFO:Benchmarking: Benchmarking finished. Duration: 4.218859910964966 seconds
+[03-19 12:05:02]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:05:02]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 124/210 received. Started for 10 episodes
+[03-19 12:05:06]:INFO:Benchmarking: Benchmarking finished. Duration: 4.356918573379517 seconds
+[03-19 12:05:06]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:05:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 125/210 received. Started for 10 episodes
+[03-19 12:05:10]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3132429122924805 seconds
+[03-19 12:05:10]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:05:10]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 126/210 received. Started for 10 episodes
+[03-19 12:05:15]:INFO:Benchmarking: Benchmarking finished. Duration: 4.433728456497192 seconds
+[03-19 12:05:15]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:05:15]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 300. 127/210 received. Started for 10 episodes
+[03-19 12:05:19]:INFO:Benchmarking: Benchmarking finished. Duration: 4.727307081222534 seconds
+[03-19 12:05:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 128/210 received. Started for 10 episodes
+[03-19 12:05:19]:INFO:ConfusionMatrixPopulate: Received: it:300 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:05:24]:INFO:Benchmarking: Benchmarking finished. Duration: 4.499542713165283 seconds
+[03-19 12:05:24]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:05:24]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 129/210 received. Started for 10 episodes
+[03-19 12:05:28]:INFO:Benchmarking: Benchmarking finished. Duration: 4.488070249557495 seconds
+[03-19 12:05:28]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:05:28]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 130/210 received. Started for 10 episodes
+[03-19 12:05:33]:INFO:Benchmarking: Benchmarking finished. Duration: 4.421195983886719 seconds
+[03-19 12:05:33]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:05:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 131/210 received. Started for 10 episodes
+[03-19 12:05:37]:INFO:Benchmarking: Benchmarking finished. Duration: 4.4645020961761475 seconds
+[03-19 12:05:37]:INFO:ConfusionMatrixPopulate: Received: it:300 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:05:37]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 132/210 received. Started for 10 episodes
+[03-19 12:05:42]:INFO:Benchmarking: Benchmarking finished. Duration: 4.898862600326538 seconds
+[03-19 12:05:42]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 300. 133/210 received. Started for 10 episodes
+[03-19 12:05:42]:INFO:ConfusionMatrixPopulate: Received: it:300 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:05:47]:INFO:Benchmarking: Benchmarking finished. Duration: 5.042616128921509 seconds
+[03-19 12:05:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 134/210 received. Started for 10 episodes
+[03-19 12:05:47]:INFO:ConfusionMatrixPopulate: Received: it:300 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:05:52]:INFO:Benchmarking: Benchmarking finished. Duration: 4.311305046081543 seconds
+[03-19 12:05:52]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 135/210 received. Started for 10 episodes
+[03-19 12:05:52]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:05:56]:INFO:Benchmarking: Benchmarking finished. Duration: 4.325188398361206 seconds
+[03-19 12:05:56]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:05:56]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 136/210 received. Started for 10 episodes
+[03-19 12:06:00]:INFO:Benchmarking: Benchmarking finished. Duration: 4.327214956283569 seconds
+[03-19 12:06:00]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:00]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 137/210 received. Started for 10 episodes
+[03-19 12:06:04]:INFO:Benchmarking: Benchmarking finished. Duration: 4.129427909851074 seconds
+[03-19 12:06:04]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 400. 138/210 received. Started for 10 episodes
+[03-19 12:06:04]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:09]:INFO:Benchmarking: Benchmarking finished. Duration: 4.389528274536133 seconds
+[03-19 12:06:09]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 139/210 received. Started for 10 episodes
+[03-19 12:06:09]:INFO:ConfusionMatrixPopulate: Received: it:400 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:13]:INFO:Benchmarking: Benchmarking finished. Duration: 4.314516544342041 seconds
+[03-19 12:06:13]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 140/210 received. Started for 10 episodes
+[03-19 12:06:13]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:06:17]:INFO:Benchmarking: Benchmarking finished. Duration: 4.270414113998413 seconds
+[03-19 12:06:17]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 141/210 received. Started for 10 episodes
+[03-19 12:06:17]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:06:22]:INFO:Benchmarking: Benchmarking finished. Duration: 4.2305803298950195 seconds
+[03-19 12:06:22]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:06:22]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 142/210 received. Started for 10 episodes
+[03-19 12:06:26]:INFO:Benchmarking: Benchmarking finished. Duration: 4.114178657531738 seconds
+[03-19 12:06:26]:INFO:ConfusionMatrixPopulate: Received: it:400 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:06:26]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 143/210 received. Started for 10 episodes
+[03-19 12:06:30]:INFO:Benchmarking: Benchmarking finished. Duration: 4.386739015579224 seconds
+[03-19 12:06:30]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 400. 144/210 received. Started for 10 episodes
+[03-19 12:06:30]:INFO:ConfusionMatrixPopulate: Received: it:400 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:06:35]:INFO:Benchmarking: Benchmarking finished. Duration: 4.490280866622925 seconds
+[03-19 12:06:35]:INFO:ConfusionMatrixPopulate: Received: it:400 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:06:35]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 145/210 received. Started for 10 episodes
+[03-19 12:06:39]:INFO:Benchmarking: Benchmarking finished. Duration: 3.912015199661255 seconds
+[03-19 12:06:39]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 146/210 received. Started for 10 episodes
+[03-19 12:06:39]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:43]:INFO:Benchmarking: Benchmarking finished. Duration: 4.149372816085815 seconds
+[03-19 12:06:43]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:43]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 147/210 received. Started for 10 episodes
+[03-19 12:06:47]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9279732704162598 seconds
+[03-19 12:06:47]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 148/210 received. Started for 10 episodes
+[03-19 12:06:51]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9845194816589355 seconds
+[03-19 12:06:51]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 500. 149/210 received. Started for 10 episodes
+[03-19 12:06:51]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:55]:INFO:Benchmarking: Benchmarking finished. Duration: 4.391374826431274 seconds
+[03-19 12:06:55]:INFO:ConfusionMatrixPopulate: Received: it:500 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:06:55]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 150/210 received. Started for 10 episodes
+[03-19 12:06:59]:INFO:Benchmarking: Benchmarking finished. Duration: 4.367238521575928 seconds
+[03-19 12:06:59]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:06:59]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 151/210 received. Started for 10 episodes
+[03-19 12:07:03]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9559078216552734 seconds
+[03-19 12:07:03]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 152/210 received. Started for 10 episodes
+[03-19 12:07:03]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:07]:INFO:Benchmarking: Benchmarking finished. Duration: 4.00699782371521 seconds
+[03-19 12:07:07]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:07]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 153/210 received. Started for 10 episodes
+[03-19 12:07:11]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9609665870666504 seconds
+[03-19 12:07:11]:INFO:ConfusionMatrixPopulate: Received: it:500 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:11]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 154/210 received. Started for 10 episodes
+[03-19 12:07:16]:INFO:Benchmarking: Benchmarking finished. Duration: 4.168444395065308 seconds
+[03-19 12:07:16]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 500. 155/210 received. Started for 10 episodes
+[03-19 12:07:16]:INFO:ConfusionMatrixPopulate: Received: it:500 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:20]:INFO:Benchmarking: Benchmarking finished. Duration: 4.5419957637786865 seconds
+[03-19 12:07:20]:INFO:ConfusionMatrixPopulate: Received: it:500 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:20]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 156/210 received. Started for 10 episodes
+[03-19 12:07:24]:INFO:Benchmarking: Benchmarking finished. Duration: 4.321591854095459 seconds
+[03-19 12:07:24]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 157/210 received. Started for 10 episodes
+[03-19 12:07:24]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:07:29]:INFO:Benchmarking: Benchmarking finished. Duration: 4.270496129989624 seconds
+[03-19 12:07:29]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 158/210 received. Started for 10 episodes
+[03-19 12:07:29]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:07:33]:INFO:Benchmarking: Benchmarking finished. Duration: 4.028273582458496 seconds
+[03-19 12:07:33]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:07:33]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 159/210 received. Started for 10 episodes
+[03-19 12:07:37]:INFO:Benchmarking: Benchmarking finished. Duration: 4.053418397903442 seconds
+[03-19 12:07:37]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:07:37]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 600. 160/210 received. Started for 10 episodes
+[03-19 12:07:41]:INFO:Benchmarking: Benchmarking finished. Duration: 4.489814519882202 seconds
+[03-19 12:07:41]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 161/210 received. Started for 10 episodes
+[03-19 12:07:41]:INFO:ConfusionMatrixPopulate: Received: it:600 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:07:46]:INFO:Benchmarking: Benchmarking finished. Duration: 4.27287220954895 seconds
+[03-19 12:07:46]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 162/210 received. Started for 10 episodes
+[03-19 12:07:46]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:50]:INFO:Benchmarking: Benchmarking finished. Duration: 4.40367865562439 seconds
+[03-19 12:07:50]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:50]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 163/210 received. Started for 10 episodes
+[03-19 12:07:54]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3247106075286865 seconds
+[03-19 12:07:54]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 164/210 received. Started for 10 episodes
+[03-19 12:07:54]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:59]:INFO:Benchmarking: Benchmarking finished. Duration: 4.223533630371094 seconds
+[03-19 12:07:59]:INFO:ConfusionMatrixPopulate: Received: it:600 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:07:59]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 165/210 received. Started for 10 episodes
+[03-19 12:08:03]:INFO:Benchmarking: Benchmarking finished. Duration: 4.4131715297698975 seconds
+[03-19 12:08:03]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 600. 166/210 received. Started for 10 episodes
+[03-19 12:08:03]:INFO:ConfusionMatrixPopulate: Received: it:600 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:08]:INFO:Benchmarking: Benchmarking finished. Duration: 4.543395519256592 seconds
+[03-19 12:08:08]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 167/210 received. Started for 10 episodes
+[03-19 12:08:08]:INFO:ConfusionMatrixPopulate: Received: it:600 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:12]:INFO:Benchmarking: Benchmarking finished. Duration: 4.0830230712890625 seconds
+[03-19 12:08:12]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 168/210 received. Started for 10 episodes
+[03-19 12:08:12]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:08:16]:INFO:Benchmarking: Benchmarking finished. Duration: 4.176207780838013 seconds
+[03-19 12:08:16]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:08:16]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 169/210 received. Started for 10 episodes
+[03-19 12:08:20]:INFO:Benchmarking: Benchmarking finished. Duration: 4.034421682357788 seconds
+[03-19 12:08:20]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 170/210 received. Started for 10 episodes
+[03-19 12:08:20]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:08:24]:INFO:Benchmarking: Benchmarking finished. Duration: 4.058657169342041 seconds
+[03-19 12:08:24]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 700. 171/210 received. Started for 10 episodes
+[03-19 12:08:24]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:08:28]:INFO:Benchmarking: Benchmarking finished. Duration: 4.355903625488281 seconds
+[03-19 12:08:28]:INFO:ConfusionMatrixPopulate: Received: it:700 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:08:28]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 172/210 received. Started for 10 episodes
+[03-19 12:08:32]:INFO:Benchmarking: Benchmarking finished. Duration: 4.0832624435424805 seconds
+[03-19 12:08:32]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 173/210 received. Started for 10 episodes
+[03-19 12:08:32]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:37]:INFO:Benchmarking: Benchmarking finished. Duration: 4.1352903842926025 seconds
+[03-19 12:08:37]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 174/210 received. Started for 10 episodes
+[03-19 12:08:37]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:41]:INFO:Benchmarking: Benchmarking finished. Duration: 4.108678102493286 seconds
+[03-19 12:08:41]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:41]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 175/210 received. Started for 10 episodes
+[03-19 12:08:45]:INFO:Benchmarking: Benchmarking finished. Duration: 4.248096942901611 seconds
+[03-19 12:08:45]:INFO:ConfusionMatrixPopulate: Received: it:700 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:45]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 176/210 received. Started for 10 episodes
+[03-19 12:08:49]:INFO:Benchmarking: Benchmarking finished. Duration: 4.365261554718018 seconds
+[03-19 12:08:49]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 700. 177/210 received. Started for 10 episodes
+[03-19 12:08:49]:INFO:ConfusionMatrixPopulate: Received: it:700 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:54]:INFO:Benchmarking: Benchmarking finished. Duration: 4.550158739089966 seconds
+[03-19 12:08:54]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 178/210 received. Started for 10 episodes
+[03-19 12:08:54]:INFO:ConfusionMatrixPopulate: Received: it:700 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:08:58]:INFO:Benchmarking: Benchmarking finished. Duration: 4.000997304916382 seconds
+[03-19 12:08:58]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 179/210 received. Started for 10 episodes
+[03-19 12:08:58]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:02]:INFO:Benchmarking: Benchmarking finished. Duration: 4.175387620925903 seconds
+[03-19 12:09:02]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:02]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 180/210 received. Started for 10 episodes
+[03-19 12:09:06]:INFO:Benchmarking: Benchmarking finished. Duration: 4.00065541267395 seconds
+[03-19 12:09:06]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 181/210 received. Started for 10 episodes
+[03-19 12:09:06]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:10]:INFO:Benchmarking: Benchmarking finished. Duration: 4.00777006149292 seconds
+[03-19 12:09:10]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:10]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 800. 182/210 received. Started for 10 episodes
+[03-19 12:09:14]:INFO:Benchmarking: Benchmarking finished. Duration: 4.155880451202393 seconds
+[03-19 12:09:14]:INFO:ConfusionMatrixPopulate: Received: it:800 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:14]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 183/210 received. Started for 10 episodes
+[03-19 12:09:18]:INFO:Benchmarking: Benchmarking finished. Duration: 3.981797933578491 seconds
+[03-19 12:09:18]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:18]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 184/210 received. Started for 10 episodes
+[03-19 12:09:22]:INFO:Benchmarking: Benchmarking finished. Duration: 3.970412254333496 seconds
+[03-19 12:09:22]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:22]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 185/210 received. Started for 10 episodes
+[03-19 12:09:26]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9557530879974365 seconds
+[03-19 12:09:26]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:26]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 186/210 received. Started for 10 episodes
+[03-19 12:09:30]:INFO:Benchmarking: Benchmarking finished. Duration: 3.926588773727417 seconds
+[03-19 12:09:30]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:30]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 900. 187/210 received. Started for 10 episodes
+[03-19 12:09:34]:INFO:Benchmarking: Benchmarking finished. Duration: 4.2768235206604 seconds
+[03-19 12:09:34]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 188/210 received. Started for 10 episodes
+[03-19 12:09:34]:INFO:ConfusionMatrixPopulate: Received: it:900 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:09:38]:INFO:Benchmarking: Benchmarking finished. Duration: 3.934795379638672 seconds
+[03-19 12:09:38]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:09:38]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 189/210 received. Started for 10 episodes
+[03-19 12:09:42]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9490885734558105 seconds
+[03-19 12:09:42]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 190/210 received. Started for 10 episodes
+[03-19 12:09:42]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:09:47]:INFO:Benchmarking: Benchmarking finished. Duration: 4.330708026885986 seconds
+[03-19 12:09:47]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 191/210 received. Started for 10 episodes
+[03-19 12:09:47]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:09:51]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9957516193389893 seconds
+[03-19 12:09:51]:INFO:ConfusionMatrixPopulate: Received: it:800 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:09:51]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 192/210 received. Started for 10 episodes
+[03-19 12:09:55]:INFO:Benchmarking: Benchmarking finished. Duration: 4.271131992340088 seconds
+[03-19 12:09:55]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 800. 193/210 received. Started for 10 episodes
+[03-19 12:09:55]:INFO:ConfusionMatrixPopulate: Received: it:800 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:09:59]:INFO:Benchmarking: Benchmarking finished. Duration: 4.140634536743164 seconds
+[03-19 12:09:59]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 194/210 received. Started for 10 episodes
+[03-19 12:09:59]:INFO:ConfusionMatrixPopulate: Received: it:800 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:03]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9030020236968994 seconds
+[03-19 12:10:03]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:10:03]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 195/210 received. Started for 10 episodes
+[03-19 12:10:07]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9088058471679688 seconds
+[03-19 12:10:07]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:10:07]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 196/210 received. Started for 10 episodes
+[03-19 12:10:11]:INFO:Benchmarking: Benchmarking finished. Duration: 3.91560959815979 seconds
+[03-19 12:10:11]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:10:11]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 197/210 received. Started for 10 episodes
+[03-19 12:10:15]:INFO:Benchmarking: Benchmarking finished. Duration: 3.8731977939605713 seconds
+[03-19 12:10:15]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_mlp). iteration: 1000. 198/210 received. Started for 10 episodes
+[03-19 12:10:15]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:10:19]:INFO:Benchmarking: Benchmarking finished. Duration: 4.200185537338257 seconds
+[03-19 12:10:19]:INFO:ConfusionMatrixPopulate: Received: it:1000 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_mlp)
+[03-19 12:10:19]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 199/210 received. Started for 10 episodes
+[03-19 12:10:23]:INFO:Benchmarking: Benchmarking finished. Duration: 4.145452976226807 seconds
+[03-19 12:10:23]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 200/210 received. Started for 10 episodes
+[03-19 12:10:23]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:27]:INFO:Benchmarking: Benchmarking finished. Duration: 4.190179347991943 seconds
+[03-19 12:10:27]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 201/210 received. Started for 10 episodes
+[03-19 12:10:27]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:31]:INFO:Benchmarking: Benchmarking finished. Duration: 4.153124570846558 seconds
+[03-19 12:10:31]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 202/210 received. Started for 10 episodes
+[03-19 12:10:31]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:36]:INFO:Benchmarking: Benchmarking finished. Duration: 4.120236873626709 seconds
+[03-19 12:10:36]:INFO:ConfusionMatrixPopulate: Received: it:900 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:36]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 203/210 received. Started for 10 episodes
+[03-19 12:10:40]:INFO:Benchmarking: Benchmarking finished. Duration: 4.362151861190796 seconds
+[03-19 12:10:40]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 900. 204/210 received. Started for 10 episodes
+[03-19 12:10:40]:INFO:ConfusionMatrixPopulate: Received: it:900 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:44]:INFO:Benchmarking: Benchmarking finished. Duration: 4.394848823547363 seconds
+[03-19 12:10:44]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RockAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 205/210 received. Started for 10 episodes
+[03-19 12:10:44]:INFO:ConfusionMatrixPopulate: Received: it:900 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:48]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9438905715942383 seconds
+[03-19 12:10:48]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,PaperAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 206/210 received. Started for 10 episodes
+[03-19 12:10:48]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RockAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:52]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9856393337249756 seconds
+[03-19 12:10:52]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,ScissorsAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 207/210 received. Started for 10 episodes
+[03-19 12:10:52]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,PaperAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:10:56]:INFO:Benchmarking: Benchmarking finished. Duration: 3.9713149070739746 seconds
+[03-19 12:10:56]:INFO:Benchmarking: Received Benchmark:(EmptySelfPlay,RandomAgent) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 208/210 received. Started for 10 episodes
+[03-19 12:10:56]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,ScissorsAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:11:00]:INFO:Benchmarking: Benchmarking finished. Duration: 4.059176921844482 seconds
+[03-19 12:11:00]:INFO:ConfusionMatrixPopulate: Received: it:1000 (EmptySelfPlay,RandomAgent)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:11:00]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_mlp) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 209/210 received. Started for 10 episodes
+[03-19 12:11:05]:INFO:Benchmarking: Benchmarking finished. Duration: 4.3833253383636475 seconds
+[03-19 12:11:05]:INFO:Benchmarking: Received Benchmark:(NaiveSP,ppo_h64_rnn) vs (NaiveSP,ppo_h64_rnn). iteration: 1000. 210/210 received. Started for 10 episodes
+[03-19 12:11:05]:INFO:ConfusionMatrixPopulate: Received: it:1000 (NaiveSP,ppo_h64_mlp)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:11:09]:INFO:Benchmarking: Benchmarking finished. Duration: 4.488710880279541 seconds
+[03-19 12:11:09]:INFO:Benchmarking: All expected trained agents have been recieved. Shutting down
+[03-19 12:11:09]:INFO:ConfusionMatrixPopulate: Received: it:1000 (NaiveSP,ppo_h64_rnn)-(NaiveSP,ppo_h64_rnn)
+[03-19 12:11:09]:INFO:ConfusionMatrixPopulate: All confusion matrices completed. Writing to memory
+[03-19 12:11:09]:INFO:ConfusionMatrixPopulate: Writing completed
+[03-19 12:11:09]:INFO:__main__: Finished run: 1. Duration: 626.9249205589294 (seconds)
+
+[03-19 12:11:09]:INFO:__main__: Total experiment duration: 1270.359342098236
+[03-19 12:11:09]:INFO:__main__: Experiment mean run duration: 635.179671049118
+[03-19 12:11:09]:INFO:__main__: Experiment std dev duration:  8.254750490188599
+[03-19 12:11:09]:INFO:__main__: Started plot creation

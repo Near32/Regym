@@ -1,0 +1,60 @@
+agents:
+  ppo_h64_mlp:
+    actor_arch: None
+    adam_eps: 1.0e-05
+    critic_arch: None
+    discount: 0.99
+    entropy_weight: 0.01
+    gae_tau: 0.95
+    gradient_clip: 5
+    horizon: 64
+    learning_rate: 0.0003
+    mini_batch_size: 16
+    nbr_actor: 1
+    optimization_epochs: 10
+    phi_arch: MLP
+    ppo_ratio_clip: 0.2
+    use_cuda: true
+    use_gae: true
+  ppo_h64_rnn:
+    actor_arch: None
+    adam_eps: 1.0e-05
+    critic_arch: None
+    discount: 0.99
+    entropy_weight: 0.01
+    gae_tau: 0.95
+    gradient_clip: 5
+    horizon: 64
+    learning_rate: 0.0003
+    mini_batch_size: 16
+    nbr_actor: 1
+    optimization_epochs: 10
+    phi_arch: RNN
+    ppo_ratio_clip: 0.2
+    use_cuda: true
+    use_gae: true
+experiment:
+  algorithms:
+  - ppo
+  benchmarking_episodes: 10
+  checkpoint_at_iterations:
+  - 100
+  - 200
+  - 300
+  - 400
+  - 500
+  - 600
+  - 700
+  - 800
+  - 900
+  - 1000
+  environment: RockPaperScissors-v0
+  experiment_id: Naive-TrajTest-CH1e3
+  fixed_agents:
+  - rockagent
+  - paperagent
+  - scissorsagent
+  - randomagent
+  number_of_runs: 2
+  self_play_training_schemes:
+  - naiveselfplay

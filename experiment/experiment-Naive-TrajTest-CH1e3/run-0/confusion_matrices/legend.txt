@@ -1,0 +1,6 @@
+NaiveSP-ppo_h64_rnn, 0
+NaiveSP-ppo_h64_mlp, 1
+EmptySelfPlay-RockAgent, 2
+EmptySelfPlay-PaperAgent, 3
+EmptySelfPlay-ScissorsAgent, 4
+EmptySelfPlay-RandomAgent, 5
