@@ -48,7 +48,7 @@ def benchmark_match_play_process(expected_benchmarking_matches, benchmarking_epi
 
 
 def benchmark_empirical_winrates(benchmarking_episodes, createNewEnvironment, agent_vector, logger):
-    with ProcessPoolExecutor(max_workers=3) as executor:
+    with ProcessPoolExecutor(max_workers=1) as executor:
         benchmark_start = time.time()
         futures = [executor.submit(single_match, *[createNewEnvironment(), agent_vector])
                    for _ in range(benchmarking_episodes)]
@@ -66,7 +66,7 @@ def benchmark_empirical_winrates(benchmarking_episodes, createNewEnvironment, ag
 
 def single_match(env, agent_vector):
     # trajectory: [(s,a,r,s')]
-    unhooked_agents = [AgentHook.unhook(agent, use_cuda=False) for agent in agent_vector]
+    unhooked_agents = [AgentHook.unhook(agent, use_cuda=None) for agent in agent_vector]
     trajectory = run_episode(env, unhooked_agents, training=False)
     reward_vector = lambda t: t[2]
     individal_agent_trajectory_reward = lambda t, agent_index: sum(map(lambda experience: reward_vector(experience)[agent_index], t))

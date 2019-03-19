@@ -39,7 +39,12 @@ class AgentHook():
         else: torch.save(agent, self.save_path)
 
     @staticmethod
-    def unhook(agent_hook, use_cuda=None):
+    def unhook(agent_hook=None,path=None, use_cuda=None):
+        if path is not None:
+            if agent_hook is not None:
+                raise ImplementationError
+            agent_hook = torch.load(path)
+            
         if hasattr(agent_hook, 'save_path') and agent_hook.save_path is not None: agent_hook.agent = torch.load(agent_hook.save_path)
         if agent_hook.type == AgentType.TQL or agent_hook.type == AgentType.MixedStrategyAgent: return agent_hook.agent
         if 'use_cuda' in agent_hook.agent.algorithm.kwargs:

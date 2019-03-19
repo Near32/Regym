@@ -30,7 +30,7 @@ def initialize_logger():
 
 if __name__ == '__main__':
     import torch
-    torch.multiprocessing.set_start_method('forkserver')
+    torch.multiprocessing.set_start_method('forkserver', force=True)
     import resource
     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1])) # Not impressed
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
     docopt_options = docopt(_USAGE)
     print(docopt_options)
-    all_configs = yaml.load(open(docopt_options['--config']))
+    all_configs = yaml.load(open(docopt_options['--config']), Loader=yaml.FullLoader)
     experiment_config = all_configs['experiment']
     relevant_agent_configuration = filter_relevant_agent_configurations(experiment_config, all_configs['agents'])
 
