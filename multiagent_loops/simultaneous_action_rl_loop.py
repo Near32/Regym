@@ -1,5 +1,5 @@
 import os
-
+import pickle
 
 def run_episode(env, agent_vector, training):
     '''
@@ -47,6 +47,9 @@ def self_play_training(env, training_agent, self_play_scheme, target_episodes=10
     agent_menagerie_path = '{}/{}-{}'.format(menagerie_path, self_play_scheme.name, training_agent.name)
     if not os.path.exists(agent_menagerie_path):
         os.mkdir(agent_menagerie_path)
+    agent_trajectory_path = '{}/{}-{}/trajectories'.format(menagerie_path, self_play_scheme.name, training_agent.name)
+    if not os.path.exists(agent_trajectory_path):
+        os.makedirs(agent_trajectory_path, exist_ok=True)
 
     trajectories = []
     for episode in range(target_episodes):
@@ -54,6 +57,12 @@ def self_play_training(env, training_agent, self_play_scheme, target_episodes=10
             opponent_agent_vector_e = self_play_scheme.opponent_sampling_distribution(menagerie, training_agent)
         episode_trajectory = run_episode(env, [training_agent]+opponent_agent_vector_e, training=True)
         candidate_save_path = f'{agent_menagerie_path}/checkpoint_episode_{iteration + episode}.pt'
+        
+        trajectory_save_path = f'{agent_trajectory_path}/episode_{iteration + episode}.traj'
+        traj_file = open(trajectory_save_path, 'wb')
+        pickle.dump(episode_trajectory, traj_file)
+        traj_file.close()
+
         menagerie = self_play_scheme.curator(menagerie, training_agent, episode_trajectory, candidate_save_path=candidate_save_path)
         trajectories.append(episode_trajectory)
 

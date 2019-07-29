@@ -48,4 +48,6 @@ class AgentHook():
                 if hasattr(agent_hook.agent, 'state_preprocessing'): agent_hook.agent.state_preprocessing.use_cuda = use_cuda
             if agent_hook.agent.algorithm.kwargs['use_cuda']:
                 for name, model in agent_hook.model_list: setattr(agent_hook.agent.algorithm, name, model.cuda())
+            else: 
+                for name, model in agent_hook.model_list: setattr(agent_hook.agent.algorithm, name, model.cpu())
         return agent_hook.agent
