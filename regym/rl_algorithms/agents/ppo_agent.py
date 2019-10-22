@@ -4,7 +4,7 @@ import copy
 
 from ..networks import CategoricalActorCriticNet, GaussianActorCriticNet
 from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalGruBody
-from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction
+from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 from ..PPO import PPOAlgorithm
 
 import torch.nn.functional as F
@@ -268,7 +268,8 @@ def build_PPO_Agent(task, config, agent_name):
             phi_body = FCBody(input_dim, hidden_units=(output_dim, output_dim), gate=F.leaky_relu)
         elif kwargs['phi_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'])
             kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
@@ -286,7 +287,8 @@ def build_PPO_Agent(task, config, agent_name):
                                          paddings=paddings)
         elif kwargs['phi_arch'] == 'CNN-GRU-RNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'])
             kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']

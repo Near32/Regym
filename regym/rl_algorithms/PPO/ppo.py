@@ -389,11 +389,16 @@ class PPOAlgorithm():
                                              iteration_count=self.param_update_counter,
                                              summary_writer=summary_writer )
             else:
-                loss = ppo_loss.compute_loss(sampled_states, sampled_actions, sampled_log_probs_old,
-                                             sampled_returns, sampled_advantages, 
+                loss = ppo_loss.compute_loss(sampled_states, 
+                                             sampled_actions, 
+                                             sampled_log_probs_old,
+                                             sampled_returns, 
+                                             sampled_advantages, 
                                              rnn_states=sampled_rnn_states,
                                              ratio_clip=self.kwargs['ppo_ratio_clip'], entropy_weight=self.kwargs['entropy_weight'],
-                                             model=self.model)
+                                             model=self.model,
+                                             iteration_count=self.param_update_counter,
+                                             summary_writer=summary_writer)
 
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
@@ -402,8 +407,9 @@ class PPOAlgorithm():
 
             if summary_writer is not None:
                 self.param_update_counter += 1 
-                summary_writer.add_scalar('Training/IntReturnMean', self.int_return_mean.cpu().item(), self.param_update_counter)
-                summary_writer.add_scalar('Training/IntReturnStd', self.int_return_std.cpu().item(), self.param_update_counter)
+                if self.use_rnd:
+                    summary_writer.add_scalar('Training/IntReturnMean', self.int_return_mean.cpu().item(), self.param_update_counter)
+                    summary_writer.add_scalar('Training/IntReturnStd', self.int_return_std.cpu().item(), self.param_update_counter)
     
         
 

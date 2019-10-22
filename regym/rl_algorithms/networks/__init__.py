@@ -4,7 +4,7 @@ from .networks import DQN, DuelingDQN
 from .networks import ActorNN, CriticNN
 from .ppo_network_heads import CategoricalActorCriticNet, GaussianActorCriticNet
 from .ppo_network_bodies import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody
-from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreprocessFunction
+from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 from .utils import random_sample
 
 import torch.nn.functional as F 

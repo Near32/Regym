@@ -1,6 +1,7 @@
 import torch
 import torch.autograd
 import torchvision.transforms as T
+import torch.nn.functional as F
 import numpy as np
 
 
@@ -51,6 +52,32 @@ def ResizeCNNPreprocessFunction(x, size, use_cuda=False, normalize_rgb_values=Tr
     # WATCHOUT: it is necessary to cast the tensor into float before doing
     # the division, otherwise the result is yielded as a uint8 (full of zeros...)
     x = x.type(torch.FloatTensor) / 255. if normalize_rgb_values else x
+    if use_cuda:
+        return x.type(torch.cuda.FloatTensor)
+    return x.type(torch.FloatTensor)
+
+
+def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values=False):
+    '''
+    Used to resize, normalize and convert OpenAI Gym raw pixel observations,
+    which are structured as numpy arrays of shape (Height, Width, Channels),
+    into the equivalent Pytorch Convention of (Channels, Height, Width).
+    Required for torch.nn.Modules which use a convolutional architechture.
+
+    :param x: Numpy array to be processed
+    :param size: int size (height==width)
+    :param use_cuda: Boolean to determine whether to create Cuda Tensor
+    :param normalize_rgb_values: Maps the 0-255 values of rgb colours
+                                 to interval (0-1)
+    '''
+    osize = float(x.shape[1])
+    scaling_factor = float(size)/osize
+    
+    x = np.array(x).astype(np.float32)
+    x = x.transpose((0, 3, 1, 2))
+    x = torch.from_numpy(x)
+    x = x / 255. if normalize_rgb_values else x
+    x = F.interpolate(x, scale_factor=scaling_factor)
     if use_cuda:
         return x.type(torch.cuda.FloatTensor)
     return x.type(torch.FloatTensor)

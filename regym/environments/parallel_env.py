@@ -57,7 +57,7 @@ def env_worker(envCreator, queue_in, queue_out, worker_id=None):
                     obs, r, done, info = env.step( pa_a)
                 queue_out.put( [obs,r,done,info] )
     except Exception as e:
-        print('Exception from env_worker: {}'.format(e))
+        print(e)
         #forkedPdb.set_trace()
     finally:
         env.close()
@@ -93,7 +93,7 @@ class ParallelEnv():
         p = Process(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid) )
         p.start()
         self.env_processes[idx] = p
-        time.sleep(10)
+        time.sleep(60)#10
 
     def clean(self, idx):
         self.env_processes[idx].terminate()
@@ -136,8 +136,8 @@ class ParallelEnv():
         out = None
         while out is None:
             try:
-                # Block/wait for at most 10 seconds:
-                out = self.env_queues[idx]['out'].get(block=True,timeout=10)
+                # Block/wait for at most 60 seconds:
+                out = self.env_queues[idx]['out'].get(block=True,timeout=60)
             except Exception as e:
                 print('Exception: {}'.format(e))
                 # Otherwise, we assume that there is an issue with the environment

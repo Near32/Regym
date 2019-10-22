@@ -2,10 +2,16 @@ from typing import Dict, List
 import torch
 
 
-def compute_loss(states: torch.Tensor, actions: torch.Tensor,
-                 log_probs_old: torch.Tensor, returns: torch.Tensor,
-                 advantages: torch.Tensor, model: torch.nn.Module,
-                 ratio_clip: float, entropy_weight: float,
+def compute_loss(states: torch.Tensor, 
+                 actions: torch.Tensor,
+                 log_probs_old: torch.Tensor, 
+                 returns: torch.Tensor,
+                 advantages: torch.Tensor, 
+                 model: torch.nn.Module,
+                 ratio_clip: float, 
+                 entropy_weight: float,
+                 summary_writer: object = None,
+                 iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
     '''
     Computes the loss of an actor critic model using the
@@ -45,7 +51,24 @@ def compute_loss(states: torch.Tensor, actions: torch.Tensor,
     obj = ratio * advantages
     obj_clipped = ratio.clamp(1.0 - ratio_clip,
                               1.0 + ratio_clip) * advantages
-    policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
+    
+    policy_val = -torch.min(obj, obj_clipped).mean()
+    entropy_val = -prediction['ent'].mean()
+    policy_loss = policy_val + entropy_weight * entropy_val # L^{clip} and L^{S} from original paper
+    #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
+    
     value_loss = 0.5 * torch.nn.functional.mse_loss(returns, prediction['v'])
     total_loss = (policy_loss + value_loss)
+
+    if summary_writer is not None:
+        summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)
+        summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
+        summary_writer.add_scalar('Training/AdvantageMean', advantages.mean().cpu().item(), iteration_count)
+        summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
+        summary_writer.add_scalar('Training/ValueLoss', value_loss.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/PolicyVal', policy_val.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/EntropyVal', entropy_val.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/PolicyLoss', policy_loss.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/TotalLoss', total_loss.cpu().item(), iteration_count)
+        
     return total_loss
