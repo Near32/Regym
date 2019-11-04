@@ -2,7 +2,7 @@ import torch
 from .agents import TabularQLearningAgent, DeepQNetworkAgent, PPOAgent, MixedStrategyAgent
 from enum import Enum
 
-AgentType = Enum("AgentType", "DQN TQL DDPG PPO MixedStrategyAgent")
+AgentType = Enum("AgentType", "DQN TQL PPO MixedStrategyAgent")
 
 
 class AgentHook():

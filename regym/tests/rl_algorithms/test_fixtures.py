@@ -1,5 +1,5 @@
 import pytest
-from regym.environments import parse_environment
+from regym.environments import generate_task
 
 
 @pytest.fixture
@@ -156,7 +156,7 @@ def tabular_q_learning_config_dict_ma():
 def reinforce_config_dict():
     config = dict()
     config['learning_rate'] = 1.0e-3
-    config['episodes_before_update'] = 5 # Do not make less than 2, for reinforce_test.py
+    config['episodes_before_update'] = 20 # Do not make less than 2, for reinforce_test.py
     config['adam_eps'] = 1.0e-5
     return config
 
@@ -165,7 +165,7 @@ def reinforce_config_dict():
 def a2c_config_dict():
     config = dict()
     config['discount_factor'] = 0.9
-    config['k_steps'] = 5
+    config['n_steps'] = 5
     config['samples_before_update'] = 30
     config['learning_rate'] = 1.0e-3
     config['adam_eps'] = 1.0e-5
@@ -189,19 +189,19 @@ def i2a_config_dict():
 
 @pytest.fixture
 def FrozenLakeTask(): # Discrete Action / Observation space
-    return parse_environment('FrozenLake-v0')
+    return generate_task('FrozenLake-v0')
 
 
 @pytest.fixture
 def CartPoleTask(): # Discrete Action / Continuous Observation space
-    return parse_environment('CartPole-v0')
+    return generate_task('CartPole-v0')
 
 
 @pytest.fixture
 def PendulumTask(): # Continuous Action / Observation space
-    return parse_environment('Pendulum-v0')
+    return generate_task('Pendulum-v0')
 
 
 @pytest.fixture
 def RPSTask():
-    return parse_environment('RockPaperScissors-v0')
+    return generate_task('RockPaperScissors-v0')
