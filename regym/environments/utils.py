@@ -10,8 +10,8 @@ class EnvironmentCreator():
     def __call__(self, worker_id=None):
         if self.is_gym_environment: 
             env = gym.make(self.environment_name)
-            if self.wrapping_fn is not None: wrapped_env = self.wrapping_fn(env=env)
-            return wrapped_env
+            if self.wrapping_fn is not None: env = self.wrapping_fn(env=env)
+            return env
         if self.is_unity_environment: 
             if 'obstacletower' not in self.environment_name: raise ValueError('Only obstacletower environment currently supported')
             from obstacle_tower_env import ObstacleTowerEnv

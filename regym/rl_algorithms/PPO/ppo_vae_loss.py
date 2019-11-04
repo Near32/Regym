@@ -10,6 +10,7 @@ def compute_loss(states: torch.Tensor,
                  model: torch.nn.Module,
                  ratio_clip: float, 
                  entropy_weight: float,
+                 vae_weight: float,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
@@ -63,11 +64,13 @@ def compute_loss(states: torch.Tensor,
 
     if summary_writer is not None:
         summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)
-        summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
         summary_writer.add_scalar('Training/AdvantageMean', advantages.mean().cpu().item(), iteration_count)
-        summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
+        summary_writer.add_histogram('Training/VValues', prediction['v'].cpu(), iteration_count)
         summary_writer.add_scalar('Training/MeanVValues', prediction['v'].cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/MeanReturns', returns.cpu().mean().item(), iteration_count)
+        summary_writer.add_histogram('Training/Returns', returns.cpu(), iteration_count)
         summary_writer.add_scalar('Training/StdVValues', prediction['v'].cpu().std().item(), iteration_count)
         summary_writer.add_scalar('Training/StdReturns', returns.cpu().std().item(), iteration_count)
         summary_writer.add_scalar('Training/ValueLoss', value_loss.cpu().item(), iteration_count)
@@ -75,5 +78,25 @@ def compute_loss(states: torch.Tensor,
         summary_writer.add_scalar('Training/EntropyVal', entropy_val.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/PolicyLoss', policy_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/TotalLoss', total_loss.cpu().item(), iteration_count)
+
+
+    VAE_loss, \
+    neg_log_lik, \
+    kl_div_reg, \
+    kl_div, \
+    tc_loss, \
+    modularity = model.compute_vae_loss(states)
+    
+    total_loss += vae_weight*VAE_loss.mean()+tc_loss.mean()
+
+
+    if summary_writer is not None:
+        summary_writer.add_scalar('Training/VAE/loss', VAE_loss.mean().cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/VAE/neg_log_lik', neg_log_lik.mean().cpu(), iteration_count)
+        summary_writer.add_scalar('Training/VAE/kl_div_reg', kl_div_reg.mean().cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/VAE/kl_div', kl_div.mean().cpu(), iteration_count)
+
+        summary_writer.add_scalar('Training/VAE/tc_loss', tc_loss.mean().cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/VAE/modularity', modularity.mean().cpu().item(), iteration_count)
         
     return total_loss

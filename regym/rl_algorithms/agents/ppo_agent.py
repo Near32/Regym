@@ -2,8 +2,8 @@ import torch
 import numpy as np
 import copy
 
-from ..networks import CategoricalActorCriticNet, GaussianActorCriticNet
-from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalGruBody
+from ..networks import CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
+from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalGruBody
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 from ..PPO import PPOAlgorithm
 
@@ -269,7 +269,7 @@ def build_PPO_Agent(task, config, agent_name):
         elif kwargs['phi_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'], normalize_rgb_values=True)
             kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
@@ -285,10 +285,40 @@ def build_PPO_Agent(task, config, agent_name):
                                          kernel_sizes=kernels,
                                          strides=strides,
                                          paddings=paddings)
+        elif 'VAE' in kwargs['phi_arch']:
+            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'], normalize_rgb_values=True)
+            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            if 'nbr_frame_stacking' in kwargs:
+                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+            input_shape = kwargs['preprocessed_observation_shape']
+            channels = [input_shape[0]] + kwargs['phi_arch_channels']
+            kernels = kwargs['phi_arch_kernels']
+            strides = kwargs['phi_arch_strides']
+            paddings = kwargs['phi_arch_paddings']
+            output_dim = kwargs['phi_arch_feature_dim']
+            phi_body = BetaVAEBody(input_shape=input_shape,
+                                   feature_dim=output_dim,
+                                   channels=channels,
+                                   kernel_sizes=kernels,
+                                   strides=strides,
+                                   paddings=paddings,
+                                   kwargs=kwargs)
+        elif kwargs['phi_arch'] == 'ResNet18':
+            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'], normalize_rgb_values=True)
+            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            if 'nbr_frame_stacking' in kwargs:
+                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+            input_shape = kwargs['preprocessed_observation_shape']
+            output_dim = kwargs['phi_arch_feature_dim']
+            phi_body = resnet18Input64(input_shape=input_shape, output_dim=output_dim)
         elif kwargs['phi_arch'] == 'CNN-GRU-RNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'], normalize_rgb_values=True)
             kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
@@ -331,22 +361,31 @@ def build_PPO_Agent(task, config, agent_name):
     if 'use_random_network_distillation' in kwargs and kwargs['use_random_network_distillation']:
         use_rnd = True
 
-    if task.action_type == 'Discrete' and task.observation_type == 'Discrete':
-        model = CategoricalActorCriticNet(task.observation_shape, task.action_dim,
-                                          phi_body=phi_body,
-                                          actor_body=actor_body,
-                                          critic_body=critic_body,
-                                          use_intrinsic_critic=use_rnd)
-    
-    if task.action_type == 'Discrete' and task.observation_type == 'Continuous':
-        model = CategoricalActorCriticNet(kwargs['preprocessed_observation_shape'], task.action_dim,
-                                          phi_body=phi_body,
-                                          actor_body=actor_body,
-                                          critic_body=critic_body,
-                                          use_intrinsic_critic=use_rnd)
+    if task.action_type == 'Discrete':
+        if task.observation_type == 'Discrete':
+            model = CategoricalActorCriticNet(task.observation_shape, task.action_dim,
+                                              phi_body=phi_body,
+                                              actor_body=actor_body,
+                                              critic_body=critic_body,
+                                              use_intrinsic_critic=use_rnd)
+        
+        elif task.observation_type == 'Continuous':
+            if 'use_vae' in kwargs:
+                model = CategoricalActorCriticVAENet(kwargs['preprocessed_observation_shape'], 
+                                                     task.action_dim,
+                                                     phi_body=phi_body,
+                                                     actor_body=actor_body,
+                                                     critic_body=critic_body,
+                                                     use_intrinsic_critic=use_rnd)
+            else:
+                model = CategoricalActorCriticNet(kwargs['preprocessed_observation_shape'], task.action_dim,
+                                                  phi_body=phi_body,
+                                                  actor_body=actor_body,
+                                                  critic_body=critic_body,
+                                                  use_intrinsic_critic=use_rnd)
 
     if task.action_type is 'Continuous' and task.observation_type is 'Continuous':
-        model = GaussianActorCriticNet(kwargs['preprocessed_observation_shape'], task.action_dim,
+        model = GaussianActorCriticNet(task.observation_shape, task.action_dim,
                                        phi_body=phi_body,
                                        actor_body=actor_body,
                                        critic_body=critic_body,

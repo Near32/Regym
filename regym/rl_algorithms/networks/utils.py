@@ -3,6 +3,7 @@ import torch.autograd
 import torchvision.transforms as T
 import torch.nn.functional as F
 import numpy as np
+import cv2 
 
 
 def PreprocessFunctionConcatenate(x, use_cuda=False):
@@ -57,7 +58,7 @@ def ResizeCNNPreprocessFunction(x, size, use_cuda=False, normalize_rgb_values=Tr
     return x.type(torch.FloatTensor)
 
 
-def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values=False):
+def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values=True):
     '''
     Used to resize, normalize and convert OpenAI Gym raw pixel observations,
     which are structured as numpy arrays of shape (Height, Width, Channels),
@@ -70,14 +71,39 @@ def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values
     :param normalize_rgb_values: Maps the 0-255 values of rgb colours
                                  to interval (0-1)
     '''
-    osize = float(x.shape[1])
-    scaling_factor = float(size)/osize
-    
     x = np.array(x).astype(np.float32)
-    x = x.transpose((0, 3, 1, 2))
+    
+    h,w = x.shape[1:3]
+    '''
+    osize = h
+    if h != w:
+        osize = max([h, w])
+        b = x.shape[0]
+        c = x.shape[3]
+        x_flat = x.reshape((-1, h, w))
+        xs = []
+        for idx in range(x_flat.shape[0]):
+            xs.append( cv2.resize(x_flat[idx], (osize, osize)).reshape((1, osize, osize)))
+        xs = np.concatenate(xs, axis=0)
+        x = xs.reshape((b, osize, osize, c))
+
+    scaling_factor = float(size)/osize
+    '''
+    b = x.shape[0]
+    c = x.shape[3]
+    x = x.transpose(0, 3, 1, 2)
+    # b x c x h x w 
+    if size is not None and size != h:
+        x_flat = x.reshape((-1, h, w))
+        xs = []
+        for idx in range(x_flat.shape[0]):
+            xs.append( cv2.resize(x_flat[idx], (size, size)).reshape((1, size, size)))
+        xs = np.concatenate(xs, axis=0)
+        x = xs.reshape((b, c, size, size))
+
     x = torch.from_numpy(x)
     x = x / 255. if normalize_rgb_values else x
-    x = F.interpolate(x, scale_factor=scaling_factor)
+    #x = F.interpolate(x, scale_factor=scaling_factor)
     if use_cuda:
         return x.type(torch.cuda.FloatTensor)
     return x.type(torch.FloatTensor)

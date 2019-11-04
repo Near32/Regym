@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from ..networks import random_sample
 from ..replay_buffers import Storage
-from . import ppo_loss, rnd_loss
+from . import ppo_loss, rnd_loss, ppo_vae_loss
 
 summary_writer = None 
 
@@ -50,6 +50,10 @@ class PPOAlgorithm():
             self.update_period_intrinsic_reward = self.kwargs['rnd_update_period_running_meanstd_int_reward']
             self.running_counter_intrinsic_return = 0
             self.update_period_intrinsic_return = self.kwargs['rnd_update_period_running_meanstd_int_reward']
+
+        self.use_vae = False
+        if 'use_vae' in self.kwargs and kwargs['use_vae']:
+            self.use_vae = True
 
         self.model = model
         if self.kwargs['use_cuda']:
@@ -388,6 +392,19 @@ class PPOAlgorithm():
                                              intrinsic_reward_ratio=self.kwargs['rnd_loss_int_ratio'],
                                              iteration_count=self.param_update_counter,
                                              summary_writer=summary_writer )
+            elif self.use_vae:
+                loss = ppo_vae_loss.compute_loss(sampled_states, 
+                                             sampled_actions, 
+                                             sampled_log_probs_old,
+                                             sampled_returns, 
+                                             sampled_advantages, 
+                                             rnn_states=sampled_rnn_states,
+                                             ratio_clip=self.kwargs['ppo_ratio_clip'], 
+                                             entropy_weight=self.kwargs['entropy_weight'],
+                                             vae_weight=self.kwargs['vae_weight'],
+                                             model=self.model,
+                                             iteration_count=self.param_update_counter,
+                                             summary_writer=summary_writer)
             else:
                 loss = ppo_loss.compute_loss(sampled_states, 
                                              sampled_actions, 
@@ -407,10 +424,14 @@ class PPOAlgorithm():
 
             if summary_writer is not None:
                 self.param_update_counter += 1 
+                '''
+                for name, param in self.model.named_parameters():
+                    if hasattr(param, 'grad') and param.grad is not None:
+                        summary_writer.add_histogram(f"Training/{name}", param.grad.cpu(), self.param_update_counter)
+                '''
                 if self.use_rnd:
                     summary_writer.add_scalar('Training/IntReturnMean', self.int_return_mean.cpu().item(), self.param_update_counter)
                     summary_writer.add_scalar('Training/IntReturnStd', self.int_return_std.cpu().item(), self.param_update_counter)
-    
         
 
     def calculate_rnn_states_from_batch_indices(self, rnn_states, batch_indices, nbr_layers_per_rnn):

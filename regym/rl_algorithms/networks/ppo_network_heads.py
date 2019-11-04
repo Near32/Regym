@@ -104,7 +104,7 @@ class ActorCriticNet(nn.Module):
         self.actor_body = actor_body
         self.critic_body = critic_body
         self.fc_action = layer_init(nn.Linear(actor_body.get_feature_shape(), action_dim), 1e-3)
-        self.fc_critic = layer_init(nn.Linear(critic_body.get_feature_shape(), 1), 1e-3)
+        self.fc_critic = layer_init(nn.Linear(critic_body.get_feature_shape(), 1), 1e0)
 
         self.use_intrinsic_critic = use_intrinsic_critic
         self.fc_int_critic = None
@@ -115,6 +115,9 @@ class ActorCriticNet(nn.Module):
         if self.use_intrinsic_critic: self.critic_params += list(self.fc_int_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
 
+        print(self)
+        for name, param in self.named_parameters():
+            print(name, param.shape)
 
 class DeterministicActorCriticNet(nn.Module, BaseNet):
     def __init__(self,
@@ -181,7 +184,7 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
         else:
             phi_v = self.network.critic_body(phi)
 
-        mean = F.tanh(self.network.fc_action(phi_a))
+        mean = torch.tanh(self.network.fc_action(phi_a))
         # batch x num_action
         v = self.network.fc_critic(phi_v)
         if self.use_intrinsic_critic:
@@ -211,6 +214,19 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
 
         return prediction
 
+
+
+# Categorical
+'''
+FixedCategorical = torch.distributions.Categorical
+
+old_sample = FixedCategorical.sample
+FixedCategorical.sample = lambda self: old_sample(self).unsqueeze(-1)
+
+log_prob_cat = FixedCategorical.log_prob
+FixedCategorical.log_probs = lambda self, actions: log_prob_cat(
+    self, actions.squeeze(-1)).view(actions.size(0), -1).sum(-1).unsqueeze(-1)
+'''
 
 class CategoricalActorCriticNet(nn.Module, BaseNet):
     def __init__(self,
@@ -247,8 +263,8 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         else:
             phi_v = self.network.critic_body(phi)
 
-        #logits = F.softmax( self.network.fc_action(phi_a), dim=1 )
-        logits = self.network.fc_action(phi_a)
+        logits = F.softmax( self.network.fc_action(phi_a), dim=1 )
+        #logits = self.network.fc_action(phi_a)
         #https://github.com/pytorch/pytorch/issues/7014
         logits = torch.clamp(logits, -1e10, 1e10)
         
@@ -258,17 +274,39 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
             int_v = self.network.fc_int_critic(phi_v)
         # batch x 1
 
+        '''
+        '''
+
         batch_size = logits.size(0)
-        dists = [ torch.distributions.Categorical(logits=logits[i]) for i in range(batch_size)]
+        # logits = log-odds:
+        #dists = [ torch.distributions.Categorical(logits=logits[i]) for i in range(batch_size)]
+        # probs : will be normalized to sum to one:
+        dists = [ torch.distributions.Categorical(probs=logits[i]) for i in range(batch_size)]
+        
         if action is None:
             action = torch.cat([dist.sample().unsqueeze(0) for dist in dists], dim=0)
             # batch x 1
+        
         log_probs = [dist.log_prob(action[idx]).unsqueeze(0) for idx, dist in enumerate(dists)]
         log_prob = torch.cat(log_probs, dim=0)
         # batch x 1
         entropies = [dist.entropy().unsqueeze(0) for idx, dist in enumerate(dists)]
         entropy = torch.cat(entropies, dim=0)
         # batch x 1
+        
+        '''
+        
+        dist1 = FixedCategorical(logits=logits)
+
+        if action is None:
+            action1 = dist1.sample()
+            # batch x 1 
+
+        log_prob1 = dist1.log_probs(action1)
+
+        entropy1 = dist1.entropy()#.mean()
+        
+        '''
 
         prediction = {'a': action,
                     'log_pi_a': log_prob,
@@ -284,3 +322,22 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
                                'next_rnn_states': next_rnn_states})
 
         return prediction
+
+
+class CategoricalActorCriticVAENet(CategoricalActorCriticNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body=None,
+                 use_intrinsic_critic=False):
+        super(CategoricalActorCriticVAENet, self).__init__(state_dim=state_dim,
+                                                           action_dim=action_dim,
+                                                           phi_body=phi_body,
+                                                           actor_body=actor_body,
+                                                           critic_body=critic_body,
+                                                           use_intrinsic_critic=use_intrinsic_critic)
+
+    def compute_vae_loss(self, states):
+        return self.network.phi_body.compute_vae_loss(states)

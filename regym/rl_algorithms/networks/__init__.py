@@ -2,8 +2,8 @@ from .networks import hard_update, soft_update
 from .networks import LeakyReLU
 from .networks import DQN, DuelingDQN
 from .networks import ActorNN, CriticNN
-from .ppo_network_heads import CategoricalActorCriticNet, GaussianActorCriticNet
-from .ppo_network_bodies import FCBody, LSTMBody, GRUBody, ConvolutionalBody, ConvolutionalLstmBody, ConvolutionalGruBody
+from .ppo_network_heads import CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
+from .ppo_network_bodies import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
 from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 from .utils import random_sample
 
@@ -26,6 +26,9 @@ def choose_architecture( architecture, hidden_units_list=None,
                                      kernel_sizes=kernels,
                                      strides=strides,
                                      paddings=paddings)
+    if architecture == 'ResNet18':
+        phi_body = resnet18Input64()
+
     if architecture == 'CNN-RNN':
         channels = [input_shape[0]] + nbr_channels_list
         phi_body = ConvolutionalLstmBody(input_shape=input_shape,
