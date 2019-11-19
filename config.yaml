@@ -1,0 +1,36 @@
+experiment:
+    tasks: [{'env-id': 'BreakoutNoFrameskip-v4',
+             'agent-id': 'ppo',
+             'nbr_actors': 2
+             },
+             {'env-id': 'SeaquestNoFrameskip-v4',
+             'agent-id': 'ppo',
+             'nbr_actors': 2
+             },
+             {'env-id': 'Pong-v0',
+             'agent-id': 'ppo',
+             'nbr_actors': 2
+             }
+            ]
+    experiment_id: 'benchmark-test'
+    benchmarking_episodes: 10
+    train_observation_budget: 1.e7
+    seed: 69
+
+agents:
+    ppo:
+        discount: 0.99
+        use_gae: False
+        use_cuda: False
+        gae_tau: 0.95
+        entropy_weight: 0.01
+        gradient_clip: 5
+        optimization_epochs: 10
+        mini_batch_size: 256
+        ppo_ratio_clip: 0.2
+        learning_rate: 3.0e-4
+        adam_eps: 1.0e-5
+        horizon: 128
+        phi_arch: 'MLP'
+        actor_arch: 'None'
+        critic_arch: 'None'
