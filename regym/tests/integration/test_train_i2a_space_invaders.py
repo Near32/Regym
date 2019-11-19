@@ -31,6 +31,3 @@ def test_train_i2a(i2a_config_dict, si_task):
 
     assert trajectory is not None
     assert isinstance(trajectory, list)
-
-if __name__ == '__main__':
-    test_train_i2a(i2a_config_dict(),si_task())
