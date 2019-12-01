@@ -47,7 +47,15 @@ def compute_loss(states: torch.Tensor,
     '''
     prediction = model(states, actions, rnn_states=rnn_states)
     
-    ratio = torch.exp((prediction['log_pi_a'] - log_probs_old.detach()))
+    '''
+    with torch.no_grad():
+      old_prediction = model(states, actions, rnn_states=rnn_states)
+    
+    ratio = torch.exp((prediction['log_pi_a'] - old_prediction['log_pi_a']))
+    '''
+    
+    ratio = torch.exp((prediction['log_pi_a'] - log_probs_old))
+    
     obj = ratio * advantages
     obj_clipped = ratio.clamp(1.0 - ratio_clip,
                               1.0 + ratio_clip) * advantages
@@ -57,15 +65,14 @@ def compute_loss(states: torch.Tensor,
     policy_loss = policy_val + entropy_weight * entropy_val # L^{clip} and L^{S} from original paper
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
     
-    #value_loss = 0.5 * torch.nn.functional.mse_loss(returns, prediction['v'])
     value_loss = 0.5 * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
     total_loss = (policy_loss + value_loss)
 
     if summary_writer is not None:
         summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)
-        summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
         summary_writer.add_scalar('Training/AdvantageMean', advantages.mean().cpu().item(), iteration_count)
-        summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
         summary_writer.add_scalar('Training/MeanVValues', prediction['v'].cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/MeanReturns', returns.cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/StdVValues', prediction['v'].cpu().std().item(), iteration_count)

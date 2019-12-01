@@ -13,7 +13,7 @@ summary_writer = None
 
 class PPOAlgorithm():
 
-    def __init__(self, kwargs, model, optimizer=None, target_intr_model=None, predict_intr_model=None, summary_writer=None):
+    def __init__(self, kwargs, model, optimizer=None, target_intr_model=None, predict_intr_model=None, sum_writer=None):
         '''
         TODO specify which values live inside of kwargs
         Refer to original paper for further explanation: https://arxiv.org/pdf/1707.06347.pdf
@@ -32,7 +32,7 @@ class PPOAlgorithm():
         model: (Pytorch nn.Module) Used to represent BOTH policy network and value network
         '''
         self.kwargs = deepcopy(kwargs)
-        self.nbr_actor = self.kwargs['nbr_actor']
+        self.nbr_actor = self.kwargs['nbr_actor'] if 'nbr_actor' in self.kwargs else 1
         self.use_rnd = False
         if target_intr_model is not None and predict_intr_model is not None:
             self.use_rnd = True
@@ -51,6 +51,10 @@ class PPOAlgorithm():
             self.running_counter_intrinsic_return = 0
             self.update_period_intrinsic_return = self.kwargs['rnd_update_period_running_meanstd_int_reward']
 
+        self.running_counter_extrinsic_reward = 0
+        self.ext_reward_mean = 0.0
+        self.ext_reward_std = 1.0
+            
         self.use_vae = False
         if 'use_vae' in self.kwargs and kwargs['use_vae']:
             self.use_vae = True
@@ -78,10 +82,14 @@ class PPOAlgorithm():
         self.storages = None
         self.reset_storages()
 
-        self.summary_writer = summary_writer
+        global summary_writer
+        summary_writer = sum_writer
         self.param_update_counter = 0
 
-    def reset_storages(self):
+    def reset_storages(self, nbr_actor=None):
+        if nbr_actor is not None:
+            self.nbr_actor = nbr_actor
+
         if self.storages is not None:
             for storage in self.storages: storage.reset()
 
@@ -99,9 +107,14 @@ class PPOAlgorithm():
                 self.storages[-1].add_key('target_int_f')
 
     def train(self):
+        # Compute mean and std for ext reward:
+        #self.running_counter_extrinsic_reward = 0
+        #for idx, storage in enumerate(self.storages):
+        #    self.update_ext_reward_mean_std(storage.r)
+        
         # Compute Returns and Advantages:
         for idx, storage in enumerate(self.storages): 
-            if len(storage) == 0: continue
+            if len(storage) <= 1: continue
             storage.placeholder()
             self.compute_advantages_and_returns(storage_idx=idx)
             if self.use_rnd: 
@@ -110,7 +123,7 @@ class PPOAlgorithm():
         # Update observations running mean and std: 
         if self.use_rnd: 
             for idx, storage in enumerate(self.storages): 
-                if len(storage) == 0: continue
+                if len(storage) <= 1: continue
                 for ob in storage.s: self.update_obs_mean_std(ob)
         
                 
@@ -131,7 +144,7 @@ class PPOAlgorithm():
             - the first dictionnary has the name of the recurrent module in the architecture
               as keys.
             - the second dictionnary has the keys 'hidden', 'cell'.
-            - the items of this second dictionnary are lists of actual hidden/cell states for the LSTMBody.
+            - the items of this second dictionnary are lists of actual hidden/cell states for the GRU/LSTMBody.
         '''
         reformated_rnn_states = {k: {'hidden': [list()], 'cell': [list()]} for k in rnn_states[0]}
         for rnn_state in rnn_states:
@@ -147,7 +160,25 @@ class PPOAlgorithm():
             reformated_rnn_states[k] = {'hidden': [hstates], 'cell': [cstates]}
         return reformated_rnn_states
 
+    def normalize_ext_rewards(self, storage_idx):
+        normalized_ext_rewards = []
+        for i in range(len(self.storages[storage_idx])):
+            #normalized_ext_rewards.append(self.storages[storage_idx].r[i] / (self.ext_reward_std+1e-8))
+            # Proper normalization to standard gaussian:
+            normalized_ext_rewards.append( (self.storages[storage_idx].r[i]-self.ext_reward_mean) / (self.ext_reward_std+1e-8))
+        return normalized_ext_rewards
+
+    def normalize_int_rewards(self, storage_idx):
+        normalized_int_rewards = []
+        for i in range(len(self.storages[storage_idx])):
+            # Scaling alone:
+            normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_reward_std+1e-8))
+            #normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_return_std+1e-8))
+        return normalized_int_rewards
+
     def compute_advantages_and_returns(self, storage_idx, non_episodic=False):
+        ext_r = self.storages[storage_idx].r
+        #norm_ext_r = self.normalize_ext_rewards(storage_idx)
         advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32)) # TODO explain (used to be number of workers)
         returns = self.storages[storage_idx].v[-1].detach()
         gae = 0.0
@@ -155,12 +186,14 @@ class PPOAlgorithm():
             if not self.kwargs['use_gae']:
                 if non_episodic:    notdone = 1.0
                 else:               notdone = self.storages[storage_idx].non_terminal[i]
-                returns = self.storages[storage_idx].r[i] + self.kwargs['discount'] * notdone * returns
+                returns = ext_r[i] + self.kwargs['discount'] * notdone * returns
+                #returns = norm_ext_r[i] + self.kwargs['discount'] * notdone * returns
                 advantages = returns - self.storages[storage_idx].v[i].detach()
             else:
                 if non_episodic:    notdone = 1.0
                 else:               notdone = self.storages[storage_idx].non_terminal[i]
-                td_error = self.storages[storage_idx].r[i]  + self.kwargs['discount'] * notdone * self.storages[storage_idx].v[i + 1].detach() - self.storages[storage_idx].v[i].detach()
+                td_error = ext_r[i]  + self.kwargs['discount'] * notdone * self.storages[storage_idx].v[i + 1].detach() - self.storages[storage_idx].v[i].detach()
+                #td_error = norm_ext_r[i]  + self.kwargs['discount'] * notdone * self.storages[storage_idx].v[i + 1].detach() - self.storages[storage_idx].v[i].detach()
                 advantages = gae = td_error + self.kwargs['discount'] * self.kwargs['gae_tau'] * notdone * gae 
                 returns = advantages + self.storages[storage_idx].v[i].detach()
             self.storages[storage_idx].adv[i] = advantages.detach()
@@ -193,13 +226,6 @@ class PPOAlgorithm():
 
         self.update_int_return_mean_std(int_returns.detach().cpu())
 
-    def normalize_int_rewards(self, storage_idx):
-        normalized_int_rewards = []
-        for i in range(len(self.storages[storage_idx])):
-            #normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_reward_std+1e-8))
-            normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_return_std+1e-8))
-        return normalized_int_rewards
-
     def retrieve_values_from_storages(self):
         full_states = []
         full_actions = []
@@ -221,7 +247,7 @@ class PPOAlgorithm():
             
         for storage in self.storages:
             # Check that there is something in the storage 
-            if len(storage) == 0: continue
+            if len(storage) <= 1: continue
             cat = storage.cat(['s', 'a', 'log_pi_a', 'ret', 'adv'])
             states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), cat)
             full_states.append(states)
@@ -291,6 +317,17 @@ class PPOAlgorithm():
 
         return int_reward, target_features.detach().cpu()
 
+    def update_ext_reward_mean_std(self, unnormalized_er_list):
+        for unnormalized_er in unnormalized_er_list:
+            rmean = self.ext_reward_mean
+            rstd = self.ext_reward_std
+            rc = self.running_counter_extrinsic_reward
+
+            self.running_counter_extrinsic_reward += 1
+            
+            self.ext_reward_mean = (self.ext_reward_mean*rc+unnormalized_er)/self.running_counter_extrinsic_reward
+            self.ext_reward_std = np.sqrt( ( np.power(self.ext_reward_std,2)*rc+np.power(unnormalized_er-rmean, 2) ) / self.running_counter_extrinsic_reward )
+        
     def update_int_reward_mean_std(self, unnormalized_ir):
         rmean = self.int_reward_mean
         rstd = self.int_reward_std
@@ -317,7 +354,6 @@ class PPOAlgorithm():
         if self.running_counter_intrinsic_return >= self.update_period_intrinsic_return:
           self.running_counter_intrinsic_return = 0
 
-    
     def update_obs_mean_std(self, unnormalized_obs):
         rmean = self.obs_mean
         rstd = self.obs_std
@@ -339,9 +375,33 @@ class PPOAlgorithm():
             nbr_layers_per_rnn = {recurrent_submodule_name: len(rnn_states[recurrent_submodule_name]['hidden'])
                                   for recurrent_submodule_name in rnn_states}
 
+        #----------------------------------------------------------------------------------------------------------------------------------------------------------------
+        # Mid-level Old Policy Prediction:
+        #----------------------------------------------------------------------------------------------------------------------------------------------------------------
+        sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
+        with torch.no_grad():
+            for batch_indices in sampler:
+                batch_indices = torch.from_numpy(batch_indices).long()
+                
+                sampled_rnn_states = None
+                if self.recurrent:
+                    sampled_rnn_states = self.calculate_rnn_states_from_batch_indices(rnn_states, batch_indices, nbr_layers_per_rnn)
+
+                sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
+                sampled_actions = actions[batch_indices].cuda() if self.kwargs['use_cuda'] else actions[batch_indices]
+                sampled_log_probs_old = log_probs_old[batch_indices].cuda() if self.kwargs['use_cuda'] else log_probs_old[batch_indices]
+                
+                sampled_states = sampled_states.detach()
+                sampled_actions = sampled_actions.detach()
+            
+                old_prediction = self.model(sampled_states, sampled_actions, rnn_states=rnn_states)
+                log_probs_old[batch_indices] = old_prediction['log_pi_a'].cpu()
+        #----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
         sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
+            
             sampled_rnn_states = None
             if self.recurrent:
                 sampled_rnn_states = self.calculate_rnn_states_from_batch_indices(rnn_states, batch_indices, nbr_layers_per_rnn)
@@ -412,7 +472,8 @@ class PPOAlgorithm():
                                              sampled_returns, 
                                              sampled_advantages, 
                                              rnn_states=sampled_rnn_states,
-                                             ratio_clip=self.kwargs['ppo_ratio_clip'], entropy_weight=self.kwargs['entropy_weight'],
+                                             ratio_clip=self.kwargs['ppo_ratio_clip'], 
+                                             entropy_weight=self.kwargs['entropy_weight'],
                                              model=self.model,
                                              iteration_count=self.param_update_counter,
                                              summary_writer=summary_writer)

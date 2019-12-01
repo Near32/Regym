@@ -178,9 +178,9 @@ class BroadcastingDecoder(nn.Module) :
                 outd = self.output_shape[0]
 
             if i == 0: 
-                layer = layer_init(coordconv( ind, outd, kernel_size, stride=stride, pad=padding), w_scale=1e-3)
+                layer = layer_init(coordconv( ind, outd, kernel_size, stride=stride, pad=padding), w_scale=5e-2)
             else:
-                layer = layer_init(nn.Conv2d(ind, outd, kernel_size=kernel_size, stride=stride, padding=padding), w_scale=1e-3)
+                layer = layer_init(nn.Conv2d(ind, outd, kernel_size=kernel_size, stride=stride, padding=padding), w_scale=5e-2)
             
             self.dcs.append(layer)
 
@@ -843,6 +843,7 @@ class DDPGConvBody(nn.Module):
 class FCBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu):
         super(FCBody, self).__init__()
+        if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
         if isinstance(state_dim,int):   dims = (state_dim, ) + hidden_units
         else:   dims = state_dim + hidden_units
         self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
@@ -860,6 +861,7 @@ class FCBody(nn.Module):
 class LSTMBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
         super(LSTMBody, self).__init__()
+        if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
         dims = (state_dim, ) + hidden_units
         # Consider future cases where we may not want to initialize the LSTMCell(s)
         self.layers = nn.ModuleList([layer_init_lstm(nn.LSTMCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
@@ -910,6 +912,7 @@ class LSTMBody(nn.Module):
 class GRUBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
         super(GRUBody, self).__init__()
+        if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
         dims = (state_dim, ) + hidden_units
         # Consider future cases where we may not want to initialize the LSTMCell(s)
         self.layers = nn.ModuleList([layer_init_gru(nn.GRUCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])

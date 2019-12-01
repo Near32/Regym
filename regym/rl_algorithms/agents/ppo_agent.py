@@ -23,7 +23,7 @@ class PPOAgent(object):
         self.save_path = None
         self.episode_count = 0
 
-        self.nbr_actor = self.algorithm.kwargs['nbr_actor']
+        self.nbr_actor = self.algorithm.nbr_actor
         self.previously_done_actors = [False]*self.nbr_actor
 
         self.use_rnd = self.algorithm.use_rnd
@@ -45,17 +45,23 @@ class PPOAgent(object):
     def set_nbr_actor(self, nbr_actor):
         if nbr_actor != self.nbr_actor:
             self.nbr_actor = nbr_actor
-            self.algorithm.kwargs['nbr_actor'] = self.nbr_actor
-            self.algorithm.reset_storages()
+            self.reset_actors(init=True)
+            self.algorithm.reset_storages(nbr_actor=self.nbr_actor)
 
-    def reset_actors(self):
+    def reset_actors(self, indices=None, init=False):
         '''
         In case of a multi-actor process, this function is called to reset
         the actors' internal values.
         '''
-        self.previously_done_actors = [False]*self.nbr_actor
+        if indices is None: indices = range(self.nbr_actor)
+        
+        if init:
+            self.previously_done_actors = [False]*self.nbr_actor
+        else:
+            for idx in indices: self.previously_done_actors[idx] = False
+
         if self.recurrent:
-            self._reset_rnn_states()
+            self._reset_rnn_states(indices=indices)
 
     def update_actors(self, batch_idx):
         '''
@@ -76,7 +82,10 @@ class PPOAgent(object):
         if self.recurrent:
             self.remove_from_rnn_states(batch_idx=batch_idx)
 
-    def _reset_rnn_states(self):
+    def _reset_rnn_states(self, indices=None):
+        # TODO: account for the indices in rnn states:
+        if indices is None: indices = [i for i in range(self.nbr_actor)]
+
         self.rnn_states = {k: None for k in self.rnn_keys}
         for k in self.rnn_states:
             if 'phi' in k:
@@ -340,7 +349,7 @@ def build_PPO_Agent(task, config, agent_name):
         phi_body = None
 
     if kwargs['actor_arch'] != 'None':
-        output_dim = 128
+        output_dim = 256
         if kwargs['actor_arch'] == 'RNN':
             actor_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
         elif kwargs['actor_arch'] == 'MLP':
@@ -349,7 +358,7 @@ def build_PPO_Agent(task, config, agent_name):
         actor_body = None
 
     if kwargs['critic_arch'] != 'None':
-        output_dim = 128
+        output_dim = 256
         if kwargs['critic_arch'] == 'RNN':
             critic_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
         elif kwargs['critic_arch'] == 'MLP':

@@ -45,7 +45,10 @@ def initialize_algorithms(environment, agent_configurations):
         if agent_name.startswith('deepqlearning'): return build_DQN_Agent(task, config, agent_name)
         if agent_name.startswith('ppo'): return build_PPO_Agent(task, config, agent_name)
         else: raise ValueError('Unkown agent name: {agent_name}'.format(agent_name))
-    task = environments.parse_gym_environment(environment)
+    if isinstance(environment, str):
+        task = environments.parse_gym_environment(environment)
+    else:
+        task = environment
     return [partial_match_build_function(agent, task, config) for agent, config in agent_configurations.items()]
 
 

@@ -79,6 +79,9 @@ class ParallelEnv():
         self.count_failures = [0]*self.nbr_parallel_env
         self.env_actions = [None]*self.nbr_parallel_env
 
+        self.dones = [False]*self.nbr_parallel_env
+        self.previous_dones = copy.deepcopy(self.dones)
+
     def get_nbr_envs(self):
         return self.nbr_parallel_env
 
@@ -157,14 +160,16 @@ class ParallelEnv():
         self.env_actions[idx] = action
         self.env_queues[idx]['in'].put(action)
 
-    def reset(self, env_configs=None) :
+    def reset(self, env_configs=None, env_indices=None) :
+        if env_indices is None: env_indices = range(self.nbr_parallel_env)
+        
         if env_configs is not None: 
             self.worker_ids = [ env_config.pop('worker_id', None) for env_config in env_configs]
-            
-        for idx, p in enumerate(self.env_processes):
+         
+        for idx in env_indices:
             self.check_update_reset_env_process(idx, env_configs=env_configs, reset=True)
 
-        observations = [ self.get_from_queue(idx) for idx in range(self.nbr_parallel_env)]  
+        observations = [ self.get_from_queue(idx) for idx in env_indices] 
 
         if self.single_agent:
             observations = [ np.concatenate([obs]*self.nbr_frame_stacking, axis=-1) for obs in observations]
@@ -172,8 +177,10 @@ class ParallelEnv():
         else:
             per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1, *(obs[idx_agent].shape)) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]
         
-        self.dones = [False]*self.nbr_parallel_env
+        for idx in env_indices:
+            self.dones[idx] = False
         self.previous_dones = copy.deepcopy(self.dones)
+
         return per_env_obs
 
     def step(self, action_vector):
