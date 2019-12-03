@@ -278,10 +278,12 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         '''
 
         batch_size = logits.size(0)
+        
+        '''
         # logits = log-odds:
-        #dists = [ torch.distributions.Categorical(logits=logits[i]) for i in range(batch_size)]
+        dists = [ torch.distributions.Categorical(logits=logits[i]) for i in range(batch_size)]
         # probs : will be normalized to sum to one:
-        dists = [ torch.distributions.Categorical(probs=logits[i]) for i in range(batch_size)]
+        #dists = [ torch.distributions.Categorical(probs=logits[i]) for i in range(batch_size)]
         
         if action is None:
             action = torch.cat([dist.sample().unsqueeze(0) for dist in dists], dim=0)
@@ -293,7 +295,20 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         entropies = [dist.entropy().unsqueeze(0) for idx, dist in enumerate(dists)]
         entropy = torch.cat(entropies, dim=0)
         # batch x 1
+        '''
+
+        # logits = log-odds:
+        dists = torch.distributions.Categorical(logits=logits)
         
+        if action is None:
+            action = dists.sample()#.unsqueeze(1)
+            # batch #x 1
+
+        log_prob = dists.log_prob(action)
+        # batch #x 1
+        entropy = dists.entropy().unsqueeze(1)
+        # batch #x 1
+
         '''
         
         dist1 = FixedCategorical(logits=logits)

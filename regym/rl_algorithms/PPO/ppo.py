@@ -271,13 +271,13 @@ class PPOAlgorithm():
         full_log_probs_old = torch.cat(full_log_probs_old, dim=0)
         full_returns = torch.cat(full_returns, dim=0)
         full_advantages = torch.cat(full_advantages, dim=0)
-        full_advantages = self.standardize(full_advantages)
+        full_advantages = self.standardize(full_advantages).squeeze()
         if self.use_rnd:
             full_next_states = torch.cat(full_next_states, dim=0)
             full_int_returns = torch.cat(full_int_returns, dim=0)
             full_int_advantages = torch.cat(full_int_advantages, dim=0)
             full_target_random_features = torch.cat(full_target_random_features, dim=0)
-            full_int_advantages = self.standardize(full_int_advantages)
+            full_int_advantages = self.standardize(full_int_advantages).squeeze()
             
         return full_states, full_actions, full_next_states, full_log_probs_old, full_returns, full_advantages, full_int_returns, full_int_advantages, full_target_random_features, full_rnn_states
 
@@ -378,6 +378,7 @@ class PPOAlgorithm():
         #----------------------------------------------------------------------------------------------------------------------------------------------------------------
         # Mid-level Old Policy Prediction:
         #----------------------------------------------------------------------------------------------------------------------------------------------------------------
+        '''
         sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
         with torch.no_grad():
             for batch_indices in sampler:
@@ -396,6 +397,7 @@ class PPOAlgorithm():
             
                 old_prediction = self.model(sampled_states, sampled_actions, rnn_states=rnn_states)
                 log_probs_old[batch_indices] = old_prediction['log_pi_a'].cpu()
+        '''
         #----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
         sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])

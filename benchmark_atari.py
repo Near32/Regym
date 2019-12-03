@@ -281,6 +281,7 @@ def training_process(agent_config: Dict, task_config: Dict,
                                       agent_configurations={task_config['agent-id']: agent_config})[0]
     agent.save_path = save_path
     regym.rl_algorithms.PPO.ppo.summary_writer = sum_writer
+    regym.rl_algorithms.A2C.a2c.summary_writer = sum_writer
     
     train_and_evaluate(agent=agent,
                        task=task,
@@ -313,7 +314,9 @@ def test():
     for task_config in tasks_configs:
         agent_name = task_config['agent-id']
         env_name = task_config['env-id']
-        path = f'{base_path}/{agent_name}/{env_name}'
+        run_name = task_config['run-id']
+        path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
+        print(f"Path: -- {path} --")
         training_process(agents_config[task_config['agent-id']], task_config,
                          benchmarking_episodes=experiment_config['benchmarking_episodes'],
                          train_observation_budget=experiment_config['train_observation_budget'],

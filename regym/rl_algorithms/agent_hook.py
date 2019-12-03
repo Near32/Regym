@@ -1,8 +1,8 @@
 import torch
-from .agents import TabularQLearningAgent, DeepQNetworkAgent, PPOAgent, MixedStrategyAgent
+from .agents import TabularQLearningAgent, DeepQNetworkAgent, PPOAgent, A2CAgent, MixedStrategyAgent
 from enum import Enum
 
-AgentType = Enum("AgentType", "DQN TQL PPO MixedStrategyAgent")
+AgentType = Enum("AgentType", "DQN TQL PPO A2C MixedStrategyAgent")
 
 
 class AgentHook():
@@ -28,6 +28,8 @@ class AgentHook():
             agent_type, model_list = AgentType.DQN, [('model', agent.algorithm.model), ('target_model', agent.algorithm.target_model)]
         elif isinstance(agent, PPOAgent):
             agent_type, model_list = AgentType.PPO, [('model', agent.algorithm.model)]
+        elif isinstance(agent, A2CAgent):
+            agent_type, model_list = AgentType.A2C, [('model', agent.algorithm.model)]
         self.hook_agent(agent, agent_type, model_list)
 
     def hook_agent(self, agent, agent_type, model_list):
