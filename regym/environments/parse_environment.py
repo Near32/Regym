@@ -3,6 +3,8 @@ import gym
 from .gym_parser import parse_gym_environment
 from .unity_parser import parse_unity_environment
 from .parallel_env import ParallelEnv
+from .vec_env import VecEnv
+from .parallel_vec_env import ParallelVecEnv
 from .utils import EnvironmentCreator
 from .task import Task
 
@@ -36,8 +38,13 @@ def parse_environment(env_name, nbr_parallel_env=1, nbr_frame_stacking=1, wrappi
     else: raise ValueError('Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
 
     task.env.close()
+    
     env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=wrapping_fn)
+    
     task = Task(task.name, ParallelEnv(env_creator, nbr_parallel_env, nbr_frame_stacking), task.state_space_size, task.action_space_size, task.observation_shape, task.observation_type, task.action_dim, task.action_type, task.hash_function)
+    #task = Task(task.name, VecEnv(env_creator, nbr_parallel_env, nbr_frame_stacking), task.state_space_size, task.action_space_size, task.observation_shape, task.observation_type, task.action_dim, task.action_type, task.hash_function)
+    #task = Task(task.name, ParallelVecEnv(env_creator, nbr_parallel_env, nbr_frame_stacking), task.state_space_size, task.action_space_size, task.observation_shape, task.observation_type, task.action_dim, task.action_type, task.hash_function)
+    
     return task
 
 def check_for_unity_executable(env_name):

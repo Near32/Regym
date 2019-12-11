@@ -8,6 +8,7 @@ import torch
 # https://github.com/pytorch/pytorch/issues/11201:
 torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.multiprocessing import Process, Queue
+from threading import Thread
 
 import gc 
 
@@ -28,6 +29,8 @@ class ForkedPdb(pdb.Pdb):
 
 forkedPdb = ForkedPdb()
 
+
+USE_PROC =True
 
 #def env_worker(env, queue_in, queue_out, worker_id=None):
 def env_worker(envCreator, queue_in, queue_out, worker_id=None):
@@ -86,6 +89,7 @@ class ParallelEnv():
         return self.nbr_parallel_env
 
     def launch_env_process(self, idx, worker_id_offset=0):
+        global USE_PROC
         self.env_queues[idx] = {'in':Queue(), 'out':Queue()}
         '''
         self.envs[idx] = self.env_creator(worker_id=self.worker_ids[idx]+worker_id_offset)
@@ -93,7 +97,10 @@ class ParallelEnv():
         '''
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
-        p = Process(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid) )
+        if USE_PROC:
+            p = Process(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid) )
+        else:
+            p = Thread(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid) )
         p.start()
         self.env_processes[idx] = p
         #time.sleep(90)

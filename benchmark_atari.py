@@ -100,6 +100,21 @@ class LazyFrames(object):
             out = out.astype(dtype)
         return out
 
+class RandNoOpStartWrapper(gym.Wrapper):
+    def __init__(self, env, nbr_max_random_steps=30):
+        gym.Wrapper.__init__(self,env)
+        self.nbr_max_random_steps = nbr_max_random_steps
+        
+    def reset(self, **args):
+        obs = self.env.reset()
+        nbr_rand_noop = random.randint(0, self.nbr_max_random_steps)
+        for _ in range(nbr_rand_noop):
+            # Execute No-Op:
+            obs, r, d, i = self.env.step(0)
+        return obs 
+
+    def step(self, action):
+        return self.env.step(action=action)
 
 # ## FrameSkipping/Stacking:
 '''
@@ -165,34 +180,72 @@ class FrameResizeWrapper(gym.ObservationWrapper):
         if isinstance(self.size, int):
             self.size = (self.size, self.size)
 
-        low = np.zeros((*self.size, 3))
-        high  = 255*np.ones((*self.size, 3))
+        low = np.zeros((*self.size, self.env.observation_space.shape[-1]))
+        high  = 255*np.ones((*self.size, self.env.observation_space.shape[-1]))
         
         self.observation_space = gym.spaces.Box(low=low, high=high)
     
     def observation(self, observation):
         obs = cv2.resize(observation, self.size)
+        obs = obs.reshape(self.observation_space.shape)
         return obs
 
+'''
+class GrayScaleObservation(gym.ObservationWrapper):
+    r"""Convert the image observation from RGB to gray scale. """
+    def __init__(self, env, keep_dim=True):
+        super(GrayScaleObservation, self).__init__(env)
+        self.keep_dim = keep_dim
+
+        assert len(env.observation_space.shape) == 3 and env.observation_space.shape[-1] == 3
+        obs_shape = self.observation_space.shape[:2]
+        if self.keep_dim:
+            self.observation_space = gym.spaces.Box(low=0, high=255, shape=(obs_shape[0], obs_shape[1], 1), dtype=np.uint8)
+        else:
+            self.observation_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+
+    def observation(self, observation):
+        observation = cv2.cvtColor(observation, cv2.COLOR_RGB2GRAY)
+        if self.keep_dim:
+            observation = np.expand_dims(observation, -1)
+        return observation
+'''
+class GrayScaleObservation(gym.ObservationWrapper):
+    r"""Convert the image observation from RGB to gray scale. """
+    def __init__(self, env, keep_dim=True):
+        _env = env
+        if isinstance(env, gym.wrappers.time_limit.TimeLimit):
+            _env = env.env
+        _env._get_image = _env.ale.getScreenGrayscale
+        _env._get_obs = _env.ale.getScreenGrayscale
+
+        super(GrayScaleObservation, self).__init__(env)
+        
+        assert len(env.observation_space.shape) == 3 and env.observation_space.shape[-1] == 3
+        obs_shape = self.observation_space.shape[:2]
+        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(obs_shape[0], obs_shape[1], 1), dtype=np.uint8)
+        
+    def observation(self, observation):
+        return observation
 
 
-def pixelwrap_env(env, size, skip=None, stack=None):
+def pixelwrap_env(env, size, skip=None, stack=None, grayscale=False, nbr_max_random_steps=0):
     # Observations:
-    #wrapped_env = GrayScaleObservation(env=env) 
-    #wrapped_env = PixelObservationWrapper(env=env)
-    wrapped_env = FrameResizeWrapper(env, size=size) 
+    if grayscale:
+        env = GrayScaleObservation(env=env) 
+    #env = PixelObservationWrapper(env=env)
+    env = FrameResizeWrapper(env, size=size) 
     if skip is not None or stack is not None:
-        wrapped_env = FrameSkipStack(env=wrapped_env, skip=skip, stack=stack)
-    
-    return wrapped_env
+        env = FrameSkipStack(env=env, skip=skip, stack=stack)
+    if nbr_max_random_steps > 0:
+        env = RandNoOpStartWrapper(env=env, nbr_max_random_steps=nbr_max_random_steps)
+    return env
 
-def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=0, nbr_episodes=1e4):
-
-    nbr_observations = 1e7
+def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=0, nbr_episodes=1e4, nbr_max_observations=1e7):
     trained_agent = rl_loop.gather_experience_parallel(task.env,
                                                        agent,
                                                        training=True,
-                                                       max_obs_count=nbr_observations,
+                                                       max_obs_count=nbr_max_observations,
                                                        env_configs=None,
                                                        sum_writer=sum_writer)
     
@@ -267,11 +320,14 @@ def training_process(agent_config: Dict, task_config: Dict,
     pixel_wrapping_fn = partial(pixelwrap_env,
                           size=task_config['observation_resize_dim'], 
                           skip=task_config['nbr_frame_skipping'], 
-                          stack=task_config['nbr_frame_stacking'])
+                          stack=task_config['nbr_frame_stacking'],
+                          grayscale=task_config['grayscale'],
+                          nbr_max_random_steps=task_config['nbr_max_random_steps'])
 
     task = parse_environment(task_config['env-id'],
-                             nbr_parallel_env=task_config['nbr_actors'],
+                             nbr_parallel_env=task_config['nbr_actor'],
                              wrapping_fn=pixel_wrapping_fn)
+    agent_config['nbr_actor'] = task_config['nbr_actor']
 
     sum_writer = SummaryWriter(base_path)
     save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
@@ -287,7 +343,8 @@ def training_process(agent_config: Dict, task_config: Dict,
                        task=task,
                        sum_writer=sum_writer,
                        base_path=base_path,
-                       offset_episode_count=offset_episode_count)
+                       offset_episode_count=offset_episode_count,
+                       nbr_max_observations=train_observation_budget)
 
 
 def load_configs(config_file_path: str):
@@ -319,7 +376,7 @@ def test():
         print(f"Path: -- {path} --")
         training_process(agents_config[task_config['agent-id']], task_config,
                          benchmarking_episodes=experiment_config['benchmarking_episodes'],
-                         train_observation_budget=experiment_config['train_observation_budget'],
+                         train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
                          seed=experiment_config['seed'])
 

@@ -412,7 +412,29 @@ def build_A2C_Agent(task, config, agent_name):
         if kwargs['actor_arch'] == 'RNN':
             actor_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
         elif kwargs['actor_arch'] == 'MLP':
-            actor_body = FCBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
+            hidden_units=(output_dim,)
+            if 'actor_arch_hidden_units' in kwargs:
+                hidden_units = tuple(kwargs['actor_arch_hidden_units'])
+            actor_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
+        elif kwargs['actor_arch'] == 'CNN':
+            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'], normalize_rgb_values=True)
+            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            if 'nbr_frame_stacking' in kwargs:
+                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+            input_shape = kwargs['preprocessed_observation_shape']
+            channels = [input_shape[0]] + kwargs['actor_arch_channels']
+            kernels = kwargs['actor_arch_kernels']
+            strides = kwargs['actor_arch_strides']
+            paddings = kwargs['actor_arch_paddings']
+            output_dim = kwargs['actor_arch_feature_dim']
+            actor_body = ConvolutionalBody(input_shape=input_shape,
+                                         feature_dim=output_dim,
+                                         channels=channels,
+                                         kernel_sizes=kernels,
+                                         strides=strides,
+                                         paddings=paddings)
     else:
         actor_body = None
 
@@ -421,7 +443,29 @@ def build_A2C_Agent(task, config, agent_name):
         if kwargs['critic_arch'] == 'RNN':
             critic_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
         elif kwargs['critic_arch'] == 'MLP':
-            critic_body = FCBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
+            hidden_units=(output_dim,)
+            if 'actor_arch_hidden_units' in kwargs:
+                hidden_units = tuple(kwargs['actor_arch_hidden_units'])
+            critic_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
+        elif kwargs['critic_arch'] == 'CNN':
+            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=config['observation_resize_dim'], normalize_rgb_values=True)
+            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            if 'nbr_frame_stacking' in kwargs:
+                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+            input_shape = kwargs['preprocessed_observation_shape']
+            channels = [input_shape[0]] + kwargs['critic_arch_channels']
+            kernels = kwargs['critic_arch_kernels']
+            strides = kwargs['critic_arch_strides']
+            paddings = kwargs['critic_arch_paddings']
+            output_dim = kwargs['critic_arch_feature_dim']
+            critic_body = ConvolutionalBody(input_shape=input_shape,
+                                         feature_dim=output_dim,
+                                         channels=channels,
+                                         kernel_sizes=kernels,
+                                         strides=strides,
+                                         paddings=paddings)
     else:
         critic_body = None
 
@@ -488,7 +532,7 @@ def build_A2C_Agent(task, config, agent_name):
         target_intr_model.share_memory()
         predict_intr_model.share_memory()
 
-    model.share_memory()
+    model.share_memory()    
     a2c_algorithm = A2CAlgorithm(kwargs, model, target_intr_model=target_intr_model, predict_intr_model=predict_intr_model)
 
     return A2CAgent(name=agent_name, algorithm=a2c_algorithm)

@@ -22,7 +22,7 @@ class Storage:
         for k in self.keys:
             v = getattr(self, k)
             if len(v) == 0:
-                setattr(self, k, [None] * (len(self)-1))
+                setattr(self, k, [None] * (len(self.s)+1))
 
     def reset(self):
         for key in self.keys:
@@ -33,12 +33,15 @@ class Storage:
         return data
 
     def __len__(self):
+        '''
         lengths = []
         for k in self.keys:
             lengths.append(len(getattr(self,k)))
         max_length = max(lengths)
         return max_length 
-
+        '''
+        return len(self.s)
+        
     def __repr__(self):
         string_form = 'Storage:\n'
         for k in self.keys:

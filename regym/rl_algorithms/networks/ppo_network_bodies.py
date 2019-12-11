@@ -13,7 +13,8 @@ from regym.rl_algorithms.networks.ppo_network_utils import layer_init, layer_ini
 
 
 class ConvolutionalBody(nn.Module):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.leaky_relu]):
+    #def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.leaky_relu]):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.relu]):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -67,8 +68,8 @@ class ConvolutionalBody(nn.Module):
         features = conv_map.view(conv_map.size(0), -1)
         for idx, fc in enumerate(self.fcs):
             features = fc(features)
-            #if True:
-            if idx != len(self.fcs)-1 or non_lin_output:
+            if True:
+            #if idx != len(self.fcs)-1 or non_lin_output:
                 features = F.relu(features)
 
         return features

@@ -7,7 +7,6 @@ def compute_loss(states: torch.Tensor,
                  log_probs_old: torch.Tensor, 
                  returns: torch.Tensor,
                  advantages: torch.Tensor, 
-                 std_advantages: torch.Tensor, 
                  model: torch.nn.Module,
                  ratio_clip: float, 
                  entropy_weight: float,
@@ -15,7 +14,7 @@ def compute_loss(states: torch.Tensor,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
     '''
-    Computes the loss of an actor critic model using the
+    Computes the loss of an actor model using the
     loss function from equation (9) in the paper:
     Proximal Policy Optimization Algorithms: https://arxiv.org/abs/1707.06347
 
@@ -29,9 +28,6 @@ def compute_loss(states: torch.Tensor,
     :param returns: Dimension: batch_size x 1. Empirical returns obtained via
                     calculating the discounted return from the environment's rewards
     :param advantages: Dimension: batch_size. Estimated advantage function
-                       for every state and action in :param states: and
-                       :param actions: (respectively) with the same index.
-    :param std_advantages: Dimension: batch_size. Estimated standardized advantage function
                        for every state and action in :param states: and
                        :param actions: (respectively) with the same index.
     :param model: torch.nn.Module used to compute the policy probability ratio
@@ -60,31 +56,27 @@ def compute_loss(states: torch.Tensor,
     
     ratio = torch.exp((prediction['log_pi_a'] - log_probs_old))
     
-    obj = ratio * std_advantages
+    obj = ratio * advantages
     obj_clipped = ratio.clamp(1.0 - ratio_clip,
-                              1.0 + ratio_clip) * std_advantages
+                              1.0 + ratio_clip) * advantages
     
     policy_val = -torch.min(obj, obj_clipped).mean()
     entropy_val = -prediction['ent'].mean()
     policy_loss = policy_val + entropy_weight * entropy_val # L^{clip} and L^{S} from original paper
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
     
-    value_loss = 0.5 * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
-    total_loss = (policy_loss + value_loss)
+    #value_loss = 0.5 * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
+    #total_loss = (policy_loss + value_loss)
 
     if summary_writer is not None:
         summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)
-        #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
         summary_writer.add_scalar('Training/AdvantageMean', advantages.mean().cpu().item(), iteration_count)
-        #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
         summary_writer.add_scalar('Training/MeanVValues', prediction['v'].cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/MeanReturns', returns.cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/StdVValues', prediction['v'].cpu().std().item(), iteration_count)
         summary_writer.add_scalar('Training/StdReturns', returns.cpu().std().item(), iteration_count)
-        summary_writer.add_scalar('Training/ValueLoss', value_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/PolicyVal', policy_val.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/EntropyVal', entropy_val.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/PolicyLoss', policy_loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/TotalLoss', total_loss.cpu().item(), iteration_count)
         
-    return total_loss
+    return policy_loss
