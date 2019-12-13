@@ -102,18 +102,20 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 import os 
 
-def make_gif_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', divider=4):
-    print("GIF Making: ...", end='\r')
+def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', divider=2):
+    path = './'+path
     fig = plt.figure()
     imgs = []
     gd = []
     for idx, (state, d) in enumerate(zip(trajectory,data)):
         if state.shape[-1] != 3:
             # handled Stacked images...
-            per_image_first_channel_indices = range(0,state.shape[-1]+1,3)
+            img_ch = 3
+            if state.shape[-1] % 3: img_ch = 1
+            per_image_first_channel_indices = range(0,state.shape[-1]+1,img_ch)
             ims = [ state[...,idx_begin:idx_end] for idx_begin, idx_end in zip(per_image_first_channel_indices,per_image_first_channel_indices[1:])]
             for img in ims:
-                imgs.append( img)
+                imgs.append(img.squeeze())
                 gd.append(d)
         else:
             imgs.append(state)
@@ -133,15 +135,14 @@ def make_gif_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', div
         gifimgs.append([gifimg]+line)
         
     gif = anim.ArtistAnimation(fig, gifimgs, interval=200, blit=True, repeat_delay=None)
-    path = os.path.join(path, f'./traj-ep{episode}-actor{actor_idx}.gif')
-    print("GIF Saving: ...", end='\r')
+    path = os.path.join(path, f'./traj_ep{episode}_actor{actor_idx}.mp4')
+    
     gif.save(path, dpi=None, writer='imagemagick')
-    print("GIF Saving: DONE.", end='\r')
     #plt.show()
     plt.close(fig)
-    print("GIF Making: DONE.", end='\r')
+    #print(f"GIF Saved: {path}")
 
-def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_configs=None, sum_writer=None):
+def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_configs=None, sum_writer=None, base_path='./', gif_episode_interval=100):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -168,7 +169,8 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
 
     obs_count = 0
     episode_count = 0
-
+    sample_episode_count = 0
+    
     pbar = tqdm(total=max_obs_count)
     
     while True:
@@ -188,8 +190,11 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
     
             # Bookkeeping of the actors whose episode just ended:
             if done[actor_index]:
+                agent.reset_actors(indices=[actor_index])
+                
+            if info[actor_index][0]['real_done']:
                 episode_count += 1
-                succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                #succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 agent.reset_actors(indices=[actor_index])
 
                 # Logging:
@@ -199,16 +204,16 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
                 episode_lengths.append(len(trajectories[-1]))
                 
                 sum_writer.add_scalar('Training/TotalReturn', total_returns[-1], episode_count)
+                if actor_index == 0:
+                    sample_episode_count += 1
+                    sum_writer.add_scalar('data/reward', total_returns[-1], sample_episode_count)
                 sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
 
-                '''
-                gif_traj = [ exp[0] for exp in trajectories[actor_index]]
-                gif_data = [ exp[2] for exp in trajectories[actor_index]]
-                #gif_data = [ exp[3] for exp in trajectory[actor_idx]]
-                #make_gif(gif_traj, episode=i, actor_idx=actor_idx, path=base_path)
-                make_gif_with_graph(gif_traj, gif_data, episode=0, actor_idx=actor_index, path='./giftest/')
-                '''
-
+                if episode_count % gif_episode_interval == 0:
+                    gif_traj = [ exp[0] for exp in trajectories[-1]]
+                    gif_data = [ exp[2] for exp in trajectories[-1]]
+                    save_traj_with_graph(gif_traj, gif_data, episode=episode_count, actor_idx=actor_index, path=base_path)
+                
                 if len(trajectories) >= nbr_actors:
                     mean_total_return = sum( total_returns) / len(trajectories)
                     std_ext_return = math.sqrt( sum( [math.pow( r-mean_total_return ,2) for r in total_returns]) / len(total_returns) )
@@ -240,6 +245,7 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
             pa_succ_obs = succ_observations[actor_index]
             pa_done = done[actor_index]
             pa_int_r = 0.0
+            
             if agent.algorithm.use_rnd:
                 get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
                 if callable(get_intrinsic_reward):

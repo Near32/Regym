@@ -9,8 +9,9 @@ def compute_loss(states: torch.Tensor,
                  advantages: torch.Tensor, 
                  std_advantages: torch.Tensor, 
                  model: torch.nn.Module,
-                 ratio_clip: float, 
-                 entropy_weight: float,
+                 ratio_clip: float = 0.1, 
+                 entropy_weight: float = 0.01,
+                 value_weight: float = 1.0,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
@@ -41,6 +42,8 @@ def compute_loss(states: torch.Tensor,
                        Refer to original paper equation (7).
     :param entropy_weight: Coefficient to be used for the entropy bonus
                            for the loss function. Refer to original paper eq (9)
+    :param value_weight: Coefficient to be used for the value loss
+                           for the loss function. Refer to original paper eq (9)
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
                        This parameter is a dictionary which maps recurrent submodule names
@@ -49,7 +52,7 @@ def compute_loss(states: torch.Tensor,
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
     '''
-    prediction = model(states, actions, rnn_states=rnn_states)
+    prediction = model(obs=states, action=actions, rnn_states=rnn_states)
     
     '''
     with torch.no_grad():
@@ -61,16 +64,17 @@ def compute_loss(states: torch.Tensor,
     ratio = torch.exp((prediction['log_pi_a'] - log_probs_old))
     
     obj = ratio * std_advantages
-    obj_clipped = ratio.clamp(1.0 - ratio_clip,
+    obj_clipped = torch.clamp(ratio,
+                              1.0 - ratio_clip,
                               1.0 + ratio_clip) * std_advantages
     
     policy_val = -torch.min(obj, obj_clipped).mean()
-    entropy_val = -prediction['ent'].mean()
-    policy_loss = policy_val + entropy_weight * entropy_val # L^{clip} and L^{S} from original paper
+    entropy_val = prediction['ent'].mean()
+    policy_loss = policy_val - entropy_weight * entropy_val # L^{clip} and L^{S} from original paper
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
     
-    value_loss = 0.5 * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
-    total_loss = (policy_loss + value_loss)
+    value_loss = value_weight * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
+    total_loss = policy_loss + value_loss
 
     if summary_writer is not None:
         summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)

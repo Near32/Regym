@@ -76,6 +76,7 @@ class PPOAlgorithm():
             lr = kwargs['learning_rate'] 
             if kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
+            print(f"Learning rate: {lr}")
             self.optimizer = optim.Adam(parameters, lr=lr, eps=kwargs['adam_eps'])
         else: self.optimizer = optimizer
 
@@ -449,7 +450,7 @@ class PPOAlgorithm():
             sampler = [np.arange(advantages.size(0))]
         else: 
             sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
-        
+            
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
             
@@ -528,6 +529,7 @@ class PPOAlgorithm():
                                              rnn_states=sampled_rnn_states,
                                              ratio_clip=self.kwargs['ppo_ratio_clip'], 
                                              entropy_weight=self.kwargs['entropy_weight'],
+                                             value_weight=self.kwargs['value_weight'],
                                              model=self.model,
                                              iteration_count=self.param_update_counter,
                                              summary_writer=summary_writer)

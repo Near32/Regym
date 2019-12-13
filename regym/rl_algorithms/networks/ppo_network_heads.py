@@ -4,6 +4,8 @@
 # declaration at the top                                              #
 #######################################################################
 
+import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -263,7 +265,7 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         else:
             phi_v = self.network.critic_body(phi)
 
-        logits = F.softmax( self.network.fc_action(phi_a), dim=1 )
+        logits = F.softmax( self.network.fc_action(phi_a), dim=-1 )
         #logits = self.network.fc_action(phi_a)
         #https://github.com/pytorch/pytorch/issues/7014
         logits = torch.clamp(logits, -1e10, 1e10)
@@ -301,7 +303,12 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         dists = torch.distributions.Categorical(logits=logits)
         
         if action is None:
-            action = dists.sample()#.unsqueeze(1)
+            #action = dists.sample()#.unsqueeze(1)
+            p = logits.detach().cpu().numpy()
+            axis = 1
+            r = np.expand_dims(np.random.rand(p.shape[1 - axis]), axis=axis)
+            action = (p.cumsum(axis=axis) > r).argmax(axis=axis)
+            action = torch.from_numpy(action).to(logits.device)
             # batch #x 1
 
         log_prob = dists.log_prob(action)
@@ -337,6 +344,76 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
                                'next_rnn_states': next_rnn_states})
 
         return prediction
+
+
+# class CnnActorCriticNetwork(nn.Module):
+#     def __init__(self, state_dim, action_dim):
+#         super(CnnActorCriticNetwork, self).__init__()
+#         self.conv1 = nn.Conv2d(state_dim[0], 32, 8, stride=4)
+#         self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
+#         self.conv3 = nn.Conv2d(64, 64, 3, stride=1)
+#         self.fc1 = nn.Linear(7*7*64, 512)
+#         self.fc2 = nn.Linear(512, 512)
+
+#         self.actor = nn.Linear(512, action_dim)
+#         self.critic = nn.Linear(512, 1)
+
+#     def forward(self, x):
+#         x = F.relu(self.conv1(x))
+#         x = F.relu(self.conv2(x))
+#         x = F.relu(self.conv3(x))
+#         x = x.view(-1, 7*7*64)
+#         x = F.relu(self.fc1(x))
+#         x = F.relu(self.fc2(x))
+#         policy = self.actor(x)
+#         value = self.critic(x)
+#         return policy, value
+
+# class CategoricalActorCriticNet(nn.Module, BaseNet):
+#     def __init__(self,
+#                  state_dim,
+#                  action_dim,
+#                  phi_body=None,
+#                  actor_body=None,
+#                  critic_body=None,
+#                  use_intrinsic_critic=False):
+#         super(CategoricalActorCriticNet, self).__init__()
+#         '''
+#         self.use_intrinsic_critic = use_intrinsic_critic
+#         self.state_dim = state_dim
+#         self.action_dim = action_dim
+#         self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body,use_intrinsic_critic)
+#         '''
+#         self.model = CnnActorCriticNetwork(state_dim=state_dim, action_dim=action_dim)
+        
+#     def forward(self, obs, action=None, rnn_states=None):
+#         obs = tensor(obs)
+        
+#         phi_a, v = self.model(obs)
+#         logits = F.softmax( phi_a, dim=-1 )
+#         # batch x action_dim
+        
+#         batch_size = logits.size(0)
+
+#         # logits = log-odds:
+#         dists = torch.distributions.Categorical(logits=logits)
+        
+#         if action is None:
+#             action = dists.sample()#.unsqueeze(1)
+#             # batch #x 1
+
+#         log_prob = dists.log_prob(action)
+#         # batch #x 1
+#         entropy = dists.entropy().unsqueeze(1)
+#         # batch #x 1
+
+#         prediction = {'a': action,
+#                     'log_pi_a': log_prob,
+#                     'action_logits': logits,
+#                     'ent': entropy,
+#                     'v': v}
+
+#         return prediction
 
 
 class CategoricalActorCriticVAENet(CategoricalActorCriticNet):

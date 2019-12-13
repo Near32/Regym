@@ -33,9 +33,9 @@ forkedPdb = ForkedPdb()
 USE_PROC =True
 
 #def env_worker(env, queue_in, queue_out, worker_id=None):
-def env_worker(envCreator, queue_in, queue_out, worker_id=None):
+def env_worker(envCreator, queue_in, queue_out, worker_id=None, seed=0):
     continuer = True
-    env = envCreator(worker_id=worker_id)
+    env = envCreator(worker_id=worker_id, seed=seed)
 
     obs = None
     r = None
@@ -55,9 +55,9 @@ def env_worker(envCreator, queue_in, queue_out, worker_id=None):
                 done = False
                 queue_out.put(observations)
             else :
-                if not(done): 
-                    pa_a = instruction
-                    obs, r, done, info = env.step( pa_a)
+                pa_a = instruction
+                obs, r, done, info = env.step( pa_a)
+                #env.render()
                 queue_out.put( [obs,r,done,info] )
     except Exception as e:
         print(e)
@@ -67,7 +67,9 @@ def env_worker(envCreator, queue_in, queue_out, worker_id=None):
 
 
 class ParallelEnv():
-    def __init__(self, env_creator, nbr_parallel_env, nbr_frame_stacking=1, single_agent=True):
+    def __init__(self, env_creator, nbr_parallel_env, nbr_frame_stacking=1, single_agent=True, seed=0, gathering=True):
+        self.gathering = gathering
+        self.seed = seed
         self.env_creator = env_creator
         self.nbr_parallel_env = nbr_parallel_env
         self.nbr_frame_stacking = nbr_frame_stacking
@@ -85,6 +87,9 @@ class ParallelEnv():
         self.dones = [False]*self.nbr_parallel_env
         self.previous_dones = copy.deepcopy(self.dones)
 
+    def seed(self, seed):
+        self.seed = seed 
+
     def get_nbr_envs(self):
         return self.nbr_parallel_env
 
@@ -97,14 +102,17 @@ class ParallelEnv():
         '''
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
+        seed = self.seed+idx
+        
         if USE_PROC:
-            p = Process(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid) )
+            p = Process(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid, seed) )
         else:
-            p = Thread(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid) )
+            p = Thread(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid, seed) )
         p.start()
+        
         self.env_processes[idx] = p
         #time.sleep(90)
-        time.sleep(10)
+        #time.sleep(10)
 
     def clean(self, idx):
         self.env_processes[idx].terminate()
@@ -197,7 +205,7 @@ class ParallelEnv():
     	
         batch_env_index = -1
         for env_index in range(len(self.env_queues) ):
-            if self.dones[env_index]:
+            if not(self.gathering) and self.dones[env_index]:
                 continue
             batch_env_index += 1
             
@@ -210,7 +218,7 @@ class ParallelEnv():
                 self.put_action_in_queue(action=pa_a, idx=env_index)
 
         for env_index in range(len(self.env_queues) ):
-            if self.dones[env_index]:
+            if not(self.gathering) and self.dones[env_index]:
                 infos.append(None)
                 continue
             
@@ -235,7 +243,7 @@ class ParallelEnv():
             rewards.append( r )
             self.dones[env_index] = done
             infos.append(info)
-        
+            
         self.previous_dones = copy.deepcopy(self.dones[env_index]) 
             
         if self.single_agent:

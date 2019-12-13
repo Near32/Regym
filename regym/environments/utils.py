@@ -7,9 +7,10 @@ class EnvironmentCreator():
         self.is_gym_environment = is_gym_environment
         self.wrapping_fn = wrapping_fn
 
-    def __call__(self, worker_id=None):
+    def __call__(self, worker_id=None, seed=0):
         if self.is_gym_environment: 
             env = gym.make(self.environment_name)
+            env.seed(seed)
             if self.wrapping_fn is not None: env = self.wrapping_fn(env=env)
             return env
         if self.is_unity_environment: 
