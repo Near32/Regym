@@ -301,7 +301,7 @@ a2c_NIPS_graclip3e0_ep1_b32_h5_lr7e4XNbrActor_obs84: &a2c_NIPS_graclip3e0_ep1_b3
 
 
 experiment:
-    tasks: [{'env-id': 'BreakoutDeterministic-v4',
+    tasks: [{'env-id': 'PongDeterministic-v4',
             #{'env-id': 'PongNoFrameskip-v4',
             #{'env-id': 'PongDeterministic-v4',
             #{'env-id': 'BreakoutNoFrameskip-v4',
@@ -309,21 +309,12 @@ experiment:
             #{'env-id': 'SeaquestNoFrameskip-v4',
             #{'env-id': 'BoxingNoFrameskip-v4',
              
-            #'run-id': 'vecenv_ppo_16actors_Sk1_St4_Obs84_Grayscale',
-            #'run-id': 'actorcritic_vecenv_regidx_bootsrapped_ppo_baselineCNN_16actors_Sk1_St4_Obs84_Grayscale',
-            #'run-id': 'regidx_bootsrapped_ppo_NatureCNN_16actors_Sk2_St4_Obs84',
-            #'run-id': 'regidx_bootsrapped_ppo_NatureCNN_8actors_Sk4_St4_Obs84',
-            #'run-id': 'regidx_bootsrapped_ppo_NatureCNN_16actors_Sk8_St4_Obs84',
-            #'run-id': 'StdAdvReLUFFC_penv_ppo_16actors_Sk1_St4_Obs84_Grayscale_RandNoOpStart30',
-            'run-id': 'Seed31_argmaxPi_stNormal_single_life_penv_ppo_8actors_Sk1_St4_Obs84_Grayscale_RandNoOpStart0',
-            #'run-id': 'ReLUFFC_penv_ppo_8actors_Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            'run-id': 'Multinomial+SingLife_EPS30_Seed131_penv_ppo_16actors_BaselineWrap+Max+Sk4_St4_Obs84_NoGrayscale_RandNoOpStart30',
             
-            #'agent-id': 'ppo_NatureCNN_NOGAE_ep3_clip0.1_gradclip0.5_b256_lr2.5e-4_ent0.01',
-            #'agent-id': 'ppo_NatureCNN_GAE_ep3_clip0.1_gradclip0.5_b256_lr2.5e-4_ent0.01',
+            #'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4XNbrActor_ent0.0',
+            
+            'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.01',
             #'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4_ent0.01',
-            #'agent-id': 'ppo_baselineCNNActorCritic_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4_ent0.01',
-            #'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4XNbrActor_ent0.01',
-            'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4_ent0.0',
 
             #'run-id': 'regidx_bootstrapped_a2c_DQNCNN_8actors_Sk4_St4_Obs84',
             #'run-id': 'vecenv_a2c_16actors_Sk1_St4_Obs84_Grayscale',
@@ -336,11 +327,13 @@ experiment:
             #'agent-id': 'a2c_NIPS_NOGAE_NOStdAdv_graclip3.0_ep1_bNone_h20_lr7e4XNbrActor_obs84_ent0.1',
             #'agent-id': 'a2c_NIPS_NOGAE_NOStdAdv_graclip40.0_eps0.1_alpha0.99_ep1_bNone_h5_lr7e5XNbrActor_obs84_ent0.01',
 
-             'nbr_actor': 8,
+             'nbr_actor': 16,
              'nbr_frame_skipping': 4,
+             'act_rand_repeat': False,
              'nbr_frame_stacking': 4,
-             'grayscale': True,
-             'nbr_max_random_steps': 0,
+             'grayscale': False,
+             'single_life_episode': True,
+             'nbr_max_random_steps': 30,
              'observation_resize_dim': 84
              },
             #{'env-id': 'MiniWorld-OneRoomS6Fast-v0',
@@ -368,7 +361,7 @@ experiment:
     experiment_id: 'benchmark-test'
     benchmarking_episodes: 10
     train_observation_budget: 1.15e8
-    seed: 31
+    seed: 131
 
 agents:    
     ppo_distlogit_outloopOldPred_paper_GAE_ep10_clip0.2_gradclip0.5_b256_lr2.5e-4_ent0.01_16actors_NoNormR_Sk1:
@@ -416,17 +409,19 @@ agents:
         optimization_epochs: 3
         gradient_clip: 0.5
     
-    ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4_ent0.0:
+    #ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4XNbrActor_ent0.0:
+    #ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.0:
+    ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.01:
         <<: *ppo_baselineCNN_graclip05_b32_h512_lr14_obs84
         standardized_adv: True
         lr_account_for_nbr_actor: False
         ppo_ratio_clip: 0.1
-        entropy_weight: 0.0
+        entropy_weight: 0.01
         use_gae: True
         gae_tau: 0.95
         horizon: 128
         learning_rate: 2.5e-4
-        mini_batch_size: 32
+        mini_batch_size: 256
         optimization_epochs: 3
         gradient_clip: 0.5
 

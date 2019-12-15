@@ -328,7 +328,9 @@ class PPOAlgorithm():
         return full_states, full_actions, full_next_states, full_log_probs_old, full_returns, full_advantages, full_std_advantages, full_int_returns, full_int_advantages, full_target_random_features, full_rnn_states
 
     def standardize(self, x):
-        return (x - x.mean()) / (x.std()+1e-8)
+        #stable_eps = 1e-8
+        stable_eps = 1e-30
+        return (x - x.mean()) / (x.std()+stable_eps)
 
     def compute_intrinsic_reward(self, states):
         normalized_states = (states-self.obs_mean) / (self.obs_std+1e-8) 

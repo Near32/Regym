@@ -34,46 +34,6 @@ from functools import partial
 gif_interval = 100
 
 
-def make_gif_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', divider=4):
-    print("GIF Making: ...", end='\r')
-    fig = plt.figure()
-    imgs = []
-    gd = []
-    for idx, (state, d) in enumerate(zip(trajectory,data)):
-        if state.shape[-1] != 3:
-            # handled Stacked images...
-            per_image_first_channel_indices = range(0,state.shape[-1]+1,3)
-            ims = [ state[...,idx_begin:idx_end] for idx_begin, idx_end in zip(per_image_first_channel_indices,per_image_first_channel_indices[1:])]
-            for img in ims:
-                imgs.append( img)
-                gd.append(d)
-        else:
-            imgs.append(state)
-            gd.append(d)
-
-    gifimgs = []
-    for idx,img in enumerate(imgs):
-        if idx%divider: continue
-        plt.subplot(211)
-        gifimg = plt.imshow(img, animated=True)
-        ax = plt.subplot(212)
-        x = np.arange(0,idx,1)
-        y = np.asarray(gd[:idx])
-        ax.set_xlim(left=0,right=idx+10)
-        line = ax.plot(x, y, color='blue', marker='o', linestyle='dashed',linewidth=2, markersize=10)
-        
-        gifimgs.append([gifimg]+line)
-        
-    gif = anim.ArtistAnimation(fig, gifimgs, interval=200, blit=True, repeat_delay=None)
-    path = os.path.join(path, f'./traj-ep{episode}-actor{actor_idx}.gif')
-    print("GIF Saving: ...", end='\r')
-    gif.save(path, dpi=None, writer='imagemagick')
-    print("GIF Saving: DONE.", end='\r')
-    #plt.show()
-    plt.close(fig)
-    print("GIF Making: DONE.", end='\r')
-
-
 def check_path_for_agent(filepath):
     #filepath = os.path.join(path,filename)
     agent = None
@@ -196,11 +156,13 @@ class FrameSkipStack(gym.Wrapper):
     - the observation space of the environment to be frames solely.
     - the frames are concatenated on the last axis, i.e. the channel axis.
     """
-    def __init__(self, env, skip=4, stack=4):
+    def __init__(self, env, skip=4, act_rand_repeat=False, stack=4, single_life_episode=False):
         gym.Wrapper.__init__(self,env)
-        self.skip = skip if skip is not None else 0
+        self.skip = skip if skip is not None else 1
         self.stack = stack if stack is not None else 1
-        
+        self.act_rand_repeat = act_rand_repeat
+        self.single_life_episode = single_life_episode
+
         self.observations = deque([], maxlen=self.stack)
         
         assert(isinstance(self.env.observation_space, gym.spaces.Box))
@@ -210,17 +172,19 @@ class FrameSkipStack(gym.Wrapper):
         self.observation_space = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.dtype)
 
         self.done = False
-        self.life_done = True 
 
-        AtariEnv = env
-        while True:
-            env = getattr(AtariEnv, 'env', None)
-            if env is not None:
-                AtariEnv = env
-            else:
-                break
-        self.AtariEnv = AtariEnv
-        self.lives = self.AtariEnv.ale.lives()
+        if self.single_life_episode: 
+            self.life_done = True 
+
+            AtariEnv = env
+            while True:
+                env = getattr(AtariEnv, 'env', None)
+                if env is not None:
+                    AtariEnv = env
+                else:
+                    break
+            self.AtariEnv = AtariEnv
+            self.lives = self.AtariEnv.ale.lives()
         
     def _get_obs(self):
         assert(len(self.observations) == self.stack)
@@ -228,8 +192,11 @@ class FrameSkipStack(gym.Wrapper):
         
     def reset(self, **args):
         obs = self.env.reset()
+        
         self.done = False
-        self.lives = self.AtariEnv.ale.lives()
+        
+        if self.single_life_episode:
+            self.lives = self.AtariEnv.ale.lives()
         
         for _ in range(self.stack):
             self.observations.append(obs)
@@ -240,32 +207,39 @@ class FrameSkipStack(gym.Wrapper):
             self.reset()
         
         total_reward = 0.0
-        for i in range(self.skip):
+        nbr_it = self.skip
+        if self.act_rand_repeat:
+            nbr_it = random.randint(1, nbr_it)
+
+        for i in range(nbr_it):
             obs, reward, done, info = self.env.step(action)
 
             force_done = done
-            if self.life_done:
-                if self.lives > info['ale.lives'] and info['ale.lives'] > 0:
+            if self.single_life_episode:
+                if self.life_done:
+                    if self.lives > info['ale.lives'] and info['ale.lives'] > 0:
+                        force_done = True
+                        self.lives = info['ale.lives']
+                
+                if reward < 0:
                     force_done = True
-                    self.lives = info['ale.lives']
+                elif force_done:
+                    reward = -1
             
-            if reward < 0:
-                force_done = True
-            elif force_done:
-                reward = -1
-        
-            self.done = done
-            info['real_done'] = done
+                info['real_done'] = done
 
             total_reward += reward
 
-            #if i == self.skip-2: self.observations.append(obs)
-            #if i == self.skip-1: self.observations.append(obs)
-            
+            if self.act_rand_repeat:
+                self.observations.append(obs)
+
+            self.done = done
             if done or force_done:
                 break
             
-        self.observations.append(obs)
+        if not(self.act_rand_repeat):
+            self.observations.append(obs)
+        
         return self._get_obs(), total_reward, force_done, info
 
 
@@ -328,7 +302,7 @@ class GrayScaleObservation(gym.ObservationWrapper):
         return observation
 
 
-def pixelwrap_env(env, size, skip=None, stack=None, grayscale=False, nbr_max_random_steps=0, single_life=True):
+def pixelwrap_env(env, size, skip=None, act_rand_repeat=False, stack=None, grayscale=False, nbr_max_random_steps=0, single_life_episode=True):
     # Observations:
     if grayscale:
         env = GrayScaleObservation(env=env) 
@@ -337,9 +311,155 @@ def pixelwrap_env(env, size, skip=None, stack=None, grayscale=False, nbr_max_ran
     #env = PixelObservationWrapper(env=env)
     env = FrameResizeWrapper(env, size=size) 
     if skip is not None or stack is not None:
-        env = FrameSkipStack(env=env, skip=skip, stack=stack)
+        env = FrameSkipStack(env=env, skip=skip, act_rand_repeat=act_rand_repeat, stack=stack, single_life_episode=single_life_episode)
     #if single_life:
     #    env = SingleLifeWrapper(env=env)
+    return env
+
+# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L275
+class EpisodicLifeEnv(gym.Wrapper):
+    def __init__(self, env):
+        """Make end-of-life == end-of-episode, but only reset on true game over.
+        Done by DeepMind for the DQN and co. since it helps value estimation.
+        """
+        gym.Wrapper.__init__(self, env)
+        self.lives = 0
+        self.was_real_done  = True
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        self.was_real_done = done
+        # check current lives, make loss of life terminal,
+        # then update lives to handle bonus lives
+        lives = self.env.unwrapped.ale.lives()
+        if lives < self.lives and lives > 0:
+            # for Qbert sometimes we stay in lives == 0 condition for a few frames
+            # so it's important to keep lives > 0, so that we only reset once
+            # the environment advertises done.
+            done = True
+        self.lives = lives
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        """Reset only when lives are exhausted.
+        This way all states are still reachable even though lives are episodic,
+        and the learner need not know about any of this behind-the-scenes.
+        """
+        if self.was_real_done:
+            obs = self.env.reset(**kwargs)
+        else:
+            # no-op step to advance from terminal/lost life state
+            obs, _, _, _ = self.env.step(0)
+        self.lives = self.env.unwrapped.ale.lives()
+        return obs
+
+
+class FrameStack(gym.Wrapper):
+    def __init__(self, env, stack=4,):
+        gym.Wrapper.__init__(self,env)
+        self.stack = stack if stack is not None else 1
+        self.observations = deque([], maxlen=self.stack)
+        
+        assert(isinstance(self.env.observation_space, gym.spaces.Box))
+        
+        low_obs_space = np.repeat(self.env.observation_space.low, self.stack, axis=-1)
+        high_obs_space = np.repeat(self.env.observation_space.high, self.stack, axis=-1)
+        self.observation_space = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.dtype)
+
+    def _get_obs(self):
+        assert(len(self.observations) == self.stack)
+        return LazyFrames(list(self.observations))
+        
+    def reset(self, **args):
+        obs = self.env.reset()
+        for _ in range(self.stack-1):
+            self.observations.append(obs)
+        return self._get_obs()
+    
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        self.observations.append(obs)        
+        return self._get_obs(), reward, done, info
+
+
+# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L12
+class NoopResetEnv(gym.Wrapper):
+    def __init__(self, env, noop_max=30):
+        """Sample initial states by taking random number of no-ops on reset.
+        No-op is assumed to be action 0.
+        """
+        gym.Wrapper.__init__(self, env)
+        self.noop_max = noop_max
+        self.override_num_noops = None
+        self.noop_action = 0
+        assert env.unwrapped.get_action_meanings()[0] == 'NOOP'
+
+    def reset(self, **kwargs):
+        """ Do no-op action for a number of steps in [1, noop_max]."""
+        self.env.reset(**kwargs)
+        if self.override_num_noops is not None:
+            noops = self.override_num_noops
+        else:
+            noops = self.unwrapped.np_random.randint(1, self.noop_max + 1) #pylint: disable=E1101
+        assert noops > 0
+        obs = None
+        for _ in range(noops):
+            obs, _, done, _ = self.env.step(self.noop_action)
+            if done:
+                obs = self.env.reset(**kwargs)
+        return obs
+
+    def step(self, ac):
+        return self.env.step(ac)
+
+
+# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L97
+class MaxAndSkipEnv(gym.Wrapper):
+    def __init__(self, env, skip=4):
+        """Return only every `skip`-th frame"""
+        gym.Wrapper.__init__(self, env)
+        # most recent raw observations (for max pooling across time steps)
+        self._obs_buffer = np.zeros((2,)+env.observation_space.shape, dtype=np.uint8)
+        self._skip       = skip
+
+    def step(self, action):
+        """Repeat action, sum reward, and max over last observations."""
+        total_reward = 0.0
+        done = None
+        for i in range(self._skip):
+            obs, reward, done, info = self.env.step(action)
+            if i == self._skip - 2: self._obs_buffer[0] = obs
+            if i == self._skip - 1: self._obs_buffer[1] = obs
+            total_reward += reward
+            if done:
+                break
+        # Note that the observation on the done=True frame
+        # doesn't matter
+        max_frame = self._obs_buffer.max(axis=0)
+
+        return max_frame, total_reward, done, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+
+def baseline_pixelwrap_env(env, size, skip=4, stack=4, grayscale=False,  single_life_episode=True, nbr_max_random_steps=30)
+    if grayscale:
+        env = GrayScaleObservation(env=env) 
+    
+    # Make Atari:
+    if nbr_max_random_steps > 0:
+        env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
+    env = MaxAndSkipEnv(env, skip=skip)
+    
+    # addition:
+    env = FrameResizeWrapper(env, size=size) 
+    
+    # Wrap Deepmind:
+    if single_life_episode:
+        env = EpisodicLifeEnv(env)
+    env = FrameStack(env, stack=stack)
+    
     return env
 
 
@@ -402,13 +522,16 @@ def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=
         rs.append(r)
         print(i, r, d, info)
 
+        if any(d):
+            task.env.reset(env_indices=[0])
+
     gif_traj = obses
     gif_data = rs
     save_traj_with_graph(gif_traj, gif_data, episode=0, actor_idx=100, path=base_path)
     
     raise 
     '''
-    
+
     trained_agent = rl_loop.gather_experience_parallel(task.env,
                                                        agent,
                                                        training=True,
@@ -469,7 +592,7 @@ def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=
                 #gif_data = [ exp[3] for exp in trajectory[actor_idx]]
                 begin = time.time()
                 #make_gif(gif_traj, episode=i, actor_idx=actor_idx, path=base_path)
-                make_gif_with_graph(gif_traj, gif_data, episode=i, actor_idx=actor_idx, path=base_path)
+                save_traj_with_graph(gif_traj, gif_data, episode=i, actor_idx=actor_idx, path=base_path)
                 end = time.time()
                 eta = end-begin
                 print(f'Time: {eta} sec.')
@@ -485,13 +608,24 @@ def training_process(agent_config: Dict, task_config: Dict,
     np.random.seed(seed)
     torch.manual_seed(seed)
 
+    '''
     pixel_wrapping_fn = partial(pixelwrap_env,
-                          size=task_config['observation_resize_dim'], 
-                          skip=task_config['nbr_frame_skipping'], 
-                          stack=task_config['nbr_frame_stacking'],
-                          grayscale=task_config['grayscale'],
-                          nbr_max_random_steps=task_config['nbr_max_random_steps'])
-
+                                size=task_config['observation_resize_dim'], 
+                                skip=task_config['nbr_frame_skipping'], 
+                                act_rand_repeat=task_config['act_rand_repeat'],
+                                stack=task_config['nbr_frame_stacking'],
+                                grayscale=task_config['grayscale'],
+                                single_life_episode=task_config['single_life_episode'],
+                                nbr_max_random_steps=task_config['nbr_max_random_steps'])
+    '''
+    pixel_wrapping_fn = partial(baseline_pixelwrap_env,
+                                size=task_config['observation_resize_dim'], 
+                                skip=task_config['nbr_frame_skipping'], 
+                                stack=task_config['nbr_frame_stacking'],
+                                grayscale=task_config['grayscale'],
+                                single_life_episode=task_config['single_life_episode'],
+                                nbr_max_random_steps=task_config['nbr_max_random_steps'])
+    
     task = parse_environment(task_config['env-id'],
                              nbr_parallel_env=task_config['nbr_actor'],
                              wrapping_fn=pixel_wrapping_fn)

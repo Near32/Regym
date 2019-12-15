@@ -136,13 +136,15 @@ def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', di
         
     gif = anim.ArtistAnimation(fig, gifimgs, interval=200, blit=True, repeat_delay=None)
     path = os.path.join(path, f'./traj_ep{episode}_actor{actor_idx}.mp4')
-    
-    gif.save(path, dpi=None, writer='imagemagick')
+    try:
+        gif.save(path, dpi=None, writer='imagemagick')
+    except Exception as e:
+        print(f"Issue while saving trajectory: {e}")
     #plt.show()
     plt.close(fig)
     #print(f"GIF Saved: {path}")
 
-def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_configs=None, sum_writer=None, base_path='./', gif_episode_interval=100):
+def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_configs=None, sum_writer=None, base_path='./', gif_episode_interval=1000):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -192,7 +194,8 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
             if done[actor_index]:
                 agent.reset_actors(indices=[actor_index])
                 
-            if info[actor_index][0]['real_done']:
+            if ('real_done' in info[actor_index][0] and info[actor_index][0]['real_done'])\
+                or ('real_done' not in info[actor_index][0] and done[actor_index]):
                 episode_count += 1
                 #succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 agent.reset_actors(indices=[actor_index])
