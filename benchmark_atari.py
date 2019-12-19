@@ -372,7 +372,7 @@ class FrameStack(gym.Wrapper):
         
     def reset(self, **args):
         obs = self.env.reset()
-        for _ in range(self.stack-1):
+        for _ in range(self.stack):
             self.observations.append(obs)
         return self._get_obs()
     
@@ -442,8 +442,17 @@ class MaxAndSkipEnv(gym.Wrapper):
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
+# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L125
+class ClipRewardEnv(gym.RewardWrapper):
+    def __init__(self, env):
+        gym.RewardWrapper.__init__(self, env)
 
-def baseline_pixelwrap_env(env, size, skip=4, stack=4, grayscale=False,  single_life_episode=True, nbr_max_random_steps=30)
+    def reward(self, reward):
+        """Bin reward to {+1, 0, -1} by its sign."""
+        return np.sign(reward)
+
+
+def baseline_pixelwrap_env(env, size, skip=4, stack=4, grayscale=True,  single_life_episode=True, nbr_max_random_steps=30, clip_reward=True):
     if grayscale:
         env = GrayScaleObservation(env=env) 
     
@@ -452,14 +461,19 @@ def baseline_pixelwrap_env(env, size, skip=4, stack=4, grayscale=False,  single_
         env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
     env = MaxAndSkipEnv(env, skip=skip)
     
-    # addition:
+    # Wrap Deepmind:
+    #--> WarpFrame:
+    # + grayscale...
     env = FrameResizeWrapper(env, size=size) 
     
-    # Wrap Deepmind:
+    #--> EpisodicLife:
     if single_life_episode:
         env = EpisodicLifeEnv(env)
     env = FrameStack(env, stack=stack)
     
+    if clip_reward:
+        env = ClipRewardEnv(env)
+
     return env
 
 
@@ -624,7 +638,8 @@ def training_process(agent_config: Dict, task_config: Dict,
                                 stack=task_config['nbr_frame_stacking'],
                                 grayscale=task_config['grayscale'],
                                 single_life_episode=task_config['single_life_episode'],
-                                nbr_max_random_steps=task_config['nbr_max_random_steps'])
+                                nbr_max_random_steps=task_config['nbr_max_random_steps'],
+                                clip_reward=task_config['clip_reward'])
     
     task = parse_environment(task_config['env-id'],
                              nbr_parallel_env=task_config['nbr_actor'],

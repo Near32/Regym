@@ -103,6 +103,43 @@ ppo_baselineCNN_graclip05_b32_h512_lr14_obs84: &ppo_baselineCNN_graclip05_b32_h5
         <<: *extra_hyperparameters
 
 
+ppo_LargeCNN_graclip05_b32_h512_lr14_obs84: &ppo_LargeCNN_graclip05_b32_h512_lr14_obs84
+        nbr_frame_stacking: 1
+        observation_resize_dim: 84
+        discount: 0.99
+        use_gae: True
+        use_cuda: True
+        gae_tau: 0.95
+        value_weight: 1.0
+        entropy_weight: 0.01
+        gradient_clip: 0.5
+        optimization_epochs: 3
+        mini_batch_size: 256
+        ppo_ratio_clip: 0.1
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+        #nbr_actor: 4
+        horizon: 128
+        phi_arch: 'CNN' #'MLP' #'CNN-GRU-RNN'
+        actor_arch: 'None'
+        critic_arch: 'None'
+        
+        # Phi Body: Nature:
+        phi_arch_channels: [32, 64, 64] # [32, 64, 32]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 1]
+        phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 512 #vae_nbr_latent_dim']#512
+        phi_arch_hidden_units: [512,]
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_hidden_units: []
+
+        <<: *extra_hyperparameters
+
+
 ppo_baselineCNNActorCritic_graclip05_b32_h512_lr14_obs84: &ppo_baselineCNNActorCritic_graclip05_b32_h512_lr14_obs84
         nbr_frame_stacking: 1
         observation_resize_dim: 84
@@ -301,20 +338,22 @@ a2c_NIPS_graclip3e0_ep1_b32_h5_lr7e4XNbrActor_obs84: &a2c_NIPS_graclip3e0_ep1_b3
 
 
 experiment:
-    tasks: [{'env-id': 'PongDeterministic-v4',
-            #{'env-id': 'PongNoFrameskip-v4',
+    tasks: [{'env-id': 'QbertNoFrameskip-v4',
+            #{'env-id': 'BreakoutDeterministic-v4',
+            #{'env-id': 'PongDeterministic-v4',
             #{'env-id': 'PongDeterministic-v4',
             #{'env-id': 'BreakoutNoFrameskip-v4',
-            #{'env-id': 'QbertNoFrameskip-v4',
             #{'env-id': 'SeaquestNoFrameskip-v4',
             #{'env-id': 'BoxingNoFrameskip-v4',
              
-            'run-id': 'Multinomial+SingLife_EPS30_Seed131_penv_ppo_16actors_BaselineWrap+Max+Sk4_St4_Obs84_NoGrayscale_RandNoOpStart30',
+            'run-id': 'Multinomial+SingLifeClipReward_EPS30_Seed131_penv_ppo_8actors_RLLOOPRESET+BaselineWrap+Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            #'run-id': 'SingLife_EPS30_Seed131_penv_ppo_8actors_RLLOOPRESET+BaselineWrap+Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
             
             #'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4XNbrActor_ent0.0',
             
-            'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.01',
+            #'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.01',
             #'agent-id': 'ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b32_gamma0.99_lr2.5e-4_ent0.01',
+            'agent-id': 'ppo_LargeCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.01',
 
             #'run-id': 'regidx_bootstrapped_a2c_DQNCNN_8actors_Sk4_St4_Obs84',
             #'run-id': 'vecenv_a2c_16actors_Sk1_St4_Obs84_Grayscale',
@@ -327,13 +366,14 @@ experiment:
             #'agent-id': 'a2c_NIPS_NOGAE_NOStdAdv_graclip3.0_ep1_bNone_h20_lr7e4XNbrActor_obs84_ent0.1',
             #'agent-id': 'a2c_NIPS_NOGAE_NOStdAdv_graclip40.0_eps0.1_alpha0.99_ep1_bNone_h5_lr7e5XNbrActor_obs84_ent0.01',
 
-             'nbr_actor': 16,
+             'nbr_actor': 8,
              'nbr_frame_skipping': 4,
              'act_rand_repeat': False,
              'nbr_frame_stacking': 4,
-             'grayscale': False,
+             'grayscale': True,
              'single_life_episode': True,
              'nbr_max_random_steps': 30,
+             'clip_reward': True,
              'observation_resize_dim': 84
              },
             #{'env-id': 'MiniWorld-OneRoomS6Fast-v0',
@@ -360,7 +400,7 @@ experiment:
             ]
     experiment_id: 'benchmark-test'
     benchmarking_episodes: 10
-    train_observation_budget: 1.15e8
+    train_observation_budget: 1.0e7
     seed: 131
 
 agents:    
@@ -413,6 +453,20 @@ agents:
     #ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.0:
     ppo_baselineCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.01:
         <<: *ppo_baselineCNN_graclip05_b32_h512_lr14_obs84
+        standardized_adv: True
+        lr_account_for_nbr_actor: False
+        ppo_ratio_clip: 0.1
+        entropy_weight: 0.01
+        use_gae: True
+        gae_tau: 0.95
+        horizon: 128
+        learning_rate: 2.5e-4
+        mini_batch_size: 256
+        optimization_epochs: 3
+        gradient_clip: 0.5
+
+    ppo_LargeCNN_GAE0.95_ep3_clip0.1_gradclip0.5_h128_b256_gamma0.99_lr2.5e-4_ent0.01:
+        <<: *ppo_LargeCNN_graclip05_b32_h512_lr14_obs84
         standardized_adv: True
         lr_account_for_nbr_actor: False
         ppo_ratio_clip: 0.1

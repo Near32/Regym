@@ -309,7 +309,15 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         if action is None:
             action = probs.multinomial(num_samples=1).squeeze(1)
             # batch #x 1
-
+            '''
+            p = probs.detach().cpu().numpy()
+            axis = 1
+            r = np.expand_dims(np.random.rand(p.shape[1 - axis]), axis=axis)
+            action = (p.cumsum(axis=axis) > r).argmax(axis=axis)
+            action = torch.from_numpy(action).to(probs.device)
+            # batch #x 1
+            '''
+            
         #log_prob = dists.log_prob(action)
         log_probs = log_probs.gather(1, action.unsqueeze(1)).squeeze(1)
         # batch #x 1

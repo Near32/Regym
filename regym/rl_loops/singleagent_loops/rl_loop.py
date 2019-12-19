@@ -102,7 +102,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 import os 
 
-def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', divider=2):
+def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', divider=10):
     path = './'+path
     fig = plt.figure()
     imgs = []
@@ -185,7 +185,7 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
                                     reward, 
                                     succ_observations, 
                                     done)
-        
+
         for actor_index in range(nbr_actors):
             obs_count += 1
             pbar.update(1)
@@ -193,11 +193,11 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
             # Bookkeeping of the actors whose episode just ended:
             if done[actor_index]:
                 agent.reset_actors(indices=[actor_index])
-                
+
             if ('real_done' in info[actor_index][0] and info[actor_index][0]['real_done'])\
                 or ('real_done' not in info[actor_index][0] and done[actor_index]):
                 episode_count += 1
-                #succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 agent.reset_actors(indices=[actor_index])
 
                 # Logging:
@@ -207,9 +207,11 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
                 episode_lengths.append(len(trajectories[-1]))
                 
                 sum_writer.add_scalar('Training/TotalReturn', total_returns[-1], episode_count)
+                sum_writer.add_scalar('PerObservation/TotalReturn', total_returns[-1], obs_count)
                 if actor_index == 0:
                     sample_episode_count += 1
                     sum_writer.add_scalar('data/reward', total_returns[-1], sample_episode_count)
+                    sum_writer.add_scalar('PerObservation/Actor0Reward', total_returns[-1], obs_count)
                 sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
 
                 if episode_count % gif_episode_interval == 0:
@@ -229,11 +231,14 @@ def gather_experience_parallel(env, agent, training, max_obs_count=1e7, env_conf
                     sum_writer.add_scalar('Training/StdExtReturn', std_ext_return, episode_count // nbr_actors)
 
                     sum_writer.add_scalar('Training/MeanTotalReturn', mean_total_return, episode_count // nbr_actors)
+                    sum_writer.add_scalar('PerObservation/MeanTotalReturn', mean_total_return, obs_count)
                     sum_writer.add_scalar('Training/MeanTotalIntReturn', mean_total_int_return, episode_count // nbr_actors)
                     
                     sum_writer.add_scalar('Training/MeanEpisodeLength', mean_episode_length, episode_count // nbr_actors)
+                    sum_writer.add_scalar('PerObservation/MeanEpisodeLength', mean_episode_length, obs_count)
                     sum_writer.add_scalar('Training/StdEpisodeLength', std_episode_length, episode_count // nbr_actors)
-
+                    sum_writer.add_scalar('PerObservation/StdEpisodeLength', std_episode_length, obs_count)
+                    
                     # reset :
                     trajectories = list()
                     total_returns = list()
