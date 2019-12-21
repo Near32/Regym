@@ -2,36 +2,20 @@ import logging
 import yaml
 import os
 import sys
-import yaml
 from typing import Dict
-
+from tensorboardX import SummaryWriter
+from tqdm import tqdm
+from functools import partial
 
 import torch
 import numpy as np
-import math 
-import gym
-import random
-import cv2 
-import time
 
 import regym
 from regym.environments import parse_environment
 from regym.rl_loops.singleagent_loops import rl_loop
 from regym.util.experiment_parsing import initialize_algorithms
 from regym.util.experiment_parsing import filter_relevant_agent_configurations
-
-from tensorboardX import SummaryWriter
-from tqdm import tqdm
-
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt 
-import matplotlib.animation as anim
-
-from collections import deque
-from functools import partial
-
-gif_interval = 100
+from regym.util.wrappers import baseline_atari_pixelwrap
 
 
 def check_path_for_agent(filepath):
@@ -46,514 +30,13 @@ def check_path_for_agent(filepath):
         print('==> loaded checkpoint {}'.format(filepath))
     return agent, offset_episode_count
 
-
-# # Wrappers:
-# # Observation Wrappers:
-'''
-Adapted from:
-https://github.com/chainer/chainerrl/blob/master/chainerrl/wrappers/atari_wrappers.py
-'''
-class LazyFrames(object):
-    def __init__(self, frames):
-        self._frames = frames
-    
-    def __array__(self, dtype=None):
-        out = np.concatenate(self._frames, axis=-1)
-        if dtype is not None:
-            out = out.astype(dtype)
-        return out
-
-class RandNoOpStartWrapper(gym.Wrapper):
-    def __init__(self, env, nbr_max_random_steps=30):
-        gym.Wrapper.__init__(self,env)
-        self.nbr_max_random_steps = nbr_max_random_steps
-        self.total_reward = 0
-        
-    def reset(self, **args):
-        obs = self.env.reset()
-        nbr_rand_noop = random.randint(0, self.nbr_max_random_steps)
-        self.total_reward = 0
-        for _ in range(nbr_rand_noop):
-            # Execute No-Op:
-            obs, r, d, i = self.env.step(0)
-            self.total_reward += r
-        return obs 
-
-    def step(self, action):
-        obs, r, d, info = self.env.step(action=action)
-        if self.total_reward != 0:
-            r += self.total_reward
-            self.total_reward = 0
-        return obs, r, d, info 
-
-
-class SingleLifeWrapper(gym.Wrapper):
-    def __init__(self, env):
-        gym.Wrapper.__init__(self, env)
-
-        self.done = False
-        self.life_done = True 
-
-        AtariEnv = env
-        while True:
-            env = getattr(AtariEnv, 'env', None)
-            if env is not None:
-                AtariEnv = env
-            else:
-                break
-        self.AtariEnv = AtariEnv
-        self.lives = self.AtariEnv.ale.lives()
-
-    def reset(self, **args):
-        self.done = False
-        self.lives = self.env.env.ale.lives()
-        return self.env.reset(**args)
-
-    def step(self, action):
-        if self.done:
-            self.reset()
-        obs, reward, done, info = self.env.step(action)
-
-        force_done = done
-        if self.life_done:
-            if self.lives > info['ale.lives']:
-                force_done = True
-                self.lives = info['ale.lives']
-        
-        if force_done:
-            reward = -1
-    
-        self.done = done
-        info['real_done'] = done
-        
-        return obs, reward, force_done, info 
-
-
-import sys
-import pdb
-
-class ForkedPdb(pdb.Pdb):
-    """A Pdb subclass that may be used
-    from a forked multiprocessing child
-    """
-    def interaction(self, *args, **kwargs):
-        _stdin = sys.stdin
-        try:
-            sys.stdin = open('/dev/stdin')
-            pdb.Pdb.interaction(self, *args, **kwargs)
-        finally:
-            sys.stdin = _stdin
-
-forkedPdb = ForkedPdb()
-
-
-class FrameSkipStack(gym.Wrapper):
-    """
-    Return a stack of framed composed of every 'skip'-th repeat.
-    The rewards are summed over the skipped and stackedd frames.
-    
-    This wrapper assumes:
-    - the observation space of the environment to be frames solely.
-    - the frames are concatenated on the last axis, i.e. the channel axis.
-    """
-    def __init__(self, env, skip=4, act_rand_repeat=False, stack=4, single_life_episode=False):
-        gym.Wrapper.__init__(self,env)
-        self.skip = skip if skip is not None else 1
-        self.stack = stack if stack is not None else 1
-        self.act_rand_repeat = act_rand_repeat
-        self.single_life_episode = single_life_episode
-
-        self.observations = deque([], maxlen=self.stack)
-        
-        assert(isinstance(self.env.observation_space, gym.spaces.Box))
-        
-        low_obs_space = np.repeat(self.env.observation_space.low, self.stack, axis=-1)
-        high_obs_space = np.repeat(self.env.observation_space.high, self.stack, axis=-1)
-        self.observation_space = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.dtype)
-
-        self.done = False
-
-        if self.single_life_episode: 
-            self.life_done = True 
-
-            AtariEnv = env
-            while True:
-                env = getattr(AtariEnv, 'env', None)
-                if env is not None:
-                    AtariEnv = env
-                else:
-                    break
-            self.AtariEnv = AtariEnv
-            self.lives = self.AtariEnv.ale.lives()
-        
-    def _get_obs(self):
-        assert(len(self.observations) == self.stack)
-        return LazyFrames(list(self.observations))
-        
-    def reset(self, **args):
-        obs = self.env.reset()
-        
-        self.done = False
-        
-        if self.single_life_episode:
-            self.lives = self.AtariEnv.ale.lives()
-        
-        for _ in range(self.stack):
-            self.observations.append(obs)
-        return self._get_obs()
-    
-    def step(self, action):
-        if self.done:
-            self.reset()
-        
-        total_reward = 0.0
-        nbr_it = self.skip
-        if self.act_rand_repeat:
-            nbr_it = random.randint(1, nbr_it)
-
-        for i in range(nbr_it):
-            obs, reward, done, info = self.env.step(action)
-
-            force_done = done
-            if self.single_life_episode:
-                if self.life_done:
-                    if self.lives > info['ale.lives'] and info['ale.lives'] > 0:
-                        force_done = True
-                        self.lives = info['ale.lives']
-                
-                if reward < 0:
-                    force_done = True
-                elif force_done:
-                    reward = -1
-            
-                info['real_done'] = done
-
-            total_reward += reward
-
-            if self.act_rand_repeat:
-                self.observations.append(obs)
-
-            self.done = done
-            if done or force_done:
-                break
-            
-        if not(self.act_rand_repeat):
-            self.observations.append(obs)
-        
-        return self._get_obs(), total_reward, force_done, info
-
-
-class FrameResizeWrapper(gym.ObservationWrapper):
-    """
-    """
-    def __init__(self, env, size=(64, 64)):
-        gym.ObservationWrapper.__init__(self, env=env)
-        
-        self.size = size
-        if isinstance(self.size, int):
-            self.size = (self.size, self.size)
-
-        low = np.zeros((*self.size, self.env.observation_space.shape[-1]))
-        high  = 255*np.ones((*self.size, self.env.observation_space.shape[-1]))
-        
-        self.observation_space = gym.spaces.Box(low=low, high=high)
-    
-    def observation(self, observation):
-        obs = cv2.resize(observation, self.size)
-        obs = obs.reshape(self.observation_space.shape)
-        return obs
-
-'''
-class GrayScaleObservation(gym.ObservationWrapper):
-    r"""Convert the image observation from RGB to gray scale. """
-    def __init__(self, env, keep_dim=True):
-        super(GrayScaleObservation, self).__init__(env)
-        self.keep_dim = keep_dim
-
-        assert len(env.observation_space.shape) == 3 and env.observation_space.shape[-1] == 3
-        obs_shape = self.observation_space.shape[:2]
-        if self.keep_dim:
-            self.observation_space = gym.spaces.Box(low=0, high=255, shape=(obs_shape[0], obs_shape[1], 1), dtype=np.uint8)
-        else:
-            self.observation_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
-
-    def observation(self, observation):
-        observation = cv2.cvtColor(observation, cv2.COLOR_RGB2GRAY)
-        if self.keep_dim:
-            observation = np.expand_dims(observation, -1)
-        return observation
-'''
-class GrayScaleObservation(gym.ObservationWrapper):
-    r"""Convert the image observation from RGB to gray scale. """
-    def __init__(self, env, keep_dim=True):
-        _env = env
-        if isinstance(env, gym.wrappers.time_limit.TimeLimit):
-            _env = env.env
-        _env._get_image = _env.ale.getScreenGrayscale
-        _env._get_obs = _env.ale.getScreenGrayscale
-
-        super(GrayScaleObservation, self).__init__(env)
-        
-        assert len(env.observation_space.shape) == 3 and env.observation_space.shape[-1] == 3
-        obs_shape = self.observation_space.shape[:2]
-        self.observation_space = gym.spaces.Box(low=0, high=255, shape=(obs_shape[0], obs_shape[1], 1), dtype=np.uint8)
-        
-    def observation(self, observation):
-        return observation
-
-
-def pixelwrap_env(env, size, skip=None, act_rand_repeat=False, stack=None, grayscale=False, nbr_max_random_steps=0, single_life_episode=True):
-    # Observations:
-    if grayscale:
-        env = GrayScaleObservation(env=env) 
-    if nbr_max_random_steps > 0:
-        env = RandNoOpStartWrapper(env=env, nbr_max_random_steps=nbr_max_random_steps)
-    #env = PixelObservationWrapper(env=env)
-    env = FrameResizeWrapper(env, size=size) 
-    if skip is not None or stack is not None:
-        env = FrameSkipStack(env=env, skip=skip, act_rand_repeat=act_rand_repeat, stack=stack, single_life_episode=single_life_episode)
-    #if single_life:
-    #    env = SingleLifeWrapper(env=env)
-    return env
-
-# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L275
-class EpisodicLifeEnv(gym.Wrapper):
-    def __init__(self, env):
-        """Make end-of-life == end-of-episode, but only reset on true game over.
-        Done by DeepMind for the DQN and co. since it helps value estimation.
-        """
-        gym.Wrapper.__init__(self, env)
-        self.lives = 0
-        self.was_real_done  = True
-
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        self.was_real_done = done
-        # check current lives, make loss of life terminal,
-        # then update lives to handle bonus lives
-        lives = self.env.unwrapped.ale.lives()
-        if lives < self.lives and lives > 0:
-            # for Qbert sometimes we stay in lives == 0 condition for a few frames
-            # so it's important to keep lives > 0, so that we only reset once
-            # the environment advertises done.
-            done = True
-        self.lives = lives
-        return obs, reward, done, info
-
-    def reset(self, **kwargs):
-        """Reset only when lives are exhausted.
-        This way all states are still reachable even though lives are episodic,
-        and the learner need not know about any of this behind-the-scenes.
-        """
-        if self.was_real_done:
-            obs = self.env.reset(**kwargs)
-        else:
-            # no-op step to advance from terminal/lost life state
-            obs, _, _, _ = self.env.step(0)
-        self.lives = self.env.unwrapped.ale.lives()
-        return obs
-
-
-class FrameStack(gym.Wrapper):
-    def __init__(self, env, stack=4,):
-        gym.Wrapper.__init__(self,env)
-        self.stack = stack if stack is not None else 1
-        self.observations = deque([], maxlen=self.stack)
-        
-        assert(isinstance(self.env.observation_space, gym.spaces.Box))
-        
-        low_obs_space = np.repeat(self.env.observation_space.low, self.stack, axis=-1)
-        high_obs_space = np.repeat(self.env.observation_space.high, self.stack, axis=-1)
-        self.observation_space = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.dtype)
-
-    def _get_obs(self):
-        assert(len(self.observations) == self.stack)
-        return LazyFrames(list(self.observations))
-        
-    def reset(self, **args):
-        obs = self.env.reset()
-        for _ in range(self.stack):
-            self.observations.append(obs)
-        return self._get_obs()
-    
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        self.observations.append(obs)        
-        return self._get_obs(), reward, done, info
-
-
-# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L12
-class NoopResetEnv(gym.Wrapper):
-    def __init__(self, env, noop_max=30):
-        """Sample initial states by taking random number of no-ops on reset.
-        No-op is assumed to be action 0.
-        """
-        gym.Wrapper.__init__(self, env)
-        self.noop_max = noop_max
-        self.override_num_noops = None
-        self.noop_action = 0
-        assert env.unwrapped.get_action_meanings()[0] == 'NOOP'
-
-    def reset(self, **kwargs):
-        """ Do no-op action for a number of steps in [1, noop_max]."""
-        self.env.reset(**kwargs)
-        if self.override_num_noops is not None:
-            noops = self.override_num_noops
-        else:
-            noops = self.unwrapped.np_random.randint(1, self.noop_max + 1) #pylint: disable=E1101
-        assert noops > 0
-        obs = None
-        for _ in range(noops):
-            obs, _, done, _ = self.env.step(self.noop_action)
-            if done:
-                obs = self.env.reset(**kwargs)
-        return obs
-
-    def step(self, ac):
-        return self.env.step(ac)
-
-
-# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L97
-class MaxAndSkipEnv(gym.Wrapper):
-    def __init__(self, env, skip=4):
-        """Return only every `skip`-th frame"""
-        gym.Wrapper.__init__(self, env)
-        # most recent raw observations (for max pooling across time steps)
-        self._obs_buffer = np.zeros((2,)+env.observation_space.shape, dtype=np.uint8)
-        self._skip       = skip
-
-    def step(self, action):
-        """Repeat action, sum reward, and max over last observations."""
-        total_reward = 0.0
-        done = None
-        for i in range(self._skip):
-            obs, reward, done, info = self.env.step(action)
-            if i == self._skip - 2: self._obs_buffer[0] = obs
-            if i == self._skip - 1: self._obs_buffer[1] = obs
-            total_reward += reward
-            if done:
-                break
-        # Note that the observation on the done=True frame
-        # doesn't matter
-        max_frame = self._obs_buffer.max(axis=0)
-
-        return max_frame, total_reward, done, info
-
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
-
-# https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L125
-class ClipRewardEnv(gym.RewardWrapper):
-    def __init__(self, env):
-        gym.RewardWrapper.__init__(self, env)
-
-    def reward(self, reward):
-        """Bin reward to {+1, 0, -1} by its sign."""
-        return np.sign(reward)
-
-
-def baseline_pixelwrap_env(env, size, skip=4, stack=4, grayscale=True,  single_life_episode=True, nbr_max_random_steps=30, clip_reward=True):
-    if grayscale:
-        env = GrayScaleObservation(env=env) 
-    
-    # Make Atari:
-    if nbr_max_random_steps > 0:
-        env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
-    env = MaxAndSkipEnv(env, skip=skip)
-    
-    # Wrap Deepmind:
-    #--> WarpFrame:
-    # + grayscale...
-    env = FrameResizeWrapper(env, size=size) 
-    
-    #--> EpisodicLife:
-    if single_life_episode:
-        env = EpisodicLifeEnv(env)
-    env = FrameStack(env, stack=stack)
-    
-    if clip_reward:
-        env = ClipRewardEnv(env)
-
-    return env
-
-'''
-import matplotlib.pyplot as plt 
-import matplotlib.animation as anim
-import os 
-
-def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', divider=2):
-    path = './'+path
-    fig = plt.figure()
-    imgs = []
-    gd = []
-    for idx, (state, d) in enumerate(zip(trajectory,data)):
-        if state.shape[-1] != 3:
-            # handled Stacked images...
-            img_ch = 3
-            if state.shape[-1] % 3: img_ch = 1
-            per_image_first_channel_indices = range(0,state.shape[-1]+1,img_ch)
-            ims = [ state[...,idx_begin:idx_end] for idx_begin, idx_end in zip(per_image_first_channel_indices,per_image_first_channel_indices[1:])]
-            for img in ims:
-                imgs.append(img.squeeze())
-                gd.append(d)
-        else:
-            imgs.append(state)
-            gd.append(d)
-
-    gifimgs = []
-    for idx,img in enumerate(imgs):
-        if idx%divider: continue
-        plt.subplot(211)
-        gifimg = plt.imshow(img, animated=True)
-        ax = plt.subplot(212)
-        x = np.arange(0,idx,1)
-        y = np.asarray(gd[:idx])
-        ax.set_xlim(left=0,right=idx+10)
-        line = ax.plot(x, y, color='blue', marker='o', linestyle='dashed',linewidth=2, markersize=10)
-        
-        gifimgs.append([gifimg]+line)
-        
-    gif = anim.ArtistAnimation(fig, gifimgs, interval=200, blit=True, repeat_delay=None)
-    path = os.path.join(path, f'./traj_ep{episode}_actor{actor_idx}.mp4')
-    
-    gif.save(path, dpi=None, writer='imagemagick')
-    #plt.show()
-    plt.close(fig)
-    #print(f"GIF Saved: {path}")
-'''
-from regym.util import save_traj_with_graph
-
-def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=0, nbr_episodes=1e4, nbr_max_observations=1e7):
-    '''
-    obs = task.env.reset()
-    done = False
-    i = 0
-    obses = []
-    rs = []
-    cumrs = []
-    score = 0
-    for i in range(200):
-        action = agent.take_action(obs)
-        obs, r, d, info = task.env.step(action)
-        obses.append(obs)
-        rs.append(r)
-        
-        score = score + r 
-        cumrs.append(score)
-
-        print(i, r, d, info, score)
-
-        if any(d):
-            task.env.reset(env_indices=[0])
-
-    gif_traj = obses
-    gif_data = [cumrs]
-    save_traj_with_graph(gif_traj, gif_data, episode=0, actor_idx=100, path=base_path)
-    
-    raise 
-    '''
-
-    trained_agent = rl_loop.gather_experience_parallel(task.env,
+def train_and_evaluate(agent: object, 
+                       task: object, 
+                       sum_writer: object, 
+                       base_path: str, 
+                       offset_episode_count: int = 0, 
+                       nbr_max_observations: int = 1e7):
+    trained_agent = rl_loop.gather_experience_parallel(task,
                                                        agent,
                                                        training=True,
                                                        max_obs_count=nbr_max_observations,
@@ -562,84 +45,21 @@ def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=
                                                        base_path=base_path)
     
     task.env.close()
-    
-    raise 
-
-    nbr_observations = 1e7
-    max_episode_length = 1e4
-    nbr_actors = task.env.get_nbr_envs()
-    global gif_interval
-
-    for i in tqdm(range(offset_episode_count, int(nbr_episodes))):
-        trajectory = rl_loop.run_episode_parallel(task.env, 
-                                                  agent, 
-                                                  training=True, 
-                                                  max_episode_length=max_episode_length,
-                                                  env_configs=None)
-        
-        total_return = [ sum([ exp[2] for exp in t]) for t in trajectory]
-        mean_total_return = sum( total_return) / len(trajectory)
-        std_ext_return = math.sqrt( sum( [math.pow( r-mean_total_return ,2) for r in total_return]) / len(total_return) )
-        
-        total_int_return = [ sum([ exp[3] for exp in t]) for t in trajectory]
-        mean_total_int_return = sum( total_int_return) / len(trajectory)
-        std_int_return = math.sqrt( sum( [math.pow( r-mean_total_int_return ,2) for r in total_int_return]) / len(total_int_return) )
-
-        for idx, (ext_ret, int_ret) in enumerate(zip(total_return, total_int_return)):
-            sum_writer.add_scalar('Training/TotalReturn', ext_ret, i*len(trajectory)+idx)
-            sum_writer.add_scalar('Training/TotalIntReturn', int_ret, i*len(trajectory)+idx)
-        
-        sum_writer.add_scalar('Training/StdIntReturn', std_int_return, i)
-        sum_writer.add_scalar('Training/StdExtReturn', std_ext_return, i)
-
-        episode_lengths = [ len(t) for t in trajectory]
-        mean_episode_length = sum( episode_lengths) / len(trajectory)
-        std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in episode_lengths]) / len(trajectory) )
-        
-        sum_writer.add_scalar('Training/MeanTotalReturn', mean_total_return, i)
-        sum_writer.add_scalar('Training/MeanTotalIntReturn', mean_total_int_return, i)
-        
-        sum_writer.add_scalar('Training/MeanEpisodeLength', mean_episode_length, i)
-        sum_writer.add_scalar('Training/StdEpisodeLength', std_episode_length, i)
-
-        # Update configs:
-        agent.episode_count += 1
-
-        '''
-        if i%gif_interval == 1:
-            for actor_idx in range(min(4,nbr_actors)): 
-                gif_traj = [ exp[0] for exp in trajectory[actor_idx]]
-                gif_data = [ exp[2] for exp in trajectory[actor_idx]]
-                #gif_data = [ exp[3] for exp in trajectory[actor_idx]]
-                begin = time.time()
-                #make_gif(gif_traj, episode=i, actor_idx=actor_idx, path=base_path)
-                save_traj_with_graph(gif_traj, gif_data, episode=i, actor_idx=actor_idx, path=base_path)
-                end = time.time()
-                eta = end-begin
-                print(f'Time: {eta} sec.')
-        '''
-    task.env.close()
+    task.test_env.close()
 
 
-def training_process(agent_config: Dict, task_config: Dict,
-                     benchmarking_episodes: int, train_observation_budget: int,
-                     base_path: str, seed: int):
+def training_process(agent_config: Dict, 
+                     task_config: Dict,
+                     benchmarking_episodes: int, 
+                     train_observation_budget: int,
+                     base_path: str, 
+                     seed: int):
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    '''
-    pixel_wrapping_fn = partial(pixelwrap_env,
-                                size=task_config['observation_resize_dim'], 
-                                skip=task_config['nbr_frame_skipping'], 
-                                act_rand_repeat=task_config['act_rand_repeat'],
-                                stack=task_config['nbr_frame_stacking'],
-                                grayscale=task_config['grayscale'],
-                                single_life_episode=task_config['single_life_episode'],
-                                nbr_max_random_steps=task_config['nbr_max_random_steps'])
-    '''
-    pixel_wrapping_fn = partial(baseline_pixelwrap_env,
+    pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
                                 size=task_config['observation_resize_dim'], 
                                 skip=task_config['nbr_frame_skipping'], 
                                 stack=task_config['nbr_frame_stacking'],
@@ -648,7 +68,7 @@ def training_process(agent_config: Dict, task_config: Dict,
                                 nbr_max_random_steps=task_config['nbr_max_random_steps'],
                                 clip_reward=task_config['clip_reward'])
 
-    test_pixel_wrapping_fn = partial(baseline_pixelwrap_env,
+    test_pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
                                     size=task_config['observation_resize_dim'], 
                                     skip=task_config['nbr_frame_skipping'], 
                                     stack=task_config['nbr_frame_stacking'],
@@ -694,9 +114,9 @@ def load_configs(config_file_path: str):
 
 def test():
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger('Atari Benchmark')
+    logger = logging.getLogger('Atari 10 Millions Frames Benchmark')
 
-    config_file_path = './config.yaml'#sys.argv[1]
+    config_file_path = './atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
 
     # Generate path for experiment

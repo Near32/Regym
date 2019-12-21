@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt 
 import matplotlib.animation as anim
 import os 
@@ -44,6 +46,5 @@ def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', di
         gif.save(path, dpi=None, writer='imagemagick')
     except Exception as e:
         print(f"Issue while saving trajectory: {e}")
-    #plt.show()
+    
     plt.close(fig)
-    #print(f"GIF Saved: {path}")

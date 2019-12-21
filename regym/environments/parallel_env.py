@@ -72,14 +72,12 @@ class ParallelEnv():
         self.seed = seed
         self.env_creator = env_creator
         self.nbr_parallel_env = nbr_parallel_env
-        self.env_processes = None
         self.single_agent = single_agent
 
         self.env_queues = [None]*self.nbr_parallel_env
         self.env_configs = [None]*self.nbr_parallel_env
         self.env_processes = [None]*self.nbr_parallel_env
         self.worker_ids = [None]*self.nbr_parallel_env
-        #self.envs = [None]*self.nbr_parallel_env
         self.count_failures = [0]*self.nbr_parallel_env
         self.env_actions = [None]*self.nbr_parallel_env
 
@@ -94,8 +92,8 @@ class ParallelEnv():
 
     def set_nbr_envs(self, nbr_parallel_env):
         if self.nbr_parallel_env != nbr_parallel_env:
-            self.close()
             self.nbr_parallel_env = nbr_parallel_env
+            self.close()
 
     def launch_env_process(self, idx, worker_id_offset=0):
         global USE_PROC
@@ -115,16 +113,10 @@ class ParallelEnv():
         p.start()
         
         self.env_processes[idx] = p
-        #time.sleep(90)
-        #time.sleep(10)
 
     def clean(self, idx):
         self.env_processes[idx].terminate()
         self.env_processes[idx] = None
-        '''
-        self.envs[idx].close()
-        self.envs[idx] = None
-        '''
         self.env_queues[idx] = None
         gc.collect()
 
@@ -247,6 +239,8 @@ class ParallelEnv():
         # Tell the processes to terminate themselves:
         if self.env_processes is not None:
             for env_index in range(len(self.env_processes)):
+                if self.env_processes[env_index] is None: continue
+
                 self.env_queues[env_index]['in'].put(False)
                 self.env_processes[env_index].join()
                 self.env_processes[env_index].terminate()
@@ -258,9 +252,15 @@ class ParallelEnv():
                 self.env_queues[env_index]['out'] = None
                 gc.collect()
 
-        self.env_processes = None
-        self.env_queues = None
-        
+        self.env_queues = [None]*self.nbr_parallel_env
+        self.env_configs = [None]*self.nbr_parallel_env
+        self.env_processes = [None]*self.nbr_parallel_env
+        self.worker_ids = [None]*self.nbr_parallel_env
+        self.count_failures = [0]*self.nbr_parallel_env
+        self.env_actions = [None]*self.nbr_parallel_env
+
+        self.dones = [False]*self.nbr_parallel_env
+        self.previous_dones = copy.deepcopy(self.dones)
 
 class ParallelEnvironmentCreationFunction():
 

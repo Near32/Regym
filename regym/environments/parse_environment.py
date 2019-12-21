@@ -44,7 +44,7 @@ def parse_environment(env_name, nbr_parallel_env=1, wrapping_fn=None, test_wrapp
 
     task = Task(task.name, 
                 ParallelEnv(env_creator, nbr_parallel_env), 
-                ParallelEnv(test_env_creator, nbr_parallel_env),
+                ParallelEnv(test_env_creator, nbr_parallel_env, gathering=False),
                 task.state_space_size, 
                 task.action_space_size, 
                 task.observation_shape, 

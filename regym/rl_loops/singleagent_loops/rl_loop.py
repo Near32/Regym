@@ -1,5 +1,6 @@
 import math
 import copy
+import time
 from tqdm import tqdm
 import numpy as np
 from regym.util import save_traj_with_graph
@@ -103,16 +104,16 @@ def run_episode_parallel(env,
 
     return per_actor_trajectories
 
-def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path):
+def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1):
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
     
-    trajectory = rl_loop.run_episode_parallel(env, 
-                                              agent, 
-                                              training=False, 
-                                              max_episode_length=max_episode_length,
-                                              env_configs=None)
-    
+    trajectory = run_episode_parallel(env, 
+                                      agent, 
+                                      training=False, 
+                                      max_episode_length=max_episode_length,
+                                      env_configs=None)
+
     total_return = [ sum([ exp[2] for exp in t]) for t in trajectory]
     mean_total_return = sum( total_return) / len(trajectory)
     std_ext_return = math.sqrt( sum( [math.pow( r-mean_total_return ,2) for r in total_return]) / len(total_return) )
@@ -138,16 +139,14 @@ def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path):
     sum_writer.add_scalar('PerObservation/Testing/MeanEpisodeLength', mean_episode_length, iteration)
     sum_writer.add_scalar('PerObservation/Testing/StdEpisodeLength', std_episode_length, iteration)
 
-    for actor_idx in range(min(4,nbr_actors)): 
+    for actor_idx in range(nbr_save_traj): 
         gif_traj = [ exp[0] for exp in trajectory[actor_idx]]
-        gif_data = [ exp[2] for exp in trajectory[actor_idx]]
+        gif_data = [np.cumsum([ exp[2] for exp in trajectory[actor_idx]])]
         begin = time.time()
         save_traj_with_graph(gif_traj, gif_data, episode=iteration, actor_idx=actor_idx, path=base_path)
         end = time.time()
         eta = end-begin
-        print(f'{actor_idx+1} / {min(4,nbr_actors)} :: Time: {eta} sec.')
-
-    env.close()
+        print(f'{actor_idx+1} / {min(4,nbr_episode)} :: Time: {eta} sec.')
 
 
 def gather_experience_parallel(task, 
@@ -159,7 +158,7 @@ def gather_experience_parallel(task,
                                 env_configs=None, 
                                 sum_writer=None, 
                                 base_path='./', 
-                                gif_episode_interval=1000):
+                                gif_episode_interval=10000):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -216,8 +215,8 @@ def gather_experience_parallel(task,
             if done[actor_index]:
                 agent.reset_actors(indices=[actor_index])
 
-            if ('real_done' in info[actor_index][0] and info[actor_index][0]['real_done'])\
-                or ('real_done' not in info[actor_index][0] and done[actor_index]):
+            if ('real_done' in info[actor_index] and info[actor_index]['real_done'])\
+                or ('real_done' not in info[actor_index] and done[actor_index]):
                 episode_count += 1
                 succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 agent.reset_actors(indices=[actor_index])
