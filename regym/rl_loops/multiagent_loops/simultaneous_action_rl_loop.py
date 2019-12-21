@@ -1,7 +1,7 @@
 import os
 import copy
 import gym
-from OpenGL import GL
+#from OpenGL import GL
 from tqdm import tqdm
 import numpy as np
 

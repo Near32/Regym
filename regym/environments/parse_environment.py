@@ -4,12 +4,12 @@ from .gym_parser import parse_gym_environment
 from .unity_parser import parse_unity_environment
 from .parallel_env import ParallelEnv
 from .vec_env import VecEnv
-from .parallel_vec_env import ParallelVecEnv
+#from .parallel_vec_env import ParallelVecEnv
 from .utils import EnvironmentCreator
 from .task import Task
 
 
-def parse_environment(env_name, nbr_parallel_env=1, nbr_frame_stacking=1, wrapping_fn=None):
+def parse_environment(env_name, nbr_parallel_env=1, wrapping_fn=None, test_wrapping_fn=None):
     '''
     Returns a regym.environments.Task by creating an environment derived from :param: env_name
     and extracting relevant information used to build regym.rl_algorithms.agents from the Task.
@@ -21,8 +21,8 @@ def parse_environment(env_name, nbr_parallel_env=1, nbr_frame_stacking=1, wrappi
 
     :param env_name: String identifier for the environment to be created.
     :param nbr_parallel_env: number of environment to create and experience in parallel.
-    :param nbr_frame_stacking: number of frame to stack as observations, on the depth channel.
     :param wrapping_fn: Function used to wrap the environment.
+    :param test_wrapping_fn: Function used to wrap the test environment.
     :returns: Task created from :param: env_name
     '''
     is_gym_environment = any([env_name == spec.id for spec in gym.envs.registry.all()]) # Checks if :param: env_name was registered
@@ -40,11 +40,22 @@ def parse_environment(env_name, nbr_parallel_env=1, nbr_frame_stacking=1, wrappi
     task.env.close()
     
     env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=wrapping_fn)
-    
-    task = Task(task.name, ParallelEnv(env_creator, nbr_parallel_env, nbr_frame_stacking), task.state_space_size, task.action_space_size, task.observation_shape, task.observation_type, task.action_dim, task.action_type, task.hash_function)
-    #task = Task(task.name, VecEnv(env_creator, nbr_parallel_env, nbr_frame_stacking), task.state_space_size, task.action_space_size, task.observation_shape, task.observation_type, task.action_dim, task.action_type, task.hash_function)
-    #task = Task(task.name, ParallelVecEnv(env_creator, nbr_parallel_env, nbr_frame_stacking), task.state_space_size, task.action_space_size, task.observation_shape, task.observation_type, task.action_dim, task.action_type, task.hash_function)
-    
+    test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn)
+
+    task = Task(task.name, 
+                ParallelEnv(env_creator, nbr_parallel_env), 
+                ParallelEnv(test_env_creator, nbr_parallel_env),
+                task.state_space_size, 
+                task.action_space_size, 
+                task.observation_shape, 
+                task.observation_type, 
+                task.action_dim, 
+                task.action_type, 
+                task.hash_function)
+
+    #VecEnv(env_creator, nbr_parallel_env)
+    #ParallelVecEnv(env_creator, nbr_parallel_env)
+
     return task
 
 def check_for_unity_executable(env_name):

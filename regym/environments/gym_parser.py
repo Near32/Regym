@@ -25,7 +25,7 @@ def parse_gym_environment(env, name=None):
     state_space_size = env.state_space_size if hasattr(env, 'state_space_size') else None
     action_space_size = env.action_space_size if hasattr(env, 'action_space_size') else None
     hash_function = env.hash_state if hasattr(env, 'hash_state') else None
-    return Task(name, env, state_space_size, action_space_size, observation_shape, observation_type, action_dims, action_type, hash_function)
+    return Task(name, env, None, state_space_size, action_space_size, observation_shape, observation_type, action_dims, action_type, hash_function)
 
 
 def get_observation_dimensions_and_type(env):

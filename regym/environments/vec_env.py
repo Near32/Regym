@@ -6,10 +6,9 @@ from .utils import EnvironmentCreator
 
 
 class VecEnv():
-    def __init__(self, env_creator, nbr_parallel_env, nbr_frame_stacking=1, single_agent=True, worker_id=None):
+    def __init__(self, env_creator, nbr_parallel_env, single_agent=True, worker_id=None):
         self.env_creator = env_creator
         self.nbr_parallel_env = nbr_parallel_env
-        self.nbr_frame_stacking = nbr_frame_stacking
         self.env_processes = None
         self.single_agent = single_agent
 
@@ -78,7 +77,6 @@ class VecEnv():
         observations = [self.get_from_queue(idx) for idx in env_indices] 
         
         if self.single_agent:
-            observations = [ np.concatenate([obs]*self.nbr_frame_stacking, axis=-1) for obs in observations]
             per_env_obs = np.concatenate( [ np.array(obs).reshape(1, *(obs.shape)) for obs in observations], axis=0)
         else:
             per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1, *(obs[idx_agent].shape)) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]
@@ -105,31 +103,16 @@ class VecEnv():
             else:
                 pa_a = [ action_vector[idx_agent][batch_env_index] for idx_agent in range( len(action_vector) ) ]
             
-            for i in range(self.nbr_frame_stacking):
-                self.put_action_in_queue(action=pa_a, idx=env_index)
+            self.put_action_in_queue(action=pa_a, idx=env_index)
 
         for env_index in range(len(self.env_queues) ):
             if self.dones[env_index]:
                 infos.append(None)
                 continue
             
-            obses = []
-            rs = []
-            dones = []
-            infs = []
-            for i in range(self.nbr_frame_stacking):
-                experience = self.get_from_queue(idx=env_index, exhaust_first_when_failure=True)
-                obs, r, done, info = experience
-                obses.append(obs)
-                rs.append(r)
-                dones.append(done)
-                infs.append(info)
-
-            obs = np.concatenate(obses, axis=-1)
-            r = sum(rs)
-            done = any(dones)
-            info = infs 
-
+            experience = self.get_from_queue(idx=env_index, exhaust_first_when_failure=True)
+            obs, r, done, info = experience
+            
             observations.append( obs )
             rewards.append( r )
             self.dones[env_index] = done

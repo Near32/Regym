@@ -366,7 +366,7 @@ experiment:
             #'agent-id': 'a2c_NIPS_NOGAE_NOStdAdv_graclip3.0_ep1_bNone_h20_lr7e4XNbrActor_obs84_ent0.1',
             #'agent-id': 'a2c_NIPS_NOGAE_NOStdAdv_graclip40.0_eps0.1_alpha0.99_ep1_bNone_h5_lr7e5XNbrActor_obs84_ent0.01',
 
-             'nbr_actor': 8,
+             'nbr_actor': 1,
              'nbr_frame_skipping': 4,
              'act_rand_repeat': False,
              'nbr_frame_stacking': 4,

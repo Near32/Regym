@@ -67,12 +67,11 @@ def env_worker(envCreator, queue_in, queue_out, worker_id=None, seed=0):
 
 
 class ParallelEnv():
-    def __init__(self, env_creator, nbr_parallel_env, nbr_frame_stacking=1, single_agent=True, seed=0, gathering=True):
+    def __init__(self, env_creator, nbr_parallel_env, single_agent=True, seed=0, gathering=True):
         self.gathering = gathering
         self.seed = seed
         self.env_creator = env_creator
         self.nbr_parallel_env = nbr_parallel_env
-        self.nbr_frame_stacking = nbr_frame_stacking
         self.env_processes = None
         self.single_agent = single_agent
 
@@ -92,6 +91,11 @@ class ParallelEnv():
 
     def get_nbr_envs(self):
         return self.nbr_parallel_env
+
+    def set_nbr_envs(self, nbr_parallel_env):
+        if self.nbr_parallel_env != nbr_parallel_env:
+            self.close()
+            self.nbr_parallel_env = nbr_parallel_env
 
     def launch_env_process(self, idx, worker_id_offset=0):
         global USE_PROC
@@ -187,8 +191,7 @@ class ParallelEnv():
         observations = [ self.get_from_queue(idx) for idx in env_indices] 
 
         if self.single_agent:
-            observations = [ np.concatenate([obs]*self.nbr_frame_stacking, axis=-1) for obs in observations]
-            per_env_obs = np.concatenate( [ np.array(obs).reshape(1, *(obs.shape)) for obs in observations], axis=0)
+            per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
         else:
             per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1, *(obs[idx_agent].shape)) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]
         
@@ -214,31 +217,16 @@ class ParallelEnv():
             else:
                 pa_a = [ action_vector[idx_agent][batch_env_index] for idx_agent in range( len(action_vector) ) ]
             
-            for i in range(self.nbr_frame_stacking):
-                self.put_action_in_queue(action=pa_a, idx=env_index)
+            self.put_action_in_queue(action=pa_a, idx=env_index)
 
         for env_index in range(len(self.env_queues) ):
             if not(self.gathering) and self.dones[env_index]:
                 infos.append(None)
                 continue
             
-            obses = []
-            rs = []
-            dones = []
-            infs = []
-            for i in range(self.nbr_frame_stacking):
-                experience = self.get_from_queue(idx=env_index, exhaust_first_when_failure=True)
-                obs, r, done, info = experience
-                obses.append(obs)
-                rs.append(r)
-                dones.append(done)
-                infs.append(info)
-
-            obs = np.concatenate(obses, axis=-1)
-            r = sum(rs)
-            done = any(dones)
-            info = infs 
-
+            experience = self.get_from_queue(idx=env_index, exhaust_first_when_failure=True)
+            obs, r, done, info = experience
+            
             observations.append( obs )
             rewards.append( r )
             self.dones[env_index] = done
@@ -247,7 +235,7 @@ class ParallelEnv():
         self.previous_dones = copy.deepcopy(self.dones[env_index]) 
             
         if self.single_agent:
-            per_env_obs = np.concatenate( [ np.array(obs).reshape(1, *(obs.shape)) for obs in observations], axis=0)
+            per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
             per_env_reward = np.concatenate( [ np.array(r).reshape(-1) for r in rewards], axis=0)
         else:
             per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1,-1) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]

@@ -476,7 +476,7 @@ def baseline_pixelwrap_env(env, size, skip=4, stack=4, grayscale=True,  single_l
 
     return env
 
-
+'''
 import matplotlib.pyplot as plt 
 import matplotlib.animation as anim
 import os 
@@ -520,30 +520,37 @@ def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', di
     #plt.show()
     plt.close(fig)
     #print(f"GIF Saved: {path}")
-
+'''
+from regym.util import save_traj_with_graph
 
 def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=0, nbr_episodes=1e4, nbr_max_observations=1e7):
-    '''
     obs = task.env.reset()
     done = False
     i = 0
     obses = []
     rs = []
+    cumrs = []
+    score = 0
     for i in range(200):
         action = agent.take_action(obs)
         obs, r, d, info = task.env.step(action)
         obses.append(obs)
         rs.append(r)
+        
+        score += r 
+        cumrs.append(score)
+
         print(i, r, d, info)
 
         if any(d):
             task.env.reset(env_indices=[0])
 
     gif_traj = obses
-    gif_data = rs
+    gif_data = [rs, cumrs]
     save_traj_with_graph(gif_traj, gif_data, episode=0, actor_idx=100, path=base_path)
     
     raise 
+    '''
     '''
 
     trained_agent = rl_loop.gather_experience_parallel(task.env,
@@ -640,10 +647,21 @@ def training_process(agent_config: Dict, task_config: Dict,
                                 single_life_episode=task_config['single_life_episode'],
                                 nbr_max_random_steps=task_config['nbr_max_random_steps'],
                                 clip_reward=task_config['clip_reward'])
+
+    test_pixel_wrapping_fn = partial(baseline_pixelwrap_env,
+                                    size=task_config['observation_resize_dim'], 
+                                    skip=task_config['nbr_frame_skipping'], 
+                                    stack=task_config['nbr_frame_stacking'],
+                                    grayscale=task_config['grayscale'],
+                                    single_life_episode=False,
+                                    nbr_max_random_steps=task_config['nbr_max_random_steps'],
+                                    clip_reward=False)
     
     task = parse_environment(task_config['env-id'],
                              nbr_parallel_env=task_config['nbr_actor'],
-                             wrapping_fn=pixel_wrapping_fn)
+                             wrapping_fn=pixel_wrapping_fn,
+                             test_wrapping_fn=test_pixel_wrapping_fn)
+
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
     sum_writer = SummaryWriter(base_path)
