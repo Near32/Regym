@@ -524,6 +524,7 @@ def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', di
 from regym.util import save_traj_with_graph
 
 def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=0, nbr_episodes=1e4, nbr_max_observations=1e7):
+    '''
     obs = task.env.reset()
     done = False
     i = 0
@@ -537,20 +538,19 @@ def train_and_evaluate(agent, task, sum_writer, base_path, offset_episode_count=
         obses.append(obs)
         rs.append(r)
         
-        score += r 
+        score = score + r 
         cumrs.append(score)
 
-        print(i, r, d, info)
+        print(i, r, d, info, score)
 
         if any(d):
             task.env.reset(env_indices=[0])
 
     gif_traj = obses
-    gif_data = [rs, cumrs]
+    gif_data = [cumrs]
     save_traj_with_graph(gif_traj, gif_data, episode=0, actor_idx=100, path=base_path)
     
     raise 
-    '''
     '''
 
     trained_agent = rl_loop.gather_experience_parallel(task.env,
