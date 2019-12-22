@@ -6,10 +6,10 @@ from .utils import EnvironmentCreator
 
 
 class VecEnv():
-    def __init__(self, env_creator, nbr_parallel_env, single_agent=True, worker_id=None):
+    def __init__(self, env_creator, nbr_parallel_env, single_agent=True, worker_id=None, gathering=True):
+        self.gathering = gathering
         self.env_creator = env_creator
         self.nbr_parallel_env = nbr_parallel_env
-        self.env_processes = None
         self.single_agent = single_agent
 
         self.env_queues = [None]*self.nbr_parallel_env
@@ -30,13 +30,17 @@ class VecEnv():
     def get_nbr_envs(self):
         return self.nbr_parallel_env
 
+    def set_nbr_envs(self, nbr_parallel_env):
+        if self.nbr_parallel_env != nbr_parallel_env:
+            self.nbr_parallel_env = nbr_parallel_env
+            self.close()
+
     def launch_env_process(self, idx, worker_id_offset=0):
         self.env_queues[idx] = {'in':list(), 'out':list()}
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
         self.env_processes[idx] = self.env_creator(worker_id=wid)
-        time.sleep(10)
-
+        
     def clean(self, idx):
         self.env_processes[idx].close()
 
@@ -77,7 +81,7 @@ class VecEnv():
         observations = [self.get_from_queue(idx) for idx in env_indices] 
         
         if self.single_agent:
-            per_env_obs = np.concatenate( [ np.array(obs).reshape(1, *(obs.shape)) for obs in observations], axis=0)
+            per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
         else:
             per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1, *(obs[idx_agent].shape)) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]
         
@@ -94,7 +98,7 @@ class VecEnv():
         
         batch_env_index = -1
         for env_index in range(len(self.env_queues) ):
-            if self.dones[env_index]:
+            if not(self.gathering) and self.dones[env_index]:
                 continue
             batch_env_index += 1
             
@@ -106,7 +110,7 @@ class VecEnv():
             self.put_action_in_queue(action=pa_a, idx=env_index)
 
         for env_index in range(len(self.env_queues) ):
-            if self.dones[env_index]:
+            if not(self.gathering) and self.dones[env_index]:
                 infos.append(None)
                 continue
             
@@ -121,7 +125,7 @@ class VecEnv():
         self.previous_dones = copy.deepcopy(self.dones[env_index]) 
             
         if self.single_agent:
-            per_env_obs = np.concatenate( [ np.array(obs).reshape(1, *(obs.shape)) for obs in observations], axis=0)
+            per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
             per_env_reward = np.concatenate( [ np.array(r).reshape(-1) for r in rewards], axis=0)
         else:
             per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1,-1) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]
@@ -130,20 +134,22 @@ class VecEnv():
         return per_env_obs, per_env_reward, self.dones, infos
 
     def close(self) :
-        # Tell the processes to terminate themselves:
         if self.env_processes is not None:
             for env_index in range(len(self.env_processes)):
+                if self.env_processes[env_index] is None: continue
                 self.env_processes[env_index].close()
-        
 
-class VecEnvironmentCreationFunction():
+        self.env_queues = [None]*self.nbr_parallel_env
+        self.env_configs = [None]*self.nbr_parallel_env
+        self.env_processes = [None]*self.nbr_parallel_env
+        if worker_id is None:
+            self.worker_ids = [None]*self.nbr_parallel_env
+        elif isinstance(worker_id, int):
+            self.worker_ids = [worker_id]*self.nbr_parallel_env
+        elif isinstance(worker_id, list):
+            self.worker_ids = worker_id
+        else:
+            raise NotImplementedError
 
-    def __init__(self, environment_name_cli, nbr_parallel_env):
-        valid_environments = ['RockPaperScissors-v0','RoboschoolSumo-v0','RoboschoolSumoWithRewardShaping-v0']
-        if environment_name_cli not in valid_environments:
-            raise ValueError("Unknown environment {}\t valid environments: {}".format(environment_name_cli, valid_environments))
-        self.environment_name = environment_name_cli
-        self.nbr_parallel_env = nbr_parallel_env
-
-    def __call__(self):
-        return VecEnv(self.environment_name, self.nbr_parallel_env)
+        self.dones = [False]*self.nbr_parallel_env
+        self.previous_dones = copy.deepcopy(self.dones)

@@ -43,8 +43,8 @@ def parse_environment(env_name, nbr_parallel_env=1, wrapping_fn=None, test_wrapp
     test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn)
 
     task = Task(task.name, 
-                ParallelEnv(env_creator, nbr_parallel_env), 
-                ParallelEnv(test_env_creator, nbr_parallel_env, gathering=False),
+                VecEnv(env_creator, nbr_parallel_env), 
+                VecEnv(test_env_creator, nbr_parallel_env, gathering=False),
                 task.state_space_size, 
                 task.action_space_size, 
                 task.observation_shape, 
