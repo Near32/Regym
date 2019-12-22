@@ -98,10 +98,7 @@ class ParallelEnv():
     def launch_env_process(self, idx, worker_id_offset=0):
         global USE_PROC
         self.env_queues[idx] = {'in':Queue(), 'out':Queue()}
-        '''
-        self.envs[idx] = self.env_creator(worker_id=self.worker_ids[idx]+worker_id_offset)
-        p = Process(target=env_worker, args=(self.envs[idx], *(self.env_queues[idx].values()), self.worker_ids[idx]) )
-        '''
+        
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
         seed = self.seed+idx
@@ -122,6 +119,7 @@ class ParallelEnv():
 
     def check_update_reset_env_process(self, idx, env_configs=None, reset=False):
         p = self.env_processes[idx]
+        
         if p is None:
             self.launch_env_process(idx)
             print('Launching environment {}...'.format(idx))
@@ -138,7 +136,9 @@ class ParallelEnv():
                 self.count_failures[idx] = 0
             worker_id_offset = self.count_failures[idx]*self.nbr_parallel_env
             self.launch_env_process(idx, worker_id_offset=worker_id_offset)
-            print('Reviving environment {}...'.format(idx))
+            print('Relaunching environment {}...'.format(idx))
+            self.env_queues[idx]['in'].put( ('reset', env_config))
+            print('Resetting environment {}...'.format(idx))
         
         if reset:
             if env_configs is not None: 
@@ -158,7 +158,6 @@ class ParallelEnv():
                 # Otherwise, we assume that there is an issue with the environment
                 # And thus we relaunch it, after waiting sufficiently to be able to do so:
                 print('Environment {} encountered an issue.'.format(idx))
-                print('WAITING before relaunching...')
                 self.check_update_reset_env_process(idx=idx, env_configs=None, reset=True)
                 if exhaust_first_when_failure:
                     out = None 

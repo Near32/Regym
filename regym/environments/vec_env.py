@@ -142,14 +142,7 @@ class VecEnv():
         self.env_queues = [None]*self.nbr_parallel_env
         self.env_configs = [None]*self.nbr_parallel_env
         self.env_processes = [None]*self.nbr_parallel_env
-        if worker_id is None:
-            self.worker_ids = [None]*self.nbr_parallel_env
-        elif isinstance(worker_id, int):
-            self.worker_ids = [worker_id]*self.nbr_parallel_env
-        elif isinstance(worker_id, list):
-            self.worker_ids = worker_id
-        else:
-            raise NotImplementedError
-
+        self.worker_ids = [None]*self.nbr_parallel_env
+        
         self.dones = [False]*self.nbr_parallel_env
         self.previous_dones = copy.deepcopy(self.dones)

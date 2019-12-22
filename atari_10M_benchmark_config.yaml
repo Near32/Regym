@@ -79,6 +79,7 @@ experiment:
     tasks: [{'env-id': 'QbertNoFrameskip-v4',
              
              'run-id': 'Seed131_venv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             #'run-id': 'Seed131_parallelenv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 8,
