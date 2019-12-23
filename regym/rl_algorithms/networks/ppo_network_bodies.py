@@ -463,10 +463,10 @@ def BetaVAEBody(input_shape, feature_dim, channels, kernel_sizes, strides, paddi
         nbr_layer = int(architecture[-1])
     pretrained = False #('pretrained' in architecture)
     
-    beta = kwargs['vae_beta']
-    maxCap = kwargs['vae_max_capacity']
-    nbrEpochTillMaxEncodingCapacity = kwargs['vae_nbr_epoch_till_max_capacity']
-    constrainedEncoding = kwargs['vae_constrainedEncoding']
+    beta = float(kwargs['vae_beta'])
+    maxCap = float(kwargs['vae_max_capacity'])
+    nbrEpochTillMaxEncodingCapacity = int(kwargs['vae_nbr_epoch_till_max_capacity'])
+    constrainedEncoding = bool(kwargs['vae_constrainedEncoding'])
     
     latent_dim = feature_dim
     if 'vae_nbr_latent_dim' in kwargs:

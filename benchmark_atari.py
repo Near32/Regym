@@ -11,10 +11,9 @@ import torch
 import numpy as np
 
 import regym
-from regym.environments import parse_environment
+from regym.environments import generate_task
 from regym.rl_loops.singleagent_loops import rl_loop
-from regym.util.experiment_parsing import initialize_algorithms
-from regym.util.experiment_parsing import filter_relevant_agent_configurations
+from regym.util.experiment_parsing import initialize_agents
 from regym.util.wrappers import baseline_atari_pixelwrap
 
 
@@ -77,10 +76,11 @@ def training_process(agent_config: Dict,
                                     nbr_max_random_steps=task_config['nbr_max_random_steps'],
                                     clip_reward=False)
     
-    task = parse_environment(task_config['env-id'],
-                             nbr_parallel_env=task_config['nbr_actor'],
-                             wrapping_fn=pixel_wrapping_fn,
-                             test_wrapping_fn=test_pixel_wrapping_fn)
+    task = generate_task(task_config['env-id'],
+                         nbr_parallel_env=task_config['nbr_actor'],
+                         wrapping_fn=pixel_wrapping_fn,
+                         test_wrapping_fn=test_pixel_wrapping_fn,
+                         gathering=True)
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
@@ -88,8 +88,8 @@ def training_process(agent_config: Dict,
     save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     agent, offset_episode_count = check_path_for_agent(save_path)
     if agent is None: 
-        agent = initialize_algorithms(environment=task,
-                                      agent_configurations={task_config['agent-id']: agent_config})[0]
+        agent = initialize_agents(task=task,
+                                  agent_configurations={task_config['agent-id']: agent_config})[0]
     agent.save_path = save_path
     regym.rl_algorithms.PPO.ppo.summary_writer = sum_writer
     regym.rl_algorithms.A2C.a2c.summary_writer = sum_writer
@@ -116,7 +116,7 @@ def test():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger('Atari 10 Millions Frames Benchmark')
 
-    config_file_path = './atari_10M_benchmark_config.yaml'
+    config_file_path = sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
 
     # Generate path for experiment
