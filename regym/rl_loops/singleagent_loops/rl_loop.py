@@ -105,7 +105,7 @@ def run_episode_parallel(env,
 
     return per_actor_trajectories
 
-def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1):
+def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1, save_traj=False):
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
     
@@ -140,26 +140,27 @@ def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_sa
     sum_writer.add_scalar('PerObservation/Testing/MeanEpisodeLength', mean_episode_length, iteration)
     sum_writer.add_scalar('PerObservation/Testing/StdEpisodeLength', std_episode_length, iteration)
 
-    for actor_idx in range(nbr_save_traj): 
-        gif_traj = [ exp[0] for exp in trajectory[actor_idx]]
-        gif_data = [np.cumsum([ exp[2] for exp in trajectory[actor_idx]])]
-        begin = time.time()
-        save_traj_with_graph(gif_traj, gif_data, episode=iteration, actor_idx=actor_idx, path=base_path)
-        end = time.time()
-        eta = end-begin
-        print(f'{actor_idx+1} / {min(4,nbr_episode)} :: Time: {eta} sec.')
+    if save_traj:
+        for actor_idx in range(nbr_save_traj): 
+            gif_traj = [ exp[0] for exp in trajectory[actor_idx]]
+            gif_data = [np.cumsum([ exp[2] for exp in trajectory[actor_idx]])]
+            begin = time.time()
+            save_traj_with_graph(gif_traj, gif_data, episode=iteration, actor_idx=actor_idx, path=base_path)
+            end = time.time()
+            eta = end-begin
+            print(f'{actor_idx+1} / {nbr_save_traj} :: Time: {eta} sec.')
 
 
 def gather_experience_parallel(task, 
                                 agent, 
                                 training, 
                                 max_obs_count=1e7, 
-                                test_obs_interval=5e4,
+                                test_obs_interval=1e4,
                                 test_nbr_episode=10,
                                 env_configs=None, 
                                 sum_writer=None, 
                                 base_path='./', 
-                                gif_episode_interval=10000):
+                                gif_episode_interval=1e5):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -237,13 +238,6 @@ def gather_experience_parallel(task,
                     sum_writer.add_scalar('PerObservation/Actor0Reward', total_returns[-1], obs_count)
                 sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
 
-                '''
-                if gif_episode_interval is not None and episode_count % gif_episode_interval == 0:
-                    gif_traj = [ exp[0] for exp in trajectories[-1]]
-                    gif_data = [ exp[2] for exp in trajectories[-1]]
-                    save_traj_with_graph(gif_traj, gif_data, episode=episode_count, actor_idx=actor_index, path=base_path)
-                '''
-
                 if len(trajectories) >= nbr_actors:
                     mean_total_return = sum( total_returns) / len(trajectories)
                     std_ext_return = math.sqrt( sum( [math.pow( r-mean_total_return ,2) for r in total_returns]) / len(total_returns) )
@@ -292,7 +286,8 @@ def gather_experience_parallel(task,
                             nbr_episode=test_nbr_episode, 
                             sum_writer=sum_writer, 
                             iteration=obs_count,
-                            base_path=base_path)
+                            base_path=base_path,
+                            save_traj=(obs_count%gif_episode_interval==0) )
 
         observations = copy.deepcopy(succ_observations)
         
