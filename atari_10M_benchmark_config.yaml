@@ -152,7 +152,7 @@ experiment:
              'observation_resize_dim': 84
              },
             ]
-    experiment_id: 'atari_10M_benchmark'
+    experiment_id: 'atari_10M_benchmark_ppo'
     benchmarking_episodes: 10
     train_observation_budget: 1.0e7
     seed: 131
