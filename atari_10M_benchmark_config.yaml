@@ -155,7 +155,7 @@ experiment:
     experiment_id: 'atari_10M_benchmark_ppo'
     benchmarking_episodes: 10
     train_observation_budget: 1.0e7
-    seed: 131
+    seed: 13
 
 agents:    
     ppo_LargeCNN:
