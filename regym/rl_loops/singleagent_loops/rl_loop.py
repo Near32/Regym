@@ -34,7 +34,7 @@ def run_episode(env, agent, training, max_episode_length=math.inf):
 def run_episode_parallel(env, 
                             agent, 
                             training, 
-                            max_episode_length=math.inf, 
+                            max_episode_length=1e30, 
                             env_configs=None):
     '''
     Runs a single multi-agent rl loop until termination.
@@ -51,6 +51,7 @@ def run_episode_parallel(env,
 
     nbr_actors = env.get_nbr_envs()
     agent.set_nbr_actor(nbr_actors)
+    agent.reset_actors()
     done = [False]*nbr_actors
     previous_done = copy.deepcopy(done)
 
@@ -182,6 +183,7 @@ def gather_experience_parallel(task,
 
     nbr_actors = env.get_nbr_envs()
     agent.set_nbr_actor(nbr_actors)
+    agent.reset_actors()
     done = [False]*nbr_actors
     
     per_actor_trajectories = [list() for i in range(nbr_actors)]

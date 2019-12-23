@@ -27,6 +27,18 @@ class VecEnv():
         self.dones = [False]*self.nbr_parallel_env
         self.previous_dones = copy.deepcopy(self.dones)
 
+    @property
+    def observation_space(self):
+        if self.env_processes[0] is None:
+            self.launch_env_process(idx=0)
+        return self.env_processes[0].observation_space
+
+    @property
+    def action_space(self):
+        if self.env_processes[0] is None:
+            self.launch_env_process(idx=0)
+        return self.env_processes[0].action_space
+    
     def get_nbr_envs(self):
         return self.nbr_parallel_env
 

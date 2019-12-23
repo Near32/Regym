@@ -117,11 +117,6 @@ class PPOAlgorithm():
 
     def train(self):
         global summary_writer
-        # Compute mean and std for ext reward:
-        #self.running_counter_extrinsic_reward = 0
-        #for idx, storage in enumerate(self.storages):
-        #    self.update_ext_reward_mean_std(storage.r)
-        
         # Compute Returns and Advantages:
         for idx, storage in enumerate(self.storages): 
             if len(storage) <= 1: continue
@@ -211,7 +206,10 @@ class PPOAlgorithm():
         
         if self.storages[storage_idx].non_terminal[-1]: 
             next_state = self.storages[storage_idx].succ_s[-1].cuda() if self.kwargs['use_cuda'] else self.storages[storage_idx].succ_s[-1]
-            returns = next_state_value = self.model(next_state)['v'].cpu().detach()
+            rnn_states = None
+            if self.recurrent:
+                rnn_states = self.storages[storage_idx].rnn_states[-1]
+            returns = next_state_value = self.model(next_state, rnn_states=rnn_states)['v'].cpu().detach()
         else:
             returns = torch.zeros(1,1)
         # Adding next state return/value and dummy advantages to the storage on the N+1 spots: 
@@ -328,7 +326,6 @@ class PPOAlgorithm():
         return full_states, full_actions, full_next_states, full_log_probs_old, full_returns, full_advantages, full_std_advantages, full_int_returns, full_int_advantages, full_target_random_features, full_rnn_states
 
     def standardize(self, x):
-        #stable_eps = 1e-8
         stable_eps = 1e-30
         return (x - x.mean()) / (x.std()+stable_eps)
 
@@ -422,31 +419,6 @@ class PPOAlgorithm():
         if self.recurrent:
             nbr_layers_per_rnn = {recurrent_submodule_name: len(rnn_states[recurrent_submodule_name]['hidden'])
                                   for recurrent_submodule_name in rnn_states}
-
-        #----------------------------------------------------------------------------------------------------------------------------------------------------------------
-        # Mid-level Old Policy Prediction:
-        #----------------------------------------------------------------------------------------------------------------------------------------------------------------
-        '''
-        sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
-        with torch.no_grad():
-            for batch_indices in sampler:
-                batch_indices = torch.from_numpy(batch_indices).long()
-                
-                sampled_rnn_states = None
-                if self.recurrent:
-                    sampled_rnn_states = self.calculate_rnn_states_from_batch_indices(rnn_states, batch_indices, nbr_layers_per_rnn)
-
-                sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
-                sampled_actions = actions[batch_indices].cuda() if self.kwargs['use_cuda'] else actions[batch_indices]
-                sampled_log_probs_old = log_probs_old[batch_indices].cuda() if self.kwargs['use_cuda'] else log_probs_old[batch_indices]
-                
-                sampled_states = sampled_states.detach()
-                sampled_actions = sampled_actions.detach()
-            
-                old_prediction = self.model(sampled_states, sampled_actions, rnn_states=rnn_states)
-                log_probs_old[batch_indices] = old_prediction['log_pi_a'].cpu()
-        '''
-        #----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
         if self.kwargs['mini_batch_size'] == 'None':
             sampler = [np.arange(advantages.size(0))]

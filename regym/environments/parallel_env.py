@@ -32,7 +32,7 @@ forkedPdb = ForkedPdb()
 
 USE_PROC =True
 
-#def env_worker(env, queue_in, queue_out, worker_id=None):
+
 def env_worker(envCreator, queue_in, queue_out, worker_id=None, seed=0):
     continuer = True
     env = envCreator(worker_id=worker_id, seed=seed)
@@ -48,6 +48,7 @@ def env_worker(envCreator, queue_in, queue_out, worker_id=None, seed=0):
 
             if isinstance(instruction,bool):
                 continuer = False
+                break
             elif isinstance(instruction, str) or isinstance(instruction, tuple):
                 env_config = instruction[-1]
                 if env_config is None: observations = env.reset()
@@ -137,15 +138,17 @@ class ParallelEnv():
             worker_id_offset = self.count_failures[idx]*self.nbr_parallel_env
             self.launch_env_process(idx, worker_id_offset=worker_id_offset)
             print('Relaunching environment {}...'.format(idx))
-            self.env_queues[idx]['in'].put( ('reset', env_config))
-            print('Resetting environment {}...'.format(idx))
-        
+            
         if reset:
-            if env_configs is not None: 
-                self.env_configs[idx] = env_configs[idx]
-            env_config = copy.deepcopy(self.env_configs[idx]) 
-            if env_config is not None and 'worker_id' in env_config: env_config.pop('worker_id')
-            self.env_queues[idx]['in'].put( ('reset', env_config))
+            self.reset_env(idx, env_configs)
+
+    def reset_env(self, idx, env_configs=None):
+        if env_configs is not None: 
+            self.env_configs[idx] = env_configs[idx]
+        env_config = copy.deepcopy(self.env_configs[idx]) 
+        if env_config is not None and 'worker_id' in env_config: env_config.pop('worker_id')
+        self.env_queues[idx]['in'].put( ('reset', env_config))
+
 
     def get_from_queue(self, idx, exhaust_first_when_failure=False):
         out = None

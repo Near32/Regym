@@ -8,6 +8,7 @@ def compute_loss(states: torch.Tensor,
                  advantages: torch.Tensor, 
                  model: torch.nn.Module,
                  entropy_weight: float,
+                 value_weight: float,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
@@ -42,7 +43,7 @@ def compute_loss(states: torch.Tensor,
     entropy_val = -prediction['ent'].mean()
     policy_loss = policy_val + entropy_weight * entropy_val
     
-    value_loss = 0.5 * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
+    value_loss = value_weight * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
     total_loss = (policy_loss + value_loss)
 
     if summary_writer is not None:

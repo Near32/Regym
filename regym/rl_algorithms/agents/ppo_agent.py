@@ -221,6 +221,7 @@ class PPOAgent(object):
             for batch_idx in done_actors_among_notdone:
                 self.update_actors(batch_idx=batch_idx)
         
+
         if self.training and self.handled_experiences >= self.algorithm.kwargs['horizon']*self.nbr_actor:
             self.algorithm.train()
             self.handled_experiences = 0
@@ -423,15 +424,17 @@ def build_PPO_Agent(task, config, agent_name):
                                               use_intrinsic_critic=use_rnd)
         
         elif task.observation_type == 'Continuous':
-            if 'use_vae' in kwargs:
-                model = CategoricalActorCriticVAENet(kwargs['preprocessed_observation_shape'], 
+            obs_shape = task.observation_shape
+            if 'preprocessed_observation_shape' in kwargs: obs_shape = kwargs['preprocessed_observation_shape']
+            if 'use_vae' in kwargs and kwargs['use_vae']:
+                model = CategoricalActorCriticVAENet(obs_shape, 
                                                      task.action_dim,
                                                      phi_body=phi_body,
                                                      actor_body=actor_body,
                                                      critic_body=critic_body,
                                                      use_intrinsic_critic=use_rnd)
             else:
-                model = CategoricalActorCriticNet(kwargs['preprocessed_observation_shape'], task.action_dim,
+                model = CategoricalActorCriticNet(obs_shape, task.action_dim,
                                                   phi_body=phi_body,
                                                   actor_body=actor_body,
                                                   critic_body=critic_body,

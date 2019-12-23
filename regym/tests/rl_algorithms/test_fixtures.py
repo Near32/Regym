@@ -1,68 +1,306 @@
 import pytest
 from regym.environments import generate_task
+from regym.environments import EnvType
 
 
 @pytest.fixture
-def ppo_config_dict():
+def ppo_mlp_config_dict():
     config = dict()
+    config['standardized_adv'] = True 
+    config['lr_account_for_nbr_actor'] = False 
+
     config['discount'] = 0.99
-    config['use_gae'] = False
+    config['use_gae'] = True
     config['use_cuda'] = True
     config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
     config['entropy_weight'] = 0.01
-    config['gradient_clip'] = 5
-    config['optimization_epochs'] = 10
-    config['mini_batch_size'] = 256
-    config['ppo_ratio_clip'] = 0.2
-    config['learning_rate'] = 3.0e-4
-    config['adam_eps'] = 1.0e-5
-    config['horizon'] = 1024
-    config['nbr_actor'] = 1
-    config['phi_arch'] = 'MLP'
-    config['actor_arch'] = 'None'
-    config['critic_arch'] = 'None'
-    return config
-
-
-@pytest.fixture
-def ppo_rnn_config_dict():
-    config = dict()
-    config['discount'] = 0.99
-    config['use_gae'] = False
-    config['use_cuda'] = False
-    config['gae_tau'] = 0.95
-    config['entropy_weight'] = 0.01
-    config['gradient_clip'] = 5
-    config['optimization_epochs'] = 10
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 3
     config['mini_batch_size'] = 32
     config['ppo_ratio_clip'] = 0.2
     config['learning_rate'] = 3.0e-4
     config['adam_eps'] = 1.0e-5
     config['horizon'] = 256
-    config['phi_arch'] = 'RNN'
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'MLP'
+    config['actor_arch'] = 'None'
+    config['critic_arch'] = 'None'
+    return config
+
+@pytest.fixture
+def ppo_mlp_rnn_config_dict():
+    config = dict()
+    config['standardized_adv'] = True 
+    config['lr_account_for_nbr_actor'] = False 
+
+    config['discount'] = 0.99
+    config['use_gae'] = True
+    config['use_cuda'] = True
+    config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
+    config['entropy_weight'] = 0.01
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 3
+    config['mini_batch_size'] = 32
+    config['ppo_ratio_clip'] = 0.2
+    config['learning_rate'] = 3.0e-4
+    config['adam_eps'] = 1.0e-5
+    config['horizon'] = 256
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'LSTM-RNN'
     config['actor_arch'] = 'None'
     config['critic_arch'] = 'None'
     return config
 
 
-
 @pytest.fixture
-def ppo_config_dict_ma():
+def ppo_cnn_config_dict():
     config = dict()
+    config['standardized_adv'] = True 
+    config['lr_account_for_nbr_actor'] = False 
+
     config['discount'] = 0.99
     config['use_gae'] = True
     config['use_cuda'] = True
     config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
     config['entropy_weight'] = 0.01
-    config['gradient_clip'] = 5
-    config['optimization_epochs'] = 15
-    config['mini_batch_size'] = 256#4096
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 3
+    config['mini_batch_size'] = 32
     config['ppo_ratio_clip'] = 0.2
     config['learning_rate'] = 3.0e-4
     config['adam_eps'] = 1.0e-5
-    config['nbr_actor'] = 2#32
-    config['horizon'] = 512
+    config['horizon'] = 256
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'CNN'
+    config['actor_arch'] = 'None'
+    config['critic_arch'] = 'None'
+
+    config['observation_resize_dim'] = 84
+    
+    # Phi Body:
+    config['phi_arch_channels'] = [32, 64, 64]
+    config['phi_arch_kernels'] = [8, 4, 3]
+    config['phi_arch_strides'] = [4, 2, 1]
+    config['phi_arch_paddings'] = [1, 1, 1]
+    config['phi_arch_feature_dim'] = 512
+    config['phi_arch_hidden_units'] = [512,]
+
+    # Actor architecture:
+    config['actor_arch_hidden_units'] = []
+    # Critic architecture:
+    config['critic_arch_hidden_units'] = []
+
     return config
+
+
+@pytest.fixture
+def ppo_cnn_rnn_config_dict():
+    config = dict()
+    config['standardized_adv'] = True 
+    config['lr_account_for_nbr_actor'] = False 
+
+    config['discount'] = 0.99
+    config['use_gae'] = True
+    config['use_cuda'] = True
+    config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
+    config['entropy_weight'] = 0.01
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 3
+    config['mini_batch_size'] = 32
+    config['ppo_ratio_clip'] = 0.2
+    config['learning_rate'] = 3.0e-4
+    config['adam_eps'] = 1.0e-5
+    config['horizon'] = 256
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'CNN'
+    config['actor_arch'] = 'RNN'
+    config['critic_arch'] = 'RNN'
+
+    config['observation_resize_dim'] = 84
+    
+    # Phi Body:
+    config['phi_arch_channels'] = [32, 64, 64]
+    config['phi_arch_kernels'] = [8, 4, 3]
+    config['phi_arch_strides'] = [4, 2, 1]
+    config['phi_arch_paddings'] = [1, 1, 1]
+    config['phi_arch_feature_dim'] = 512
+    config['phi_arch_hidden_units'] = [512,]
+
+    # Actor architecture:
+    config['actor_arch_hidden_units'] = []
+    # Critic architecture:
+    config['critic_arch_hidden_units'] = []
+
+    return config
+
+
+
+#----------------------------------------------------------#
+
+
+
+
+
+@pytest.fixture
+def a2c_mlp_config_dict():
+    config = dict()
+    config['standardized_adv'] = False
+    config['lr_account_for_nbr_actor'] = False 
+
+    config['discount'] = 0.99
+    config['use_gae'] = False
+    config['use_cuda'] = True
+    config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
+    config['entropy_weight'] = 0.1
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 1
+    config['mini_batch_size'] = 32
+    config['learning_rate'] = 7.0e-4
+    config['optimizer_eps'] = 1.0e-5
+    config['optimizer_alpha'] = 0.99
+    config['horizon'] = 5
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'MLP'
+    config['actor_arch'] = 'None'
+    config['critic_arch'] = 'None'
+    return config
+
+@pytest.fixture
+def a2c_mlp_rnn_config_dict():
+    config = dict()
+    config['standardized_adv'] = False
+    config['lr_account_for_nbr_actor'] = False 
+
+    config['discount'] = 0.99
+    config['use_gae'] = False
+    config['use_cuda'] = True
+    config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
+    config['entropy_weight'] = 0.1
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 1
+    config['mini_batch_size'] = 32
+    config['learning_rate'] = 7.0e-4
+    config['optimizer_eps'] = 1.0e-5
+    config['optimizer_alpha'] = 0.99
+    config['horizon'] = 5
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'LSTM-RNN'
+    config['actor_arch'] = 'None'
+    config['critic_arch'] = 'None'
+    return config
+
+
+@pytest.fixture
+def a2c_cnn_config_dict():
+    config = dict()
+    config['standardized_adv'] = False
+    config['lr_account_for_nbr_actor'] = False 
+
+    config['discount'] = 0.99
+    config['use_gae'] = False
+    config['use_cuda'] = True
+    config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
+    config['entropy_weight'] = 0.1
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 1
+    config['mini_batch_size'] = 32
+    config['learning_rate'] = 7.0e-4
+    config['optimizer_eps'] = 1.0e-5
+    config['optimizer_alpha'] = 0.99
+    config['horizon'] = 5
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'CNN'
+    config['actor_arch'] = 'None'
+    config['critic_arch'] = 'None'
+
+    config['observation_resize_dim'] = 84
+    
+    # Phi Body:
+    config['phi_arch_channels'] = [32, 64, 64]
+    config['phi_arch_kernels'] = [8, 4, 3]
+    config['phi_arch_strides'] = [4, 2, 1]
+    config['phi_arch_paddings'] = [1, 1, 1]
+    config['phi_arch_feature_dim'] = 512
+    config['phi_arch_hidden_units'] = [512,]
+
+    # Actor architecture:
+    config['actor_arch_hidden_units'] = []
+    # Critic architecture:
+    config['critic_arch_hidden_units'] = []
+
+    return config
+
+
+@pytest.fixture
+def a2c_cnn_rnn_config_dict():
+    config = dict()
+    config['standardized_adv'] = False
+    config['lr_account_for_nbr_actor'] = False 
+
+    config['discount'] = 0.99
+    config['use_gae'] = False
+    config['use_cuda'] = True
+    config['gae_tau'] = 0.95
+    config['value_weight'] = 1.0
+    config['entropy_weight'] = 0.1
+    config['gradient_clip'] = 0.5
+    config['optimization_epochs'] = 1
+    config['mini_batch_size'] = 32
+    config['learning_rate'] = 7.0e-4
+    config['optimizer_eps'] = 1.0e-5
+    config['optimizer_alpha'] = 0.99
+    config['horizon'] = 5
+
+    config['nbr_actor'] = 1
+    
+    config['phi_arch'] = 'CNN'
+    config['actor_arch'] = 'RNN'
+    config['critic_arch'] = 'RNN'
+
+    config['observation_resize_dim'] = 84
+    
+    # Phi Body:
+    config['phi_arch_channels'] = [32, 64, 64]
+    config['phi_arch_kernels'] = [8, 4, 3]
+    config['phi_arch_strides'] = [4, 2, 1]
+    config['phi_arch_paddings'] = [1, 1, 1]
+    config['phi_arch_feature_dim'] = 512
+    config['phi_arch_hidden_units'] = [512,]
+
+    # Actor architecture:
+    config['actor_arch_hidden_units'] = []
+    # Critic architecture:
+    config['critic_arch_hidden_units'] = []
+
+    return config
+
+
+
+#----------------------------------------------------------#
+
+
+
 
 @pytest.fixture
 def ddpg_config_dict():
@@ -188,13 +426,42 @@ def i2a_config_dict():
 
 
 @pytest.fixture
-def FrozenLakeTask(): # Discrete Action / Observation space
-    return generate_task('FrozenLake-v0')
+def BreakoutTask(): # Discrete Action Spacce and Box Observation space
+    from regym.util.wrappers import baseline_atari_pixelwrap
+    from functools import partial
+    pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
+                                size=84, 
+                                skip=4, 
+                                stack=4,
+                                grayscale=True,
+                                single_life_episode=False,
+                                nbr_max_random_steps=30,
+                                clip_reward=False)
+    return generate_task('BreakoutNoFrameskip-v4', wrapping_fn=pixel_wrapping_fn, gathering=False)
 
 
 @pytest.fixture
 def CartPoleTask(): # Discrete Action / Continuous Observation space
-    return generate_task('CartPole-v0')
+    return generate_task('CartPole-v0', gathering=False)
+
+@pytest.fixture
+def BreakoutTask_ma(): # Discrete Action Spacce and Box Observation space
+    from regym.util.wrappers import baseline_atari_pixelwrap
+    from functools import partial
+    pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
+                                size=84, 
+                                skip=4, 
+                                stack=4,
+                                grayscale=True,
+                                single_life_episode=False,
+                                nbr_max_random_steps=30,
+                                clip_reward=False)
+    return generate_task('BreakoutNoFrameskip-v4', nbr_parallel_env=4, wrapping_fn=pixel_wrapping_fn, gathering=False)
+
+
+@pytest.fixture
+def CartPoleTask_ma(): # Discrete Action / Continuous Observation space
+    return generate_task('CartPole-v0', nbr_parallel_env=4, gathering=False)
 
 
 @pytest.fixture
@@ -204,4 +471,11 @@ def PendulumTask(): # Continuous Action / Observation space
 
 @pytest.fixture
 def RPSTask():
-    return generate_task('RockPaperScissors-v0')
+    import gym_rock_paper_scissors
+    return generate_task('RockPaperScissors-v0', EnvType.MULTIAGENT_SIMULTANEOUS_ACTION)
+
+
+@pytest.fixture
+def KuhnTask():
+    import gym_kuhn_poker
+    return generate_task('KuhnPoker-v0', EnvType.MULTIAGENT_SEQUENTIAL_ACTION)

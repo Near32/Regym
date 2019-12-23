@@ -4,12 +4,13 @@ from .gym_parser import parse_gym_environment
 from .unity_parser import parse_unity_environment
 from .parallel_env import ParallelEnv
 from .vec_env import VecEnv
-#from .parallel_vec_env import ParallelVecEnv
 from .utils import EnvironmentCreator
-from .task import Task
+from .task import Task, EnvType
 
 
-def parse_environment(env_name, nbr_parallel_env=1, wrapping_fn=None, test_wrapping_fn=None):
+def generate_task(env_name: str, env_type: EnvType = EnvType.SINGLE_AGENT, 
+                  nbr_parallel_env: int = 1, wrapping_fn: object = None, 
+                  test_wrapping_fn: object = None, gathering: bool = False) -> Task:
     '''
     Returns a regym.environments.Task by creating an environment derived from :param: env_name
     and extracting relevant information used to build regym.rl_algorithms.agents from the Task.
@@ -19,12 +20,17 @@ def parse_environment(env_name, nbr_parallel_env=1, wrapping_fn=None, test_wrapp
     
     Note: :param wrapping_fn: is only usable with gym environment, not with Unity environments.
 
-    :param env_name: String identifier for the environment to be created.
+    :param env_name: String identifier for the environment to be created
+    :param env_type: Determines whether the parameter is (single/multi)-agent
+                     and how are the environment processes these actions
+                     (i.e all actions simultaneously, or sequentially)
     :param nbr_parallel_env: number of environment to create and experience in parallel.
     :param wrapping_fn: Function used to wrap the environment.
     :param test_wrapping_fn: Function used to wrap the test environment.
+    :param gathering: Bool specifying whether we are gathering experience or running evaluation episodes.
     :returns: Task created from :param: env_name
     '''
+    if env_name is None: raise ValueError('Parameter \'env_name\' was None')
     is_gym_environment = any([env_name == spec.id for spec in gym.envs.registry.all()]) # Checks if :param: env_name was registered
     is_unity_environment = check_for_unity_executable(env_name)
 
@@ -33,18 +39,17 @@ def parse_environment(env_name, nbr_parallel_env=1, wrapping_fn=None, test_wrapp
     elif is_gym_environment: 
         env = gym.make(env_name)
         if wrapping_fn is not None: env = wrapping_fn(env=env)
-        task=parse_gym_environment(env)
-    elif is_unity_environment: task=parse_unity_environment(env_name)
-    else: raise ValueError('Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
+        task = parse_gym_environment(env, env_type)
+    elif is_unity_environment: task = parse_unity_environment(env_name, env_type)
+    else: raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
 
-    task.env.close()
-    
     env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=wrapping_fn)
     test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn)
 
     task = Task(task.name, 
                 #ParallelEnv(env_creator, nbr_parallel_env), 
-                VecEnv(env_creator, nbr_parallel_env), 
+                VecEnv(env_creator, nbr_parallel_env, gathering=gathering), 
+                env_type,
                 VecEnv(test_env_creator, nbr_parallel_env, gathering=False),
                 task.state_space_size, 
                 task.action_space_size, 
@@ -53,9 +58,6 @@ def parse_environment(env_name, nbr_parallel_env=1, wrapping_fn=None, test_wrapp
                 task.action_dim, 
                 task.action_type, 
                 task.hash_function)
-
-    #VecEnv(env_creator, nbr_parallel_env)
-    #ParallelVecEnv(env_creator, nbr_parallel_env)
 
     return task
 

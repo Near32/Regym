@@ -62,6 +62,7 @@ class ConvolutionalBody(nn.Module):
 
     def forward(self, x, non_lin_output=True):
         conv_map = x
+        if next(self.convs[0].parameters()).is_cuda and not(conv_map.is_cuda):   conv_map = conv_map.cuda()
         for conv_layer, non_lin in zip(self.convs, self.non_linearities):
             conv_map = non_lin(conv_layer(conv_map))
 
@@ -863,8 +864,8 @@ class LSTMBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
         super(LSTMBody, self).__init__()
         if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
-        dims = (state_dim, ) + hidden_units
-        # Consider future cases where we may not want to initialize the LSTMCell(s)
+        if isinstance(state_dim,int):   dims = (state_dim, ) + hidden_units
+        else:   dims = state_dim + hidden_units
         self.layers = nn.ModuleList([layer_init_lstm(nn.LSTMCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.feature_dim = dims[-1]
         self.gate = gate
@@ -876,6 +877,7 @@ class LSTMBody(nn.Module):
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
         x, recurrent_neurons = inputs
+        if next(self.layers[0].parameters()).is_cuda and not(x.is_cuda):    x = x.cuda() 
         hidden_states, cell_states = recurrent_neurons['hidden'], recurrent_neurons['cell']
 
         next_hstates, next_cstates = [], []
@@ -886,6 +888,12 @@ class LSTMBody(nn.Module):
                 cx = torch.cat([cx]*batch_size, dim=0)
             elif hx.size(0) != batch_size:
                 raise NotImplementedError("Sizes of the hidden states and the inputs do not coincide.")
+
+            if next(layer.parameters()).is_cuda and \
+                (hx is not None or not(hx.is_cuda)) and \
+                (cx is  not None or not(cx.is_cuda)):
+                if hx is not None:  hx = hx.cuda()
+                if cx is not None:  cx = cx.cuda() 
 
             nhx, ncx = layer(x, (hx, cx))
             next_hstates.append(nhx)
@@ -914,19 +922,20 @@ class GRUBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
         super(GRUBody, self).__init__()
         if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
-        dims = (state_dim, ) + hidden_units
-        # Consider future cases where we may not want to initialize the LSTMCell(s)
+        if isinstance(state_dim,int):   dims = (state_dim, ) + hidden_units
+        else:   dims = state_dim + hidden_units
         self.layers = nn.ModuleList([layer_init_gru(nn.GRUCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
         self.feature_dim = dims[-1]
         self.gate = gate
 
     def forward(self, inputs):
         '''
-        :param inputs: input to LSTM cells. Structured as (feed_forward_input, {hidden: hidden_states, cell: cell_states}).
+        :param inputs: input to GRU cells. Structured as (feed_forward_input, {hidden: hidden_states, cell: cell_states}).
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
         x, recurrent_neurons = inputs
+        if next(self.layers[0].parameters()).is_cuda and not(x.is_cuda):    x = x.cuda() 
         hidden_states, cell_states = recurrent_neurons['hidden'], recurrent_neurons['cell']
 
         next_hstates, next_cstates = [], []
@@ -937,6 +946,10 @@ class GRUBody(nn.Module):
                 cx = torch.cat([cx]*batch_size, dim=0)
             elif hx.size(0) != batch_size:
                 raise NotImplementedError("Sizes of the hidden states and the inputs do not coincide.")
+
+            if next(layer.parameters()).is_cuda and \
+                (hx is not None or not(hx.is_cuda)):
+                if hx is not None:  hx = hx.cuda()
 
             nhx = layer(x, hx)
             next_hstates.append(nhx)
