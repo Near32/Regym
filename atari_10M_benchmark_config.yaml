@@ -78,8 +78,8 @@ ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5: &ppo_
 experiment:
     tasks: [{'env-id': 'QbertNoFrameskip-v4',
              
-             'run-id': 'Seed131_venv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             #'run-id': 'Seed131_parallelenv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'run-id': 'Seed13_venv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             #'run-id': 'Seed13_parallelenv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 8,
@@ -94,7 +94,7 @@ experiment:
 
             {'env-id': 'PongNoFrameskip-v4',
 
-             'run-id': 'Seed131_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 8,
@@ -109,7 +109,7 @@ experiment:
 
             {'env-id': 'BreakoutNoFrameskip-v4',
 
-             'run-id': 'Seed131_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 8,
@@ -124,7 +124,7 @@ experiment:
 
             {'env-id': 'SeaquestNoFrameskip-v4',
 
-             'run-id': 'Seed131_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 8,
@@ -139,7 +139,7 @@ experiment:
 
             {'env-id': 'BoxingNoFrameskip-v4',
 
-             'run-id': 'Seed131_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 8,

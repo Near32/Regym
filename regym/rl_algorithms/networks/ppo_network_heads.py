@@ -12,6 +12,8 @@ import torch.nn.functional as F
 from .ppo_network_utils import BaseNet, layer_init, tensor
 from .ppo_network_bodies import DummyBody
 
+EPS = 1e-8
+
 
 class VanillaNet(nn.Module, BaseNet):
     def __init__(self, output_dim, body):
@@ -245,6 +247,7 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body,use_intrinsic_critic)
 
     def forward(self, obs, action=None, rnn_states=None):
+        global EPS
         obs = tensor(obs)
         next_rnn_states = None 
         if rnn_states is not None:
@@ -307,7 +310,7 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         # batch #x 1
         
         if action is None:
-            action = probs.multinomial(num_samples=1).squeeze(1)
+            action = (probs+EPS).multinomial(num_samples=1).squeeze(1)
             # batch #x 1
             '''
             p = probs.detach().cpu().numpy()
