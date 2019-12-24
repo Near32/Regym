@@ -312,16 +312,15 @@ class BetaVAE(nn.Module) :
         return z
     
     def encode(self,x) :
-        self.h = self.encoder(x)
-        self.mu, self.log_var = torch.chunk(self.h, 2, dim=1 )
-        return self.mu
+        h = self.encoder(x)
+        mu, log_var = torch.chunk(h, 2, dim=1 )
+        return mu
 
     def encodeZ(self,x) :
-        self.x = x 
-        self.h = self.encoder(self.x)
-        self.mu, self.log_var = torch.chunk(self.h, 2, dim=1 )
-        self.z = self.reparameterize(self.mu, self.log_var)        
-        return self.z, self.mu, self.log_var
+        h = self.encoder(x)
+        mu, log_var = torch.chunk(h, 2, dim=1 )
+        z = self.reparameterize(mu, log_var)        
+        return z, mu, log_var
 
     def decode(self, z):
         return self.decoder(z)
@@ -329,29 +328,32 @@ class BetaVAE(nn.Module) :
     def _forward(self,x=None,evaluation=False,fixed_latent=None,data=None) :
         if data is None and x is not None :
             if evaluation :
-                self.z, self.mu, self.log_var = self.encodeZ(x) 
+                z, mu, log_var = self.encodeZ(x)
+                h = None
+                VAE_output = None 
             else :
-                self.x = x 
-                self.h = self.encoder(self.x)
-                self.mu, self.log_var = torch.chunk(self.h, 2, dim=1 )
-                self.z = self.reparameterize(self.mu, self.log_var)
-                self.VAE_output = self.decoder(self.z)
+                h = self.encoder(x)
+                mu, log_var = torch.chunk(h, 2, dim=1 )
+                z = self.reparameterize(mu, log_var)
+                VAE_output = self.decoder(z)
         elif data is not None :
-            self.mu, self.log_var = data 
-            self.z = self.reparameterize(self.mu, self.log_var)
+            mu, log_var = data 
+            z = self.reparameterize(mu, log_var)
+            h = None
+            VAE_output = None
             if not(evaluation) :
-                self.VAE_output = self.decoder(self.z)
+                VAE_output = self.decoder(z)
 
-        self.batch_size = self.z.size()[0]
+        self.batch_size = z.size()[0]
         if fixed_latent is not None :
             idx = fixed_latent[0]
             val = fixed_latent[1]
-            self.mu = self.mu.cpu().data 
-            self.mu[:,idx] = val
-            if next(self.parameters()).is_cuda : self.mu = self.mu.cuda()
-            self.z = self.reparameterize(self.mu,self.log_var)
+            mu = mu.cpu().data 
+            mu[:,idx] = val
+            if next(self.parameters()).is_cuda : mu = mu.cuda()
+            z = self.reparameterize(mu, log_var)
             
-        return self.mu, self.log_var, self.VAE_output  
+        return h, z, mu, log_var, VAE_output  
 
     def compute_modularity(self, x, z):
         if z.size(0) > 1:
@@ -412,10 +414,10 @@ class BetaVAE(nn.Module) :
         xsize = x.size()
         self.batch_size = xsize[0]
         
-        self._forward(x=x,fixed_latent=fixed_latent,data=data,evaluation=evaluation)
+        h, z, mu, log_var, VAE_output = self._forward(x=x,fixed_latent=fixed_latent,data=data,evaluation=evaluation)
         
         if evaluation :
-            self.VAE_output = gtx 
+            VAE_output = gtx 
 
         #--------------------------------------------------------------------------------------------------------------
         # VAE loss :
@@ -425,25 +427,25 @@ class BetaVAE(nn.Module) :
             self.observation_sigma = observation_sigma
         if self.NormalOutputDistribution:
             #Normal :
-            self.neg_log_lik = -torch.distributions.Normal(self.VAE_output, self.observation_sigma).log_prob( gtx)
+            neg_log_lik = -torch.distributions.Normal(VAE_output, self.observation_sigma).log_prob( gtx)
         else:
             #Bernoulli :
-            self.neg_log_lik = -torch.distributions.Bernoulli( self.VAE_output ).log_prob( gtx )
+            neg_log_lik = -torch.distributions.Bernoulli( VAE_output ).log_prob( gtx )
         
-        self.reconst_loss = torch.sum( self.neg_log_lik.view( self.batch_size, -1), dim=1)
+        reconst_loss = torch.sum( neg_log_lik.view( self.batch_size, -1), dim=1)
         #--------------------------------------------------------------------------------------------------------------
         #--------------------------------------------------------------------------------------------------------------
         # KL Divergence :
-        self.true_kl_divergence = 0.5 * (self.mu**2 + torch.exp(self.log_var) - self.log_var -1)
+        true_kl_divergence = 0.5 * (mu**2 + torch.exp(log_var) - log_var -1)
         
         if self.EncodingCapacityStep is None :
-            self.kl_divergence = torch.sum(self.true_kl_divergence, dim=1)
-            self.kl_divergence_regularized = torch.zeros_like(self.kl_divergence)
-            self.VAE_loss = self.reconst_loss + self.beta*self.kl_divergence
+            kl_divergence = torch.sum( true_kl_divergence, dim=1)
+            kl_divergence_regularized = torch.zeros_like( kl_divergence)
+            VAE_loss = reconst_loss + self.beta * kl_divergence
         else:
-            self.kl_divergence_regularized =  torch.abs( torch.sum(self.true_kl_divergence, dim=1) - self.EncodingCapacity ) 
-            self.kl_divergence =  torch.sum( self.true_kl_divergence, dim=1 )
-            self.VAE_loss = self.reconst_loss + self.beta * self.kl_divergence_regularized
+            kl_divergence_regularized =  torch.abs( torch.sum(true_kl_divergence, dim=1) - self.EncodingCapacity ) 
+            kl_divergence =  torch.sum(true_kl_divergence, dim=1 )
+            VAE_loss = reconst_loss + self.beta * kl_divergence_regularized
             
             if self.increaseEncodingCapacity and self.training:
                 self.EncodingCapacity += self.EncodingCapacityStep
@@ -451,9 +453,9 @@ class BetaVAE(nn.Module) :
                 self.increaseEncodingCapacity = False 
         #--------------------------------------------------------------------------------------------------------------
 
-        tc_loss, modularity = self.compute_modularity(x, self.z)
+        tc_loss, modularity = self.compute_modularity(x, z)
 
-        return self.VAE_loss, self.neg_log_lik, self.kl_divergence_regularized, self.true_kl_divergence, tc_loss, modularity
+        return VAE_loss, neg_log_lik, kl_divergence_regularized, true_kl_divergence, tc_loss, modularity
 
 
 def BetaVAEBody(input_shape, feature_dim, channels, kernel_sizes, strides, paddings, kwargs):
