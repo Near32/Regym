@@ -28,9 +28,9 @@ def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', di
     gifimgs = []
     for idx, img in enumerate(imgs):
         if idx%divider: continue
-        plt.subplot(211)
+        plt.subplot(211, label=f"frame{idx}-image")
         gifimg = plt.imshow(img, animated=True)
-        ax = plt.subplot(212)
+        ax = plt.subplot(212, label=f"frame{idx}-data")
         
         frame = [gifimg]
         for didx, d in enumerate(gd):
