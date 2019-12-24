@@ -121,36 +121,6 @@ experiment:
              'clip_reward': True,
              'observation_resize_dim': 84
              },
-
-            {'env-id': 'SeaquestNoFrameskip-v4',
-
-             'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': 'ppo_LargeCNN',
-             
-             'nbr_actor': 8,
-             'nbr_frame_skipping': 4,
-             'nbr_frame_stacking': 4,
-             'grayscale': True,
-             'single_life_episode': True,
-             'nbr_max_random_steps': 30,
-             'clip_reward': True,
-             'observation_resize_dim': 84
-             },
-
-            {'env-id': 'BoxingNoFrameskip-v4',
-
-             'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': 'ppo_LargeCNN',
-             
-             'nbr_actor': 8,
-             'nbr_frame_skipping': 4,
-             'nbr_frame_stacking': 4,
-             'grayscale': True,
-             'single_life_episode': True,
-             'nbr_max_random_steps': 30,
-             'clip_reward': True,
-             'observation_resize_dim': 84
-             },
             ]
     experiment_id: 'atari_10M_benchmark_ppo'
     benchmarking_episodes: 10

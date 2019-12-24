@@ -19,12 +19,13 @@ extra_hyperparameters: &extra_hyperparameters
     
     # Random Network Distillation:
     use_random_network_distillation: True
+    rnd_weight: 1.0
     intrinsic_discount: 0.99
-    rnd_loss_int_ratio: 0.5
+    rnd_loss_int_ratio: 0.5 # 0.5
     rnd_obs_clip: 5
     rnd_non_episodic_int_r: True
-    rnd_update_period_running_meanstd_int_reward: 1.e5
-    rnd_update_period_running_meanstd_obs: 1.e5 #rnd_update_period_running_meanstd_int_reward
+    rnd_update_period_running_meanstd_int_reward: 1.e3
+    rnd_update_period_running_meanstd_obs: 1.e3 #rnd_update_period_running_meanstd_int_reward
     # RND Convolutional Architecture:
     rnd_arch: 'CNN'
     rnd_arch_channels: [32, 64, 64]
@@ -57,7 +58,7 @@ LargeCNN: &LargeCNN
         
 ppo_rnd_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5: &ppo_rnd_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5
         observation_resize_dim: 84
-        discount: 0.99
+        discount: 0.999
         use_gae: True
         use_cuda: True
         gae_tau: 0.95
@@ -82,7 +83,7 @@ experiment:
              #'run-id': 'Seed13_parallelenv_ppo_rnd_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'ppo_rnd_LargeCNN',
              
-             'nbr_actor': 8,
+             'nbr_actor': 1, #8,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': True,
@@ -121,39 +122,9 @@ experiment:
              'clip_reward': True,
              'observation_resize_dim': 84
              },
-
-            {'env-id': 'SeaquestNoFrameskip-v4',
-
-             'run-id': 'Seed13_penv_ppo_rnd_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': 'ppo_rnd_LargeCNN',
-             
-             'nbr_actor': 8,
-             'nbr_frame_skipping': 4,
-             'nbr_frame_stacking': 4,
-             'grayscale': True,
-             'single_life_episode': True,
-             'nbr_max_random_steps': 30,
-             'clip_reward': True,
-             'observation_resize_dim': 84
-             },
-
-            {'env-id': 'BoxingNoFrameskip-v4',
-
-             'run-id': 'Seed13_penv_ppo_rnd_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': 'ppo_rnd_LargeCNN',
-             
-             'nbr_actor': 8,
-             'nbr_frame_skipping': 4,
-             'nbr_frame_stacking': 4,
-             'grayscale': True,
-             'single_life_episode': True,
-             'nbr_max_random_steps': 30,
-             'clip_reward': True,
-             'observation_resize_dim': 84
-             },
             ]
     experiment_id: 'atari_10M_benchmark_ppo_rnd'
-    benchmarking_episodes: 10
+    benchmarking_episodes: 2 #10
     train_observation_budget: 1.0e7
     seed: 13
 

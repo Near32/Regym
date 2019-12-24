@@ -22,6 +22,7 @@ def compute_loss(states: torch.Tensor,
                  ratio_clip: float, 
                  entropy_weight: float,
                  value_weight: float,
+                 rnd_weight: float,
                  rnd_obs_clip: float,
                  summary_writer: object = None,
                  iteration_count: int = 0,
@@ -68,6 +69,8 @@ def compute_loss(states: torch.Tensor,
                            for the loss function. Refer to original paper eq (9)
     :param value_weight: Coefficient to be used for the value loss
                            for the loss function. Refer to original paper eq (9)
+    :param rnd_weight: Coefficient to be used for the rnd loss
+                           for the loss function.
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
                        This parameter is a dictionary which maps recurrent submodule names
@@ -118,12 +121,14 @@ def compute_loss(states: torch.Tensor,
     #ext_v_loss = torch.nn.functional.smooth_l1_loss(ext_returns, prediction['v']) 
     #int_v_loss = torch.nn.functional.smooth_l1_loss(int_returns, prediction['int_v']) 
     ext_v_loss = torch.nn.functional.mse_loss(input=prediction['v'], target=ext_returns) 
-    int_v_loss = torch.nn.functional.mse_loss(input=prediction['int_v'], target=int_returns) 
+    int_v_loss = torch.nn.functional.mse_loss(input=prediction['int_v'], target=int_returns.detach()) 
     
     value_loss = (ext_v_loss + int_v_loss)
-    rnd_loss = int_reward_loss + value_weight * value_loss
-    
-    total_loss = policy_loss + rnd_loss
+    #value_loss = ext_v_loss
+    rnd_loss = int_reward_loss 
+
+    total_loss = policy_loss + rnd_weight * rnd_loss + value_weight * value_loss
+    #total_loss = policy_loss + value_weight * value_loss
 
     if summary_writer is not None:
         summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)
