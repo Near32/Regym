@@ -7,9 +7,11 @@ def compute_loss(states: torch.Tensor,
                  log_probs_old: torch.Tensor, 
                  returns: torch.Tensor,
                  advantages: torch.Tensor, 
+                 std_advantages: torch.Tensor, 
                  model: torch.nn.Module,
                  ratio_clip: float, 
                  entropy_weight: float,
+                 value_weight: float,
                  vae_weight: float,
                  summary_writer: object = None,
                  iteration_count: int = 0,
@@ -31,12 +33,17 @@ def compute_loss(states: torch.Tensor,
     :param advantages: Dimension: batch_size x 1. Estimated advantage function
                        for every state and action in :param states: and
                        :param actions: (respectively) with the same index.
+    :param std_advantages: Dimension: batch_size. Estimated standardized advantage function
+                       for every state and action in :param states: and
+                       :param actions: (respectively) with the same index.
     :param model: torch.nn.Module used to compute the policy probability ratio
                   as specified in equation (6) of original paper.
     :param ratio_clip: Epsilon value used to clip the policy ratio's value.
                        This parameter acts as the radius of the Trust Region.
                        Refer to original paper equation (7).
     :param entropy_weight: Coefficient to be used for the entropy bonus
+                           for the loss function. Refer to original paper eq (9)
+    :param value_weight: Coefficient to be used for the value loss
                            for the loss function. Refer to original paper eq (9)
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
@@ -49,17 +56,16 @@ def compute_loss(states: torch.Tensor,
     prediction = model(states, actions, rnn_states=rnn_states)
     
     ratio = torch.exp((prediction['log_pi_a'] - log_probs_old.detach()))
-    obj = ratio * advantages
+    obj = ratio * std_advantages
     obj_clipped = ratio.clamp(1.0 - ratio_clip,
-                              1.0 + ratio_clip) * advantages
+                              1.0 + ratio_clip) * std_advantages
     
     policy_val = -torch.min(obj, obj_clipped).mean()
     entropy_val = -prediction['ent'].mean()
     policy_loss = policy_val + entropy_weight * entropy_val # L^{clip} and L^{S} from original paper
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
     
-    #value_loss = 0.5 * torch.nn.functional.mse_loss(returns, prediction['v'])
-    value_loss = 0.5 * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
+    value_loss = value_weight * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
     total_loss = (policy_loss + value_loss)
 
     if summary_writer is not None:

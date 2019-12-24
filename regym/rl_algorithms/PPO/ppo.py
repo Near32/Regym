@@ -132,14 +132,14 @@ class PPOAlgorithm():
                 for ob in storage.s: self.update_obs_mean_std(ob)
         
                 
-        states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, target_random_features, rnn_states = self.retrieve_values_from_storages()
+        states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states = self.retrieve_values_from_storages()
 
         if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
 
         '''
         '''
         for it in range(self.kwargs['optimization_epochs']):
-            self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, target_random_features, rnn_states)
+            self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
         '''
         '''
         
@@ -202,7 +202,7 @@ class PPOAlgorithm():
     def compute_advantages_and_returns(self, storage_idx, non_episodic=False):
         ext_r = self.storages[storage_idx].r
         #norm_ext_r = self.normalize_ext_rewards(storage_idx)
-        advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32)) # TODO explain (used to be number of workers)
+        advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32))
         
         if self.storages[storage_idx].non_terminal[-1]: 
             next_state = self.storages[storage_idx].succ_s[-1].cuda() if self.kwargs['use_cuda'] else self.storages[storage_idx].succ_s[-1]
@@ -214,14 +214,12 @@ class PPOAlgorithm():
             returns = torch.zeros(1,1)
         # Adding next state return/value and dummy advantages to the storage on the N+1 spots: 
         # not used during optimization, but necessary to compute the returns and advantages of previous states.
-        # TODO: propagate in intrinsic returns...
         self.storages[storage_idx].ret[-1] = returns 
         self.storages[storage_idx].adv[-1] = torch.zeros(1,1)
         # Adding next state value to the storage for the computation of gae for previous states:
         self.storages[storage_idx].v.append(returns)
 
         gae = 0.0
-        # TODO: propagate in intrinsic returns...
         #for i in reversed(range(len(self.storages[storage_idx])-1)):
         for i in reversed(range(len(self.storages[storage_idx].r))):
             if not self.kwargs['use_gae']:
@@ -248,9 +246,25 @@ class PPOAlgorithm():
         '''
         norm_int_r = self.normalize_int_rewards(storage_idx)
         int_advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32))
-        int_returns = self.storages[storage_idx].int_v[-1].detach()
+        
+        #int_returns = self.storages[storage_idx].int_v[-1].detach()
+        if self.storages[storage_idx].non_terminal[-1]: 
+            next_state = self.storages[storage_idx].succ_s[-1].cuda() if self.kwargs['use_cuda'] else self.storages[storage_idx].succ_s[-1]
+            int_returns, _ = self.algorithm.compute_intrinsic_reward(next_state)
+            # Normalization (scaling):
+            int_returns = int_returns / (self.int_reward_std+1e-8)
+        else:
+            int_returns = torch.zeros(1,1)
+        # Adding next state return/value and dummy advantages to the storage on the N+1 spots: 
+        # not used during optimization, but necessary to compute the returns and advantages of previous states.
+        self.storages[storage_idx].int_ret[-1] = int_returns 
+        self.storages[storage_idx].int_adv[-1] = torch.zeros(1,1)
+        # Adding next intrinsic state value to the storage for the computation of gae for previous states:
+        self.storages[storage_idx].int_v.append(int_returns)
+        
         gae = 0.0
-        for i in reversed(range(len(self.storages[storage_idx].int_r)-1)):
+        #for i in reversed(range(len(self.storages[storage_idx].int_r)-1)):
+        for i in reversed(range(len(self.storages[storage_idx].int_r))):
             if not self.kwargs['use_gae']:
                 if non_episodic:    notdone = 1.0
                 else:               notdone = self.storages[storage_idx].non_terminal[i]
@@ -298,13 +312,12 @@ class PPOAlgorithm():
             full_advantages.append(advantages[:-1])
             # Contain next state return and dummy advantages: so the size is N+1 spots: 
             # not used during optimization, but necessary to compute the returns and advantages of previous states....
-            # TODO: propagate in intrinsic returns...
             if self.use_rnd:
                 cat = storage.cat(['succ_s', 'int_ret', 'int_adv', 'target_int_f'])
                 next_states, int_returns, int_advantages, target_random_features = map(lambda x: torch.cat(x, dim=0), cat)
                 full_next_states.append(next_states)
-                full_int_returns.append(int_returns)
-                full_int_advantages.append(int_advantages)
+                full_int_returns.append(int_returns[:-1])
+                full_int_advantages.append(int_advantages[:-1])
                 full_target_random_features.append(target_random_features)
             if self.recurrent:
                 rnn_states = storage.cat(['rnn_states'])[0]
@@ -321,9 +334,12 @@ class PPOAlgorithm():
             full_int_returns = torch.cat(full_int_returns, dim=0)
             full_int_advantages = torch.cat(full_int_advantages, dim=0)
             full_target_random_features = torch.cat(full_target_random_features, dim=0)
-            if self.kwargs['standardized_adv']: full_int_advantages = self.standardize(full_int_advantages).squeeze()
+            full_std_int_advantages = self.standardize(full_int_advantages).squeeze()
             
-        return full_states, full_actions, full_next_states, full_log_probs_old, full_returns, full_advantages, full_std_advantages, full_int_returns, full_int_advantages, full_target_random_features, full_rnn_states
+        return full_states, full_actions, full_next_states, full_log_probs_old, \
+               full_returns, full_advantages, full_std_advantages, \
+               full_int_returns, full_int_advantages, full_std_int_advantages, \
+               full_target_random_features, full_rnn_states
 
     def standardize(self, x):
         stable_eps = 1e-30
@@ -412,7 +428,7 @@ class PPOAlgorithm():
         if self.running_counter_obs >= self.update_period_obs:
           self.running_counter_obs = 0
 
-    def optimize_model(self, states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, target_random_features, rnn_states=None):
+    def optimize_model(self, states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states=None):
         global summary_writer
         # What is this: create dictionary to store length of each part of the recurrent submodules of the current model
         nbr_layers_per_rnn = None
@@ -451,9 +467,12 @@ class PPOAlgorithm():
                 sampled_next_states = sampled_next_states.detach()
                 sampled_int_returns = int_returns[batch_indices].cuda() if self.kwargs['use_cuda'] else int_returns[batch_indices]
                 sampled_int_advantages = int_advantages[batch_indices].cuda() if self.kwargs['use_cuda'] else int_advantages[batch_indices]
+                sampled_std_int_advantages = std_int_advantages[batch_indices].cuda() if self.kwargs['use_cuda'] else std_int_advantages[batch_indices]
                 sampled_target_random_features = target_random_features[batch_indices].cuda() if self.kwargs['use_cuda'] else target_random_features[batch_indices]
+                
                 sampled_int_returns = sampled_int_returns.detach()
                 sampled_int_advantages = sampled_int_advantages.detach()
+                sampled_std_int_advantages = sampled_std_int_advantages.detach()
                 sampled_target_random_features = sampled_target_random_features.detach()
                 states_mean = self.obs_mean.cuda() if self.kwargs['use_cuda'] else self.obs_mean
                 states_std = self.obs_std.cuda() if self.kwargs['use_cuda'] else self.obs_std
@@ -466,14 +485,17 @@ class PPOAlgorithm():
                                              sampled_log_probs_old,
                                              ext_returns=sampled_returns, 
                                              ext_advantages=sampled_advantages,
+                                             std_ext_advantages=sampled_std_advantages,
                                              int_returns=sampled_int_returns, 
                                              int_advantages=sampled_int_advantages, 
+                                             std_int_advantages=sampled_std_int_advantages,
                                              target_random_features=sampled_target_random_features,
                                              states_mean=states_mean, 
                                              states_std=states_std,
                                              rnn_states=sampled_rnn_states,
                                              ratio_clip=self.kwargs['ppo_ratio_clip'], 
                                              entropy_weight=self.kwargs['entropy_weight'],
+                                             value_weight=self.kwargs['value_weight'],
                                              model=self.model,
                                              rnd_obs_clip=self.kwargs['rnd_obs_clip'],
                                              pred_intr_model=self.predict_intr_model,
@@ -486,9 +508,11 @@ class PPOAlgorithm():
                                              sampled_log_probs_old,
                                              sampled_returns, 
                                              sampled_advantages, 
+                                             sampled_std_advantages,
                                              rnn_states=sampled_rnn_states,
                                              ratio_clip=self.kwargs['ppo_ratio_clip'], 
                                              entropy_weight=self.kwargs['entropy_weight'],
+                                             value_weight=self.kwargs['value_weight'],
                                              vae_weight=self.kwargs['vae_weight'],
                                              model=self.model,
                                              iteration_count=self.param_update_counter,

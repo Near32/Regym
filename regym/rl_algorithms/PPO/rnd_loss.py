@@ -9,8 +9,10 @@ def compute_loss(states: torch.Tensor,
                  log_probs_old: torch.Tensor, 
                  ext_returns: torch.Tensor,
                  ext_advantages: torch.Tensor,
+                 std_ext_advantages: torch.Tensor,
                  int_returns: torch.Tensor,
                  int_advantages: torch.Tensor, 
+                 std_int_advantages: torch.Tensor,
                  target_random_features: torch.Tensor,
                  states_mean: torch.Tensor, 
                  states_std: torch.Tensor,
@@ -19,6 +21,7 @@ def compute_loss(states: torch.Tensor,
                  intrinsic_reward_ratio: float,
                  ratio_clip: float, 
                  entropy_weight: float,
+                 value_weight: float,
                  rnd_obs_clip: float,
                  summary_writer: object = None,
                  iteration_count: int = 0,
@@ -40,11 +43,17 @@ def compute_loss(states: torch.Tensor,
     :param ext_advantages: Dimension: batch_size x 1. Estimated advantage function
                        for every state and action in :param states: and
                        :param actions: (respectively) with the same index.
+    :param std_ext_advantages: Dimension: batch_size x 1. Estimated standardized advantage function
+                       for every state and action in :param states: and
+                       :param actions: (respectively) with the same index.
     :param int_returns: Dimension: batch_size x 1. Empirical intrinsic returns obtained via
                         calculating the discounted intrinsic return from the intrinsic rewards.
     :param int_advantages: Dimension: batch_size x 1. Estimated intrisinc advantage function
                            for every state and action in :param states: and
                            :param actions: (respectively) with the same index.
+    :param std_int_advantages: Dimension: batch_size x 1. Estimated standardized intrinsic advantage function
+                       for every state and action in :param states: and
+                       :param actions: (respectively) with the same index.
     :param target_random_features: target random features used to compute the intrinsic rewards.
     :param states_mean: mean over the previous training step's states.
     :param states_std: standard deviation over the previous training step's states.
@@ -57,6 +66,8 @@ def compute_loss(states: torch.Tensor,
                        Refer to original paper equation (7).
     :param entropy_weight: Coefficient to be used for the entropy bonus
                            for the loss function. Refer to original paper eq (9)
+    :param value_weight: Coefficient to be used for the value loss
+                           for the loss function. Refer to original paper eq (9)
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
                        This parameter is a dictionary which maps recurrent submodule names
@@ -65,22 +76,22 @@ def compute_loss(states: torch.Tensor,
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
     '''
-    #int_advantages = torch.clamp(int_advantages, -1e3, 1e3)
-    #ext_advantages = torch.clamp(ext_advantages, -1e3, 1e3)
     advantages = ext_advantages + intrinsic_reward_ratio*int_advantages
-    #advantages = torch.clamp(advantages, -1e6, 1e6)
-
+    std_advantages = std_ext_advantages + intrinsic_reward_ratio*std_int_advantages
+    
     prediction = model(states, actions, rnn_states=rnn_states)
     
-    ratio = (prediction['log_pi_a'] - log_probs_old.detach()).exp()
-    #ratio = torch.clamp(ratio, -1e3, 1e3)
-
-    obj = ratio * advantages
-    obj_clipped = ratio.clamp(1.0 - ratio_clip,
-                              1.0 + ratio_clip) * advantages
+    ratio = torch.exp((prediction['log_pi_a'] - log_probs_old))
+    
+    obj = ratio * std_advantages
+    obj_clipped = torch.clamp(ratio,
+                              1.0 - ratio_clip,
+                              1.0 + ratio_clip) * std_advantages
+    
     policy_val = -torch.min(obj, obj_clipped).mean()
-    entropy_val = -entropy_weight * prediction['ent'].mean()
-    policy_loss = policy_val + entropy_val # L^{clip} and L^{S} from original paper
+    entropy_val = prediction['ent'].mean()
+    policy_loss = policy_val - entropy_weight * entropy_val # L^{clip} and L^{S} from original paper
+    #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
     
     # Random Network Distillation loss:
     norm_next_states = (next_states-states_mean) / (states_std+1e-8)
@@ -106,27 +117,41 @@ def compute_loss(states: torch.Tensor,
     
     #ext_v_loss = torch.nn.functional.smooth_l1_loss(ext_returns, prediction['v']) 
     #int_v_loss = torch.nn.functional.smooth_l1_loss(int_returns, prediction['int_v']) 
-    ext_v_loss = torch.nn.functional.mse_loss(prediction['v'], ext_returns.detach() ) 
-    int_v_loss = torch.nn.functional.mse_loss(prediction['int_v'], int_returns.detach()) 
-     
-    rnd_loss = int_reward_loss + 0.5*(ext_v_loss + int_v_loss)
+    ext_v_loss = torch.nn.functional.mse_loss(input=prediction['v'], target=ext_returns) 
+    int_v_loss = torch.nn.functional.mse_loss(input=prediction['int_v'], target=int_returns) 
+    
+    value_loss = (ext_v_loss + int_v_loss)
+    rnd_loss = int_reward_loss + value_weight * value_loss
     
     total_loss = policy_loss + rnd_loss
 
     if summary_writer is not None:
         summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)
-        summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
         summary_writer.add_scalar('Training/ExtAdvantageMean', ext_advantages.mean().cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/IntAdvantageMean', int_advantages.mean().cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/AdvantageMean', advantages.mean().cpu().item(), iteration_count)
-        summary_writer.add_histogram('Training/ExtAdvantage', ext_advantages.cpu(), iteration_count)
-        summary_writer.add_histogram('Training/IntAdvantage', int_advantages.cpu(), iteration_count)
-        summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/ExtAdvantage', ext_advantages.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/IntAdvantage', int_advantages.cpu(), iteration_count)
+        #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
         summary_writer.add_scalar('Training/RNDLoss', int_reward_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/ExtVLoss', ext_v_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/IntVLoss', int_v_loss.cpu().item(), iteration_count)
+        
+        summary_writer.add_scalar('Training/MeanVValues', prediction['v'].cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MeanReturns', ext_returns.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/StdVValues', prediction['v'].cpu().std().item(), iteration_count)
+        summary_writer.add_scalar('Training/StdReturns', ext_returns.cpu().std().item(), iteration_count)
+        
+        summary_writer.add_scalar('Training/MeanIntVValues', prediction['int_v'].cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MeanIntReturns', int_returns.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/StdIntVValues', prediction['int_v'].cpu().std().item(), iteration_count)
+        summary_writer.add_scalar('Training/StdIntReturns', int_returns.cpu().std().item(), iteration_count)
+        
+        summary_writer.add_scalar('Training/ValueLoss', value_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/PolicyVal', policy_val.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/EntropyVal', entropy_val.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/PolicyLoss', policy_loss.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/TotalLoss', total_loss.cpu().item(), iteration_count)
         
     return total_loss
