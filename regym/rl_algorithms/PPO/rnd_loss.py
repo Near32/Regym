@@ -121,7 +121,7 @@ def compute_loss(states: torch.Tensor,
     #ext_v_loss = torch.nn.functional.smooth_l1_loss(ext_returns, prediction['v']) 
     #int_v_loss = torch.nn.functional.smooth_l1_loss(int_returns, prediction['int_v']) 
     ext_v_loss = torch.nn.functional.mse_loss(input=prediction['v'], target=ext_returns) 
-    int_v_loss = torch.nn.functional.mse_loss(input=prediction['int_v'], target=int_returns.detach()) 
+    int_v_loss = torch.nn.functional.mse_loss(input=prediction['int_v'], target=int_returns) 
     
     value_loss = (ext_v_loss + int_v_loss)
     #value_loss = ext_v_loss
