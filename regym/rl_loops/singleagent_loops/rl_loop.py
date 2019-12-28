@@ -193,7 +193,7 @@ def gather_experience_parallel(task,
     total_int_returns = list()
     episode_lengths = list()
 
-    obs_count = 0
+    obs_count = agent.get_experience_count() if hasattr(agent, "get_experience_count") else 0
     episode_count = 0
     sample_episode_count = 0
     

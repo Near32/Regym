@@ -35,6 +35,9 @@ class PPOAgent(object):
             self.recurrent = True
             self._reset_rnn_states()
 
+    def get_experience_count(self):
+        return self.handled_experiences
+
     def get_intrinsic_reward(self, actor_idx):
         if len(self.algorithm.storages[actor_idx].int_r):
             #return self.algorithm.storages[actor_idx].int_r[-1] / (self.algorithm.int_reward_std+1e-8)
@@ -222,9 +225,8 @@ class PPOAgent(object):
                 self.update_actors(batch_idx=batch_idx)
         
 
-        if self.training and self.handled_experiences >= self.algorithm.kwargs['horizon']*self.nbr_actor:
+        if self.training and self.handled_experiences % self.algorithm.kwargs['horizon']*self.nbr_actor == 0:
             self.algorithm.train()
-            self.handled_experiences = 0
             if self.save_path is not None: torch.save(self, self.save_path)
 
     def preprocess_environment_signals(self, state, reward, succ_state, done):
