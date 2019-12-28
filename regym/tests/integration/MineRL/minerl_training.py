@@ -38,14 +38,18 @@ def train_and_evaluate(agent: object,
                        sum_writer: object, 
                        base_path: str, 
                        offset_episode_count: int = 0, 
-                       nbr_max_observations: int = 1e7):
+                       nbr_max_observations: int = 1e7,
+                       test_obs_interval: int = 1e4,
+                       test_nbr_episode: int = 10):
     trained_agent = rl_loop.gather_experience_parallel(task,
                                                        agent,
                                                        training=True,
                                                        max_obs_count=nbr_max_observations,
                                                        env_configs=None,
                                                        sum_writer=sum_writer,
-                                                       base_path=base_path)
+                                                       base_path=base_path,
+                                                       test_obs_interval=test_obs_interval,
+                                                       test_nbr_episode=test_nbr_episode)
     
     task.env.close()
     task.test_env.close()
@@ -53,10 +57,11 @@ def train_and_evaluate(agent: object,
 
 def training_process(agent_config: Dict, 
                      task_config: Dict,
-                     benchmarking_episodes: int, 
-                     train_observation_budget: int,
-                     base_path: str, 
-                     seed: int):
+                     benchmarking_interval: int = 1e4,
+                     benchmarking_episodes: int = 10, 
+                     train_observation_budget: int = 1e7,
+                     base_path: str = './', 
+                     seed: int = 0):
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     np.random.seed(seed)
@@ -92,7 +97,9 @@ def training_process(agent_config: Dict,
                        sum_writer=sum_writer,
                        base_path=base_path,
                        offset_episode_count=offset_episode_count,
-                       nbr_max_observations=train_observation_budget)
+                       nbr_max_observations=train_observation_budget,
+                       test_obs_interval=benchmarking_interval,
+                       test_nbr_episode=benchmarking_episodes)
 
 
 def load_configs(config_file_path: str):
@@ -123,6 +130,7 @@ def training():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Path: -- {path} --")
         training_process(agents_config[task_config['agent-id']], task_config,
+                         benchmarking_interval=experiment_config['benchmarking_interval'],
                          benchmarking_episodes=experiment_config['benchmarking_episodes'],
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,

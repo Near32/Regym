@@ -2,9 +2,19 @@ import numpy as np
 import gym
 import cv2 
 
-from collections import deque
+from collections import deque, OrderedDict
+import copy
+
 from functools import partial 
 
+import logging
+import coloredlogs
+
+coloredlogs.install(logging.INFO)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+verbose = False
 
 # # Wrappers:
 # # Observation Wrappers:
@@ -452,8 +462,8 @@ class UnifiedObservationWrapper(gym.ObservationWrapper):
     """
     def __init__(self, 
                  env, 
-                 size,
-                 gray,
+                 size=84,
+                 grayscale=True,
                  region_size=8, 
                  scaling=True):
         gym.ObservationWrapper.__init__(self, env=env)
@@ -483,8 +493,9 @@ class UnifiedObservationWrapper(gym.ObservationWrapper):
             low = np.zeros((*self.size, self.pov_space.shape[-1]))
             high  = 255*np.ones((*self.size, self.pov_space.shape[-1]))
             self.pov_space = gym.spaces.Box(low=low, high=high)
-        low_dict = {'pov':self.pov_space.low}
-        high_dict = {'pov':self.pov_space.high}
+        
+        low_dict = {'pov':pov_space.low}
+        high_dict = {'pov':pov_space.high}
         
         # Others:
         if 'compassAngle' in self.env.observation_space:
@@ -548,9 +559,8 @@ class UnifiedObservationWrapper(gym.ObservationWrapper):
         if self.grayscale:
             obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
             # (*obs_shape)
-            if self.keep_dim:
-                obs = np.expand_dims(obs, -1)
-                # (*obs_shape, 1)
+            obs = np.expand_dims(obs, -1)
+            # (*obs_shape, 1)
         if self.size != obs.shape[:2]:
             obs = cv2.resize(obs, self.size)
             obs = obs.reshape(self.pov_space.shape)
@@ -1168,8 +1178,13 @@ def wrap_env_serial_discrete_combine(env):
 
 # Action and Observation Wrapping:
 
+
 class ContinuingTimeLimit(gym.Wrapper):
     """TimeLimit wrapper for continuing environments.
+
+    From:
+    https://github.com/chainer/chainerrl/blob/5d833d6cb3b6e7de0b5bfa7cc8c8534516fbd7ba/chainerrl/wrappers/continuing_time_limit.py
+    
     This is similar gym.wrappers.TimeLimit, which sets a time limit for
     each episode, except that done=False is returned and that
     info['needs_reset'] is set to True when past the limit.
@@ -1195,7 +1210,6 @@ class ContinuingTimeLimit(gym.Wrapper):
         self._elapsed_steps += 1
 
         if self._max_episode_steps <= self._elapsed_steps:
-            #done = True
             info['needs_reset'] = True
 
         return observation, reward, done, info
@@ -1267,11 +1281,13 @@ def minerl_wrap_env(env,
                     action_wrapper='SerialDiscrete', #'SerialDiscreteCombine'
                     grayscale=False):
     if isinstance(env, gym.wrappers.TimeLimit):
-        logger.info('Detected `gym.wrappers.TimeLimit`! Unwrap it and re-wrap our own time limit.')
-        env = env.env
-        max_episode_steps = env.spec.max_episode_steps
-        env = ContinuingTimeLimit(env, max_episode_steps=max_episode_steps)
-    
+        #logger.info('Detected `gym.wrappers.TimeLimit`! Unwrap it and re-wrap our own time limit.')
+        #env = env.env
+        #max_episode_steps = env.spec.max_episode_steps
+        max_episode_steps = env.env.spec.max_episode_steps
+        assert( max_episode_steps == 8e3)
+        #env = ContinuingTimeLimit(env, max_episode_steps=max_episode_steps)
+        
     # Observations:
     env = UnifiedObservationWrapper(env=env, 
                                     size=size,
