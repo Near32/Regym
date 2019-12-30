@@ -155,7 +155,7 @@ class ParallelEnv():
         while out is None:
             try:
                 # Block/wait for at most 60 seconds:
-                out = self.env_queues[idx]['out'].get(block=True,timeout=60)
+                out = self.env_queues[idx]['out'].get(block=True)#,timeout=60)
             except Exception as e:
                 print('Exception: {}'.format(e))
                 # Otherwise, we assume that there is an issue with the environment
