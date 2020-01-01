@@ -1182,12 +1182,12 @@ def wrap_env_serial_discrete_combine(env):
 class ContinuingTimeLimit(gym.Wrapper):
     """TimeLimit wrapper for continuing environments.
 
-    From:
+    Adapted from:
     https://github.com/chainer/chainerrl/blob/5d833d6cb3b6e7de0b5bfa7cc8c8534516fbd7ba/chainerrl/wrappers/continuing_time_limit.py
     
     This is similar gym.wrappers.TimeLimit, which sets a time limit for
     each episode, except that done=False is returned and that
-    info['needs_reset'] is set to True when past the limit.
+    info['real_done'] is set to True when past the limit.
     Code that calls env.step is responsible for checking the info dict, the
     fourth returned value, and resetting the env if it has the 'needs_reset'
     key and its value is True.
@@ -1210,7 +1210,7 @@ class ContinuingTimeLimit(gym.Wrapper):
         self._elapsed_steps += 1
 
         if self._max_episode_steps <= self._elapsed_steps:
-            info['needs_reset'] = True
+            info['real_done'] = True
 
         return observation, reward, done, info
 
@@ -1282,11 +1282,11 @@ def minerl_wrap_env(env,
                     grayscale=False):
     if isinstance(env, gym.wrappers.TimeLimit):
         #logger.info('Detected `gym.wrappers.TimeLimit`! Unwrap it and re-wrap our own time limit.')
-        #env = env.env
-        #max_episode_steps = env.spec.max_episode_steps
-        max_episode_steps = env.env.spec.max_episode_steps
+        env = env.env
+        max_episode_steps = env.spec.max_episode_steps
+        #max_episode_steps = env.env.spec.max_episode_steps
         assert( max_episode_steps == 8e3)
-        #env = ContinuingTimeLimit(env, max_episode_steps=max_episode_steps)
+        env = ContinuingTimeLimit(env, max_episode_steps=max_episode_steps)
         
     # Observations:
     env = UnifiedObservationWrapper(env=env, 
