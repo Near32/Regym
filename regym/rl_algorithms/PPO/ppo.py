@@ -293,6 +293,7 @@ class PPOAlgorithm():
         full_int_returns = None
         full_int_advantages = None
         full_target_random_features = None
+        full_std_int_advantages = None
         if self.use_rnd:
             full_next_states = []
             full_int_returns = []

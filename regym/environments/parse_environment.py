@@ -40,6 +40,7 @@ def generate_task(env_name: str, env_type: EnvType = EnvType.SINGLE_AGENT,
         env = gym.make(env_name)
         if wrapping_fn is not None: env = wrapping_fn(env=env)
         task = parse_gym_environment(env, env_type)
+        env.close()
     elif is_unity_environment: task = parse_unity_environment(env_name, env_type)
     else: raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
 

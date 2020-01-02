@@ -193,7 +193,7 @@ def gather_experience_parallel(task,
     total_int_returns = list()
     episode_lengths = list()
 
-    obs_count = 0
+    obs_count = agent.get_experience_count() if hasattr(agent, "get_experience_count") else 0
     episode_count = 0
     sample_episode_count = 0
     
@@ -280,7 +280,7 @@ def gather_experience_parallel(task,
             per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
 
 
-            if obs_count % test_obs_interval == 0:
+            if test_nbr_episode != 0 and obs_count % test_obs_interval == 0:
                 test_agent(env=test_env, 
                             agent=agent.clone(training=False), 
                             nbr_episode=test_nbr_episode, 
