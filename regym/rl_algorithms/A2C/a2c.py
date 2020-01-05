@@ -75,8 +75,14 @@ class A2CAlgorithm():
             lr = kwargs['learning_rate'] 
             if kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
-            self.optimizer = optim.RMSprop(parameters, lr=lr, eps=kwargs['optimizer_eps'], alpha=kwargs['optimizer_alpha'])
+            print(f"Learning rate: {lr}")
+            if 'optimizer' in kwargs and 'Adam' in kwargs['optimizer']:
+                self.optimizer = optim.Adam(parameters, lr=lr)#, eps=kwargs['optimi_eps'])
+            else:
+                self.optimizer = optim.RMSprop(parameters, lr=lr, eps=kwargs['optimizer_eps'], alpha=kwargs['optimizer_alpha'])
+            
         else: self.optimizer = optimizer
+        print(f"Optimizer: {self.optimizer}")
 
         self.recurrent = False
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain

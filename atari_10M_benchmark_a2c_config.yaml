@@ -36,6 +36,43 @@ extra_hyperparameters: &extra_hyperparameters
     #rnd_feature_net_fc_arch_hidden_units: (128, 64)
 
 
+paac_extra_hyperparameters: &paac_extra_hyperparameters
+    standardized_adv: True
+    lr_account_for_nbr_actor: True
+
+    # BetaVAE:
+    use_vae: False
+    vae_weight: 1e0
+    vae_nbr_latent_dim: 128
+    vae_decoder_nbr_layer: 3#4
+    vae_decoder_conv_dim: 128
+    
+    cnn_encoder_feature_dim: 128 #vae_nbr_latent_dim
+    
+    vae_beta: 1e2
+    vae_max_capacity: 1e2
+    vae_nbr_epoch_till_max_capacity: 20
+    vae_constrainedEncoding: False
+    vae_tc_discriminator_hidden_units: [256,256,256,256,2] #tuple([2*cnn_encoder_feature_dim']]*4+[2])
+    
+    # Random Network Distillation:
+    use_random_network_distillation: False
+    intrinsic_discount: 0.99
+    rnd_loss_int_ratio: 0.5
+    rnd_obs_clip: 5
+    rnd_non_episodic_int_r: True
+    rnd_update_period_running_meanstd_int_reward: 1.e5
+    rnd_update_period_running_meanstd_obs: 1.e5 #rnd_update_period_running_meanstd_int_reward
+    # RND Convolutional Architecture:
+    rnd_arch: 'CNN'
+    rnd_arch_channels: [32, 64, 64]
+    rnd_arch_kernels: [8, 4, 3]
+    rnd_arch_strides: [4, 2, 1]
+    rnd_arch_paddings: [0, 1, 1]
+    rnd_arch_feature_dim: 512
+    # RND Fully-Connected Architecture:
+    #rnd_feature_net_fc_arch_hidden_units: (128, 64)
+
 LargeCNN: &LargeCNN
         phi_arch: 'CNN'
         actor_arch: 'None'
@@ -54,6 +91,25 @@ LargeCNN: &LargeCNN
         # Critic architecture:
         critic_arch_hidden_units: []
 
+
+OriginalCNN: &OriginalCNN
+        phi_arch: 'CNN'
+        actor_arch: 'None'
+        critic_arch: 'None'
+        
+        # Phi Body:
+        phi_arch_channels: [16, 32]
+        phi_arch_kernels: [8, 4]
+        phi_arch_strides: [4, 2]
+        phi_arch_paddings: [1, 1]
+        phi_arch_feature_dim: 256
+        phi_arch_hidden_units: [256,]
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_hidden_units: []
+
         
 a2c_LargeCNN_obs84_NOGAE_V1_E1m2_graclip3_b32_h20_lr7m4: &a2c_LargeCNN_obs84_NOGAE_V1_E1m2_graclip3_b32_h20_lr7m4
         observation_resize_dim: 84
@@ -63,7 +119,7 @@ a2c_LargeCNN_obs84_NOGAE_V1_E1m2_graclip3_b32_h20_lr7m4: &a2c_LargeCNN_obs84_NOG
         gae_tau: 0.95
         value_weight: 1.0
         entropy_weight: 0.01
-        gradient_clip: 3.0
+        gradient_clip: 3.0 # No clipping...
         optimization_epochs: 1
         mini_batch_size: 32
         horizon: 20
@@ -74,6 +130,45 @@ a2c_LargeCNN_obs84_NOGAE_V1_E1m2_graclip3_b32_h20_lr7m4: &a2c_LargeCNN_obs84_NOG
         <<: *LargeCNN
         <<: *extra_hyperparameters
 
+
+paac_LargeCNN_obs84_GAE99_V5m1_E1m2_graclip5m1_b256_h20_lr7m4_Adam: &paac_LargeCNN_obs84_GAE99_V5m1_E1m2_graclip5m1_b256_h20_lr7m4_Adam
+        observation_resize_dim: 84
+        discount: 0.99
+        use_gae: True
+        use_cuda: True
+        gae_tau: 0.95
+        value_weight: 0.5
+        entropy_weight: 0.01
+        gradient_clip: 0.5
+        optimization_epochs: 1
+        mini_batch_size: 256
+        horizon: 20
+        learning_rate: 7.0e-4
+        optimizer: 'Adam' 
+        optimizer_eps: 1.0e-8
+        optimizer_alpha: 0.99
+        
+        <<: *LargeCNN
+        <<: *paac_extra_hyperparameters
+
+a2c_OriginalCNN_obs84_NOGAE_V1_E1m2_graclip3_b256_h20_lr7m4: &a2c_OriginalCNN_obs84_NOGAE_V1_E1m2_graclip3_b256_h20_lr7m4
+        observation_resize_dim: 84
+        discount: 0.99
+        use_gae: False
+        use_cuda: True
+        gae_tau: 0.95
+        value_weight: 1.0
+        entropy_weight: 0.01
+        gradient_clip: 3.0
+        optimization_epochs: 1
+        mini_batch_size: 256
+        horizon: 20
+        learning_rate: 7.0e-4
+        optimizer_eps: 1.0e-5
+        optimizer_alpha: 0.99
+        
+        <<: *OriginalCNN
+        <<: *extra_hyperparameters
 
 experiment:
     tasks: [
@@ -94,11 +189,17 @@ experiment:
     #          },
 
             {'env-id': 'PongNoFrameskip-v4',
+            #{'env-id': 'PongDeterministic-v4',
 
-             'run-id': 'Seed13_penv_a2c_32actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': 'a2c_LargeCNN',
+             #'run-id': 'Seed13_penv_a2c_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             #'run-id': 'ADAM_Seed13_penv_a2c_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             #'run-id': 'Seed13_penv_a2c_16actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_StdAdv',
+             #'agent-id': 'a2c_OriginalCNN_gradclip4p1_b256_h5_GAE99_lr7m4_V5m1',
              
-             'nbr_actor': 32,
+             'run-id': 'Seed13_penv_paac_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'agent-id': 'a2c_paac_LargeCNN_GAE99_h20_b256',
+
+             'nbr_actor': 8,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': True,
@@ -125,9 +226,35 @@ experiment:
             ]
     experiment_id: 'atari_10M_benchmark_a2c'
     benchmarking_episodes: 10
+    benchmarking_interval: 1.0e4
     train_observation_budget: 1.0e7
     seed: 13
 
 agents:    
-    a2c_LargeCNN:
+    a2c_LargeCNN_h5:
         <<: *a2c_LargeCNN_obs84_NOGAE_V1_E1m2_graclip3_b32_h20_lr7m4
+        horizon: 5
+
+    a2c_LargeCNN_h20:
+        <<: *a2c_LargeCNN_obs84_NOGAE_V1_E1m2_graclip3_b32_h20_lr7m4
+
+    a2c_OriginalCNN_gradclip5m1_b256_h5_GAE99_lr7m4_V5m1:
+        <<: *a2c_OriginalCNN_obs84_NOGAE_V1_E1m2_graclip3_b256_h20_lr7m4
+        horizon: 5
+        use_gae: True 
+        gae_tau: 0.99
+        learning_rate: 7.0e-4
+        value_weight: 5.0e-1
+        gradient_clip: 0.5
+
+    a2c_OriginalCNN_gradclip4p1_b256_h5_GAE99_lr7m4_V5m1:
+        <<: *a2c_OriginalCNN_obs84_NOGAE_V1_E1m2_graclip3_b256_h20_lr7m4
+        horizon: 5
+        use_gae: True 
+        gae_tau: 0.99
+        learning_rate: 7.0e-4
+        value_weight: 5.0e-1
+        gradient_clip: 40.0
+
+    a2c_paac_LargeCNN_GAE99_h20_b256:
+        <<: *paac_LargeCNN_obs84_GAE99_V5m1_E1m2_graclip5m1_b256_h20_lr7m4_Adam
