@@ -74,7 +74,7 @@ LargeGRUCNN: &LargeGRUCNN
         critic_arch_hidden_units: []
 
         
-ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5: &ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5
+ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5
         observation_resize_dim: 84
         discount: 0.99
         use_gae: True
@@ -85,7 +85,7 @@ ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5: &ppo_
         gradient_clip: 0.5
         optimization_epochs: 3 # From baseline
         mini_batch_size: 32 # From baseline
-        ppo_ratio_clip: 0.1 
+        ppo_ratio_clip: 0.2 # From baseline 
         horizon: 1024 # From baseline
         learning_rate: 2.5e-4 # From baseline
         adam_eps: 1.0e-8
@@ -98,7 +98,7 @@ experiment:
     tasks: [{'env-id': 'MineRLTreechop-v0',
              
              'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_Grayscale_ContTimeLimit',
-             'agent-id': 'ppo_LargeCNN_ratio2m1',
+             'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 1,
              'nbr_frame_skipping': 4,
@@ -114,6 +114,5 @@ experiment:
     seed: 13
 
 agents:    
-    ppo_LargeCNN_ratio2m1:
-        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5
-        ppo_ratio_clip: 0.2 # From baseline
+    ppo_LargeCNN:
+        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5
