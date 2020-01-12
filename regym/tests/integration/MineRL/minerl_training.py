@@ -138,4 +138,9 @@ def training():
 
 
 if __name__ == '__main__':
+    import os
+    os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+    os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd/jre"
+    os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
+    os.environ["CUDA_VISIBLE_DEVICES"] = "7"
     training()
