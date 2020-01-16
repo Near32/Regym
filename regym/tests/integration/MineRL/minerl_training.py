@@ -71,6 +71,9 @@ def training_process(agent_config: Dict,
                                 size=task_config['observation_resize_dim'], 
                                 skip=task_config['nbr_frame_skipping'], 
                                 stack=task_config['nbr_frame_stacking'],
+                                scaling=True,
+                                observation_wrapper=task_config['observation_wrapper'],
+                                action_wrapper=task_config['action_wrapper'],
                                 grayscale=task_config['grayscale'],
                                 )
     

@@ -103,7 +103,9 @@ experiment:
              'nbr_actor': 1,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
-             'grayscale': True,
+             'grayscale': False,
+             'observation_wrapper': 'ObtainPOV',
+             'action_wrapper':  'SerialDiscrete',
              'observation_resize_dim': 84
              },
             ]
