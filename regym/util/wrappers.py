@@ -432,6 +432,51 @@ def baseline_atari_pixelwrap(env, size, skip=4, stack=4, grayscale=True,  single
 
 # MineRL:
 
+'''
+From: https://github.com/minerllabs/baselines/blob/2f1ddc5b049decfa7b20969ac319552032f9a315/general/chainerrl/baselines/env_wrappers.py#L173
+
+MIT License
+'''
+class ObtainPOVWrapper(gym.ObservationWrapper):
+    """Obtain 'pov' value (current game display) of the original observation."""
+    def __init__(self, env, size=84, grayscale=False, scaling=False):
+        super().__init__(env)
+        self.size = size
+        if isinstance(self.size, int):
+            self.size = (self.size, self.size)
+        self.grayscale = grayscale
+        self.scaling = scaling
+
+        pov_space = self.env.observation_space.spaces['pov']
+        low = 0.0
+        high = 255.0
+        if self.scaling: high =1.0
+        if self.grayscale:
+            assert len(pov_space.shape) == 3 and pov_space.shape[-1] == 3
+            obs_shape = pov_space.shape[:2]
+            self.pov_space = gym.spaces.Box(low=low, high=high, shape=(obs_shape[0], obs_shape[1], 1), dtype=np.float32)
+        else:
+            self.pov_space = pov_space 
+        # Resize:
+        if self.size != self.pov_space.shape[:2]:
+            self.pov_space = gym.spaces.Box(low=low, high=high, shape=(*self.size, self.pov_space.shape[-1]), dtype=np.float32)
+        
+        self.observation_space = self.pov_space
+
+    def observation(self, observation):
+        obs = observation['pov'].astype(np.float32)
+        if self.scaling:
+            obs /= 255.0 #this line is scaling between 0 and 1...
+        if self.grayscale:
+            obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+            # (*obs_shape)
+            obs = np.expand_dims(obs, -1)
+            # (*obs_shape, 1)
+        if self.size != obs.shape[:2]:
+            obs = cv2.resize(obs, self.size)
+            obs = obs.reshape(self.pov_space.shape)
+        
+        return obs
 
 # Unified Observation Wrapper:
 
@@ -1278,6 +1323,7 @@ def minerl_wrap_env(env,
                     stack=None, 
                     scaling=True, 
                     region_size=8, 
+                    observation_wrapper='ObtainPOV',
                     action_wrapper='SerialDiscrete', #'SerialDiscreteCombine'
                     grayscale=False):
     if isinstance(env, gym.wrappers.TimeLimit):
@@ -1289,12 +1335,20 @@ def minerl_wrap_env(env,
         env = ContinuingTimeLimit(env, max_episode_steps=max_episode_steps)
         
     # Observations:
-    env = UnifiedObservationWrapper(env=env, 
-                                    size=size,
-                                    grayscale=grayscale,
-                                    region_size=region_size, 
-                                    scaling=scaling)
-
+    if observation_wrapper == 'ObtainPOV':
+        env = ObtainPOVWrapper(env=env,
+                               size=size,
+                               grayscale=grayscale,
+                               scaling=scaling)
+    elif observation_wrapper == 'UnifiedObservation':
+        env = UnifiedObservationWrapper(env=env, 
+                                        size=size,
+                                        grayscale=grayscale,
+                                        region_size=region_size, 
+                                        scaling=scaling)
+    else:
+        raise NotImplementedError
+        
     if skip is not None or stack is not None:
         env = FrameSkipStack(env=env, skip=skip, stack=stack)
     # Actions:
