@@ -97,13 +97,14 @@ ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_
 experiment:
     tasks: [{'env-id': 'MineRLTreechop-v0',
              
-             'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_Grayscale_ContTimeLimit',
+             'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_ContTimeLimit',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 1,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': False,
+             'scaling': False,
              'observation_wrapper': 'ObtainPOV',
              'action_wrapper':  'SerialDiscrete',
              'observation_resize_dim': 84
