@@ -74,7 +74,7 @@ LargeGRUCNN: &LargeGRUCNN
         critic_arch_hidden_units: []
 
         
-ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5
+ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5: &ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
         observation_resize_dim: 84
         discount: 0.99
         use_gae: True
@@ -85,7 +85,7 @@ ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_
         gradient_clip: 0.5
         optimization_epochs: 3 # From baseline
         mini_batch_size: 32 # From baseline
-        ppo_ratio_clip: 0.2 # From baseline 
+        ppo_ratio_clip: 0.1 # From baseline!!!! 
         horizon: 1024 # From baseline
         learning_rate: 2.5e-4 # From baseline
         adam_eps: 1.0e-8
@@ -97,7 +97,8 @@ ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_
 experiment:
     tasks: [{'env-id': 'MineRLTreechop-v0',
              
-             'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_ContTimeLimit',
+             #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_NoStdAdv_RLPYT_Ep10_b1024_h4096',
+             'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_SingleRewardEpisode+P',
              'agent-id': 'ppo_LargeCNN',
              
              'nbr_actor': 1,
@@ -107,15 +108,21 @@ experiment:
              'scaling': False,
              'observation_wrapper': 'ObtainPOV',
              'action_wrapper':  'SerialDiscrete',
-             'observation_resize_dim': 84
+             'observation_resize_dim': 84,
+             'single_reward_episode': True,
+             'penalizing': True
              },
             ]
     experiment_id: 'MineRL_training'
-    benchmarking_episodes: 0
+    benchmarking_episodes: 1
     benchmarking_interval: 1.0e4
     train_observation_budget: 8.0e6
     seed: 13
 
 agents:    
     ppo_LargeCNN:
-        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5
+        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
+        #standardized_adv: False #From Baseline!!
+        #optimization_epochs: 10 #From RLPyt
+        #mini_batch_size: 1024   #From RLPyt with h4096 #256
+        #horizon: 4096   #From RLPyt #256 or Baselin = 32 with h1024

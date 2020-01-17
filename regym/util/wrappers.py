@@ -98,6 +98,23 @@ class SingleLifeWrapper(gym.Wrapper):
         
         return obs, reward, force_done, info 
         
+class SingleRewardWrapper(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env, penalizing=False)
+        self.penalizing = penalizing
+
+    def reset(self, **args):
+        return self.env.reset(**args)
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+
+        if reward > 0:
+            done = True 
+        elif self.penalizing:
+            reward = -0.001
+
+        return obs, reward, done, info 
 
 class FrameSkipStackAtari(gym.Wrapper):
     """
@@ -1325,7 +1342,9 @@ def minerl_wrap_env(env,
                     region_size=8, 
                     observation_wrapper='ObtainPOV',
                     action_wrapper='SerialDiscrete', #'SerialDiscreteCombine'
-                    grayscale=False):
+                    grayscale=False,
+                    single_reward_episode=False,
+                    penalizing=False):
     if isinstance(env, gym.wrappers.TimeLimit):
         #logger.info('Detected `gym.wrappers.TimeLimit`! Unwrap it and re-wrap our own time limit.')
         env = env.env
@@ -1348,7 +1367,10 @@ def minerl_wrap_env(env,
                                         scaling=scaling)
     else:
         raise NotImplementedError
-        
+
+    if single_reward_episode:
+        env = SingleRewardWrapper(env=env, penalizing=penalizing)
+
     if skip is not None or stack is not None:
         env = FrameSkipStack(env=env, skip=skip, stack=stack)
     # Actions:

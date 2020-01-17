@@ -75,12 +75,25 @@ def training_process(agent_config: Dict,
                                 observation_wrapper=task_config['observation_wrapper'],
                                 action_wrapper=task_config['action_wrapper'],
                                 grayscale=task_config['grayscale'],
+                                single_reward_episode=task_config['single_reward_episode'],
+                                penalizing=task_config['penalizing']
                                 )
     
+    test_pixel_wrapping_fn = partial(minerl_wrap_env,
+                                size=task_config['observation_resize_dim'], 
+                                skip=task_config['nbr_frame_skipping'], 
+                                stack=task_config['nbr_frame_stacking'],
+                                scaling=task_config['scaling'],
+                                observation_wrapper=task_config['observation_wrapper'],
+                                action_wrapper=task_config['action_wrapper'],
+                                grayscale=task_config['grayscale'],
+                                single_reward_episode=False,
+                                penalizing=False
+                                )
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],
                          wrapping_fn=pixel_wrapping_fn,
-                         test_wrapping_fn=pixel_wrapping_fn,
+                         test_wrapping_fn=test_pixel_wrapping_fn,
                          gathering=True)
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
@@ -133,8 +146,8 @@ def training():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Path: -- {path} --")
         training_process(agents_config[task_config['agent-id']], task_config,
-                         benchmarking_interval=experiment_config['benchmarking_interval'],
-                         benchmarking_episodes=experiment_config['benchmarking_episodes'],
+                         benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
+                         benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
                          seed=experiment_config['seed'])
