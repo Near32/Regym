@@ -123,12 +123,19 @@ def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_sa
     mean_total_int_return = sum( total_int_return) / len(trajectory)
     std_int_return = math.sqrt( sum( [math.pow( r-mean_total_int_return ,2) for r in total_int_return]) / len(total_int_return) )
 
+    update_count = agent.get_update_count()
+
     for idx, (ext_ret, int_ret) in enumerate(zip(total_return, total_int_return)):
         sum_writer.add_scalar('PerObservation/Testing/TotalReturn', ext_ret, iteration*len(trajectory)+idx)
         sum_writer.add_scalar('PerObservation/Testing/TotalIntReturn', int_ret, iteration*len(trajectory)+idx)
+        sum_writer.add_scalar('PerUpdate/Testing/TotalReturn', ext_ret, update_count)
+        sum_writer.add_scalar('PerUpdate/Testing/TotalIntReturn', int_ret, update_count)
     
     sum_writer.add_scalar('PerObservation/Testing/StdIntReturn', std_int_return, iteration)
     sum_writer.add_scalar('PerObservation/Testing/StdExtReturn', std_ext_return, iteration)
+
+    sum_writer.add_scalar('PerUpdate/Testing/StdIntReturn', std_int_return, update_count)
+    sum_writer.add_scalar('PerUpdate/Testing/StdExtReturn', std_ext_return, update_count)
 
     episode_lengths = [ len(t) for t in trajectory]
     mean_episode_length = sum( episode_lengths) / len(trajectory)
@@ -136,9 +143,15 @@ def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_sa
     
     sum_writer.add_scalar('PerObservation/Testing/MeanTotalReturn', mean_total_return, iteration)
     sum_writer.add_scalar('PerObservation/Testing/MeanTotalIntReturn', mean_total_int_return, iteration)
+
+    sum_writer.add_scalar('PerUpdate/Testing/MeanTotalReturn', mean_total_return, update_count)
+    sum_writer.add_scalar('PerUpdate/Testing/MeanTotalIntReturn', mean_total_int_return, update_count)
     
     sum_writer.add_scalar('PerObservation/Testing/MeanEpisodeLength', mean_episode_length, iteration)
     sum_writer.add_scalar('PerObservation/Testing/StdEpisodeLength', std_episode_length, iteration)
+
+    sum_writer.add_scalar('PerUpdate/Testing/MeanEpisodeLength', mean_episode_length, update_count)
+    sum_writer.add_scalar('PerUpdate/Testing/StdEpisodeLength', std_episode_length, update_count)
 
     if save_traj:
         for actor_idx in range(nbr_save_traj): 
@@ -160,7 +173,7 @@ def gather_experience_parallel(task,
                                 env_configs=None, 
                                 sum_writer=None, 
                                 base_path='./', 
-                                gif_episode_interval=1e5):
+                                benchmarking_record_episode_interval=None):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -174,7 +187,7 @@ def gather_experience_parallel(task,
     :param env_configs: configuration dictionnary to use when resetting the environments.
     :param sum_writer: SummaryWriter.
     :param base_path: Path where to save gifs.
-    :param gif_episode_interval: None if not gif ought to be made, otherwise Integer.
+    :param benchmarking_record_episode_interval: None if not gif ought to be made, otherwise Integer.
     :returns: 
     '''
     env = task.env 
@@ -220,6 +233,7 @@ def gather_experience_parallel(task,
 
             if ('real_done' in info[actor_index] and info[actor_index]['real_done'])\
                 or ('real_done' not in info[actor_index] and done[actor_index]):
+                update_count = agent.get_update_count()
                 episode_count += 1
                 succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 agent.reset_actors(indices=[actor_index])
@@ -232,10 +246,12 @@ def gather_experience_parallel(task,
                 
                 sum_writer.add_scalar('Training/TotalReturn', total_returns[-1], episode_count)
                 sum_writer.add_scalar('PerObservation/TotalReturn', total_returns[-1], obs_count)
+                sum_writer.add_scalar('PerUpdate/TotalReturn', total_returns[-1], update_count)
                 if actor_index == 0:
                     sample_episode_count += 1
                     sum_writer.add_scalar('data/reward', total_returns[-1], sample_episode_count)
                     sum_writer.add_scalar('PerObservation/Actor0Reward', total_returns[-1], obs_count)
+                    sum_writer.add_scalar('PerUpdate/Actor0Reward', total_returns[-1], update_count)
                 sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
 
                 if len(trajectories) >= nbr_actors:
@@ -251,12 +267,15 @@ def gather_experience_parallel(task,
 
                     sum_writer.add_scalar('Training/MeanTotalReturn', mean_total_return, episode_count // nbr_actors)
                     sum_writer.add_scalar('PerObservation/MeanTotalReturn', mean_total_return, obs_count)
+                    sum_writer.add_scalar('PerUpdate/MeanTotalReturn', mean_total_return, update_count)
                     sum_writer.add_scalar('Training/MeanTotalIntReturn', mean_total_int_return, episode_count // nbr_actors)
                     
                     sum_writer.add_scalar('Training/MeanEpisodeLength', mean_episode_length, episode_count // nbr_actors)
                     sum_writer.add_scalar('PerObservation/MeanEpisodeLength', mean_episode_length, obs_count)
+                    sum_writer.add_scalar('PerUpdate/MeanEpisodeLength', mean_episode_length, update_count)
                     sum_writer.add_scalar('Training/StdEpisodeLength', std_episode_length, episode_count // nbr_actors)
                     sum_writer.add_scalar('PerObservation/StdEpisodeLength', std_episode_length, obs_count)
+                    sum_writer.add_scalar('PerUpdate/StdEpisodeLength', std_episode_length, update_count)
                     
                     # reset :
                     trajectories = list()
@@ -287,7 +306,7 @@ def gather_experience_parallel(task,
                             sum_writer=sum_writer, 
                             iteration=obs_count,
                             base_path=base_path,
-                            save_traj=(obs_count%gif_episode_interval==0) )
+                            save_traj=(obs_count%benchmarking_record_episode_interval==0) if benchmarking_record_episode_interval>0 else False)
 
         observations = copy.deepcopy(succ_observations)
         

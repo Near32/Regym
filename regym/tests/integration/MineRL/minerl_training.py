@@ -40,7 +40,8 @@ def train_and_evaluate(agent: object,
                        offset_episode_count: int = 0, 
                        nbr_max_observations: int = 1e7,
                        test_obs_interval: int = 1e4,
-                       test_nbr_episode: int = 10):
+                       test_nbr_episode: int = 10,
+                       benchmarking_record_episode_interval: int = None):
     trained_agent = rl_loop.gather_experience_parallel(task,
                                                        agent,
                                                        training=True,
@@ -49,16 +50,20 @@ def train_and_evaluate(agent: object,
                                                        sum_writer=sum_writer,
                                                        base_path=base_path,
                                                        test_obs_interval=test_obs_interval,
-                                                       test_nbr_episode=test_nbr_episode)
+                                                       test_nbr_episode=test_nbr_episode,
+                                                       benchmarking_record_episode_interval=benchmarking_record_episode_interval)
     
     task.env.close()
     task.test_env.close()
+
+    return trained_agent
 
 
 def training_process(agent_config: Dict, 
                      task_config: Dict,
                      benchmarking_interval: int = 1e4,
                      benchmarking_episodes: int = 10, 
+                     benchmarking_record_episode_interval: int = None,
                      train_observation_budget: int = 1e7,
                      base_path: str = './', 
                      seed: int = 0):
@@ -75,8 +80,7 @@ def training_process(agent_config: Dict,
                                 observation_wrapper=task_config['observation_wrapper'],
                                 action_wrapper=task_config['action_wrapper'],
                                 grayscale=task_config['grayscale'],
-                                single_reward_episode=task_config['single_reward_episode'],
-                                penalizing=task_config['penalizing']
+                                reward_scheme=task_config['reward_scheme']
                                 )
     
     test_pixel_wrapping_fn = partial(minerl_wrap_env,
@@ -87,8 +91,7 @@ def training_process(agent_config: Dict,
                                 observation_wrapper=task_config['observation_wrapper'],
                                 action_wrapper=task_config['action_wrapper'],
                                 grayscale=task_config['grayscale'],
-                                single_reward_episode=False,
-                                penalizing=False
+                                reward_scheme='None'
                                 )
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],
@@ -108,15 +111,17 @@ def training_process(agent_config: Dict,
     regym.rl_algorithms.PPO.ppo.summary_writer = sum_writer
     regym.rl_algorithms.A2C.a2c.summary_writer = sum_writer
     
-    train_and_evaluate(agent=agent,
+    trained_agent = train_and_evaluate(agent=agent,
                        task=task,
                        sum_writer=sum_writer,
                        base_path=base_path,
                        offset_episode_count=offset_episode_count,
                        nbr_max_observations=train_observation_budget,
                        test_obs_interval=benchmarking_interval,
-                       test_nbr_episode=benchmarking_episodes)
+                       test_nbr_episode=benchmarking_episodes,
+                       benchmarking_record_episode_interval=benchmarking_record_episode_interval)
 
+    return trained_agent, task
 
 def load_configs(config_file_path: str):
     all_configs = yaml.load(open(config_file_path))
@@ -139,19 +144,31 @@ def training():
     base_path = experiment_config['experiment_id']
     if not os.path.exists(base_path): os.mkdir(base_path)
 
+    trained_agents = []
+    tasks = []
     for task_config in tasks_configs:
         agent_name = task_config['agent-id']
         env_name = task_config['env-id']
         run_name = task_config['run-id']
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Path: -- {path} --")
-        training_process(agents_config[task_config['agent-id']], task_config,
+        trained_agent, task = training_process(agents_config[task_config['agent-id']], task_config,
                          benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
                          benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),
+                         benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])),
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
                          seed=experiment_config['seed'])
+        trained_agents.append(trained_agent)
+        tasks.append(task)
 
+    return trained_agents, tasks
+
+def main():
+  os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+  os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
+  os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
+  return training()
 
 if __name__ == '__main__':
-    training()
+    main()
