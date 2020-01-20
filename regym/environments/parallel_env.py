@@ -102,7 +102,7 @@ class ParallelEnv():
         
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
-        seed = self.seed+idx
+        seed = self.seed+idx+1
         
         if USE_PROC:
             p = Process(target=env_worker, args=(self.env_creator, *(self.env_queues[idx].values()), wid, seed) )

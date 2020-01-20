@@ -20,6 +20,42 @@ import gym
 import minerl
 
 
+VERBOSE = False
+
+
+def lr_setter(env, agent, value):
+    global VERBOSE
+    agent.algorithm.optimizer.lr = value
+    if VERBOSE: print(f"LR Decay: {agent.algorithm.optimizer.lr}")
+
+def ppo_clip_setter(env, agent, value):
+    global VERBOSE
+    agent.algorithm.kwargs['ppo_ratio_clip'] = max(value, 1e-8)
+    if VERBOSE: print(f"PPO Clip Ratio Decay: {agent.algorithm.kwargs['ppo_ratio_clip']}")
+
+
+class LinearInterpolationHook(object):
+    """Hook to set a linearly interpolated value.
+    Args:
+        total_steps (int): Number of total steps.
+        start_value (float): Start value.
+        stop_value (float): Stop value.
+        setter (callable): (env, agent, value) -> None
+    """
+
+    def __init__(self, total_steps, start_value, stop_value, setter):
+        self.total_steps = total_steps
+        self.start_value = start_value
+        self.stop_value = stop_value
+        self.setter = setter
+
+    def __call__(self, env, agent, step):
+        value = np.interp(step,
+                          [1, self.total_steps],
+                          [self.start_value, self.stop_value])
+        self.setter(env, agent, value)
+
+
 def check_path_for_agent(filepath):
     #filepath = os.path.join(path,filename)
     agent = None
@@ -41,7 +77,8 @@ def train_and_evaluate(agent: object,
                        nbr_max_observations: int = 1e7,
                        test_obs_interval: int = 1e4,
                        test_nbr_episode: int = 10,
-                       benchmarking_record_episode_interval: int = None):
+                       benchmarking_record_episode_interval: int = None,
+                       step_hooks = None):
     trained_agent = rl_loop.gather_experience_parallel(task,
                                                        agent,
                                                        training=True,
@@ -51,8 +88,8 @@ def train_and_evaluate(agent: object,
                                                        base_path=base_path,
                                                        test_obs_interval=test_obs_interval,
                                                        test_nbr_episode=test_nbr_episode,
-                                                       benchmarking_record_episode_interval=benchmarking_record_episode_interval)
-    
+                                                       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+                                                       step_hooks=step_hooks)
     task.env.close()
     task.test_env.close()
 
@@ -97,6 +134,8 @@ def training_process(agent_config: Dict,
                          nbr_parallel_env=task_config['nbr_actor'],
                          wrapping_fn=pixel_wrapping_fn,
                          test_wrapping_fn=test_pixel_wrapping_fn,
+                         seed=seed,
+                         test_seed=100+seed,
                          gathering=True)
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
@@ -111,6 +150,18 @@ def training_process(agent_config: Dict,
     regym.rl_algorithms.PPO.ppo.summary_writer = sum_writer
     regym.rl_algorithms.A2C.a2c.summary_writer = sum_writer
     
+
+    step_hooks = []
+    lr_hook = LinearInterpolationHook(train_observation_budget, agent.algorithm.kwargs['learning_rate'], 0, lr_setter)
+    step_hooks.append(lr_hook)
+    print(f"Learning Rate Decay Hooked: {lr_hook}")
+    
+    if isinstance(agent, regym.rl_algorithms.agents.PPOAgent):
+      clip_hook = LinearInterpolationHook(train_observation_budget, agent.algorithm.kwargs['ppo_ratio_clip'], 0, ppo_clip_setter)
+      step_hooks.append(clip_hook)
+      print(f"PPO Clip Ratio Decay Hooked: {clip_hook}")
+    
+
     trained_agent = train_and_evaluate(agent=agent,
                        task=task,
                        sum_writer=sum_writer,
@@ -119,7 +170,8 @@ def training_process(agent_config: Dict,
                        nbr_max_observations=train_observation_budget,
                        test_obs_interval=benchmarking_interval,
                        test_nbr_episode=benchmarking_episodes,
-                       benchmarking_record_episode_interval=benchmarking_record_episode_interval)
+                       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+                       step_hooks=step_hooks)
 
     return trained_agent, task
 

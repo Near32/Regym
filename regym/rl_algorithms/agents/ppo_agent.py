@@ -254,6 +254,8 @@ class PPOAgent(object):
 
     def clone(self, training=None):
         clone = PPOAgent(name=self.name, algorithm=copy.deepcopy(self.algorithm))
+        clone.handled_experiences = self.handled_experiences
+        clone.episode_count = self.episode_count
         clone.training = training
 
         return clone

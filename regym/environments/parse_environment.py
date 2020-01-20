@@ -8,9 +8,14 @@ from .utils import EnvironmentCreator
 from .task import Task, EnvType
 
 
-def generate_task(env_name: str, env_type: EnvType = EnvType.SINGLE_AGENT, 
-                  nbr_parallel_env: int = 1, wrapping_fn: object = None, 
-                  test_wrapping_fn: object = None, gathering: bool = False) -> Task:
+def generate_task(env_name: str, 
+                  env_type: EnvType = EnvType.SINGLE_AGENT, 
+                  nbr_parallel_env: int = 1, 
+                  wrapping_fn: object = None, 
+                  test_wrapping_fn: object = None, 
+                  seed: int = 0,
+                  test_seed: int = 1,
+                  gathering: bool = False) -> Task:
     '''
     Returns a regym.environments.Task by creating an environment derived from :param: env_name
     and extracting relevant information used to build regym.rl_algorithms.agents from the Task.
@@ -27,6 +32,8 @@ def generate_task(env_name: str, env_type: EnvType = EnvType.SINGLE_AGENT,
     :param nbr_parallel_env: number of environment to create and experience in parallel.
     :param wrapping_fn: Function used to wrap the environment.
     :param test_wrapping_fn: Function used to wrap the test environment.
+    :param seed: int to seed the environment with...
+    :param test_seed: int to seed the test environment with...
     :param gathering: Bool specifying whether we are gathering experience or running evaluation episodes.
     :returns: Task created from :param: env_name
     '''
@@ -48,10 +55,10 @@ def generate_task(env_name: str, env_type: EnvType = EnvType.SINGLE_AGENT,
     test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn)
 
     task = Task(task.name, 
-                #ParallelEnv(env_creator, nbr_parallel_env), 
-                VecEnv(env_creator, nbr_parallel_env, gathering=gathering), 
+                #ParallelEnv(env_creator, nbr_parallel_env, seed=seed), 
+                VecEnv(env_creator, nbr_parallel_env, seed=seed, gathering=gathering), 
                 env_type,
-                VecEnv(test_env_creator, nbr_parallel_env, gathering=False),
+                VecEnv(test_env_creator, nbr_parallel_env, seed=test_seed,gathering=False),
                 task.state_space_size, 
                 task.action_space_size, 
                 task.observation_shape, 

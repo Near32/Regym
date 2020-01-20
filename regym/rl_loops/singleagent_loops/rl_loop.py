@@ -173,7 +173,8 @@ def gather_experience_parallel(task,
                                 env_configs=None, 
                                 sum_writer=None, 
                                 base_path='./', 
-                                benchmarking_record_episode_interval=None):
+                                benchmarking_record_episode_interval=None,
+                                step_hooks=[]):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -226,6 +227,9 @@ def gather_experience_parallel(task,
         for actor_index in range(nbr_actors):
             obs_count += 1
             pbar.update(1)
+
+            for hook in step_hooks:
+                hook(env, agent, obs_count)
     
             # Bookkeeping of the actors whose episode just ended:
             if done[actor_index]:
