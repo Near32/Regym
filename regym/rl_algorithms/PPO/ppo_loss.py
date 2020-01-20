@@ -9,6 +9,7 @@ def compute_loss(states: torch.Tensor,
                  advantages: torch.Tensor, 
                  std_advantages: torch.Tensor, 
                  model: torch.nn.Module,
+                 use_std_adv: bool = True,
                  ratio_clip: float = 0.1, 
                  entropy_weight: float = 0.01,
                  value_weight: float = 1.0,
@@ -37,6 +38,7 @@ def compute_loss(states: torch.Tensor,
                        :param actions: (respectively) with the same index.
     :param model: torch.nn.Module used to compute the policy probability ratio
                   as specified in equation (6) of original paper.
+    :param use_std_adv: bool deciding whether to use a standardized advantage or not.
     :param ratio_clip: Epsilon value used to clip the policy ratio's value.
                        This parameter acts as the radius of the Trust Region.
                        Refer to original paper equation (7).
@@ -63,10 +65,15 @@ def compute_loss(states: torch.Tensor,
     
     ratio = torch.exp((prediction['log_pi_a'] - log_probs_old))
     
-    obj = ratio * std_advantages
+    if use_std_adv:
+      adv = std_advantages
+    else:
+      adv = advantages
+
+    obj = ratio * adv
     obj_clipped = torch.clamp(ratio,
                               1.0 - ratio_clip,
-                              1.0 + ratio_clip) * std_advantages
+                              1.0 + ratio_clip) * adv
     
     policy_val = -torch.min(obj, obj_clipped).mean()
     entropy_val = prediction['ent'].mean()

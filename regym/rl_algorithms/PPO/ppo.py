@@ -530,6 +530,7 @@ class PPOAlgorithm():
                                              sampled_advantages, 
                                              sampled_std_advantages,
                                              rnn_states=sampled_rnn_states,
+                                             use_std_adv=self.kwargs['standardized_adv'],
                                              ratio_clip=self.kwargs['ppo_ratio_clip'], 
                                              entropy_weight=self.kwargs['entropy_weight'],
                                              value_weight=self.kwargs['value_weight'],

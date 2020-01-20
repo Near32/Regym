@@ -74,7 +74,7 @@ LargeGRUCNN: &LargeGRUCNN
         critic_arch_hidden_units: []
 
         
-ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5
+ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5: &ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
         observation_resize_dim: 84
         discount: 0.99
         use_gae: True
@@ -85,7 +85,7 @@ ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_
         gradient_clip: 0.5
         optimization_epochs: 3 # From baseline
         mini_batch_size: 32 # From baseline
-        ppo_ratio_clip: 0.2 # From baseline 
+        ppo_ratio_clip: 0.1 # From baseline!!!! 
         horizon: 1024 # From baseline
         learning_rate: 2.5e-4 # From baseline
         adam_eps: 1.0e-8
@@ -97,24 +97,51 @@ ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5: &ppo_
 experiment:
     tasks: [{'env-id': 'MineRLTreechop-v0',
              
-             'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_Grayscale_ContTimeLimit',
-             'agent-id': 'ppo_LargeCNN',
+             #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_RLPYT_Ep10_b512_h2048',
+             #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_SingleRewardEpisode+P',
+             #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs64_NoGrayscale_NoScaling_PPOratio1m1_NoStdAdv',
+             'run-id': 'Seed0_venv_ppo_1actors_Sk4_St4_Obs64_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_Ep10_b256+StepDecayHooks',
+             #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_ProgressiveRewardEpisode1e4+P',
+             #'agent-id': 'ppo_LargeCNN',
+             'agent-id': 'ppo_LargeCNN_V5m1',
+             #'agent-id': 'ppo_LargeCNN_h128_b32',
              
              'nbr_actor': 1,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': False,
+             'scaling': False,
              'observation_wrapper': 'ObtainPOV',
              'action_wrapper':  'SerialDiscrete',
-             'observation_resize_dim': 84
+             'observation_resize_dim': 64, #84,
+             'reward_scheme': 'None', #'penalizing_progressive1e4' #'penalizing_single_reward_episode'
              },
             ]
     experiment_id: 'MineRL_training'
-    benchmarking_episodes: 0
+    benchmarking_episodes: 3
     benchmarking_interval: 1.0e4
+    benchmarking_record_episode_interval: 0
     train_observation_budget: 8.0e6
-    seed: 13
+    seed: 0
 
 agents:    
     ppo_LargeCNN:
-        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio2m1_h1024_lr25m5
+        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
+        #standardized_adv: False #From Baseline!!
+        #optimization_epochs: 10 #From RLPyt
+        #mini_batch_size: 512   #From RLPyt with h4096:b1024  h2048:512 #256
+        #horizon: 2048   #From RLPyt or Baseline=32 with h1024
+    
+    ppo_LargeCNN_V5m1:
+        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
+        #standardized_adv: False #From Baseline!!
+        optimization_epochs: 10 #From RLPyt
+        mini_batch_size: 256   #From RLPyt with h4096:b1024  h2048:512 #256
+        #horizon: 2048   #From RLPyt or Baseline=32 with h1024
+        value_weight: 0.5
+    
+    ppo_LargeCNN_h128_b32:
+        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
+        #optimization_epochs: 10 #From RLPyt
+        mini_batch_size: 32   
+        horizon: 128   

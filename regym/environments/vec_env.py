@@ -6,8 +6,9 @@ from .utils import EnvironmentCreator
 
 
 class VecEnv():
-    def __init__(self, env_creator, nbr_parallel_env, single_agent=True, worker_id=None, gathering=True):
+    def __init__(self, env_creator, nbr_parallel_env, single_agent=True, worker_id=None, seed=0, gathering=True):
         self.gathering = gathering
+        self.seed = seed
         self.env_creator = env_creator
         self.nbr_parallel_env = nbr_parallel_env
         self.single_agent = single_agent
@@ -39,6 +40,9 @@ class VecEnv():
             self.launch_env_process(idx=0)
         return self.env_processes[0].action_space
     
+    def seed(self, seed):
+        self.seed = seed 
+
     def get_nbr_envs(self):
         return self.nbr_parallel_env
 
@@ -51,7 +55,8 @@ class VecEnv():
         self.env_queues[idx] = {'in':list(), 'out':list()}
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
-        self.env_processes[idx] = self.env_creator(worker_id=wid)
+        seed = self.seed+idx+1
+        self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
         
     def clean(self, idx):
         self.env_processes[idx].close()
