@@ -100,7 +100,9 @@ experiment:
              #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_RLPYT_Ep10_b512_h2048',
              #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_SingleRewardEpisode+P',
              #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs64_NoGrayscale_NoScaling_PPOratio1m1_NoStdAdv',
-             'run-id': 'Seed0_venv_ppo_1actors_Sk4_St4_Obs64_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_Ep10_b256+StepDecayHooks',
+             
+             'run-id': 'Seed10_venv_ppo_1actors_Sk4_St4_Obs64_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_Ep10_b64+StepDecayHooks',
+             
              #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_ProgressiveRewardEpisode1e4+P',
              #'agent-id': 'ppo_LargeCNN',
              'agent-id': 'ppo_LargeCNN_V5m1',
@@ -118,11 +120,11 @@ experiment:
              },
             ]
     experiment_id: 'MineRL_training'
-    benchmarking_episodes: 3
+    benchmarking_episodes: 0
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 0
     train_observation_budget: 8.0e6
-    seed: 0
+    seed: 10
 
 agents:    
     ppo_LargeCNN:
@@ -136,7 +138,7 @@ agents:
         <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
         #standardized_adv: False #From Baseline!!
         optimization_epochs: 10 #From RLPyt
-        mini_batch_size: 256   #From RLPyt with h4096:b1024  h2048:512 #256
+        mini_batch_size: 64 #256   #From RLPyt with h4096:b1024  h2048:512 #256
         #horizon: 2048   #From RLPyt or Baseline=32 with h1024
         value_weight: 0.5
     

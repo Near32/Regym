@@ -120,6 +120,7 @@ def training_process(agent_config: Dict,
                                 reward_scheme=task_config['reward_scheme']
                                 )
     
+    '''
     test_pixel_wrapping_fn = partial(minerl_wrap_env,
                                 size=task_config['observation_resize_dim'], 
                                 skip=task_config['nbr_frame_skipping'], 
@@ -130,6 +131,9 @@ def training_process(agent_config: Dict,
                                 grayscale=task_config['grayscale'],
                                 reward_scheme='None'
                                 )
+    '''
+    test_pixel_wrapping_fn = pixel_wrapping_fn
+    
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],
                          wrapping_fn=pixel_wrapping_fn,

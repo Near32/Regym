@@ -77,7 +77,11 @@ def run_episode_parallel(env,
             batch_index +=1
             
             # Bookkeeping of the actors whose episode just ended:
-            if done[actor_index] and not(previous_done[actor_index]):
+            d = done[actor_index]
+            if ('real_done' in info[actor_index]):
+                d = info[actor_index]['real_done']
+            
+            if d and not(previous_done[actor_index]):
                 batch_idx_done_actors_among_not_done.append(batch_index)
                 
             pa_obs = observations[batch_index]
@@ -101,7 +105,7 @@ def run_episode_parallel(env,
 
         previous_done = copy.deepcopy(done)
 
-        if all(done): break
+        if all(done) or all([i['real_done'] if 'real_done' in i else False for i in info]): break
 
     return per_actor_trajectories
 
