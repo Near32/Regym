@@ -271,7 +271,7 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         logits = self.network.fc_action(phi_a)
         probs = F.softmax( logits, dim=-1 )
         #https://github.com/pytorch/pytorch/issues/7014
-        probs = torch.clamp(probs, -1e10, 1e10)
+        #probs = torch.clamp(probs, -1e10, 1e10)
         
         # batch x action_dim
         v = self.network.fc_critic(phi_v)
@@ -279,30 +279,41 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
             int_v = self.network.fc_int_critic(phi_v)
         # batch x 1
 
-        '''
-        '''
-
         batch_size = logits.size(0)
         
         '''
+        # RND1
         # probs:
-        dists = torch.distributions.Categorical(probs=probs)
+        dists = torch.distributions.categorical.Categorical(probs=probs)
         
         if action is None:
-            #action = dists.sample()#.unsqueeze(1)
-            p = probs.detach().cpu().numpy()
-            axis = 1
-            r = np.expand_dims(np.random.rand(p.shape[1 - axis]), axis=axis)
-            action = (p.cumsum(axis=axis) > r).argmax(axis=axis)
-            action = torch.from_numpy(action).to(probs.device)
+            action = dists.sample()#.unsqueeze(1)
             # batch #x 1
-
         log_prob = dists.log_prob(action)
         # batch #x 1
         entropy = dists.entropy().unsqueeze(1)
         # batch #x 1
+        '''
 
         '''
+        '''
+        # NORMAL:
+        #log_probs = F.log_softmax(logits, dim=-1)
+        log_probs = torch.log(probs+EPS)
+        entropy = -torch.sum(probs*log_probs, dim=-1)#, keepdim=True)
+        # batch #x 1
+        
+        if action is None:
+            #action = (probs+EPS).multinomial(num_samples=1).squeeze(1)
+            action = torch.multinomial( probs, num_samples=1).squeeze(1)
+            # batch #x 1
+        log_probs = log_probs.gather(1, action.unsqueeze(1)).squeeze(1)
+        # batch #x 1
+        '''
+        '''
+
+        '''
+        #RND2:
         # probs:
         log_probs = F.log_softmax(logits, dim=-1)
         #entropy = dists.entropy().unsqueeze(1)
@@ -310,22 +321,16 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         # batch #x 1
         
         if action is None:
-            action = (probs+EPS).multinomial(num_samples=1).squeeze(1)
-            # batch #x 1
-            '''
             p = probs.detach().cpu().numpy()
             axis = 1
             r = np.expand_dims(np.random.rand(p.shape[1 - axis]), axis=axis)
             action = (p.cumsum(axis=axis) > r).argmax(axis=axis)
             action = torch.from_numpy(action).to(probs.device)
             # batch #x 1
-            '''
-            
-        #log_prob = dists.log_prob(action)
         log_probs = log_probs.gather(1, action.unsqueeze(1)).squeeze(1)
         # batch #x 1
-        
-        
+        '''
+
         prediction = {'a': action,
                     'log_pi_a': log_probs,
                     'action_logits': logits,
