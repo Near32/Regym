@@ -5,15 +5,14 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F 
 
-from ..networks import random_sample
-from ..replay_buffers import Storage
+from ...networks import random_sample
+from ...replay_buffers import Storage
 from . import ppo_loss, rnd_loss, ppo_vae_loss
 from . import ppo_actor_loss, ppo_critic_loss
 
 summary_writer = None 
 
 class PPOAlgorithm():
-
     def __init__(self, kwargs, model, optimizer=None, target_intr_model=None, predict_intr_model=None, sum_writer=None):
         '''
         TODO specify which values live inside of kwargs
@@ -116,7 +115,6 @@ class PPOAlgorithm():
                 self.storages[-1].add_key('target_int_f')
 
     def train(self):
-        global summary_writer
         # Compute Returns and Advantages:
         for idx, storage in enumerate(self.storages): 
             if len(storage) <= 1: continue
@@ -136,27 +134,9 @@ class PPOAlgorithm():
 
         if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
 
-        '''
-        '''
         for it in range(self.kwargs['optimization_epochs']):
             self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
-        '''
-        '''
         
-        '''
-        for it in range(self.kwargs['optimization_epochs']):
-            policy_losses = self.optimize_actor(states, actions, next_states, log_probs_old, returns, advantages, int_returns, int_advantages, target_random_features, rnn_states)
-        
-        for it in range(self.kwargs['optimization_epochs']):
-            value_losses = self.optimize_critic(states, actions, next_states, log_probs_old, returns, advantages, int_returns, int_advantages, target_random_features, rnn_states)
-        
-        if summary_writer is not None:
-            for pl, vl in zip(policy_losses, value_losses):
-                self.param_update_counter += 1
-                total_loss = pl + vl
-                summary_writer.add_scalar('Training/TotalLoss', total_loss.cpu().item(), self.param_update_counter)
-        '''
-
         self.reset_storages()
 
     def reformat_rnn_states(self, rnn_states):

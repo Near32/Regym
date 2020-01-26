@@ -1,7 +1,8 @@
-import copy
-import numpy as np
-import random
 import torch
+import numpy as np
+import copy
+
+import random
 
 from ..replay_buffers import EXP
 from ..networks import LeakyReLU, DQN, DuelingDQN
@@ -74,7 +75,7 @@ class DeepQNetworkAgent():
         return clone
 
 
-def build_DQN_Agent(task, config, agent_name):
+def build_DeepQNetwork_Agent(task, config, agent_name):
     """
     :param kwargs:
         "nbr_actor": specifies the number of actor that harvest experiences in parallel.
@@ -124,6 +125,7 @@ def build_DQN_Agent(task, config, agent_name):
     kwargs["batch_size"] = int(config['batch_size'])
     kwargs["use_PER"] = config['use_PER']
     kwargs["PER_alpha"] = float(config['PER_alpha'])
+    kwargs["PER_beta"] = float(config['PER_beta'])
 
     kwargs["lr"] = float(config['learning_rate'])
     kwargs["tau"] = float(config['tau'])

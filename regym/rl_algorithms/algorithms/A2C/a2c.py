@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from ..networks import random_sample
-from ..replay_buffers import Storage
+from ...networks import random_sample
+from ...replay_buffers import Storage
 from . import a2c_loss
 
 summary_writer = None 

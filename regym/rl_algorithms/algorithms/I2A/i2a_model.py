@@ -1,8 +1,8 @@
 from typing import List, Dict
 import torch
 import torch.nn as nn
-from regym.rl_algorithms.I2A import ImaginationCore
-from regym.rl_algorithms.networks import CategoricalActorCriticNet
+from .imagination_core import ImaginationCore
+from ...networks import CategoricalActorCriticNet
 
 class I2AModel(nn.Module):
     '''

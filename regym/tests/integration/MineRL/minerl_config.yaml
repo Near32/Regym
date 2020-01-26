@@ -105,7 +105,8 @@ experiment:
              
              #'run-id': 'Seed13_venv_ppo_1actors_Sk4_St4_Obs84_NoGrayscale_NoScaling_PPOratio1m1_StdAdv_ProgressiveRewardEpisode1e4+P',
              #'agent-id': 'ppo_LargeCNN',
-             'agent-id': 'ppo_LargeCNN_V5m1',
+             #'agent-id': 'ppo_LargeCNN_V5m1',
+             'agent-id': 'ppo_LargeCNN_V5m1_ratio2m1',
              #'agent-id': 'ppo_LargeCNN_h128_b32',
              
              'nbr_actor': 1,
@@ -142,6 +143,15 @@ agents:
         #horizon: 2048   #From RLPyt or Baseline=32 with h1024
         value_weight: 0.5
     
+    ppo_LargeCNN_V5m1_ratio2m1:
+        <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
+        #standardized_adv: False #From Baseline!!
+        optimization_epochs: 10 #From RLPyt
+        mini_batch_size: 64 #256   #From RLPyt with h4096:b1024  h2048:512 #256
+        #horizon: 2048   #From RLPyt or Baseline=32 with h1024
+        value_weight: 0.5
+        ppo_ratio_clip: 0.2
+
     ppo_LargeCNN_h128_b32:
         <<: *ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b32_ratio1m1_h1024_lr25m5
         #optimization_epochs: 10 #From RLPyt

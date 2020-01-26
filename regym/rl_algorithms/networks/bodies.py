@@ -1,15 +1,57 @@
-#######################################################################
-# Copyright (C) 2017 Shangtong Zhang(zhangshangtong.cpp@gmail.com)    #
-# Permission given to modify the code as long as you keep this        #
-# declaration at the top                                              #
-#######################################################################
-
 import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from functools import reduce
-from regym.rl_algorithms.networks.ppo_network_utils import layer_init, layer_init_lstm, layer_init_gru
+from .utils import layer_init, layer_init_lstm, layer_init_gru
+
+
+# From : https://github.com/Kaixhin/Raynbow/blob/master/model.py#10
+class NoisyLinear(nn.Module):
+    def __init__(self, input_shape, output_shape, std_init=0.5):
+        super(NoisyLinear, self).__init__()
+        self.input_shape = input_shape
+        self.output_shape = output_shape
+        self.std_init = std_init
+
+        self.weight_mu = nn.Parameter(torch.empty(output_shape, input_shape))
+        self.weight_sigma = nn.Parameter(torch.empty(output_shape, input_shape))
+        self.register_buffer('weight_epsilon', torch.empty(output_shape, input_shape))
+
+        self.bias_mu = nn.Parameter(torch.empty(output_shape))
+        self.bias_sigma = nn.Parameter(torch.empty(output_shape))
+        self.register_buffer('bias_epsilon', torch.empty(output_shape))
+
+        self._reset_parameters()
+        self._reset_noise()
+
+    def _reset_parameters(self):
+        mu_range = 1.0/math.sqrt(self.input_shape)
+        self.weight_mu.data.uniform_(-mu_range, mu_range)
+        self.weight_sigma.data.fill_(self.std_init/math.sqrt(self.input_shape))
+
+        self.bias_mu.data.uniform_(-mu_range, mu_range)
+        self.bias_sigma.data.fill_(self.std_init/math.sqrt(self.input_shape))
+
+    def _reset_noise(self):
+        epsin = torch.rand(self.input_shape)
+        epsout = torch.rand(self.output_shape)
+
+        epsin = epsin.sign().mul_(epsin.abs().sqrt_())
+        epsout = epsout.sign().mul_(epsout.abs().sqrt_())
+
+        self.weight_epsilon.data.copy_(epsout.ger(epsin))
+        self.bias_epsilon.data.copy_(epsout)
+
+    def forward(self, x):
+        if self.training:
+            return F.linear(x, self.weight_mu+self.weight_sigma*self.weight_epsilon, self.bias_mu+self.bias_sigma*self.bias_epsilon)
+        else:
+            return F.linear(x, self.weight_mu, self.bias_mu)
+
+def reset_noisy_layer(module):
+    if hasattr(module, "_reset_noise"):
+        module._reset_noise()
 
 
 class ConvolutionalBody(nn.Module):
@@ -845,12 +887,13 @@ class DDPGConvBody(nn.Module):
 
 
 class FCBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu):
+    def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu, layer_fn=nn.Linear):
         super(FCBody, self).__init__()
         if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
         if isinstance(state_dim,int):   dims = (state_dim, ) + hidden_units
         else:   dims = state_dim + hidden_units
-        self.layers = nn.ModuleList([layer_init(nn.Linear(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.layers = nn.ModuleList([layer_fn(dim_in, dim_out) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        if layer_fn == nn.Linear:   self.layers.apply(layer_init)
         self.gate = gate
         self.feature_dim = dims[-1]
 

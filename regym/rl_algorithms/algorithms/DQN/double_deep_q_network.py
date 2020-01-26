@@ -5,7 +5,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from ..replay_buffers import EXP, EXPPER
+from ...replay_buffers import EXP, EXPPER
 from .deep_q_network import DeepQNetworkAlgorithm
 
 

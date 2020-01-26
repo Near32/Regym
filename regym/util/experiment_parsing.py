@@ -55,10 +55,10 @@ def initialize_agents(task, agent_configurations):
     :returns: array of agents built according to their corresponding configuration dictionaries
     '''
     def partial_match_build_function(agent_name, task, config):
-        if agent_name.startswith('tabularqlearning'): return build_TabularQ_Agent(task, config, agent_name)
-        if agent_name.startswith('deepqlearning'): return build_DQN_Agent(task, config, agent_name)
-        if agent_name.startswith('ppo'): return build_PPO_Agent(task, config, agent_name)
-        if agent_name.startswith('a2c'): return build_A2C_Agent(task, config, agent_name)
+        if 'tabularqlearning' in agent_name: return build_TabularQ_Agent(task, config, agent_name)
+        if 'dqn' in agent_name: return build_DQN_Agent(task, config, agent_name)
+        if 'ppo' in agent_name: return build_PPO_Agent(task, config, agent_name)
+        if 'a2c' in agent_name: return build_A2C_Agent(task, config, agent_name)
         else: raise ValueError('Unkown agent name: {agent_name}'.format(agent_name))
     return [partial_match_build_function(agent, task, config) for agent, config in agent_configurations.items()]
 

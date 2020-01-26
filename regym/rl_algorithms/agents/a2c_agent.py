@@ -5,7 +5,7 @@ import copy
 from ..networks import CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
 from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalGruBody
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
-from ..A2C import A2CAlgorithm
+from ..algorithms.A2C import A2CAlgorithm
 
 import torch.nn.functional as F
 import numpy as np

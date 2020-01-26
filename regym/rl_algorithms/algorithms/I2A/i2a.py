@@ -4,8 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from ..networks import random_sample
-from ..replay_buffers import Storage
+from ...networks import random_sample
+from ...replay_buffers import Storage
 
 
 def standardize(x):

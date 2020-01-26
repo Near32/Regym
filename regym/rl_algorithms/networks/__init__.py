@@ -1,11 +1,9 @@
-from .networks import hard_update, soft_update
-from .networks import LeakyReLU
-from .networks import DQN, DuelingDQN
-from .networks import ActorNN, CriticNN
-from .ppo_network_heads import CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
-from .ppo_network_bodies import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
+from .utils import hard_update, soft_update, random_sample
 from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
-from .utils import random_sample
+from .bodies import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
+from .bodies import NoisyLinear
+from .heads import CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
+from .heads import CategoricalQNet
 
 import torch.nn.functional as F 
 

@@ -3,7 +3,7 @@ from os import listdir
 from os.path import isfile, join
 from typing import List, Callable, Tuple, Any
 import torch
-from .agents import TabularQLearningAgent, DeepQNetworkAgent, PPOAgent, A2CAgent, MixedStrategyAgent
+from .agents import TabularQLearningAgent, DQNAgent, PPOAgent, A2CAgent, MixedStrategyAgent
 from enum import Enum
 
 AgentType = Enum("AgentType", "DQN TQL PPO A2C MixedStrategyAgent")
@@ -48,7 +48,7 @@ class AgentHook():
             agent_type, model_list = AgentType.MixedStrategyAgent, []
         elif isinstance(agent, TabularQLearningAgent):
             agent_type, model_list = AgentType.TQL, []
-        elif isinstance(agent, DeepQNetworkAgent):
+        elif isinstance(agent, DQNAgent):
             agent_type, model_list = AgentType.DQN, [('model', agent.algorithm.model), ('target_model', agent.algorithm.target_model)]
         elif isinstance(agent, PPOAgent):
             agent_type, model_list = AgentType.PPO, [('model', agent.algorithm.model)]

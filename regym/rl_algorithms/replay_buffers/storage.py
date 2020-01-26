@@ -4,7 +4,7 @@ class Storage:
             keys = []
         keys = keys + ['s', 'a', 'r', 'succ_s', 'non_terminal',
                        'v', 'q', 'pi', 'log_pi', 'ent',
-                       'adv', 'ret', 'q_a', 'log_pi_a',
+                       'adv', 'ret', 'qa', 'log_pi_a',
                        'mean', 'action_logits']
         self.keys = keys
         self.reset()

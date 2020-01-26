@@ -1,7 +1,7 @@
 import copy
 import numpy as np 
-from ..TQL import TabularQLearningAlgorithm
-from ..TQL import RepeatedUpdateQLearningAlgorithm
+from ..algorithms.TQL import TabularQLearningAlgorithm
+from ..algorithms.TQL import RepeatedUpdateQLearningAlgorithm
 
 
 class TabularQLearningAgent():

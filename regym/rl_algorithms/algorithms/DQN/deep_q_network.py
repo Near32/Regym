@@ -4,8 +4,8 @@ import torch
 import torch.optim as optim
 from torch.autograd import Variable
 
-from ..replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
-from ..networks import hard_update
+from ...replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
+from ...networks import hard_update
 
 
 class DeepQNetworkAlgorithm():
@@ -114,12 +114,20 @@ class DeepQNetworkAlgorithm():
             transitions = self.replayBuffer.sample(self.batch_size)
             batch = EXP(*zip(*transitions))
 
+        '''
         next_state_batch = Variable(torch.cat(batch.next_state), requires_grad=False)
         state_batch = Variable(torch.cat(batch.state), requires_grad=False)
         action_batch = Variable(torch.cat(batch.action), requires_grad=False)
         reward_batch = Variable(torch.cat(batch.reward), requires_grad=False).view((-1, 1))
         done_batch = [0.0 if batch.done[i] else 1.0 for i in range(len(batch.done))]
         done_batch = Variable(torch.FloatTensor(done_batch), requires_grad=False).view((-1, 1))
+        '''
+        next_state_batch = torch.cat(batch.next_state).detach()
+        state_batch = torch.cat(batch.state).detach()
+        action_batch = torch.cat(batch.action).detach()
+        reward_batch = torch.cat(batch.reward).detach().view((-1, 1))
+        done_batch = [0.0 if batch.done[i] else 1.0 for i in range(len(batch.done))]
+        done_batch = torch.FloatTensor(done_batch).view((-1, 1))
 
         if self.use_cuda:
             if self.kwargs['use_PER']: importanceSamplingWeights = importanceSamplingWeights.cuda()

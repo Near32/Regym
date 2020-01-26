@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from functools import partial
 
 from regym.rl_algorithms.networks import ResizeCNNPreprocessFunction
-from regym.rl_algorithms.I2A import I2AAlgorithm, ImaginationCore, EnvironmentModel, AutoEncoderEnvironmentModel, RolloutEncoder, I2AModel
+from regym.rl_algorithms.algorithms.I2A import I2AAlgorithm, ImaginationCore, EnvironmentModel, AutoEncoderEnvironmentModel, RolloutEncoder, I2AModel
 from regym.rl_algorithms.networks import CategoricalActorCriticNet, FCBody, LSTMBody, ConvolutionalBody, choose_architecture
 
 
