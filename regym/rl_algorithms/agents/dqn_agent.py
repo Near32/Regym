@@ -31,7 +31,7 @@ class DQNAgent(Agent):
         self.epsdecay = float(self.kwargs['epsdecay'])
         self.replay_period = int(self.kwargs['replay_period']) if 'replay_period' in self.kwargs else 1
         self.replay_period_count = 0
-        self.noisy = self.kwargs['noisy']
+        self.noisy = self.kwargs['noisy'] if 'noisy' in self.kwargs else False 
 
         self.nbr_steps = 0
         self.saving_interval = 1e4
@@ -130,7 +130,13 @@ class DQNAgent(Agent):
             return random_actions
 
     def clone(self, training=None):
+        storages = self.algorithm.storages
+        self.algorithm.storages = None
+        
         clone = DQNAgent(name=self.name, algorithm=copy.deepcopy(self.algorithm))
+        
+        self.algorithm.storages = storages
+
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training

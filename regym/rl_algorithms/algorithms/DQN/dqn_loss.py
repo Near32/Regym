@@ -12,6 +12,7 @@ def compute_loss(states: torch.Tensor,
                  gamma: float = 0.99,
                  weights_decay_lambda: float = 1.0,
                  use_PER: bool = False,
+                 PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
                  summary_writer: object = None,
                  iteration_count: int = 0,
@@ -57,14 +58,12 @@ def compute_loss(states: torch.Tensor,
     ############################
 
     # Compute loss:
-    diff = expected_state_action_values.detach() - state_action_values_g
+    diff_squared = (expected_state_action_values.detach() - state_action_values_g).pow(2.0)
+    loss_per_item = diff_squared
     
     if use_PER:
-      diff_squared = importanceSamplingWeights * diff.pow(2.0)
-    else:
-      diff_squared = diff.pow(2.0)
+      diff_squared = importanceSamplingWeights * diff_squared
     
-    loss_per_item = diff_squared
     loss = torch.mean(diff_squared)
     
     if summary_writer is not None:
@@ -76,5 +75,6 @@ def compute_loss(states: torch.Tensor,
         if use_PER:
             summary_writer.add_scalar('Training/ImportanceSamplingMean', importanceSamplingWeights.cpu().mean().item(), iteration_count)
             summary_writer.add_scalar('Training/ImportanceSamplingStd', importanceSamplingWeights.cpu().std().item(), iteration_count)
-            
+            summary_writer.add_scalar('Training/PER_Beta', PER_beta, iteration_count)
+
     return loss, loss_per_item

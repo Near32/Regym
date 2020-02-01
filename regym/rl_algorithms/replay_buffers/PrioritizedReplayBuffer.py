@@ -170,6 +170,7 @@ class PrioritizedReplayStorage_:
         self.current_size = dict()
 
         self.sumPi_alpha = 0.0
+        self.max_priority = np.ones(1, dtype=np.float32)
 
     def add_key(self, key):
         self.keys += [key]
@@ -217,6 +218,8 @@ class PrioritizedReplayStorage_:
         self.sumPi_alpha += priority
         self.tree[idx] = priority
 
+        self.max_priority = max(priority, self.max_priority)
+
         self._propagate(idx,change)
 
     def _propagate(self, idx, change) :
@@ -227,7 +230,10 @@ class PrioritizedReplayStorage_:
         if parentidx != 0 :
             self._propagate(parentidx, change)
 
-    def add(self, exp, priority):
+    def add(self, exp, priority=None):
+        if priority is None:
+            priority = self.max_priority
+
         if np.isnan(priority) or np.isinf(priority) :
             priority = self.total()/self.capacity
 
@@ -288,35 +294,6 @@ class PrioritizedReplayStorage_:
     def get_importance_sampling_weight(priority,beta=1.0) :
         return pow( self.capacity * priority , -beta )
 
-    def _sample(self, batch_size):
-        prioritysum = self.total()
-        
-        # Random Experience Sampling with priority
-        low = 0.0
-        step = (prioritysum-low) / batch_size
-        randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size))
-        
-        transitions = list()
-        priorities = []
-        for i in range(batch_size):
-            '''
-            Sampling from this ReplayStorage requires it to be fully populated.
-            Otherwise, we might end up trying to sample a leaf ot the binary sumtree 
-            that does not contain any data, thus throwing a TypeError.
-            '''
-            try :
-                el = self.get(randexp[i])
-                priorities.append( el[1] )
-                transitions.append(el)
-            except TypeError as e :
-                continue
-        
-        # Importance Sampling Weighting:
-        priorities = np.array(priorities, dtype=np.float32)
-        importanceSamplingWeights = np.power( len(self) * priorities , -self.beta)
-
-        return transitions, importanceSamplingWeights
-
     def sample(self, batch_size, keys=None):
         #return np.random.choice(self.memory[:self.current_size], batch_size)
         if keys is None:    keys = self.keys
@@ -349,8 +326,18 @@ from .ReplayBuffer import ReplayStorage
 
 
 class PrioritizedReplayStorage(ReplayStorage):
-    def __init__(self, capacity, alpha=0.2, beta=1.0, beta_increase_interval=1e5, keys=None, circular_keys={'succ_s':'s'}):
-        super(PrioritizedReplayStorage, self).__init__(capacity=capacity, keys=keys, circular_keys=circular_keys)
+    def __init__(self, 
+                 capacity, 
+                 alpha=0.2, 
+                 beta=1.0, 
+                 beta_increase_interval=1e5, 
+                 keys=None, 
+                 circular_keys={'succ_s':'s'},
+                 circular_offsets={'succ_s':1}):
+        super(PrioritizedReplayStorage, self).__init__(capacity=capacity, 
+                                                       keys=keys, 
+                                                       circular_keys=circular_keys,
+                                                       circular_offsets=circular_offsets)
         self.length = 0
         self.alpha = alpha
         self.beta_start = beta
@@ -358,10 +345,11 @@ class PrioritizedReplayStorage(ReplayStorage):
         assert self.beta_increase_interval <= self.capacity
         self.beta = self.beta_start 
 
-        self.epsilon = 1e-6
+        self.epsilon = 1e-4
         
         self.tree = np.zeros(2*self.capacity-1)
         self.sumPi_alpha = 0.0
+        self.max_priority = np.ones(1, dtype=np.float32)
 
     def _update_beta(self, iteration=None):
         if iteration is None:   iteration = self.length
@@ -378,7 +366,7 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def update(self, idx, priority):
         if np.isnan(priority) or np.isinf(priority) :
-            priority = self.total()/self.capacity
+            priority = self.max_priority
 
         change = priority - self.tree[idx]
         
@@ -387,6 +375,8 @@ class PrioritizedReplayStorage(ReplayStorage):
 
         self.sumPi_alpha += priority
         self.tree[idx] = priority
+
+        self.max_priority = max(priority, self.max_priority)
 
         self._propagate(idx,change)
 
@@ -399,11 +389,14 @@ class PrioritizedReplayStorage(ReplayStorage):
             self._propagate(parentidx, change)
 
     def add(self, exp, priority):
+        if priority is None:
+            priority = self.max_priority
+
         super(PrioritizedReplayStorage, self).add(data=exp)
         self.length = min(self.length+1, self.capacity)
         
         if np.isnan(priority) or np.isinf(priority) :
-            priority = self.total()/self.capacity
+            priority = self.max_priority
         self.sumPi_alpha += priority
 
         idx = self.position['s'] + self.capacity -1

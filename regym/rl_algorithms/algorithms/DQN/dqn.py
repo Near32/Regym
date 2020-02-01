@@ -1,4 +1,6 @@
 import copy 
+from collections import deque 
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -26,6 +28,9 @@ class DQNAlgorithm(Algorithm):
         self.double = self.kwargs['double']
         self.dueling = self.kwargs['dueling']
         self.noisy = self.kwargs['noisy']
+        self.n_step = self.kwargs['n_step'] if 'n_step' in self.kwargs else 1
+        if self.n_step > 1:
+            self.n_step_buffer = deque(maxlen=self.n_step)
 
         self.use_PER = self.kwargs['use_PER']
         self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
@@ -98,19 +103,40 @@ class DQNAlgorithm(Algorithm):
             if self.kwargs['use_PER']:
                 self.storages.append(PrioritizedReplayStorage(capacity=self.kwargs['replay_capacity'],
                                                                 alpha=self.kwargs['PER_alpha'],
-                                                                beta=self.kwargs['PER_beta']))
+                                                                beta=self.kwargs['PER_beta'],
+                                                                circular_offsets={'succ_s':self.n_step})
+                )
             else:
-                self.storages.append(ReplayStorage(capacity=self.kwargs['replay_capacity']))
+                self.storages.append(ReplayStorage(capacity=self.kwargs['replay_capacity'],
+                                                   circular_offsets={'succ_s':self.n_step})
+                )
             if self.recurrent:
                 self.storages[-1].add_key('rnn_states')
                 self.storages[-1].add_key('next_rnn_states')
     
+    def _compute_truncated_n_step_return(self):
+        truncated_n_step_return = self.n_step_buffer[-1]['r']
+        for exp_dict in reversed(list(self.n_step_buffer)[:-1]):
+            truncated_n_step_return = exp_dict['r'] + self.GAMMA * truncated_n_step_return * exp_dict['non_terminal']
+        return truncated_n_step_return
+
     def store(self, exp_dict, actor_index=0):
-        if self.use_PER:
-            init_sampling_priority = self.storages[actor_index].priority(torch.abs(exp_dict['r']).cpu().numpy() )
-            self.storages[actor_index].add(exp_dict, priority=init_sampling_priority)
+        if self.n_step>1:
+            self.n_step_buffer.append(exp_dict)
+            if len(self.n_step_buffer) < self.n_step:
+                return
+            truncated_n_step_return = self._compute_truncated_n_step_return()
+            current_exp_dict = copy.deepcopy(exp_dict)
+            current_exp_dict['r'] = truncated_n_step_return
         else:
-            self.storages[actor_index].add(exp_dict)
+            current_exp_dict = exp_dict    
+        
+        if self.use_PER:
+            #init_sampling_priority = self.storages[actor_index].priority(torch.abs(current_exp_dict['r']).cpu().numpy() )
+            init_sampling_priority = None 
+            self.storages[actor_index].add(current_exp_dict, priority=init_sampling_priority)
+        else:
+            self.storages[actor_index].add(current_exp_dict)
 
     def train(self, minibatch_size=None):
         if minibatch_size is None:  minibatch_size = self.batch_size
@@ -123,7 +149,7 @@ class DQNAlgorithm(Algorithm):
         if self.noisy:  
             self.model.reset_noise()
             self.target_model.reset_noise()
-        
+
         self.optimize_model(minibatch_size, states, actions, next_states, rewards, non_terminals, rnn_states, importanceSamplingWeights)
         
         if self.target_update_count > self.target_update_interval:
@@ -186,6 +212,8 @@ class DQNAlgorithm(Algorithm):
 
     def optimize_model(self, minibatch_size, states, actions, next_states, rewards, non_terminals, rnn_states=None, importanceSamplingWeights=None):
         global summary_writer
+        beta = self.storages[0].beta if self.use_PER else 1.0
+        
         # What is this? create dictionary to store length of each part of the recurrent submodules of the current model
         nbr_layers_per_rnn = None
         if self.recurrent:
@@ -237,6 +265,7 @@ class DQNAlgorithm(Algorithm):
                                               target_model=self.target_model,
                                               weights_decay_lambda=self.weights_decay_lambda,
                                               use_PER=self.use_PER,
+                                              PER_beta=beta,
                                               importanceSamplingWeights=sampled_importanceSamplingWeights,
                                               iteration_count=self.param_update_counter,
                                               summary_writer=summary_writer)
@@ -252,6 +281,7 @@ class DQNAlgorithm(Algorithm):
                                               target_model=self.target_model,
                                               weights_decay_lambda=self.weights_decay_lambda,
                                               use_PER=self.use_PER,
+                                              PER_beta=beta,
                                               importanceSamplingWeights=sampled_importanceSamplingWeights,
                                               iteration_count=self.param_update_counter,
                                               summary_writer=summary_writer)

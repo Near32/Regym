@@ -51,6 +51,10 @@ def train_and_evaluate(agent: object,
                                                        test_nbr_episode=test_nbr_episode,
                                                        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
                                                        step_hooks=step_hooks)
+    del trained_agent.algorithm.storages
+    trained_agent.algorithm.storages = None 
+    trained_agent.save()
+    
     task.env.close()
     task.test_env.close()
 

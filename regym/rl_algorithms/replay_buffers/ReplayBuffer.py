@@ -32,7 +32,10 @@ class ReplayBuffer():
 
 
 class ReplayStorage():
-    def __init__(self, capacity, keys=None, circular_keys={'succ_s':'s'}):
+    def __init__(self, capacity, keys=None, circular_keys={'succ_s':'s'}, circular_offsets={'succ_s':1}):
+        '''
+        Use a different circular offset['succ_s']=n to implement truncated n-step return...
+        '''
         if keys is None:    keys = ['s', 'a', 'r', 'non_terminal', 'rnn_state']
         # keys = keys + ['s', 'a', 'r', 'succ_s', 'non_terminal',
         #                'v', 'q', 'pi', 'log_pi', 'ent',
@@ -40,6 +43,7 @@ class ReplayStorage():
         #                'mean', 'action_logits', 'rnn_state']
         self.keys = keys
         self.circular_keys = circular_keys
+        self.circular_offsets = circular_offsets
         self.capacity = capacity
         self.position = dict()
         self.current_size = dict()
@@ -74,15 +78,15 @@ class ReplayStorage():
             indices_ = indices
             cidx=0
             if k in self.circular_keys: 
+                cidx=self.circular_offsets[k]
                 k = self.circular_keys[k]
-                cidx=1
             v = getattr(self, k)
-            if indices_ is None: indices_ = np.arange(self.current_size[k]-1)
+            if indices_ is None: indices_ = np.arange(self.current_size[k]-1-cidx)
             else:
                 # Check that all indices are in range:
                 for idx in range(len(indices_)):
-                    if self.current_size[k]>0 and indices_[idx]>=self.current_size[k]-1:
-                        indices_[idx] = np.random.randint(self.current_size[k]-1)
+                    if self.current_size[k]>0 and indices_[idx]>=self.current_size[k]-1-cidx:
+                        indices_[idx] = np.random.randint(self.current_size[k]-1-cidx)
                         # propagate to argument:
                         indices[idx] = indices_[idx]
             '''
