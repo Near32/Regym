@@ -40,8 +40,8 @@ def compute_loss(states: torch.Tensor,
     prediction = model(states, actions, rnn_states=rnn_states)
     
     policy_val = -(advantages.detach() * prediction['log_pi_a']).mean()
-    entropy_val = -prediction['ent'].mean()
-    policy_loss = policy_val + entropy_weight * entropy_val
+    entropy_val = prediction['ent'].mean()
+    policy_loss = policy_val - entropy_weight * entropy_val
     
     value_loss = value_weight * torch.nn.functional.mse_loss(input=prediction['v'], target=returns)
     total_loss = (policy_loss + value_loss)
