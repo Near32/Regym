@@ -20,6 +20,42 @@ import gym
 import minerl
 
 
+VERBOSE = False
+
+
+def lr_setter(env, agent, value):
+    global VERBOSE
+    agent.algorithm.optimizer.lr = value
+    if VERBOSE: print(f"LR Decay: {agent.algorithm.optimizer.lr}")
+
+def ppo_clip_setter(env, agent, value):
+    global VERBOSE
+    agent.algorithm.kwargs['ppo_ratio_clip'] = max(value, 1e-8)
+    if VERBOSE: print(f"PPO Clip Ratio Decay: {agent.algorithm.kwargs['ppo_ratio_clip']}")
+
+
+class LinearInterpolationHook(object):
+    """Hook to set a linearly interpolated value.
+    Args:
+        total_steps (int): Number of total steps.
+        start_value (float): Start value.
+        stop_value (float): Stop value.
+        setter (callable): (env, agent, value) -> None
+    """
+
+    def __init__(self, total_steps, start_value, stop_value, setter):
+        self.total_steps = total_steps
+        self.start_value = start_value
+        self.stop_value = stop_value
+        self.setter = setter
+
+    def __call__(self, env, agent, step):
+        value = np.interp(step,
+                          [1, self.total_steps],
+                          [self.start_value, self.stop_value])
+        self.setter(env, agent, value)
+
+
 def check_path_for_agent(filepath):
     #filepath = os.path.join(path,filename)
     agent = None
@@ -40,7 +76,9 @@ def train_and_evaluate(agent: object,
                        offset_episode_count: int = 0, 
                        nbr_max_observations: int = 1e7,
                        test_obs_interval: int = 1e4,
-                       test_nbr_episode: int = 10):
+                       test_nbr_episode: int = 10,
+                       benchmarking_record_episode_interval: int = None,
+                       step_hooks = None):
     trained_agent = rl_loop.gather_experience_parallel(task,
                                                        agent,
                                                        training=True,
@@ -49,16 +87,20 @@ def train_and_evaluate(agent: object,
                                                        sum_writer=sum_writer,
                                                        base_path=base_path,
                                                        test_obs_interval=test_obs_interval,
-                                                       test_nbr_episode=test_nbr_episode)
-    
+                                                       test_nbr_episode=test_nbr_episode,
+                                                       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+                                                       step_hooks=step_hooks)
     task.env.close()
     task.test_env.close()
+
+    return trained_agent
 
 
 def training_process(agent_config: Dict, 
                      task_config: Dict,
                      benchmarking_interval: int = 1e4,
                      benchmarking_episodes: int = 10, 
+                     benchmarking_record_episode_interval: int = None,
                      train_observation_budget: int = 1e7,
                      base_path: str = './', 
                      seed: int = 0):
@@ -75,10 +117,10 @@ def training_process(agent_config: Dict,
                                 observation_wrapper=task_config['observation_wrapper'],
                                 action_wrapper=task_config['action_wrapper'],
                                 grayscale=task_config['grayscale'],
-                                single_reward_episode=task_config['single_reward_episode'],
-                                penalizing=task_config['penalizing']
+                                reward_scheme=task_config['reward_scheme']
                                 )
     
+    '''
     test_pixel_wrapping_fn = partial(minerl_wrap_env,
                                 size=task_config['observation_resize_dim'], 
                                 skip=task_config['nbr_frame_skipping'], 
@@ -87,13 +129,17 @@ def training_process(agent_config: Dict,
                                 observation_wrapper=task_config['observation_wrapper'],
                                 action_wrapper=task_config['action_wrapper'],
                                 grayscale=task_config['grayscale'],
-                                single_reward_episode=False,
-                                penalizing=False
+                                reward_scheme='None'
                                 )
+    '''
+    test_pixel_wrapping_fn = pixel_wrapping_fn
+    
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],
                          wrapping_fn=pixel_wrapping_fn,
                          test_wrapping_fn=test_pixel_wrapping_fn,
+                         seed=seed,
+                         test_seed=100+seed,
                          gathering=True)
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
@@ -108,15 +154,30 @@ def training_process(agent_config: Dict,
     regym.rl_algorithms.PPO.ppo.summary_writer = sum_writer
     regym.rl_algorithms.A2C.a2c.summary_writer = sum_writer
     
-    train_and_evaluate(agent=agent,
+
+    step_hooks = []
+    lr_hook = LinearInterpolationHook(train_observation_budget, agent.algorithm.kwargs['learning_rate'], 0, lr_setter)
+    step_hooks.append(lr_hook)
+    print(f"Learning Rate Decay Hooked: {lr_hook}")
+    
+    if isinstance(agent, regym.rl_algorithms.agents.PPOAgent):
+      clip_hook = LinearInterpolationHook(train_observation_budget, agent.algorithm.kwargs['ppo_ratio_clip'], 0, ppo_clip_setter)
+      step_hooks.append(clip_hook)
+      print(f"PPO Clip Ratio Decay Hooked: {clip_hook}")
+    
+
+    trained_agent = train_and_evaluate(agent=agent,
                        task=task,
                        sum_writer=sum_writer,
                        base_path=base_path,
                        offset_episode_count=offset_episode_count,
                        nbr_max_observations=train_observation_budget,
                        test_obs_interval=benchmarking_interval,
-                       test_nbr_episode=benchmarking_episodes)
+                       test_nbr_episode=benchmarking_episodes,
+                       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+                       step_hooks=step_hooks)
 
+    return trained_agent, task
 
 def load_configs(config_file_path: str):
     all_configs = yaml.load(open(config_file_path))
@@ -139,19 +200,31 @@ def training():
     base_path = experiment_config['experiment_id']
     if not os.path.exists(base_path): os.mkdir(base_path)
 
+    trained_agents = []
+    tasks = []
     for task_config in tasks_configs:
         agent_name = task_config['agent-id']
         env_name = task_config['env-id']
         run_name = task_config['run-id']
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Path: -- {path} --")
-        training_process(agents_config[task_config['agent-id']], task_config,
+        trained_agent, task = training_process(agents_config[task_config['agent-id']], task_config,
                          benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
                          benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),
+                         benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])),
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
                          seed=experiment_config['seed'])
+        trained_agents.append(trained_agent)
+        tasks.append(task)
 
+    return trained_agents, tasks
+
+def main():
+  os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+  os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
+  os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
+  return training()
 
 if __name__ == '__main__':
-    training()
+    main()

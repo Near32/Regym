@@ -38,6 +38,9 @@ class PPOAgent(object):
     def get_experience_count(self):
         return self.handled_experiences
 
+    def get_update_count(self):
+        return self.handled_experiences // (self.algorithm.kwargs['horizon']*self.nbr_actor)
+
     def get_intrinsic_reward(self, actor_idx):
         if len(self.algorithm.storages[actor_idx].int_r):
             #return self.algorithm.storages[actor_idx].int_r[-1] / (self.algorithm.int_reward_std+1e-8)
@@ -251,6 +254,8 @@ class PPOAgent(object):
 
     def clone(self, training=None):
         clone = PPOAgent(name=self.name, algorithm=copy.deepcopy(self.algorithm))
+        clone.handled_experiences = self.handled_experiences
+        clone.episode_count = self.episode_count
         clone.training = training
 
         return clone
