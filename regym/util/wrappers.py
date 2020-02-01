@@ -99,8 +99,8 @@ class SingleLifeWrapper(gym.Wrapper):
         return obs, reward, force_done, info 
         
 class SingleRewardWrapper(gym.Wrapper):
-    def __init__(self, env):
-        gym.Wrapper.__init__(self, env, penalizing=False)
+    def __init__(self, env, penalizing=False):
+        gym.Wrapper.__init__(self, env)
         self.penalizing = penalizing
 
     def reset(self, **args):
