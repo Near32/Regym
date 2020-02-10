@@ -1,6 +1,7 @@
 extra_hyperparameters: &extra_hyperparameters
     lr_account_for_nbr_actor: False 
     weights_decay_lambda: 1.0
+    use_target_to_gather_data:    False
 
 LargeCNN: &LargeCNN
         phi_arch: 'CNN'
@@ -45,8 +46,8 @@ dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5: &dqn_LargeCNN_obs84_graclip5m1_
         adam_eps: 1.0e-8
 
         epsstart: 1.0
-        epsend: 0.1
-        epsdecay: 1000000
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
 
         <<: *LargeCNN
         <<: *extra_hyperparameters
@@ -219,11 +220,13 @@ experiment:
             #  'observation_resize_dim': 84
             #  },
 
-            {'env-id': 'DoubleDunkNoFrameskip-v4', #'PongNoFrameskip-v4',
+            {'env-id': 'PongNoFrameskip-v4', #'PongNoFrameskip-v4',
 
-             'run-id': 'test_epsgreedytest_s101_WLoss_MaxInitPER_EPS4m1PER', #'Seed1_venv_greedy_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': '1step_double_dqn_LargeCNN_r1e5_tau1m4',
-             
+             'run-id': 'test/Seed1_venv_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m2',
+             #'agent-id': '1step_double_dqn_LargeCNN_r1e5_tau1m4',
+             #'agent-id': '1step_double_dqn_LargeCNN_r1e5_tau1m4_targetAsMain',
+             'agent-id': '1step_fastprioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m4',
+
              'nbr_actor': 1,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
@@ -233,36 +236,51 @@ experiment:
              'clip_reward': True,
              'observation_resize_dim': 84
              },
+            
+            # {'env-id': 'DoubleDunkNoFrameskip-v4', #'PongNoFrameskip-v4',
 
-            {'env-id': 'DoubleDunkNoFrameskip-v4', #'PongNoFrameskip-v4',
-
-             'run-id': 'test_epsgreedytest_s101_WLoss_MaxInitPER_EPS4m1PER', #'Seed1_venv_greedy_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': '1step_dueling_double_dqn_LargeCNN_r1e5_tau1m4',
+            #  'run-id': 'test_epsgreedytest_s101_WLoss_MaxInitPER_EPS4m1PER', #'Seed1_venv_greedy_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            #  'agent-id': '1step_double_dqn_LargeCNN_r1e5_tau1m4',
              
-             'nbr_actor': 1,
-             'nbr_frame_skipping': 4,
-             'nbr_frame_stacking': 4,
-             'grayscale': True,
-             'single_life_episode': True,
-             'nbr_max_random_steps': 30,
-             'clip_reward': True,
-             'observation_resize_dim': 84
-             },
+            #  'nbr_actor': 1,
+            #  'nbr_frame_skipping': 4,
+            #  'nbr_frame_stacking': 4,
+            #  'grayscale': True,
+            #  'single_life_episode': True,
+            #  'nbr_max_random_steps': 30,
+            #  'clip_reward': True,
+            #  'observation_resize_dim': 84
+            #  },
 
-            {'env-id': 'DoubleDunkNoFrameskip-v4', #'PongNoFrameskip-v4',
+            # {'env-id': 'DoubleDunkNoFrameskip-v4', #'PongNoFrameskip-v4',
 
-             'run-id': 'test_epsgreedytest_s101_WLoss_MaxInitPER_EPS4m1PER', #'Seed1_venv_greedy_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
-             'agent-id': '1step_fastprioritized_double_dqn_LargeCNN_r1e5_tau1m4',
+            #  'run-id': 'test_epsgreedytest_s101_WLoss_MaxInitPER_EPS4m1PER', #'Seed1_venv_greedy_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            #  'agent-id': '1step_dueling_double_dqn_LargeCNN_r1e5_tau1m4',
              
-             'nbr_actor': 1,
-             'nbr_frame_skipping': 4,
-             'nbr_frame_stacking': 4,
-             'grayscale': True,
-             'single_life_episode': True,
-             'nbr_max_random_steps': 30,
-             'clip_reward': True,
-             'observation_resize_dim': 84
-             },
+            #  'nbr_actor': 1,
+            #  'nbr_frame_skipping': 4,
+            #  'nbr_frame_stacking': 4,
+            #  'grayscale': True,
+            #  'single_life_episode': True,
+            #  'nbr_max_random_steps': 30,
+            #  'clip_reward': True,
+            #  'observation_resize_dim': 84
+            #  },
+
+            # {'env-id': 'DoubleDunkNoFrameskip-v4', #'PongNoFrameskip-v4',
+
+            #  'run-id': 'test_epsgreedytest_s101_WLoss_MaxInitPER_EPS4m1PER', #'Seed1_venv_greedy_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            #  'agent-id': '1step_fastprioritized_double_dqn_LargeCNN_r1e5_tau1m4',
+             
+            #  'nbr_actor': 1,
+            #  'nbr_frame_skipping': 4,
+            #  'nbr_frame_stacking': 4,
+            #  'grayscale': True,
+            #  'single_life_episode': True,
+            #  'nbr_max_random_steps': 30,
+            #  'clip_reward': True,
+            #  'observation_resize_dim': 84
+            #  },
 
             # {'env-id': 'BreakoutNoFrameskip-v4',
 
@@ -283,8 +301,8 @@ experiment:
     benchmarking_episodes: 1
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 1.0e8
-    train_observation_budget: 2.0e6 #1.0e7
-    seed: 101
+    train_observation_budget: 3.0e5 #2.0e6 #1.0e7
+    seed: 1
 
 agents:    
     1step_double_dqn_LargeCNN_r1e5:
@@ -295,6 +313,15 @@ agents:
         #noisy: True 
         n_step: 1
 
+    1step_double_dqn_LargeCNN_r1e5_targetAsMain:
+        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+        replay_capacity: 1e5
+        double: True
+        #dueling: True 
+        #noisy: True 
+        n_step: 1
+        use_target_to_gather_data: True 
+
     1step_double_dqn_LargeCNN_r1e5_tau1m4:
         <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
         replay_capacity: 1e5
@@ -303,6 +330,16 @@ agents:
         #noisy: True 
         n_step: 1
         tau: 1.0e-4
+
+    1step_double_dqn_LargeCNN_r1e5_tau1m4_targetAsMain:
+        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+        replay_capacity: 1e5
+        double: True
+        #dueling: True 
+        #noisy: True 
+        n_step: 1
+        tau: 1.0e-4
+        use_target_to_gather_data: True
 
     1step_dueling_double_dqn_LargeCNN_r1e5:
         <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
@@ -339,6 +376,26 @@ agents:
         #noisy: True 
         n_step: 1
         tau: 1.0e-4
+
+    1step_fastprioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m4:
+        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+        replay_capacity: 1e5
+        use_PER: True
+        PER_beta: 0.4
+        replay_period: 2    
+        batch_size: 16
+        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+        # but bottleneck on GPU batchsize gives a better trade-off 
+        # batch-regularization-effect / speed with a batch_size=16 
+        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+        # and ~84 it/sec with updates...
+        # Whereas 32 / 4 yielded ~25 it/sec....
+        double: True
+        #dueling: True 
+        #noisy: True 
+        n_step: 1
+        tau: 1.0e-4
+        use_target_to_gather_data: False
     
     1step_noisy_double_dqn_LargeCNN_r1e5:
         <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5

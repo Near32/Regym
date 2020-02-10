@@ -37,12 +37,17 @@ def layer_init(layer, w_scale=1.0):
             nn.init.orthogonal_(layer._parameters[name].data)
             layer._parameters[name].data.mul_(w_scale)
             '''
+            
+            # Xavier init:
             nn.init.xavier_normal_(layer._parameters[name].data, gain=w_scale)
             
             '''
-            layer._parameters[name].data.uniform_(-0.08,0.08)
+            
+            # Uniform init:
+            layer._parameters[name].data.uniform_(-0.1,0.1)
             layer._parameters[name].data.mul_(w_scale)
             '''
+            
             '''
             if len(layer._parameters[name].size()) > 1:
                 #nn.init.kaiming_normal_(layer._parameters[name], mode="fan_out", nonlinearity='leaky_relu')
@@ -82,7 +87,9 @@ def PreprocessFunctionConcatenate(x, use_cuda=False):
         return torch.from_numpy(x).unsqueeze(0).type(torch.cuda.FloatTensor)
     return torch.from_numpy(x).unsqueeze(0).type(torch.FloatTensor)
 
-def PreprocessFunction(x, use_cuda=False):
+def PreprocessFunction(x, use_cuda=False, normalization=True):
+    if normalization:
+        x = x/255.0
     if use_cuda:
         return torch.from_numpy(x).type(torch.cuda.FloatTensor)
     else:

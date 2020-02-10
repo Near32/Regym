@@ -31,12 +31,17 @@ class CategoricalQNet(nn.Module):
                  phi_body=None,
                  critic_body=None,
                  dueling=False,
-                 noisy=False):
+                 noisy=False,
+                 goal_oriented=False,
+                 goal_shape=None,
+                 goal_phi_body=None,
+                 goal_critic_body=None):
         super(CategoricalQNet, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.dueling = dueling
         self.noisy = noisy 
+        self.goal_oriented = goal_oriented
 
         if phi_body is None: phi_body = DummyBody(state_dim)
         if critic_body is None: critic_body = DummyBody(phi_body.get_feature_shape())
@@ -44,34 +49,72 @@ class CategoricalQNet(nn.Module):
         self.phi_body = phi_body
         self.critic_body = critic_body
 
+        if self.goal_oriented:
+            self.goal_state_flattening = False
+            assert(goal_shape is not None)
+            if goal_phi_body is None:   
+                if goal_shape == state_dim:
+                    goal_phi_body = self.phi_body
+                else:
+                    self.goal_state_flattening = True
+            self.goal_phi_body = goal_phi_body
+
+            if goal_critic_body is None and not(self.goal_state_flattening):    goal_critic_body = self.critic_body
+            self.goal_critic_body = goal_critic_body
+
+        fc_critic_input_shape = self.critic_body.get_feature_shape()
+        if self.goal_oriented and not(self.goal_state_flattening): 
+            fc_critic_input_shape += self.goal_critic_body.get_feature_shape()
 
         layer_fn = nn.Linear 
         if self.noisy:  layer_fn = NoisyLinear
         if self.dueling:
-            self.fc_critic = DuelingLayer(input_dim=critic_body.get_feature_shape(), action_dim=self.action_dim, layer_fn=layer_fn)
+            self.fc_critic = DuelingLayer(input_dim=fc_critic_input_shape, action_dim=self.action_dim, layer_fn=layer_fn)
         else:
-            self.fc_critic = layer_init(layer_fn(critic_body.get_feature_shape(), self.action_dim), 1e0)
+            self.fc_critic = layer_init(layer_fn(fc_critic_input_shape, self.action_dim), 1e0)
 
     def reset_noise(self):
         self.apply(reset_noisy_layer)
 
-    def forward(self, obs, action=None, rnn_states=None):
+    def forward(self, obs, action=None, rnn_states=None, goal=None):
+        if not(self.goal_oriented):  assert(goal==None)
+        
+        if self.goal_oriented:
+            if self.goal_state_flattening:
+                obs = torch.cat([obs, goal], dim=-1)
+
         next_rnn_states = None 
         if rnn_states is not None:
             next_rnn_states = {k: None for k in rnn_states}
 
-        if rnn_states is not None and 'phi_arch' in rnn_states:
-            phi, next_rnn_states['phi_arch'] = self.phi_body( (obs, rnn_states['phi_arch']) )
+        if rnn_states is not None and 'phi_body' in rnn_states:
+            phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
         else:
             phi = self.phi_body(obs)
 
-        if rnn_states is not None and 'critic_arch' in rnn_states:
-            phi_v, next_rnn_states['critic_arch'] = self.critic_body( (phi, rnn_states['critic_arch']) )
+        if rnn_states is not None and 'critic_body' in rnn_states:
+            phi_v, next_rnn_states['critic_body'] = self.critic_body( (phi, rnn_states['critic_body']) )
         else:
             phi_v = self.critic_body(phi)
 
+        phi_features = phi_v
+        
+        gphi_v = None
+        if self.goal_oriented and not(self.goal_state_flattening):
+            if rnn_states is not None and 'goal_phi_body' in rnn_states:
+                gphi, next_rnn_states['goal_phi_body'] = self.goal_phi_body( (goal, rnn_states['goal_phi_body']) )
+            else:
+                gphi = self.phi_body(goal)
+
+            if rnn_states is not None and 'goal_critic_body' in rnn_states:
+                gphi_v, next_rnn_states['goal_critic_body'] = self.goal_critic_body( (gphi, rnn_states['goal_critic_body']) )
+            else:
+                gphi_v = self.goal_critic_body(gphi)
+
+            phi_features = torch.cat([phi_v, gphi_v], dim=-1)
+
         # batch x action_dim
-        qa = self.fc_critic(phi_v)     
+        qa = self.fc_critic(phi_features)     
 
         if action is None:
             action  = qa.max(dim=-1)[1]
@@ -137,18 +180,18 @@ class GaussianActorCriticNet(nn.Module):
         if rnn_states is not None:
             next_rnn_states = {k: None for k in rnn_states}
 
-        if rnn_states is not None and 'phi_arch' in rnn_states:
-            phi, next_rnn_states['phi_arch'] = self.network.phi_body( (obs, rnn_states['phi_arch']) )
+        if rnn_states is not None and 'phi_body' in rnn_states:
+            phi, next_rnn_states['phi_body'] = self.network.phi_body( (obs, rnn_states['phi_body']) )
         else:
             phi = self.network.phi_body(obs)
 
-        if rnn_states is not None and 'actor_arch' in rnn_states:
-            phi_a, next_rnn_states['actor_arch'] = self.network.actor_body( (phi, rnn_states['actor_arch']) )
+        if rnn_states is not None and 'actor_body' in rnn_states:
+            phi_a, next_rnn_states['actor_body'] = self.network.actor_body( (phi, rnn_states['actor_body']) )
         else:
             phi_a = self.network.actor_body(phi)
 
-        if rnn_states is not None and 'critic_arch' in rnn_states:
-            phi_v, next_rnn_states['critic_arch'] = self.network.critic_body( (phi, rnn_states['critic_arch']) )
+        if rnn_states is not None and 'critic_body' in rnn_states:
+            phi_v, next_rnn_states['critic_body'] = self.network.critic_body( (phi, rnn_states['critic_body']) )
         else:
             phi_v = self.network.critic_body(phi)
 
@@ -203,18 +246,18 @@ class CategoricalActorCriticNet(nn.Module):
         if rnn_states is not None:
             next_rnn_states = {k: None for k in rnn_states}
 
-        if rnn_states is not None and 'phi_arch' in rnn_states:
-            phi, next_rnn_states['phi_arch'] = self.network.phi_body( (obs, rnn_states['phi_arch']) )
+        if rnn_states is not None and 'phi_body' in rnn_states:
+            phi, next_rnn_states['phi_body'] = self.network.phi_body( (obs, rnn_states['phi_body']) )
         else:
             phi = self.network.phi_body(obs)
 
-        if rnn_states is not None and 'actor_arch' in rnn_states:
-            phi_a, next_rnn_states['actor_arch'] = self.network.actor_body( (phi, rnn_states['actor_arch']) )
+        if rnn_states is not None and 'actor_body' in rnn_states:
+            phi_a, next_rnn_states['actor_body'] = self.network.actor_body( (phi, rnn_states['actor_body']) )
         else:
             phi_a = self.network.actor_body(phi)
 
-        if rnn_states is not None and 'critic_arch' in rnn_states:
-            phi_v, next_rnn_states['critic_arch'] = self.network.critic_body( (phi, rnn_states['critic_arch']) )
+        if rnn_states is not None and 'critic_body' in rnn_states:
+            phi_v, next_rnn_states['critic_body'] = self.network.critic_body( (phi, rnn_states['critic_body']) )
         else:
             phi_v = self.network.critic_body(phi)
 

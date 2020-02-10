@@ -53,7 +53,10 @@ class Task:
                  observation_type: str,
                  action_dim: int,
                  action_type: str,
-                 hash_function: Callable[[Any], int]):
+                 hash_function: Callable[[Any], int],
+                 goal_shape: int = None,
+                 goal_type: str = None,
+                 ):
         '''
         TODO Document
         '''
@@ -65,6 +68,8 @@ class Task:
         self.action_space_size = action_space_size
         self.observation_shape = observation_shape
         self.observation_type = observation_type
+        self.goal_shape = goal_shape
+        self.goal_type = goal_type
         self.action_dim = action_dim
         self.action_type = action_type
         self.hash_function = hash_function
@@ -105,6 +110,8 @@ env_type: {self.env_type}
 test_env: {self.test_env}
 observation_shape: {self.observation_shape}
 observation_type: {self.observation_type}
+goal_shape: {self.goal_shape}
+goal_type: {self.goal_type}
 state_space_size: {self.state_space_size}
 action_space_size: {self.action_space_size}
 action_dim: {self.action_dim}

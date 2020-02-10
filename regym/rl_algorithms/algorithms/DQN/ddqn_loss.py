@@ -7,6 +7,7 @@ def compute_loss(states: torch.Tensor,
                  next_states: torch.Tensor, 
                  rewards: torch.Tensor,
                  non_terminals: torch.Tensor,
+                 goals: torch.Tensor,
                  model: torch.nn.Module,
                  target_model: torch.nn.Module,
                  gamma: float = 0.99,
@@ -14,6 +15,7 @@ def compute_loss(states: torch.Tensor,
                  use_PER: bool = False,
                  PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
+                 use_HER: bool = False,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
@@ -24,6 +26,7 @@ def compute_loss(states: torch.Tensor,
     :param next_states: Dimension: batch_size x state_size: Next states visited by the agent.
     :param non_terminals: Dimension: batch_size x 1: Non-terminal integers.
     :param rewards: Dimension: batch_size x 1. Environment rewards.
+    :param goals: Dimension: batch_size x goal shape: Goal of the agent.
     :param model: torch.nn.Module used to compute the loss.
     :param target_model: torch.nn.Module used to compute the loss.
     :param gamma: float discount factor.
@@ -36,7 +39,7 @@ def compute_loss(states: torch.Tensor,
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
     '''
-    prediction = model(states, action=actions, rnn_states=rnn_states)
+    prediction = model(states, action=actions, rnn_states=rnn_states, goal=goals)
 
     state_action_values = prediction["qa"]
     state_action_values_g = state_action_values.gather(dim=1, index=actions.unsqueeze(1)).squeeze(1)
@@ -48,13 +51,13 @@ def compute_loss(states: torch.Tensor,
         if rnn_states is not None:
             next_rnn_states = prediction['next_rnn_states']
 
-            target_prediction = target_model(states, action=actions, rnn_states=rnn_states)
+            target_prediction = target_model(states, action=actions, rnn_states=rnn_states, goal=goals)
             next_target_rnn_states = target_prediction['next_rnn_states']
 
         target_model.reset_noise()
 
-        next_prediction = model(next_states, rnn_states=next_rnn_states)
-        next_target_prediction = target_model(next_states, rnn_states=next_target_rnn_states)
+        next_prediction = model(next_states, rnn_states=next_rnn_states, goal=goals)
+        next_target_prediction = target_model(next_states, rnn_states=next_target_rnn_states, goal=goals)
 
         Q_nextS_A_values = next_prediction['qa']
         argmaxA_Q_nextS_A_values = Q_nextS_A_values.max(dim=1)[1].unsqueeze(1)
@@ -64,16 +67,21 @@ def compute_loss(states: torch.Tensor,
 
         # Compute the expected Q values:
         expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals    
+
+        if use_HER:
+            # clip the target to [-50,0]
+            expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)
     ############################
 
     # Compute loss:
+    #diff_squared = torch.abs(expected_state_action_values.detach() - state_action_values_g) 
     diff_squared = (expected_state_action_values.detach() - state_action_values_g).pow(2.0)
     loss_per_item = diff_squared
     
     if use_PER:
       diff_squared = importanceSamplingWeights * diff_squared
     
-    loss = torch.mean(diff_squared)
+    loss = 0.5*torch.mean(diff_squared)
     
     if summary_writer is not None:
         summary_writer.add_scalar('Training/MeanQAValues', prediction['qa'].cpu().mean().item(), iteration_count)

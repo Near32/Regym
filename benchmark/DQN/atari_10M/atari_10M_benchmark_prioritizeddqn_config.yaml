@@ -68,9 +68,9 @@ experiment:
     #          'observation_resize_dim': 84
     #          },
 
-            {'env-id': 'FreewayNoFrameskip-v4', #'PongNoFrameskip-v4',
+            {'env-id': 'PongNoFrameskip-v4', #'FreewayNoFrameskip-v4',
 
-             'run-id': 'Seed1_venv_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'run-id': 'test/Seed1_venv_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_Eps3p4_Tau1m2',
              'agent-id': 'fastprioritizeddqn_LargeCNN_r1e5_beta4m1',
              
              'nbr_actor': 1,

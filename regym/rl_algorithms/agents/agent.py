@@ -1,6 +1,21 @@
 import torch
 import numpy as np 
 
+
+def named_children(cm):
+    for name, m in cm._modules.items():
+        if m is not None:
+            yield name, m
+
+def look_for_keys_and_apply(cm, keys, prefix='', accum=list(), apply_fn=None, kwargs={}):
+    for name, m in named_children(cm):
+        look_for_keys_and_apply(m, keys=keys, prefix=prefix+'.'+name, accum=accum, apply_fn=apply_fn, kwargs=kwargs)
+        if any( [key in m._get_name() for key in keys]):
+            if isinstance(apply_fn, str):   apply_fn = getattr(m, apply_fn, None)
+            if apply_fn is not None:    accum[name] = apply_fn(**kwargs)
+            
+
+
 class Agent(object):
     def __init__(self, name, algorithm):
         self.name = name
@@ -13,15 +28,21 @@ class Agent(object):
         self.training = True
         self.state_preprocessing = self.algorithm.kwargs['state_preprocess']
         
-        self.nbr_actor = self.algorithm.nbr_actor
+        self.goal_oriented = self.algorithm.kwargs['goal_oriented'] if 'goal_oriented' in self.algorithm.kwargs else False
+        self.goals = None 
+        if 'goal_preprocess' in self.algorithm.kwargs:
+            self.goal_preprocessing = self.algorithm.kwargs['goal_preprocess']
+        elif self.goal_oriented:
+            raise NotImplementedError
+
+        self.nbr_actor = self.algorithm.get_nbr_actor()
         self.previously_done_actors = [False]*self.nbr_actor
 
         self.recurrent = False
         self.rnn_states = None
-        self.rnn_keys = [key for key, value in self.algorithm.kwargs.items() if isinstance(value, str) and 'RNN' in value]
+        self.rnn_keys, self.rnn_states = Agent._reset_rnn_states(self.algorithm, self.nbr_actor)
         if len(self.rnn_keys):
             self.recurrent = True
-            self._reset_rnn_states()
 
     def get_experience_count(self):
         raise NotImplementedError
@@ -48,7 +69,7 @@ class Agent(object):
             for idx in indices: self.previously_done_actors[idx] = False
 
         if self.recurrent:
-            self._reset_rnn_states(indices=indices)
+            _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
 
     def update_actors(self, batch_idx):
         '''
@@ -69,18 +90,29 @@ class Agent(object):
         if self.recurrent:
             self.remove_from_rnn_states(batch_idx=batch_idx)
 
-    def _reset_rnn_states(self, indices=None):
-        # TODO: account for the indices in rnn states:
-        if indices is None: indices = [i for i in range(self.nbr_actor)]
+        if self.goal_oriented:
+            self.remove_from_goals(batch_idx=batch_idx)
 
-        self.rnn_states = {k: None for k in self.rnn_keys}
-        for k in self.rnn_states:
-            if 'phi' in k:
-                self.rnn_states[k] = self.algorithm.model.network.phi_body.get_reset_states(cuda=self.algorithm.kwargs['use_cuda'], repeat=self.nbr_actor)
-            if 'critic' in k:
-                self.rnn_states[k] = self.algorithm.model.network.critic_body.get_reset_states(cuda=self.algorithm.kwargs['use_cuda'], repeat=self.nbr_actor)
-            if 'actor' in k:
-                self.rnn_states[k] = self.algorithm.model.network.actor_body.get_reset_states(cuda=self.algorithm.kwargs['use_cuda'], repeat=self.nbr_actor)
+    def update_goals(self, goals):
+        assert(self.goal_oriented)
+        self.goals = goals
+        
+    def remove_from_goals(self, batch_idx):
+        self.goals = np.concatenate(
+                    [self.goals[:batch_idx,...], 
+                     self.goals[batch_idx+1:,...]],
+                     axis=0)
+                
+    @staticmethod
+    def _reset_rnn_states(algorithm, nbr_actor):
+        # TODO: account for the indices in rnn states:
+        lookedup_keys = ['LSTM', 'GRU']
+        rnn_states = {}
+        kwargs = {'cuda': algorithm.kwargs['use_cuda'], 'repeat':nbr_actor}
+        look_for_keys_and_apply(algorithm.get_models()['model'], keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
+        rnn_keys = list(rnn_states.keys())
+        return rnn_keys, rnn_states
+        
 
     def remove_from_rnn_states(self, batch_idx):
         '''
@@ -99,7 +131,8 @@ class Agent(object):
                      dim=0)
         
     def _pre_process_rnn_states(self):
-        if self.rnn_states is None: self._reset_rnn_states()
+        if self.rnn_states is None: 
+            _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
 
         if self.algorithm.kwargs['use_cuda']:
             for recurrent_submodule_name in self.rnn_states:
@@ -147,6 +180,22 @@ class Agent(object):
             out_pred[k] = v[batch_idx,...].unsqueeze(0)
         return out_pred
 
+    @staticmethod
+    def _extract_from_hdict(hdict: dict, batch_idx: int, goal_preprocessing_fn=None):
+        out_hdict = dict()
+        for k, v in hdict.items():
+            if isinstance(v, dict):
+                v = Agent._extract_from_hdict(hdict=v, batch_idx=batch_idx, goal_preprocessing_fn=goal_preprocessing_fn)
+            else:
+                if isinstance(v, torch.Tensor):
+                    v = v[batch_idx, ...].unsqueeze(0)
+                else:
+                    v = np.expand_dims(v[batch_idx, ...], axis=0)
+                if goal_preprocessing_fn is not None:
+                    v = goal_preprocessing_fn(v)
+            out_hdict[k] = v 
+        return out_hdict
+
     def preprocess_environment_signals(self, state, reward, succ_state, done):
         non_terminal = torch.from_numpy(1 - np.array(done)).type(torch.FloatTensor)
         state = self.state_preprocessing(state, use_cuda=False)
@@ -155,7 +204,7 @@ class Agent(object):
         else: r = torch.ones(1).type(torch.FloatTensor)*reward
         return state, r, succ_state, non_terminal
 
-    def handle_experience(self, s, a, r, succ_s, done):
+    def handle_experience(self, s, a, r, succ_s, done, goal=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -165,6 +214,7 @@ class Agent(object):
         :param r: numpy tensor of rewards of shape batch x reward_shape.
         :param succ_s: numpy tensor of successive states of shape batch x state_shape.
         :param done: list of boolean (batch=nbr_actor) x state_shape.
+        :param goal: numpy tensor of goal of shape batch x goal_shape.
         '''
         raise NotImplementedError
 
@@ -174,3 +224,6 @@ class Agent(object):
     def clone(self, training=None):
         raise NotImplementedError
 
+    def save(self):
+        assert(self.save_path is not None)
+        torch.save(self.clone(), self.save_path)

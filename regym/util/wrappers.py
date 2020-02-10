@@ -456,19 +456,24 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(env, size, skip=4, stack=4, grayscale=True,  single_life_episode=True, nbr_max_random_steps=30, clip_reward=True):
+def baseline_atari_pixelwrap(env, size=None, skip=4, stack=4, grayscale=True,  single_life_episode=True, nbr_max_random_steps=30, clip_reward=True):
     if grayscale:
         env = GrayScaleObservation(env=env) 
     
     if nbr_max_random_steps > 0:
         env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
-    env = MaxAndSkipEnv(env, skip=skip)
     
-    env = FrameResizeWrapper(env, size=size) 
+    if skip > 0:
+        env = MaxAndSkipEnv(env, skip=skip)
+    
+    if size is not None and 'None' not in size:
+        env = FrameResizeWrapper(env, size=size) 
     
     if single_life_episode:
         env = EpisodicLifeEnv(env)
-    env = FrameStack(env, stack=stack)
+    
+    if stack > 1:
+        env = FrameStack(env, stack=stack)
     
     if clip_reward:
         env = ClipRewardEnv(env)
