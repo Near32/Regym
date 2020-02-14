@@ -67,7 +67,8 @@ def run_episode_parallel(env,
                                     action, 
                                     reward, 
                                     succ_observations, 
-                                    done)
+                                    done,
+                                    infos=info)
         
         batch_index = -1
         batch_idx_done_actors_among_not_done = []
@@ -234,7 +235,8 @@ def gather_experience_parallel(task,
                                     action, 
                                     reward, 
                                     succ_observations, 
-                                    done)
+                                    done,
+                                    infos=info)
 
         for actor_index in range(nbr_actors):
             obs_count += 1

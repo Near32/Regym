@@ -13,8 +13,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 class NBitsSwapMNISTEnv(NBitsSwapEnv):
-    def __init__(self, n=10, fixed_goal=False, train=True):
+    def __init__(self, n=10, simple=True, fixed_goal=False, train=True):
+        '''
+        :param n: Integer representing the number of digit to use in the game.
+        :param simple: Boolean stating whether to use the simplified game where 
+                        ones and zeros can only be represented through one and 
+                        only one image for each.
+        :param fixed_goal: Boolean stating whether to not sample a new goal at
+                            each call of the reset method.
+        :param train: Boolean stating from which split of MNIST to take the images. 
+        '''
+
         super(NBitsSwapMNISTEnv, self).__init__(n=n, fixed_goal=fixed_goal)
+        self.simple = simple
         self.train = train
         self.obs_shape = [32,32]
         self.transform = transforms.Compose([
@@ -31,8 +42,13 @@ class NBitsSwapMNISTEnv(NBitsSwapEnv):
                                        "achieved_goal": Box(low=0, high=255, shape=(*self.obs_shape, self.n), dtype=np.float32), 
                                        "desired_goal": Box(low=0, high=255, shape=(*self.obs_shape, self.n), dtype=np.float32)})
 
-        self.zeros_indices = [idx for idx, target in enumerate(self.mnist.targets) if target==0][:1]
-        self.ones_indices = [idx for idx, target in enumerate(self.mnist.targets) if target==1][:1]
+        self.zeros_indices = [idx for idx, target in enumerate(self.mnist.targets) if target==0]
+        self.ones_indices = [idx for idx, target in enumerate(self.mnist.targets) if target==1]
+        
+        if self.simple:
+            self.zeros_indices = self.zeros_indices[:1]
+            self.ones_indices = self.ones_indices[:1]
+
         self.obs_as_indices = None 
         self.goal_as_indices = None 
 
@@ -67,14 +83,23 @@ class NBitsSwapMNISTEnv(NBitsSwapEnv):
         assert(action < self.n)
         if isinstance(action, np.ndarray): action=action[0]
 
+        init_state = self.state.copy()
         self.state[action] = not self.state[action]
         self.obs_as_indices[action] = self.np_random.choice(self.zeros_indices if self.state[action]==0 else self.ones_indices)
 
         obs = self._get_obs()
-        reward = self._calc_reward()
+        reward = 0 if self._calc_reward() else -1
         self.nbr_steps += 1
-        terminal = True if reward == 1 or self.nbr_steps >= self.max_episode_steps else False
-        return obs, reward, terminal, {} 
+        terminal = True if reward >= -0.5 or self.nbr_steps >= self.max_episode_steps else False
+
+        info = {'latents':
+                    {   's': init_state.copy(), 
+                        'succ_s': self.state.copy(),
+                        'achieved_goal': self.state.copy(),
+                        'desired_goal': self.goal.copy()
+                    }
+                }
+        return obs, reward, terminal, info
 
     def render(self, mode='human', close=False):
         logger.info(f"State: {self.state} \n Goal: {self.goal}")

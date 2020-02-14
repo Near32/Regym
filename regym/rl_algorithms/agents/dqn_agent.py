@@ -38,10 +38,10 @@ class DQNAgent(Agent):
         self.replay_period = int(self.kwargs['replay_period']) if 'replay_period' in self.kwargs else 1
         self.replay_period_count = 0
         
-        self.episode_per_replay_period = int(self.kwargs['episode_per_replay_period']) if 'episode_per_replay_period' in self.kwargs else None
-        self.episode_per_replay_period_count = 0
+        self.nbr_episode_per_cycle = int(self.kwargs['nbr_episode_per_cycle']) if 'nbr_episode_per_cycle' in self.kwargs else None
+        self.nbr_episode_per_cycle_count = 0
         
-        self.nbr_training_iteration_per_update = int(self.kwargs['nbr_training_iteration_per_update']) if 'nbr_training_iteration_per_update' in self.kwargs else 1
+        self.nbr_training_iteration_per_cycle = int(self.kwargs['nbr_training_iteration_per_cycle']) if 'nbr_training_iteration_per_cycle' in self.kwargs else 1
 
         self.noisy = self.kwargs['noisy'] if 'noisy' in self.kwargs else False 
 
@@ -57,7 +57,7 @@ class DQNAgent(Agent):
     def get_update_count(self):
         return self.algorithm.get_update_count()
 
-    def handle_experience(self, s, a, r, succ_s, done, goals=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -67,6 +67,8 @@ class DQNAgent(Agent):
         :param r: numpy tensor of rewards of shape batch x reward_shape.
         :param succ_s: numpy tensor of successive states of shape batch x state_shape.
         :param done: list of boolean (batch=nbr_actor) x state_shape.
+        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
+        :param infos: Dictionnary of information from the environment.
         '''
         state, r, succ_state, non_terminal = self.preprocess_environment_signals(s, r, succ_s, done)
         a = torch.from_numpy(a)
@@ -93,12 +95,18 @@ class DQNAgent(Agent):
             exp_dict['a'] = a[batch_index,...].unsqueeze(0)
             exp_dict['r'] = r[batch_index,...].unsqueeze(0)
             exp_dict['succ_s'] = succ_state[batch_index,...].unsqueeze(0)
-            # Watch out for the miss-match: done is a list of nbr_actor booleans,
+            # Watch out for the miss-match: 
+            # done is a list of nbr_actor booleans,
             # which is not sync with batch_index, purposefully...
             exp_dict['non_terminal'] = non_terminal[actor_index,...].unsqueeze(0)
+            # Watch out for the miss-match: 
+            # Similarly, infos is not sync with batch_index, purposefully...
+            if infos is not None:
+                exp_dict['info'] = infos[actor_index]
 
             exp_dict.update(Agent._extract_from_prediction(self.current_prediction, batch_index))
             
+
             if self.recurrent:
                 exp_dict['rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
                 exp_dict['next_rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
@@ -121,19 +129,19 @@ class DQNAgent(Agent):
         self.replay_period_count += 1
         period_check = self.replay_period
         period_count_check = self.replay_period_count
-        if self.episode_per_replay_period is not None:
+        if self.nbr_episode_per_cycle is not None:
             if len(done_actors_among_notdone):
-                self.episode_per_replay_period_count += len(done_actors_among_notdone)
-            period_check = self.episode_per_replay_period
-            period_count_check = self.episode_per_replay_period_count
+                self.nbr_episode_per_cycle_count += len(done_actors_among_notdone)
+            period_check = self.nbr_episode_per_cycle
+            period_count_check = self.nbr_episode_per_cycle_count
 
         if self.training and self.handled_experiences > self.kwargs['min_capacity'] and period_count_check % period_check == 0:
             minibatch_size = self.kwargs['batch_size']
-            if self.episode_per_replay_period is None:
+            if self.nbr_episode_per_cycle is None:
                 minibatch_size *= self.replay_period
             else:
-                self.episode_per_replay_period_count = 1
-            for train_it in range(self.nbr_training_iteration_per_update):
+                self.nbr_episode_per_cycle_count = 1
+            for train_it in range(self.nbr_training_iteration_per_cycle):
                 self.algorithm.train(minibatch_size=minibatch_size)
             if self.save_path is not None and self.handled_experiences % self.saving_interval == 0: 
                 self.save()
@@ -197,9 +205,11 @@ def build_DQN_Agent(task, config, agent_name):
     if 'None' in kwargs['observation_resize_dim']:  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
     if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
     
-    input_dim = task.observation_shape
+
+    phi_body = None
+    input_dim = list(task.observation_shape)
     if kwargs['goal_oriented']:
-        goal_input_shape = task.goal_shape
+        goal_input_shape = list(task.goal_shape)
         if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
             if isinstance(input_dim, int):
                 input_dim = input_dim+goal_input_shape
@@ -218,7 +228,7 @@ def build_DQN_Agent(task, config, agent_name):
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
             kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
             input_shape = kwargs['preprocessed_observation_shape']
@@ -237,7 +247,7 @@ def build_DQN_Agent(task, config, agent_name):
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
             kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
             input_shape = kwargs['preprocessed_observation_shape']
@@ -247,7 +257,7 @@ def build_DQN_Agent(task, config, agent_name):
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
             kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
             input_shape = kwargs['preprocessed_observation_shape']
@@ -264,51 +274,21 @@ def build_DQN_Agent(task, config, agent_name):
                                          paddings=paddings,
                                          hidden_units=kwargs['phi_arch_hidden_units'])
         input_dim = output_dim
-    else:
-        phi_body = None
 
 
-    layer_fn = nn.Linear 
-    if kwargs['noisy']:  layer_fn = NoisyLinear
-    if kwargs['critic_arch'] != 'None':
-        output_dim = 256
-        if kwargs['critic_arch'] == 'RNN':
-            critic_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
-        elif kwargs['critic_arch'] == 'MLP':
-            hidden_units=(output_dim,)
-            if 'critic_arch_hidden_units' in kwargs:
-                hidden_units = tuple(kwargs['critic_arch_hidden_units'])
-            critic_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu, layer_fn=layer_fn)
-        elif kwargs['critic_arch'] == 'CNN':
-            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [task.observation_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
-            if 'nbr_frame_stacking' in kwargs:
-                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
-            input_shape = kwargs['preprocessed_observation_shape']
-            channels = [input_shape[0]] + kwargs['critic_arch_channels']
-            kernels = kwargs['critic_arch_kernels']
-            strides = kwargs['critic_arch_strides']
-            paddings = kwargs['critic_arch_paddings']
-            output_dim = kwargs['critic_arch_feature_dim']
-            critic_body = ConvolutionalBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings)
-    else:
-        critic_body = None
-
+    goal_phi_body = None
     if kwargs['goal_oriented']:
         goal_input_shape = task.goal_shape
+        if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
+            kwargs['goal_preprocess'] = kwargs['state_preprocess']
+
         if 'goal_state_shared_arch' in kwargs and kwargs['goal_state_shared_arch']:
             kwargs['goal_preprocess'] = kwargs['state_preprocess']
             if 'preprocessed_observation_shape' in kwargs:
                 kwargs['preprocessed_goal_shape'] = kwargs['preprocessed_observation_shape']
                 goal_input_shape = kwargs['preprocessed_goal_shape']
             goal_phi_body = None 
+
         elif kwargs['goal_phi_arch'] != 'None':
             output_dim = 256
             if kwargs['goal_phi_arch'] == 'LSTM-RNN':
@@ -363,53 +343,49 @@ def build_DQN_Agent(task, config, agent_name):
                                              strides=strides,
                                              paddings=paddings,
                                              hidden_units=kwargs['phi_arch_hidden_units'])
-            goal_input_shape = output_dim
-        else:
-            goal_phi_body = None
+            input_dim += output_dim
 
 
-        layer_fn = nn.Linear 
-        if kwargs['noisy']:  layer_fn = NoisyLinear
-        if kwargs['goal_critic_arch'] != 'None':
-            output_dim = 256
-            if kwargs['goal_critic_arch'] == 'RNN':
-                critic_body = LSTMBody(goal_input_shape, hidden_units=(output_dim,), gate=F.leaky_relu)
-            elif kwargs['goal_critic_arch'] == 'MLP':
-                hidden_units=(output_dim,)
-                if 'goal_critic_arch_hidden_units' in kwargs:
-                    hidden_units = tuple(kwargs['goal_critic_arch_hidden_units'])
-                critic_body = FCBody(goal_input_shape, hidden_units=hidden_units, gate=F.leaky_relu, layer_fn=layer_fn)
-            elif kwargs['goal_critic_arch'] == 'CNN':
-                # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-                kwargs['goal_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['goal_resize_dim'], normalize_rgb_values=True)
-                kwargs['preprocessed_goal_shape'] = [task.goal_shape[-1], kwargs['goal_resize_dim'], kwargs['goal_resize_dim']]
-                if 'nbr_frame_stacking' in kwargs:
-                    kwargs['preprocessed_goal_shape'][0] *=  kwargs['nbr_frame_stacking']
-                input_shape = kwargs['preprocessed_goal_shape']
-                channels = [goal_input_shape[0]] + kwargs['goal_critic_arch_channels']
-                kernels = kwargs['goal_critic_arch_kernels']
-                strides = kwargs['goal_critic_arch_strides']
-                paddings = kwargs['goal_critic_arch_paddings']
-                output_dim = kwargs['goal_critic_arch_feature_dim']
-                goal_critic_body = ConvolutionalBody(input_shape=input_shape,
-                                             feature_dim=output_dim,
-                                             channels=channels,
-                                             kernel_sizes=kernels,
-                                             strides=strides,
-                                             paddings=paddings)
-        else:
-            goal_critic_body = None
-    else:
-        goal_phi_body = None
-        goal_critic_body = None 
+    critic_body = None
+    layer_fn = nn.Linear 
+    if kwargs['noisy']:  layer_fn = NoisyLinear
+    if kwargs['critic_arch'] != 'None':
+        output_dim = 256
+        if kwargs['critic_arch'] == 'RNN':
+            critic_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
+        elif kwargs['critic_arch'] == 'MLP':
+            hidden_units=(output_dim,)
+            if 'critic_arch_hidden_units' in kwargs:
+                hidden_units = tuple(kwargs['critic_arch_hidden_units'])
+            critic_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu, layer_fn=layer_fn)
+        elif kwargs['critic_arch'] == 'CNN':
+            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
+            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            if 'nbr_frame_stacking' in kwargs:
+                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+            input_shape = kwargs['preprocessed_observation_shape']
+            channels = [input_shape[0]] + kwargs['critic_arch_channels']
+            kernels = kwargs['critic_arch_kernels']
+            strides = kwargs['critic_arch_strides']
+            paddings = kwargs['critic_arch_paddings']
+            output_dim = kwargs['critic_arch_feature_dim']
+            critic_body = ConvolutionalBody(input_shape=input_shape,
+                                         feature_dim=output_dim,
+                                         channels=channels,
+                                         kernel_sizes=kernels,
+                                         strides=strides,
+                                         paddings=paddings)
 
+    
     assert(task.action_type == 'Discrete')
-    obs_shape = task.observation_shape
+    obs_shape = list(task.observation_shape)
     if 'preprocessed_observation_shape' in kwargs: obs_shape = kwargs['preprocessed_observation_shape']    
-    goal_shape = task.goal_shape
+    goal_shape = list(task.goal_shape)
     if 'preprocessed_goal_shape' in kwargs: goal_shape = kwargs['preprocessed_goal_shape']
     if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
-        obs_shape = obs_shape + goal_shape 
+        obs_shape[-1] = obs_shape[-1] + goal_shape[-1] 
     model = CategoricalQNet(state_dim=obs_shape, 
                             action_dim=task.action_dim,
                             phi_body=phi_body,
@@ -418,16 +394,20 @@ def build_DQN_Agent(task, config, agent_name):
                             noisy=kwargs['noisy'],
                             goal_oriented=kwargs['goal_oriented'],
                             goal_shape=goal_shape,
-                            goal_phi_body=goal_phi_body,
-                            goal_critic_body=goal_critic_body)
+                            goal_phi_body=goal_phi_body)
 
     model.share_memory()
     dqn_algorithm = DQNAlgorithm(kwargs, model)
 
     if 'use_HER' in kwargs and kwargs['use_HER']:
+        from ..algorithms.wrappers import latent_based_goal_predicated_reward_fn
+        goal_predicated_reward_fn = None 
+        if 'HER_use_latent' in kwargs and kwargs['HER_use_latent']:
+            goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn
+
         dqn_algorithm = HERAlgorithmWrapper(algorithm=dqn_algorithm, 
                                             strategy=kwargs['HER_strategy'],
-                                            goal_predicated_reward_fn=None)
+                                            goal_predicated_reward_fn=goal_predicated_reward_fn)
 
     agent = DQNAgent(name=agent_name, algorithm=dqn_algorithm)
 

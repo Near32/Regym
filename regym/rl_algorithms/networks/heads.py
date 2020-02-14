@@ -34,8 +34,7 @@ class CategoricalQNet(nn.Module):
                  noisy=False,
                  goal_oriented=False,
                  goal_shape=None,
-                 goal_phi_body=None,
-                 goal_critic_body=None):
+                 goal_phi_body=None):
         super(CategoricalQNet, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -44,11 +43,10 @@ class CategoricalQNet(nn.Module):
         self.goal_oriented = goal_oriented
 
         if phi_body is None: phi_body = DummyBody(state_dim)
-        if critic_body is None: critic_body = DummyBody(phi_body.get_feature_shape())
-         
         self.phi_body = phi_body
-        self.critic_body = critic_body
-
+        
+        critic_input_shape = self.phi_body.get_feature_shape()
+        
         if self.goal_oriented:
             self.goal_state_flattening = False
             assert(goal_shape is not None)
@@ -59,13 +57,14 @@ class CategoricalQNet(nn.Module):
                     self.goal_state_flattening = True
             self.goal_phi_body = goal_phi_body
 
-            if goal_critic_body is None and not(self.goal_state_flattening):    goal_critic_body = self.critic_body
-            self.goal_critic_body = goal_critic_body
+            if not(self.goal_state_flattening):
+                critic_input_shape += self.goal_phi_body.get_feature_shape()
+        
+        
+        if critic_body is None: critic_body = DummyBody(critic_input_shape) 
+        self.critic_body = critic_body
 
         fc_critic_input_shape = self.critic_body.get_feature_shape()
-        if self.goal_oriented and not(self.goal_state_flattening): 
-            fc_critic_input_shape += self.goal_critic_body.get_feature_shape()
-
         layer_fn = nn.Linear 
         if self.noisy:  layer_fn = NoisyLinear
         if self.dueling:
@@ -81,7 +80,7 @@ class CategoricalQNet(nn.Module):
         
         if self.goal_oriented:
             if self.goal_state_flattening:
-                obs = torch.cat([obs, goal], dim=-1)
+                obs = torch.cat([obs, goal], dim=1)
 
         next_rnn_states = None 
         if rnn_states is not None:
@@ -92,6 +91,16 @@ class CategoricalQNet(nn.Module):
         else:
             phi = self.phi_body(obs)
 
+        gphi = None
+        if self.goal_oriented and not(self.goal_state_flattening):
+            if rnn_states is not None and 'goal_phi_body' in rnn_states:
+                gphi, next_rnn_states['goal_phi_body'] = self.goal_phi_body( (goal, rnn_states['goal_phi_body']) )
+            else:
+                gphi = self.phi_body(goal)
+
+            phi = torch.cat([phi, gphi], dim=1)
+
+
         if rnn_states is not None and 'critic_body' in rnn_states:
             phi_v, next_rnn_states['critic_body'] = self.critic_body( (phi, rnn_states['critic_body']) )
         else:
@@ -99,20 +108,6 @@ class CategoricalQNet(nn.Module):
 
         phi_features = phi_v
         
-        gphi_v = None
-        if self.goal_oriented and not(self.goal_state_flattening):
-            if rnn_states is not None and 'goal_phi_body' in rnn_states:
-                gphi, next_rnn_states['goal_phi_body'] = self.goal_phi_body( (goal, rnn_states['goal_phi_body']) )
-            else:
-                gphi = self.phi_body(goal)
-
-            if rnn_states is not None and 'goal_critic_body' in rnn_states:
-                gphi_v, next_rnn_states['goal_critic_body'] = self.goal_critic_body( (gphi, rnn_states['goal_critic_body']) )
-            else:
-                gphi_v = self.goal_critic_body(gphi)
-
-            phi_features = torch.cat([phi_v, gphi_v], dim=-1)
-
         # batch x action_dim
         qa = self.fc_critic(phi_features)     
 

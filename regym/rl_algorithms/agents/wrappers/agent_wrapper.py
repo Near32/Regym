@@ -46,7 +46,7 @@ class AgentWrapper(Agent):
     def preprocess_environment_signals(self, state, reward, succ_state, done):
         return self.agent.preprocess_environment_signals(state, reward, succ_state, done)
     
-    def handle_experience(self, s, a, r, succ_s, done):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -56,6 +56,8 @@ class AgentWrapper(Agent):
         :param r: numpy tensor of rewards of shape batch x reward_shape.
         :param succ_s: numpy tensor of successive states of shape batch x state_shape.
         :param done: list of boolean (batch=nbr_actor) x state_shape.
+        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
+        :param infos: Dictionnary of information from the environment.
         '''
         raise NotImplementedError
 
@@ -88,7 +90,7 @@ class DictHandlingAgentWrapper(AgentWrapper):
 
         return obs_dict
     
-    def handle_experience(self, s, a, r, succ_s, done, goals=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         obs_dict = self._build_obs_dict(s)
         next_obs_dict = self._build_obs_dict(succ_s)
 
@@ -102,7 +104,7 @@ class DictHandlingAgentWrapper(AgentWrapper):
         if self.use_achieved_goal and 'achieved_goal' in obs_dict:
             goals.update({'achieved_goals': {'s': obs_dict['achieved_goal'], 'succ_s': next_obs_dict['achieved_goal']}})
         
-        self.agent.handle_experience(state, a, r, succ_state, done, goals=goals)
+        self.agent.handle_experience(state, a, r, succ_state, done, goals=goals, infos=infos)
 
 
     def take_action(self, s):

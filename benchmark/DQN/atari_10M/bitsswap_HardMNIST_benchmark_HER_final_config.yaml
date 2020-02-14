@@ -5,15 +5,15 @@ extra_hyperparameters: &extra_hyperparameters
     goal_oriented: True 
     goal_state_shared_arch:  False
     goal_state_flattening: True
-    nbr_training_iteration_per_update: 40
-    episode_per_replay_period:  16
+    nbr_training_iteration_per_cycle: 40
+    nbr_episode_per_cycle:  16
+    HER_use_latent: True
 
 LargeCNN: &LargeCNN
         phi_arch: 'CNN'
         critic_arch: 'None'
         
         goal_phi_arch: 'None'
-        goal_critic_arch: 'None'
         
         # Phi Body:
         phi_arch_channels: [32, 64, 64]
@@ -45,7 +45,6 @@ smallMLP: &smallMLP
         critic_arch: 'None'
         
         goal_phi_arch: 'None'
-        goal_critic_arch: 'None'
         
         # Phi Body:
         phi_arch_channels: [32, 64, 64]
@@ -108,7 +107,7 @@ dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5: &dqn_LargeCNN_obs84_graclip5m1_
         <<: *extra_hyperparameters
 
 
-dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5: &dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5
+dqn_LargeCNN: &dqn_LargeCNN
         double: False
         dueling: False
         noisy: False 
@@ -130,7 +129,7 @@ dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5: &dqn_smallMLP_obs84_graclip5m1_
         
         discount: 0.98 #0.99
         use_cuda: True
-        gradient_clip: 0.5 #0.5
+        gradient_clip: 0.0 #0.5
         batch_size: 128 #32
         tau: 2.5e-2 #1.0e-2
         learning_rate: 1.0e-3 #2.5e-4
@@ -141,16 +140,17 @@ dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5: &dqn_smallMLP_obs84_graclip5m1_
         epsdecay: 500 #1000000
         epsdecay_strategy:   'None'
 
-        <<: *smallMLP
+        <<: *LargeCNN
         <<: *extra_hyperparameters
 
 experiment:
     tasks: [
-            {'env-id': '20BitsSwap-v0', #'10BitsSwapMNIST-v0',
+            {'env-id': '10BitsSwap-HardMNIST-v0',
 
-             'run-id': 'B7/B96k_ProperEpsDecay_ProperPeriod_ProperBatchsize_EpReplayPeriod16_MLP256_GSflat_GSNotShared_final-1_lr1m3/Seed10_venv_dqn_Max+Sk0_St1_ObsNone_ClipReward_Eps5p2End2m2_tau40_GradClip5m1',
-             #'agent-id': '1step_double_HER_dqn_smallMLP_r1e5', #'1step_noisy_double_HER_dqn_MLP_r1e5',
-             'agent-id': '1step_noisy_double_HER_dqn_smallMLP_r1e5',
+             'run-id': 'B10M_EpPerCycle16_MLP256_GSflat_GSNotShared_final-1_lr1m3/Seed10_venv_dqn_Max+Sk0_St1_ObsNone_ClipReward_Eps5p2End2m2_tau40_GradClip0',
+             #'agent-id': '1step_double_prHER_dqn_LargeCNN_r1e5',
+             #'agent-id': '1step_noisy_double_HER_dqn_LargeCNN_r1e5',
+             'agent-id': '1step_noisy_prioritized_double_HER_dqn_LargeCNN_r1e5',
              
              'nbr_actor': 1,
              'nbr_frame_skipping': 0,
@@ -167,12 +167,12 @@ experiment:
     benchmarking_episodes: 1
     benchmarking_interval: 1.0e10
     benchmarking_record_episode_interval: 1.0e8
-    train_observation_budget: 96.0e3
+    train_observation_budget: 1.0e7
     seed: 10
 
 agents:    
-    1step_double_HER_dqn_smallMLP_r1e5:
-        <<: *dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5
+    1step_double_HER_dqn_LargeCNN_r1e5:
+        <<: *dqn_LargeCNN
         replay_capacity: 1e5
         double: True
         #dueling: True 
@@ -180,11 +180,23 @@ agents:
         n_step: 1
         use_HER: True
 
-    1step_noisy_double_HER_dqn_smallMLP_r1e5:
-        <<: *dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5
+    1step_noisy_double_HER_dqn_LargeCNN_r1e5:
+        <<: *dqn_LargeCNN
         replay_capacity: 1e5
         double: True
         #dueling: True 
         noisy: True 
         n_step: 1
         use_HER: True
+
+    1step_noisy_prioritized_double_HER_dqn_LargeCNN_r1e5:
+        <<: *dqn_LargeCNN
+        replay_capacity: 1e5
+        double: True
+        #dueling: True 
+        noisy: True 
+        n_step: 1
+        use_HER: True
+        use_PER: True
+        PER_alpha: 0.7
+        PER_beta: 0.4

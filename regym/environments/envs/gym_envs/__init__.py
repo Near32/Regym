@@ -15,7 +15,12 @@ for n in range(40):
         kwargs={'n' : n, 'fixed_goal' : True},
     )
     register(
-        id=f'{n}BitsSwapMNIST-v0',
+        id=f'{n}BitsSwap-SimpleMNIST-v0',
         entry_point='regym.environments.envs.gym_envs.n_bits_swap_mnist_env:NBitsSwapMNISTEnv',
-        kwargs={'n' : n, 'fixed_goal' : False, 'train': True},
+        kwargs={'n' : n, 'simple': True, 'fixed_goal' : False, 'train': True},
+    )
+    register(
+        id=f'{n}BitsSwap-HardMNIST-v0',
+        entry_point='regym.environments.envs.gym_envs.n_bits_swap_mnist_env:NBitsSwapMNISTEnv',
+        kwargs={'n' : n, 'simple':False, 'fixed_goal' : False, 'train': True},
     )

@@ -1,2 +1,2 @@
 from .algorithm_wrapper import AlgorithmWrapper
-from .her_wrapper import HERAlgorithmWrapper
+from .her_wrapper import HERAlgorithmWrapper, latent_based_goal_predicated_reward_fn

@@ -51,12 +51,23 @@ class NBitsSwapEnv(gym.Env):
 
     def step(self, action):
         assert(action < self.n)
+        init_state = self.state.copy()
+        
         self.state[action] = not self.state[action]
         obs = self._get_obs()
         reward = 0 if self._calc_reward() else -1
         self.nbr_steps += 1
         terminal = True if reward >= -0.5 or self.nbr_steps >= self.max_episode_steps else False
-        return obs, reward, terminal, {} 
+        
+        info = {'latents':
+                    {   's': init_state.copy(), 
+                        'succ_s': self.state.copy(),
+                        'achieved_goal': self.state.copy(),
+                        'desired_goal': self.goal.copy()
+                    }
+                }
+
+        return obs, reward, terminal, info 
 
     def render(self, mode='human', close=False):
         logger.info(f"State: {self.state} \n Goal: {self.goal}")

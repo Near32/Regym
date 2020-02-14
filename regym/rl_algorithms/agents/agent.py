@@ -204,7 +204,7 @@ class Agent(object):
         else: r = torch.ones(1).type(torch.FloatTensor)*reward
         return state, r, succ_state, non_terminal
 
-    def handle_experience(self, s, a, r, succ_s, done, goal=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -214,7 +214,8 @@ class Agent(object):
         :param r: numpy tensor of rewards of shape batch x reward_shape.
         :param succ_s: numpy tensor of successive states of shape batch x state_shape.
         :param done: list of boolean (batch=nbr_actor) x state_shape.
-        :param goal: numpy tensor of goal of shape batch x goal_shape.
+        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
+        :param infos: Dictionnary of information from the environment.
         '''
         raise NotImplementedError
 
