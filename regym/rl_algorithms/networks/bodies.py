@@ -53,10 +53,8 @@ def reset_noisy_layer(module):
     if hasattr(module, "_reset_noise"):
         module._reset_noise()
 
-
 class ConvolutionalBody(nn.Module):
-    #def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.leaky_relu]):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.relu]):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.ReLU]):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -67,10 +65,12 @@ class ConvolutionalBody(nn.Module):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
         '''
         super(ConvolutionalBody, self).__init__()
+        self.dropout = dropout
         self.non_linearities = non_linearities
         if not isinstance(non_linearities, list):
             self.non_linearities = [non_linearities] * (len(channels) - 1)
@@ -82,14 +82,29 @@ class ConvolutionalBody(nn.Module):
         if isinstance(feature_dim, tuple):
             self.feature_dim = feature_dim[-1]
 
-        self.convs = nn.ModuleList()
+        self.features = []
         dim = input_shape[1] # height
-        for in_ch, out_ch, k, s, p in zip(channels, channels[1:], kernel_sizes, strides, paddings):
-            self.convs.append( layer_init(nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=k, stride=s, padding=p), w_scale=math.sqrt(2)))
-            #self.convs.append( nn.BatchNorm2d(num_features=out_ch))
-            # Update of the shape of the input-image, following Conv:
-            dim = (dim-k+2*p)//s+1
-            print(f"CNN: layer output dim: {dim}")
+        in_ch = channels[0]
+        for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
+            if cfg == 'M':
+                layer = nn.MaxPool2d(kernel_size=k, stride=s)
+                self.features.append(layer)
+                # Update of the shape of the input-image, following Conv:
+                dim = (dim-k)//s+1
+                print(f"Dim: {dim}")
+            else:
+                layer = nn.Conv2d(in_channels=in_ch, out_channels=cfg, kernel_size=k, stride=s, padding=p) 
+                layer = layer_init(layer, w_scale=math.sqrt(2))
+                in_ch = cfg
+                self.features.append(layer)
+                self.features.append(self.non_linearities[idx](inplace=True))
+                # Update of the shape of the input-image, following Conv:
+                dim = (dim-k+2*p)//s+1
+                print(f"Dim: {dim}")
+        self.features = nn.Sequential(*self.features)
+
+        self.feat_map_dim = dim 
+        self.feat_map_depth = channels[-1]
 
         hidden_units = (dim * dim * channels[-1],)
         if isinstance(feature_dim, tuple):
@@ -99,20 +114,20 @@ class ConvolutionalBody(nn.Module):
 
         self.fcs = nn.ModuleList()
         for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
-            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))#1e-2))#1.0/math.sqrt(nbr_in*nbr_out)))
+            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))
+            if self.dropout:
+                self.fcs.append( nn.Dropout(p=self.dropout))
 
+    def _compute_feat_map(self, x):
+        return self.features(x)
 
     def forward(self, x, non_lin_output=True):
-        conv_map = x
-        if next(self.convs[0].parameters()).is_cuda and not(conv_map.is_cuda):   conv_map = conv_map.cuda()
-        for conv_layer, non_lin in zip(self.convs, self.non_linearities):
-            conv_map = non_lin(conv_layer(conv_map))
+        feat_map = self._compute_feat_map(x)
 
-        features = conv_map.view(conv_map.size(0), -1)
+        features = feat_map.view(feat_map.size(0), -1)
         for idx, fc in enumerate(self.fcs):
             features = fc(features)
-            if True:
-            #if idx != len(self.fcs)-1 or non_lin_output:
+            if idx != len(self.fcs)-1 or non_lin_output:
                 features = F.relu(features)
 
         return features
@@ -783,7 +798,7 @@ def resnet18Input64(input_shape, output_dim, **kwargs):
 
 
 class ConvolutionalLstmBody(ConvolutionalBody):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[F.relu], hidden_units=(256,), gate=F.relu):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -815,7 +830,8 @@ class ConvolutionalLstmBody(ConvolutionalBody):
         '''
         x, recurrent_neurons = inputs
         features = super(ConvolutionalLstmBody,self).forward(x)
-        return self.lstm_body( (features, recurrent_neurons))
+        x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
+        return x, recurrent_neurons
 
     def get_reset_states(self, cuda=False, repeat=1):
         return self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
@@ -860,8 +876,9 @@ class ConvolutionalGruBody(ConvolutionalBody):
         '''
         x, recurrent_neurons = inputs
         features = super(ConvolutionalGruBody,self).forward(x)
-        return self.gru_body( (features, recurrent_neurons))
-
+        x, recurrent_neurons['gru_body'] = self.gru_body( (features, recurrent_neurons['gru_body']))
+        return x, recurrent_neurons
+        
     def get_reset_states(self, cuda=False, repeat=1):
         return self.gru_body.get_reset_states(cuda=cuda, repeat=repeat)
 
@@ -1017,6 +1034,169 @@ class GRUBody(nn.Module):
 
     def get_feature_shape(self):
         return self.feature_dim
+
+
+class EmbeddingRNNBody(nn.Module):
+    def __init__(self, 
+                 voc_size, 
+                 embedding_size=64, 
+                 hidden_units=256, 
+                 num_layers=1, 
+                 gate=F.relu, 
+                 dropout=0.0, 
+                 rnn_fn=nn.GRU):
+        super(EmbeddingRNNBody, self).__init__()
+        self.voc_size = voc_size
+        self.embedding_size = embedding_size
+        if isinstance(hidden_units, list):  hidden_units=hidden_units[-1]
+        self.hidden_units = hidden_units
+        self.num_layers = num_layers
+        
+        self.embedding = nn.Embedding(self.voc_size, self.embedding_size, padding_idx=0)
+        self.rnn = rnn_fn(input_size=self.embedding_size,
+                                      hidden_size=hidden_units, 
+                                      num_layers=self.num_layers,
+                                      batch_first=True,
+                                      dropout=dropout,
+                                      bidirectional=False)
+        self.gate = gate
+
+    def forward(self, inputs):
+        x, recurrent_neurons = inputs
+        # Embedding:
+
+        embeddings = self.embedding(x)
+        # batch_size x sequence_length x embedding_size
+
+        rnn_outputs, rnn_states = self.rnn(embeddings)
+        # batch_size x sequence_length x hidden_units
+        # num_layer*num_directions, batch_size, hidden_units
+        
+        output = self.gate(rnn_outputs[:,-1,...])
+        # batch_size x hidden_units 
+
+        return output, recurrent_neurons
+
+    def get_feature_shape(self):
+        return self.hidden_units
+
+
+class CaptionRNNBody(nn.Module):
+    def __init__(self,
+                 vocabulary,
+                 max_sentence_length,
+                 embedding_size=64, 
+                 hidden_units=256, 
+                 num_layers=1, 
+                 gate=F.relu, 
+                 dropout=0.0, 
+                 rnn_fn=nn.GRU):
+        super(CaptionRNNBody, self).__init__()
+        self.vocabulary = set([w.lower() for w in vocabulary])
+        # Make padding_idx=0:
+        self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
+        
+        self.w2idx = {}
+        self.idx2w = {}
+        for idx, w in enumerate(self.vocabulary):
+            self.w2idx[w] = idx
+            self.idx2w[idx] = w
+
+        self.max_sentence_length = max_sentence_length
+        self.voc_size = len(self.vocabulary)
+
+        self.embedding_size = embedding_size
+        if isinstance(hidden_units, list):  hidden_units=hidden_units[-1]
+        self.hidden_units = hidden_units
+        self.num_layers = num_layers
+        
+        self.rnn_fn = rnn_fn
+        self.rnn = rnn_fn(input_size=self.embedding_size,
+                                      hidden_size=self.hidden_units, 
+                                      num_layers=self.num_layers,
+                                      batch_first=True,
+                                      dropout=dropout,
+                                      bidirectional=False)
+        self.embedding = nn.Embedding(self.voc_size, self.embedding_size, padding_idx=0)
+        self.token_decoder = nn.Linear(self.hidden_units, self.voc_size)
+        
+        self.gate = gate
+
+        self.criterion = nn.CrossEntropyLoss(reduction='none')
+        self.loss = 0
+
+    def forward(self, x, gt_sentences=None):
+        '''
+        If :param gt_sentences: is not `None`,
+        then teacher forcing is implemented...
+        '''
+        if gt_sentences is not None:
+            gt_sentences = gt_sentences.to(x.device)
+
+        # batch_size x hidden_units
+        batch_size = x.shape[0]
+        h_0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(x.device) 
+        h_0[0] = x.reshape(batch_size, -1)
+        # (num_layers * num_directions, batch, hidden_size)
+        
+        if self.rnn_fn==nn.LSTM:
+            c_0 = torch.zeros(self.num_layers, batch_size, self.hidden_units).to(x.device) 
+            decoder_hidden = (h_0,c_0)
+        else:
+            decoder_hidden = h_0 
+        
+        decoder_input = self.embedding(torch.LongTensor([self.w2idx["SoS"]]*batch_size).to(x.device)).unsqueeze(1)
+        # batch_size x 1 x embedding_size
+
+        loss_per_item = []
+
+        predicted_sentences = self.w2idx['PAD']*torch.ones(batch_size, self.max_sentence_length, dtype=torch.long).to(x.device)
+        for t in range(self.max_sentence_length):
+            output, decoder_hidden = self._rnn(decoder_input, h_c=decoder_hidden)
+            token_distribution = F.softmax(self.token_decoder(output), dim=-1) 
+            idxs_next_token = torch.argmax(token_distribution, dim=1)
+            # batch_size x 1
+            predicted_sentences[:, t] = idxs_next_token
+            
+            # Compute loss:
+            if gt_sentences is not None:
+                mask = (gt_sentences[:, t]!=self.w2idx['PAD']).float().to(x.device)
+                # batch_size x 1
+                batched_loss = self.criterion(token_distribution, gt_sentences[:, t])*mask
+                loss_per_item.append(batched_loss)
+                
+            # Preparing next step:
+            if gt_sentences is not None:
+                idxs_next_token = gt_sentences[:, t]
+            # batch_size x 1
+            decoder_input = self.embedding(idxs_next_token).unsqueeze(1)
+            # batch_size x 1 x embedding_size            
+        
+        for b in range(batch_size):
+            end_idx = 0
+            for idx_t in range(predicted_sentences.shape[1]):
+                if predicted_sentences[b,idx_t] == self.w2idx['EoS']:
+                    break
+                end_idx += 1
+
+        if gt_sentences is not None:
+            loss_per_item = torch.cat(loss_per_item, dim=0)
+            accuracies = (predicted_sentences==gt_sentences).float().mean(dim=0)
+            return predicted_sentences, loss_per_item, accuracies
+
+        return predicted_sentences
+
+    def _rnn(self, x, h_c):
+        batch_size = x.shape[0]
+        rnn_outputs, h_c = self.rnn(x, h_c)
+        output = self.gate(rnn_outputs[:,-1,...])
+        # batch_size x hidden_units 
+        return output, h_c
+        # batch_size x sequence_length=1 x hidden_units
+        # num_layer*num_directions, batch_size, hidden_units
+        
+    def get_feature_shape(self):
+        return self.hidden_units
 
 
 class TwoLayerFCBodyWithAction(nn.Module):

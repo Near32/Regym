@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F 
 
-from . import dqn_loss, ddqn_loss
+from . import dqn_ther_loss, ddqn_ther_loss
 
 from ..algorithm import Algorithm
 from ...replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
@@ -18,8 +18,8 @@ from ...networks import hard_update, random_sample
 summary_writer = None 
 
 
-class DQNAlgorithm(Algorithm):
-    def __init__(self, kwargs, model, target_model=None, optimizer=None, loss_fn=dqn_loss.compute_loss, sum_writer=None):
+class THERAlgorithm(Algorithm):
+    def __init__(self, kwargs, model, predictor, target_model=None, optimizer=None, sum_writer=None):
         '''
         '''
         self.kwargs = copy.deepcopy(kwargs)        
@@ -56,9 +56,10 @@ class DQNAlgorithm(Algorithm):
         if self.use_cuda:
             self.target_model = self.target_model.cuda()
 
+        self.predictor = predictor
         
         if optimizer is None:
-            parameters = self.model.parameters()
+            parameters = list(self.model.parameters())+list(self.predictor.parameters())
             # Tuning learning rate with respect to the number of actors:
             # Following: https://arxiv.org/abs/1705.04862
             lr = kwargs['learning_rate'] 
@@ -68,10 +69,6 @@ class DQNAlgorithm(Algorithm):
             self.optimizer = optim.Adam(parameters, lr=lr, betas=(0.9,0.999), eps=kwargs['adam_eps'])
         else: self.optimizer = optimizer
 
-        self.loss_fn = loss_fn
-        print(f"WARNING: loss_fn is {self.loss_fn}")
-            
-            
         self.recurrent = False
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
         # elements that do not concern the model trained by this algorithm, given that it is now use-able inside I2A...
@@ -180,6 +177,7 @@ class DQNAlgorithm(Algorithm):
         self.target_update_count += self.nbr_actor
 
         samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
+        if self.recurrent: samples['rnn_states'] = self.reformat_rnn_states(samples['rnn_states'])
         
         if self.noisy:  
             self.model.reset_noise()
@@ -219,24 +217,14 @@ class DQNAlgorithm(Algorithm):
             
             values = {}
             for key, value in zip(keys, sample):
-                value = value.tolist()
-                if isinstance(value[0], dict):   
-                    value = Algorithm._concatenate_hdict(value.pop(0), value, map_keys=['hidden', 'cell'])
-                else:
-                    value = torch.cat(value, dim=0)
+                value = torch.cat(value.tolist(), dim=0)
                 values[key] = value 
 
             for key, value in values.items():
-                if isinstance(value, torch.Tensor):
-                    fulls[key].append(value)
-                else:
-                    fulls[key] = value
+                fulls[key].append(value)
 
         for key, value in fulls.items():
-            if isinstance(value, dict):
-                fulls[key] = value
-            else:
-                fulls[key] = torch.cat(value, dim=0)
+            fulls[key] = torch.cat(value, dim=0)
         
         return fulls
 
@@ -252,10 +240,16 @@ class DQNAlgorithm(Algorithm):
         rewards = samples['r']
         non_terminals = samples['non_terminal']
 
-        rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
+        rnn_states = samples['rnn_state'] if 'rnn_state' in samples else None
         goals = samples['g'] if 'g' in samples else None
 
         importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
+
+        # What is this? create dictionary to store length of each part of the recurrent submodules of the current model
+        nbr_layers_per_rnn = None
+        if self.recurrent:
+            nbr_layers_per_rnn = {recurrent_submodule_name: len(rnn_states[recurrent_submodule_name]['hidden'])
+                                  for recurrent_submodule_name in rnn_states}
 
         # For each actor, there is one mini_batch update:
         sampler = random_sample(np.arange(states.size(0)), minibatch_size)
@@ -271,7 +265,7 @@ class DQNAlgorithm(Algorithm):
 
             sampled_rnn_states = None
             if self.recurrent:
-                sampled_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_rnn_states = self.calculate_rnn_states_from_batch_indices(rnn_states, batch_indices, nbr_layers_per_rnn)
 
             sampled_goals = None
             if self.goal_oriented:
@@ -288,28 +282,49 @@ class DQNAlgorithm(Algorithm):
             sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
             
             self.optimizer.zero_grad()
-            
-            loss, loss_per_item = self.loss_fn(sampled_states, 
-                                          sampled_actions, 
-                                          sampled_next_states,
-                                          sampled_rewards,
-                                          sampled_non_terminals,
-                                          rnn_states=sampled_rnn_states,
-                                          goals=sampled_goals,
-                                          gamma=self.GAMMA,
-                                          model=self.model,
-                                          target_model=self.target_model,
-                                          weights_decay_lambda=self.weights_decay_lambda,
-                                          use_PER=self.use_PER,
-                                          PER_beta=beta,
-                                          importanceSamplingWeights=sampled_importanceSamplingWeights,
-                                          use_HER=self.use_HER,
-                                          iteration_count=self.param_update_counter,
-                                          summary_writer=summary_writer)
-            
+            if self.double or self.dueling:
+                loss, loss_per_item = ddqn_ther_loss.compute_loss(sampled_states, 
+                                              sampled_actions, 
+                                              sampled_next_states,
+                                              sampled_rewards,
+                                              sampled_non_terminals,
+                                              rnn_states=sampled_rnn_states,
+                                              goals=sampled_goals,
+                                              gamma=self.GAMMA,
+                                              model=self.model,
+                                              predictor=self.predictor,
+                                              target_model=self.target_model,
+                                              weights_decay_lambda=self.weights_decay_lambda,
+                                              use_PER=self.use_PER,
+                                              PER_beta=beta,
+                                              importanceSamplingWeights=sampled_importanceSamplingWeights,
+                                              use_HER=self.use_HER,
+                                              iteration_count=self.param_update_counter,
+                                              summary_writer=summary_writer)
+            else:
+                loss, loss_per_item = dqn_ther_loss.compute_loss(sampled_states, 
+                                              sampled_actions, 
+                                              sampled_next_states,
+                                              sampled_rewards,
+                                              sampled_non_terminals,
+                                              rnn_states=sampled_rnn_states,
+                                              goals=sampled_goals,
+                                              gamma=self.GAMMA,
+                                              model=self.model,
+                                              predictor=self.predictor,
+                                              target_model=self.target_model,
+                                              weights_decay_lambda=self.weights_decay_lambda,
+                                              use_PER=self.use_PER,
+                                              PER_beta=beta,
+                                              importanceSamplingWeights=sampled_importanceSamplingWeights,
+                                              use_HER=self.use_HER,
+                                              iteration_count=self.param_update_counter,
+                                              summary_writer=summary_writer)
+
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+                nn.utils.clip_grad_norm_(self.predictor.parameters(), self.kwargs['gradient_clip'])
             self.optimizer.step()
 
             if self.use_PER:

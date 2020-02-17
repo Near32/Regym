@@ -48,6 +48,7 @@ def parse_gym_environment(env: gym.Env, env_type: EnvType, name: str = None) -> 
 
 def parse_dimension_space(space, key="observation"):
     if isinstance(space, Discrete): return space.n, 'Discrete' # One neuron is enough to take any Discrete space
+    if isinstance(space, MultiDiscrete): return space.nvec, 'MultiDiscrete' # One neuron is enough to take any Discrete space
     if isinstance(space, MultiBinary): return space.n, 'MultiBinary' # One neuron is enough to take any Discrete space
     elif isinstance(space, Box): return space.shape, 'Continuous'
     elif isinstance(space, Tuple): return sum([parse_dimension_space(s)[0] for s in space.spaces]), parse_dimension_space(space.spaces[0])[1]

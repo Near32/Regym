@@ -5,18 +5,18 @@ from .algorithm_wrapper import AlgorithmWrapper
 
 def state_eq_goal_reward_fn(state, goal, epsilon=1e-3):
     if torch.abs(state-goal).mean() < epsilon:
-        return torch.zeros(1)
+        return torch.zeros(1), state
     else:
-        return -torch.ones(1)
+        return -torch.ones(1), state
 
 
 def state_eq_goal_reward_fn(achieved_exp, desired_exp, epsilon=1e-3):
     state = achieved_exp['succ_s']
     goal = desired_exp['goals']['achieved_goals']['s']
     if torch.abs(state-goal).mean() < epsilon:
-        return torch.zeros(1)
+        return torch.zeros(1), goal
     else:
-        return -torch.ones(1)
+        return -torch.ones(1), goal
 
 
 def latent_based_goal_predicated_reward_fn(achieved_exp, desired_exp, epsilon=1e-3):
@@ -25,9 +25,9 @@ def latent_based_goal_predicated_reward_fn(achieved_exp, desired_exp, epsilon=1e
     abs_fn = torch.abs 
     if not(isinstance(state, torch.Tensor)):    abs_fn = np.abs
     if abs_fn(state-goal).mean() < epsilon:
-        return torch.zeros(1)
+        return torch.zeros(1), desired_exp['goals']['achieved_goals']['s']
     else:
-        return -torch.ones(1)
+        return -torch.ones(1), desired_exp['goals']['achieved_goals']['s']
 
 
 class HERAlgorithmWrapper(AlgorithmWrapper):
@@ -67,11 +67,11 @@ class HERAlgorithmWrapper(AlgorithmWrapper):
                 for k in range(self.k):
                     d2store = {}
                     if 'final' in self.strategy:
-                        achieved_goal = self.episode_buffer[actor_index][-1]['goals']['achieved_goals']['s']
+                        #achieved_goal = self.episode_buffer[actor_index][-1]['goals']['achieved_goals']['s']
                         
                         achieved_exp = self.episode_buffer[actor_index][idx]
                         desired_exp = self.episode_buffer[actor_index][-1]
-                        new_r = self.goal_predicated_reward_fn(achieved_exp=achieved_exp, desired_exp=desired_exp)
+                        new_r, achieved_goal = self.goal_predicated_reward_fn(achieved_exp=achieved_exp, desired_exp=desired_exp)
                         
                         new_non_terminal = torch.zeros(1) if all(new_r>-0.5) else torch.ones(1)
                         
@@ -82,11 +82,11 @@ class HERAlgorithmWrapper(AlgorithmWrapper):
                     
                     if 'future' in self.strategy:
                         future_idx = np.random.randint(idx, episode_length)
-                        achieved_goal = self.episode_buffer[actor_index][future_idx]['goals']['achieved_goals']['s']
+                        #achieved_goal = self.episode_buffer[actor_index][future_idx]['goals']['achieved_goals']['s']
                         
                         achieved_exp = self.episode_buffer[actor_index][idx]
                         desired_exp = self.episode_buffer[actor_index][future_idx]
-                        new_r = self.goal_predicated_reward_fn(achieved_exp=achieved_exp, desired_exp=desired_exp)
+                        new_r, achieved_goal = self.goal_predicated_reward_fn(achieved_exp=achieved_exp, desired_exp=desired_exp)
                         
                         new_non_terminal = torch.zeros(1) if all(new_r>-0.5) else torch.ones(1) 
                         d2store = {'s':s, 'a':a, 'r':new_r, 'succ_s':succ_s, 'non_terminal':new_non_terminal, 'g':achieved_goal}
@@ -100,6 +100,6 @@ class HERAlgorithmWrapper(AlgorithmWrapper):
             self.episode_buffer[actor_index] = []
 
     def clone(self):
-        return HERAlgorithmWrapper(algorithm=self.algorithm, 
+        return HERAlgorithmWrapper(algorithm=self.algorithm.clone(), 
                                    strategy=self.strategy, 
                                    goal_predicated_reward_fn=self.goal_predicated_reward_fn)

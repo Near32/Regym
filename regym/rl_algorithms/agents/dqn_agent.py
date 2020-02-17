@@ -8,7 +8,7 @@ import random
 #from ..networks import PreprocessFunction
 #from ..DQN import DeepQNetworkAlgorithm, DoubleDeepQNetworkAlgorithm
 
-from ..algorithms.DQN import DQNAlgorithm
+from ..algorithms.DQN import DQNAlgorithm, dqn_loss, ddqn_loss
 from ..networks import CategoricalQNet
 from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalGruBody
 from ..networks import NoisyLinear
@@ -397,7 +397,12 @@ def build_DQN_Agent(task, config, agent_name):
                             goal_phi_body=goal_phi_body)
 
     model.share_memory()
-    dqn_algorithm = DQNAlgorithm(kwargs, model)
+
+    loss_fn = dqn_loss.compute_loss
+    if kwargs['double'] or kwargs['dueling']:
+        loss_fn = ddqn_loss.compute_loss
+    
+    dqn_algorithm = DQNAlgorithm(kwargs, model, loss_fn=loss_fn)
 
     if 'use_HER' in kwargs and kwargs['use_HER']:
         from ..algorithms.wrappers import latent_based_goal_predicated_reward_fn

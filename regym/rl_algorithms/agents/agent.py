@@ -7,13 +7,15 @@ def named_children(cm):
         if m is not None:
             yield name, m
 
-def look_for_keys_and_apply(cm, keys, prefix='', accum=list(), apply_fn=None, kwargs={}):
+def look_for_keys_and_apply(cm, keys, prefix='', accum=dict(), apply_fn=None, kwargs={}):
     for name, m in named_children(cm):
-        look_for_keys_and_apply(m, keys=keys, prefix=prefix+'.'+name, accum=accum, apply_fn=apply_fn, kwargs=kwargs)
+        accum[name] = {}
+        look_for_keys_and_apply(m, keys=keys, prefix=prefix+'.'+name, accum=accum[name], apply_fn=apply_fn, kwargs=kwargs)
         if any( [key in m._get_name() for key in keys]):
             if isinstance(apply_fn, str):   apply_fn = getattr(m, apply_fn, None)
             if apply_fn is not None:    accum[name] = apply_fn(**kwargs)
-            
+        elif accum[name]=={}:
+            del accum[name]    
 
 
 class Agent(object):
@@ -114,57 +116,75 @@ class Agent(object):
         return rnn_keys, rnn_states
         
 
-    def remove_from_rnn_states(self, batch_idx):
+    def remove_from_rnn_states(self, batch_idx, rnn_states_dict=None):
         '''
         Remove a row(=batch) of data from the rnn_states.
         :param batch_idx: index on the batch dimension that specifies which row to remove.
         '''
-        for recurrent_submodule_name in self.rnn_states:
-            for idx in range(len(self.rnn_states[recurrent_submodule_name]['hidden'])):
-                self.rnn_states[recurrent_submodule_name]['hidden'][idx] = torch.cat(
-                    [self.rnn_states[recurrent_submodule_name]['hidden'][idx][:batch_idx,...], 
-                     self.rnn_states[recurrent_submodule_name]['hidden'][idx][batch_idx+1:,...]],
-                     dim=0)
-                self.rnn_states[recurrent_submodule_name]['cell'][idx] = torch.cat(
-                    [self.rnn_states[recurrent_submodule_name]['cell'][idx][:batch_idx,...], 
-                     self.rnn_states[recurrent_submodule_name]['cell'][idx][batch_idx+1:,...]],
-                     dim=0)
+        if rnn_states_dict is None: rnn_states_dict = self.rnn_states
+        for recurrent_submodule_name in rnn_states_dict:
+            if 'hidden' not in rnn_states_dict[recurrent_submodule_name]:
+                self.remove_from_rnn_states(batch_idx=batch_idx, rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
+            else:
+                for idx in range(len(rnn_states_dict[recurrent_submodule_name]['hidden'])):
+                    rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = torch.cat(
+                        [rnn_states_dict[recurrent_submodule_name]['hidden'][idx][:batch_idx,...], 
+                         rnn_states_dict[recurrent_submodule_name]['hidden'][idx][batch_idx+1:,...]],
+                         dim=0)
+                    rnn_states_dict[recurrent_submodule_name]['cell'][idx] = torch.cat(
+                        [rnn_states_dict[recurrent_submodule_name]['cell'][idx][:batch_idx,...], 
+                         rnn_states_dict[recurrent_submodule_name]['cell'][idx][batch_idx+1:,...]],
+                         dim=0)
         
-    def _pre_process_rnn_states(self):
-        if self.rnn_states is None: 
-            _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
+    def _pre_process_rnn_states(self, rnn_states_dict=None):
+        if rnn_states_dict is None: 
+            if self.rnn_states is None: 
+                _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
+            rnn_states_dict = self.rnn_states
 
         if self.algorithm.kwargs['use_cuda']:
-            for recurrent_submodule_name in self.rnn_states:
-                for idx in range(len(self.rnn_states[recurrent_submodule_name]['hidden'])):
-                    self.rnn_states[recurrent_submodule_name]['hidden'][idx] = self.rnn_states[recurrent_submodule_name]['hidden'][idx].cuda()
-                    self.rnn_states[recurrent_submodule_name]['cell'][idx]   = self.rnn_states[recurrent_submodule_name]['cell'][idx].cuda()
+            for recurrent_submodule_name in rnn_states_dict:
+                if 'hidden' not in rnn_states_dict[recurrent_submodule_name]:
+                    self._pre_process_rnn_states(rnn_states_dict=rnn_states_dict[recurrent_submodule_name])                
+                else:
+                    for idx in range(len(rnn_states_dict[recurrent_submodule_name]['hidden'])):
+                        rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = rnn_states_dict[recurrent_submodule_name]['hidden'][idx].cuda()
+                        rnn_states_dict[recurrent_submodule_name]['cell'][idx]   = rnn_states_dict[recurrent_submodule_name]['cell'][idx].cuda()
 
     @staticmethod
+    def _post_process_rnn_states(next_rnn_states_dict: dict, rnn_states_dict: dict):
+        for recurrent_submodule_name in rnn_states_dict:
+            if 'hidden' not in rnn_states_dict[recurrent_submodule_name]:
+                Agent._post_process_rnn_states(next_rnn_states_dict=next_rnn_states_dict[recurrent_submodule_name],
+                                              rnn_states_dict=rnn_states_dict[recurrent_submodule_name])                
+            else:
+                for idx in range(len(rnn_states_dict[recurrent_submodule_name]['hidden'])):
+                    rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx].cpu()
+                    rnn_states_dict[recurrent_submodule_name]['cell'][idx]   = next_rnn_states_dict[recurrent_submodule_name]['cell'][idx].cpu()
+
+                    next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx].detach().cpu()
+                    next_rnn_states_dict[recurrent_submodule_name]['cell'][idx] = next_rnn_states_dict[recurrent_submodule_name]['cell'][idx].detach().cpu()
+    
+    @staticmethod
     def _extract_from_rnn_states(rnn_states_batched: dict, batch_idx: int):
-        rnn_states = {k: {'hidden':[], 'cell':[]} for k in rnn_states_batched}
+        rnn_states = {k: {} for k in rnn_states_batched}
         for recurrent_submodule_name in rnn_states_batched:
-            for idx in range(len(rnn_states_batched[recurrent_submodule_name]['hidden'])):
-                rnn_states[recurrent_submodule_name]['hidden'].append( rnn_states_batched[recurrent_submodule_name]['hidden'][idx][batch_idx,...].unsqueeze(0))
-                rnn_states[recurrent_submodule_name]['cell'].append( rnn_states_batched[recurrent_submodule_name]['cell'][idx][batch_idx,...].unsqueeze(0))
+            if 'hidden' in rnn_states_batched[recurrent_submodule_name]:
+                rnn_states[recurrent_submodule_name] = {'hidden':[], 'cell':[]}
+                for idx in range(len(rnn_states_batched[recurrent_submodule_name]['hidden'])):
+                    rnn_states[recurrent_submodule_name]['hidden'].append( rnn_states_batched[recurrent_submodule_name]['hidden'][idx][batch_idx,...].unsqueeze(0))
+                    rnn_states[recurrent_submodule_name]['cell'].append( rnn_states_batched[recurrent_submodule_name]['cell'][idx][batch_idx,...].unsqueeze(0))
+            else:
+                rnn_states[recurrent_submodule_name] = Agent._extract_from_rnn_states(rnn_states_batched=rnn_states_batched[recurrent_submodule_name], batch_idx=batch_idx)
         return rnn_states
 
     def _post_process(self, prediction):
         if self.recurrent:
-            for recurrent_submodule_name in self.rnn_states:
-                for idx in range(len(self.rnn_states[recurrent_submodule_name]['hidden'])):
-                    self.rnn_states[recurrent_submodule_name]['hidden'][idx] = prediction['next_rnn_states'][recurrent_submodule_name]['hidden'][idx].cpu()
-                    self.rnn_states[recurrent_submodule_name]['cell'][idx]   = prediction['next_rnn_states'][recurrent_submodule_name]['cell'][idx].cpu()
+            Agent._post_process_rnn_states(next_rnn_states_dict=prediction['next_rnn_states'],
+                                           rnn_states_dict=self.rnn_states)
 
             for k, v in prediction.items():
-                if isinstance(v, dict):
-                    for vk in v:
-                        hs, cs = v[vk]['hidden'], v[vk]['cell']
-                        for idx in range(len(hs)):
-                            hs[idx] = hs[idx].detach().cpu()
-                            cs[idx] = cs[idx].detach().cpu()
-                        prediction[k][vk] = {'hidden': hs, 'cell': cs}
-                else:
+                if isinstance(v, torch.Tensor):
                     prediction[k] = v.detach().cpu()
         else:
             prediction = {k: v.detach().cpu() for k, v in prediction.items()}

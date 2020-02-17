@@ -23,6 +23,25 @@ class DuelingLayer(nn.Module):
         adv = self.advantage(fx)
         return v.expand_as(adv) + (adv - adv.mean(1, keepdim=True).expand_as(adv))
 
+class InstructionPredictor(nn.Module):
+    def __init__(self,
+                 encoder,
+                 decoder):
+        super(InstructionPredictor, self).__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def forward(self, x):
+        if next(self.encoder.parameters()).is_cuda:
+            x = x.cuda()
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x 
+
+    def compute_loss(self, x, goal):
+        x = self.encoder(x)
+        x, loss_per_item, accuracies = self.decoder(x, gt_sentences=goal)
+        return {'prediction':x, 'loss_per_item':loss_per_item, 'accuracies':accuracies}
 
 class CategoricalQNet(nn.Module):
     def __init__(self,

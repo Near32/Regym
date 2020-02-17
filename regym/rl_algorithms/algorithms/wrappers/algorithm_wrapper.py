@@ -3,8 +3,21 @@ from ..algorithm import Algorithm
 class AlgorithmWrapper(Algorithm):
     def __init__(self, algorithm):
         self.algorithm = algorithm 
-        self.kwargs = self.algorithm.kwargs
 
+    @property
+    def kwargs(self):
+        return self.algorithm.kwargs
+    
+
+    @property
+    def recurrent(self):
+        return self.algorithm.recurrent
+    
+
+    @property
+    def nbr_actor(self):
+        return self.algorithm.nbr_actor
+    
     def get_models(self):
         return self.algorithm.get_models()
 
