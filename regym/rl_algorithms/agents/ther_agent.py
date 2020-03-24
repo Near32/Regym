@@ -279,17 +279,23 @@ def build_THER_Agent(task, config, agent_name):
         if 'nbr_frame_stacking' in kwargs:
             kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
         input_shape = kwargs['preprocessed_observation_shape']
-        channels = [input_shape[0]] + kwargs['predictor_encoder_arch_channels']
-        kernels = kwargs['predictor_encoder_arch_kernels']
-        strides = kwargs['predictor_encoder_arch_strides']
-        paddings = kwargs['predictor_encoder_arch_paddings']
-        output_dim = kwargs['predictor_encoder_arch_feature_dim']
-        predictor_encoder = ConvolutionalBody(input_shape=input_shape,
-                                     feature_dim=output_dim,
-                                     channels=channels,
-                                     kernel_sizes=kernels,
-                                     strides=strides,
-                                     paddings=paddings)
+        
+        if kwargs['THER_predictor_policy_shared_phi']:
+            predictor_encoder = phi_body.cnn_body
+            output_dim = predictor_encoder.get_feature_shape()
+            assert( output_dim == kwargs['predictor_decoder_arch_hidden_units'][-1])
+        else:
+            channels = [input_shape[0]] + kwargs['predictor_encoder_arch_channels']
+            kernels = kwargs['predictor_encoder_arch_kernels']
+            strides = kwargs['predictor_encoder_arch_strides']
+            paddings = kwargs['predictor_encoder_arch_paddings']
+            output_dim = kwargs['predictor_encoder_arch_feature_dim']
+            predictor_encoder = ConvolutionalBody(input_shape=input_shape,
+                                         feature_dim=output_dim,
+                                         channels=channels,
+                                         kernel_sizes=kernels,
+                                         strides=strides,
+                                         paddings=paddings)
 
     predictor_decoder = CaptionRNNBody(vocabulary=kwargs['THER_vocabulary'],
                                 max_sentence_length=kwargs['THER_max_sentence_length'],

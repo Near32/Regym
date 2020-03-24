@@ -330,7 +330,7 @@ class PrioritizedReplayStorage(ReplayStorage):
                  capacity, 
                  alpha=0.2, 
                  beta=1.0, 
-                 beta_increase_interval=1e5, 
+                 beta_increase_interval=1e4, 
                  keys=None, 
                  circular_keys={'succ_s':'s'},
                  circular_offsets={'succ_s':1}):
@@ -423,7 +423,7 @@ class PrioritizedReplayStorage(ReplayStorage):
         prioritysum = self.total()
         low = 0.0
         step = (prioritysum-low) / batch_size
-        randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size))
+        randexp = np.arange(low,prioritysum,step)[:batch_size,...]+np.random.uniform(low=0.0,high=step,size=(batch_size))
         
         self.tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
         priorities = [self.tree[tidx] for tidx in self.tree_indices]
@@ -449,6 +449,139 @@ class PrioritizedReplayStorage(ReplayStorage):
 
         return data, self.importanceSamplingWeights
 
+
+class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
+    def __init__(self, 
+                 capacity, 
+                 alpha=0.2, 
+                 beta=1.0, 
+                 beta_increase_interval=1e4, 
+                 keys=None, 
+                 circular_keys={'succ_s':'s'},
+                 circular_offsets={'succ_s':1},
+                 test_train_split_interval=10,
+                 test_capacity=None):
+        if test_capacity is None: test_capacity=capacity
+        self.test_capacity = test_capacity
+        self.test_train_split_interval = test_train_split_interval
+        self.data_count = 0
+        self.test_storage = PrioritizedReplayStorage(capacity=self.test_capacity,
+                                                     alpha=alpha,
+                                                     beta=beta,
+                                                     beta_increase_interval=80,
+                                                     keys=keys,
+                                                     circular_keys=circular_keys,
+                                                     circular_offsets=circular_offsets)
+        super(SplitPrioritizedReplayStorage, self).__init__(capacity=capacity, 
+                                                       alpha=alpha,
+                                                       beta=beta,
+                                                       beta_increase_interval=beta_increase_interval,
+                                                       keys=keys, 
+                                                       circular_keys=circular_keys,
+                                                       circular_offsets=circular_offsets)
+
+    def total(self, test=False):
+        if test:
+            return self.storage.total()
+        else:
+            return self.tree[0]
+
+    def get_test_storage(self):
+        return self.test_storage
+
+    def get_size(self, test=False):
+        if test:
+            return len(self.test_storage)
+        else:
+            return self.current_size['s']
+
+    def update(self, idx, priority, test=False):
+        if test:
+            self.test_storage.update(idx=idx, priority=priority)
+        else:
+            super(SplitPrioritizedReplayStorage, self).update(idx=idx, priority=priority)
+            '''
+            if np.isnan(priority) or np.isinf(priority) :
+                priority = self.max_priority
+
+            change = priority - self.tree[idx]
+            
+            previous_priority = self.tree[idx]
+            self.sumPi_alpha -= previous_priority
+
+            self.sumPi_alpha += priority
+            self.tree[idx] = priority
+
+            self.max_priority = max(priority, self.max_priority)
+
+            self._propagate(idx,change)
+            '''
+
+    def reset(self):
+        self.test_storage.reset()
+        super(SplitPrioritizedReplayStorage, self).reset()
+
+    def add(self, data, priority):
+        self.data_count += 1
+        if self.data_count % self.test_train_split_interval == 0:
+            self.test_storage.add(exp=data, priority=priority)
+        else:  
+            super(SplitPrioritizedReplayStorage, self).add(exp=data, priority=priority)  
+            '''
+            if priority is None:
+                priority = self.max_priority
+
+            super(PrioritizedReplayStorage, self).add(data=exp)
+            self.length = min(self.length+1, self.capacity)
+            
+            if np.isnan(priority) or np.isinf(priority) :
+                priority = self.max_priority
+            self.sumPi_alpha += priority
+
+            idx = self.position['s'] + self.capacity -1
+            self.update(idx,priority)
+
+            self._update_beta()
+            '''
+
+    def sample(self, batch_size, keys=None, test=False):
+        if test:
+            return self.test_storage.sample(batch_size=batch_size, keys=keys)
+        else:
+            return super(SplitPrioritizedReplayStorage, self).sample(batch_size=batch_size, keys=keys)
+        '''
+        if keys is None:    keys = self.keys + self.circular_keys.keys()
+        
+        # Random Experience Sampling with priority
+        prioritysum = self.total()
+        low = 0.0
+        step = (prioritysum-low) / batch_size
+        randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size))
+        
+        self.tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
+        priorities = [self.tree[tidx] for tidx in self.tree_indices]
+        
+        #Check that priorities are valid:
+        valid = False
+        while not valid:
+            valid = True
+            for idx in range(len(priorities)):
+                if priorities[idx] == 0:
+                    valid = False
+                    newrandexp = randexp[idx]-np.random.uniform(low=0.0, high=step, size=(1))
+                    self.tree_indices[idx] = self._retrieve(0,newrandexp)
+                    priorities[idx] = self.tree[self.tree_indices[idx]]
+                    break
+
+        # Importance Sampling Weighting:
+        priorities = np.array(priorities, dtype=np.float32)
+        self.importanceSamplingWeights = np.power( len(self) * priorities , -self.beta)
+
+        data_indices = np.array([tidx-self.capacity+1 for tidx in self.tree_indices])
+        data = self.cat(keys=keys, indices=data_indices)
+
+        return data, self.importanceSamplingWeights
+        '''
 
 
 class FasterPrioritizedReplayStorage(PrioritizedReplayStorage):

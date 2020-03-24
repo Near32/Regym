@@ -40,6 +40,8 @@ def compute_loss(states: torch.Tensor,
     prediction = output_dict['prediction']
     loss_per_item = output_dict['loss_per_item']
     accuracies = output_dict['accuracies']
+    sentence_accuracies = output_dict['sentence_accuracies']
+    accuracy = sentence_accuracies.cpu().mean().item()
 
     if use_PER:
       loss_per_item = importanceSamplingWeights * loss_per_item
@@ -50,6 +52,7 @@ def compute_loss(states: torch.Tensor,
     if summary_writer is not None:
         summary_writer.add_scalar('Training/THER_Predictor/Loss', loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/THER_Predictor/Accuracy', accuracies.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/THER_Predictor/SentenceAccuracy', sentence_accuracies.cpu().item(), iteration_count)
         for idx in range(accuracies.shape[-1]):
           summary_writer.add_scalar(f'Training/THER_Predictor/Accuracy_{idx}', accuracies[..., idx].cpu().item(), iteration_count)
         
@@ -58,4 +61,7 @@ def compute_loss(states: torch.Tensor,
             summary_writer.add_scalar('Training/THER_Predictor/ImportanceSamplingStd', importanceSamplingWeights.cpu().std().item(), iteration_count)
             summary_writer.add_scalar('Training/THER_Predictor/PER_Beta', PER_beta, iteration_count)
 
-    return loss, loss_per_item
+    return {'loss':loss, 
+            'loss_per_item':loss_per_item,
+            'accuracy':accuracy
+            }

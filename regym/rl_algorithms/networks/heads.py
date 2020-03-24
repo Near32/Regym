@@ -40,8 +40,8 @@ class InstructionPredictor(nn.Module):
 
     def compute_loss(self, x, goal):
         x = self.encoder(x)
-        x, loss_per_item, accuracies = self.decoder(x, gt_sentences=goal)
-        return {'prediction':x, 'loss_per_item':loss_per_item, 'accuracies':accuracies}
+        output_dict = self.decoder(x, gt_sentences=goal)
+        return output_dict
 
 class CategoricalQNet(nn.Module):
     def __init__(self,

@@ -12,10 +12,11 @@ def compute_loss(states: torch.Tensor,
                  target_model: torch.nn.Module,
                  gamma: float = 0.99,
                  weights_decay_lambda: float = 1.0,
+                 weights_entropy_lambda: float = 0.1,
                  use_PER: bool = False,
                  PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
-                 use_HER: bool = False,
+                 HER_target_clamping: bool = False,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
@@ -68,7 +69,7 @@ def compute_loss(states: torch.Tensor,
         # Compute the expected Q values:
         expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals    
 
-        if use_HER:
+        if HER_target_clamping:
             # clip the target to [-50,0]
             expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)
     ############################
@@ -81,7 +82,7 @@ def compute_loss(states: torch.Tensor,
     if use_PER:
       diff_squared = importanceSamplingWeights * diff_squared
     
-    loss = 0.5*torch.mean(diff_squared)
+    loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*prediction['ent'].mean()
     
     if summary_writer is not None:
         summary_writer.add_scalar('Training/MeanQAValues', prediction['qa'].cpu().mean().item(), iteration_count)

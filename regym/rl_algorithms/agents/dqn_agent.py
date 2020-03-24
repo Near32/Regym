@@ -401,7 +401,7 @@ def build_DQN_Agent(task, config, agent_name):
     loss_fn = dqn_loss.compute_loss
     if kwargs['double'] or kwargs['dueling']:
         loss_fn = ddqn_loss.compute_loss
-    
+
     dqn_algorithm = DQNAlgorithm(kwargs, model, loss_fn=loss_fn)
 
     if 'use_HER' in kwargs and kwargs['use_HER']:

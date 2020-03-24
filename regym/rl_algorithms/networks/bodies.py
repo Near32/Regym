@@ -797,7 +797,8 @@ def resnet18Input64(input_shape, output_dim, **kwargs):
     return _resnet(input_shape=input_shape, block=BasicBlock, layers=[2, 2, 2, 2], stride_per_layer=[1, 2, 1, 2], output_dim=output_dim, **kwargs)
 
 
-class ConvolutionalLstmBody(ConvolutionalBody):
+#class ConvolutionalLstmBody(ConvolutionalBody):
+class ConvolutionalLstmBody(nn.Module):
     def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
@@ -812,6 +813,7 @@ class ConvolutionalLstmBody(ConvolutionalBody):
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
         '''
+        '''
         super(ConvolutionalLstmBody, self).__init__(input_shape=input_shape,
                                                 feature_dim=feature_dim,
                                                 channels=channels,
@@ -819,8 +821,19 @@ class ConvolutionalLstmBody(ConvolutionalBody):
                                                 strides=strides,
                                                 paddings=paddings,
                                                 non_linearities=non_linearities)
+        '''
+        super(ConvolutionalLstmBody, self).__init__()
+        self.cnn_body = ConvolutionalBody(input_shape=input_shape,
+                                                feature_dim=feature_dim,
+                                                channels=channels,
+                                                kernel_sizes=kernel_sizes,
+                                                strides=strides,
+                                                paddings=paddings,
+                                                non_linearities=non_linearities)
 
-        self.lstm_body = LSTMBody( state_dim=self.feature_dim, hidden_units=hidden_units, gate=gate)
+        
+        #self.lstm_body = LSTMBody( state_dim=self.feature_dim, hidden_units=hidden_units, gate=gate)
+        self.lstm_body = LSTMBody( state_dim=self.cnn_body.get_feature_shape(), hidden_units=hidden_units, gate=gate)
 
     def forward(self, inputs):
         '''
@@ -829,7 +842,8 @@ class ConvolutionalLstmBody(ConvolutionalBody):
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
         x, recurrent_neurons = inputs
-        features = super(ConvolutionalLstmBody,self).forward(x)
+        #features = super(ConvolutionalLstmBody,self).forward(x)
+        features = self.cnn_body.forward(x)
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
         return x, recurrent_neurons
 
@@ -837,7 +851,8 @@ class ConvolutionalLstmBody(ConvolutionalBody):
         return self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
     
     def get_input_shape(self):
-        return self.input_shape
+        #return self.input_shape
+        return self.cnn_body.input_shape
 
     def get_feature_shape(self):
         return self.lstm_body.get_feature_shape()
@@ -1163,7 +1178,7 @@ class CaptionRNNBody(nn.Module):
                 mask = (gt_sentences[:, t]!=self.w2idx['PAD']).float().to(x.device)
                 # batch_size x 1
                 batched_loss = self.criterion(token_distribution, gt_sentences[:, t])*mask
-                loss_per_item.append(batched_loss)
+                loss_per_item.append(batched_loss.unsqueeze(1))
                 
             # Preparing next step:
             if gt_sentences is not None:
@@ -1180,9 +1195,16 @@ class CaptionRNNBody(nn.Module):
                 end_idx += 1
 
         if gt_sentences is not None:
-            loss_per_item = torch.cat(loss_per_item, dim=0)
+            loss_per_item = torch.cat(loss_per_item, dim=-1).mean(-1)
+            # batch_size x max_sentence_length
             accuracies = (predicted_sentences==gt_sentences).float().mean(dim=0)
-            return predicted_sentences, loss_per_item, accuracies
+            mask = (gt_sentences!=self.w2idx['PAD'])
+            sentence_accuracies = (predicted_sentences==gt_sentences).float().masked_select(mask).mean()
+            return {'prediction':predicted_sentences, 
+                    'loss_per_item':loss_per_item, 
+                    'accuracies':accuracies, 
+                    'sentence_accuracies':sentence_accuracies
+                    }
 
         return predicted_sentences
 

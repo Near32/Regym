@@ -16,7 +16,7 @@ def compute_loss(states: torch.Tensor,
                  use_PER: bool = False,
                  PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
-                 use_HER: bool = False,
+                 HER_target_clamping: bool = False,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
@@ -59,7 +59,7 @@ def compute_loss(states: torch.Tensor,
     
       # Compute the expected Q values
       expected_state_action_values = rewards + non_terminals*(gamma * maxA_targetQ_nextS_A_values)
-      if use_HER:
+      if HER_target_clamping:
             # clip the target to [-50,0]
             expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)
     ############################

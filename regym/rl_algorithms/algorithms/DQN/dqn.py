@@ -303,7 +303,7 @@ class DQNAlgorithm(Algorithm):
                                           use_PER=self.use_PER,
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
-                                          use_HER=self.use_HER,
+                                          HER_target_clamping=self.kwargs['HER_target_clamping'],
                                           iteration_count=self.param_update_counter,
                                           summary_writer=summary_writer)
             

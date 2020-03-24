@@ -15,11 +15,13 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_use_predictor:  True
     THER_predictor_policy_shared_phi: False
 
-    THER_max_sentence_length: 7
+    THER_max_sentence_length: 11
     THER_vocabulary: ['key', 'ball', 'red', 'green', 'blue', 'purple', 
             'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
             'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
-            'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box']
+            'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box',
+            'then', 'after', 'you', 'and', 'pick', 'up', 'open', 'put', 'next', 'door',
+            'on', 'your', 'left', 'right', 'in', 'front', 'of', 'behind']
     
     THER_use_PER: False
     THER_PER_alpha: 0.6
@@ -125,7 +127,7 @@ THER_LargeCNN_Predictor: &THER_LargeCNN_Predictor
         gradient_clip: 1.0
         batch_size: 128 #32
         tau: 1.0e-2 #THER paper:1.0e-3
-        learning_rate: 1.0e-3 #1.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
+        learning_rate: 1.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
         adam_eps: 1.0e-8
         # NEED RMSProp optimizer...
 
@@ -141,7 +143,7 @@ THER_LargeCNN_Predictor: &THER_LargeCNN_Predictor
 
 experiment:
     tasks: [
-            {'env-id': 'BabyAI-GoToObj-v0',
+            {'env-id': 'BabyAI-PutNextLocal-v0',
 
              #'run-id': 'B1M_EpPerCycle16_GSNotShared_final-1_lrPr1m4Net1m4/Seed4_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau1000_GradClip1/Reward0p1_RelabellingTrajWhenFailure_WithEndGoalPrediction_AbsEps1e0_CELossOverWholeSentence_PredTrainEvery40Step_NoTargetClamping',
              #'run-id': 'B1M_EpPerCycle16_GSNotShared_future-4_lrPr1m4Net1m4/Seed4_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau1000_GradClip1_THER1p1/Reward0p1_RelabellingTrajWhenFailure_WithProperTerminal_WithEndGoalPrediction_AbsEps1e0_CELossUntilEoS_PredTrainEvery40Step_TrainOnSuccess_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70',
@@ -150,7 +152,7 @@ experiment:
              #'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed1_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_ImProperTHERPredTrainPeriod',
              
              #'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1p0',
-             'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m3/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
+             'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL11_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
              
              #'agent-id': '1step_double_THER_LargeCNN',
              #'agent-id': '1step_double_THER_LargeCNN_HER20TrainPerCycle_8EpPerCycle',
