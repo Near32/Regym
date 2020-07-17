@@ -1,5 +1,5 @@
 import copy
-from ..reinforce import ReinforceAlgorithm
+from ..algorithms.reinforce import ReinforceAlgorithm
 
 
 class ReinforceAgent():

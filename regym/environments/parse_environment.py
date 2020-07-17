@@ -65,7 +65,9 @@ def generate_task(env_name: str,
                 task.observation_type, 
                 task.action_dim, 
                 task.action_type, 
-                task.hash_function)
+                task.hash_function,
+                task.goal_shape,
+                task.goal_type)
 
     return task
 

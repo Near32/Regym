@@ -1,7 +1,7 @@
 import itertools
 import numpy as np
 import gym
-from gym.spaces import Box, Discrete, MultiDiscrete, Tuple
+from gym.spaces import Box, Discrete, MultiDiscrete, Tuple, Dict, MultiBinary
 from .task import Task, EnvType
 
 
@@ -26,24 +26,49 @@ def parse_gym_environment(env: gym.Env, env_type: EnvType, name: str = None) -> 
     state_space_size = env.state_space_size if hasattr(env, 'state_space_size') else None
     action_space_size = env.action_space_size if hasattr(env, 'action_space_size') else None
     hash_function = env.hash_state if hasattr(env, 'hash_state') else None
+    goal_shape, goal_type = get_goal_dimensions_and_type(env)
+    
+    # TODO: find a better condition...
+    #check_env_compatibility_with_env_type(env, env_type)
 
-    check_env_compatibility_with_env_type(env, env_type)
+    return Task(name, 
+                env, 
+                env_type, 
+                None, 
+                state_space_size, 
+                action_space_size, 
+                observation_shape, 
+                observation_type, 
+                action_dims, 
+                action_type, 
+                hash_function,
+                goal_shape,
+                goal_type)
 
-    return Task(name, env, env_type, None, state_space_size, action_space_size, observation_shape, observation_type, action_dims, action_type, hash_function)
+
+def parse_dimension_space(space, key="observation"):
+    if isinstance(space, Discrete): return space.n, 'Discrete' # One neuron is enough to take any Discrete space
+    if isinstance(space, MultiDiscrete): return space.nvec, 'MultiDiscrete' # One neuron is enough to take any Discrete space
+    if isinstance(space, MultiBinary): return space.n, 'MultiBinary' # One neuron is enough to take any Discrete space
+    elif isinstance(space, Box): return space.shape, 'Continuous'
+    elif isinstance(space, Tuple): return sum([parse_dimension_space(s)[0] for s in space.spaces]), parse_dimension_space(space.spaces[0])[1]
+    elif isinstance(space, Dict):
+        if key in space.spaces.keys():
+            return parse_dimension_space(space.spaces[key])
+        else:
+            raise ValueError(f"Wrongly formatted observation space: {space}")
+    # Below space refers to OneHotEncoding space from 'https://github.com/Danielhp95/gym-rock-paper-scissors'
+    elif hasattr(space, 'size'): return space.size, 'Discrete'
+    raise ValueError('Unknown observation space: {}'.format(space))
 
 
 def get_observation_dimensions_and_type(env):
-    def parse_dimension_space(space):
-        if isinstance(space, Discrete): return space.n, 'Discrete' # One neuron is enough to take any Discrete space
-        elif isinstance(space, Box): return space.shape, 'Continuous'
-        elif isinstance(space, Tuple): return sum([parse_dimension_space(s)[0] for s in space.spaces]), parse_dimension_space(space.spaces[0])[1]
-        # Below space refers to OneHotEncoding space from 'https://github.com/Danielhp95/gym-rock-paper-scissors'
-        elif hasattr(space, 'size'): return space.size, 'Discrete'
-        raise ValueError('Unknown observation space: {}'.format(space))
+    # ASSUMPTION: Multi agent environment. Symmetrical observation space --> Dict space
+    return parse_dimension_space(env.observation_space, key="observation") # Single agent environment
 
-    # ASSUMPTION: Multi agent environment. Symmetrical observation space
-    if hasattr(env.observation_space, 'spaces'): return parse_dimension_space(env.observation_space.spaces[0])
-    else: return parse_dimension_space(env.observation_space) # Single agent environment
+
+def get_goal_dimensions_and_type(env):
+    return parse_dimension_space(env.observation_space, key="desired_goal") # Single agent environment
 
 
 def get_action_dimensions_and_type(env):
