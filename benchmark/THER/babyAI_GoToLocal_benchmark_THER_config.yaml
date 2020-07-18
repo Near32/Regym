@@ -29,12 +29,17 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
 
     THER_replay_capacity: 50000
     THER_test_replay_capacity: 500
+    
     THER_min_capacity: 32 #1e4
-    THER_replay_period: 40 # Training every episode: 40...  instead of every successfull episode... 
+    THER_replay_period: 40 # Training (predictor) every X episodes...  instead of every successfull episode... 
     #OVERRIDEN by next parameter...
-    THER_train_on_success:  True
+    THER_train_on_success:  True # Reduices the training speed from 10 it/s to 4 it/s...
+    # If not training on success, once the accuracy threshold below is reached, then back at 70 it/s, until the next training period...
+    # So, training on success might ease the load/change of distribution, and so the speed might come back faster to 70 it/s ?
+    # --> 
     THER_nbr_training_iteration_per_update: 40
     THER_predictor_accuracy_threshold: 0.7
+    # What data is used for training, or for testing: every X experience, we add 1 test data.
     THER_predictor_test_train_split_interval: 10
 
     THER_predictor_learning_rate: 1e-4
@@ -89,6 +94,7 @@ Predictor: &Predictor
         predictor_encoder_arch_strides: [1, 1, 1, 1]
         predictor_encoder_arch_paddings: [1, 1, 1, 1]
         predictor_encoder_arch_feature_dim: 256        # GRU inputs / CNN output dim
+        # predictor_policy_shared_phi = True:
         predictor_encoder_arch_hidden_units: [256,]    # GRU hidden units
 
         # Decoder:
@@ -97,7 +103,10 @@ Predictor: &Predictor
         predictor_decoder_arch_strides: None
         predictor_decoder_arch_paddings: None
         predictor_decoder_arch_feature_dim: None
-        predictor_decoder_arch_hidden_units: [256,]
+        # predictor_policy_shared_phi = True:
+        predictor_decoder_arch_hidden_units: [64,]
+        # else:
+        #predictor_decoder_arch_hidden_units: [256,]
 
         predictor_decoder_embedding_size: 128
 
@@ -152,7 +161,7 @@ experiment:
              #'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed1_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_ImProperTHERPredTrainPeriod',
              
              #'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1p0',
-             'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentTrueL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
+             'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed100_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentTrueL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
              
              #'agent-id': '1step_double_THER_LargeCNN',
              #'agent-id': '1step_double_THER_LargeCNN_HER20TrainPerCycle_8EpPerCycle',
@@ -162,7 +171,8 @@ experiment:
              #'agent-id': '1step_double_THER_LargeCNN_HER40TrainPerCycle_16EpPerCycle',
              #'agent-id': '1step_noisy_double_THER_LargeCNN_HER40TrainPerCycle_16EpPerCycle',
              #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle',
-             'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining',
+             #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining',
+             'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining_PredPiSharedPhi',
              #'agent-id': '1step_double_THER_LargeCNN_HER40TrainPerCycle_16EpPerCycle_PredPiSharedPhi',
              
              #'agent-id': '1step_double_THER_LargeCNN_HER40TrainPerCycle_32EpPerCycle',
@@ -185,8 +195,9 @@ experiment:
     benchmarking_episodes: 1
     benchmarking_interval: 1.0e10
     benchmarking_record_episode_interval: 1.0e8
+    video_recording_episode_period: 1e2
     train_observation_budget: 1.0e6
-    seed: 10
+    seed: 100
 
 agents:    
     1step_double_THER_LargeCNN:
@@ -308,7 +319,30 @@ agents:
         THER_PER_beta: 0.4
         nbr_training_iteration_per_cycle: 40 # HER: 40
         nbr_episode_per_cycle:  16  # HER: 16
-            
+
+    1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining_PredPiSharedPhi:
+        <<: *THER_LargeCNN_Predictor
+        double: True
+        #dueling: True 
+        #noisy: True 
+        n_step: 1
+        use_PER: True
+        PER_alpha: 0.7
+        PER_beta: 0.4
+        #replay_period: 2    
+        #batch_size: 16
+        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+        # but bottleneck on GPU batchsize gives a better trade-off 
+        # batch-regularization-effect / speed with a batch_size=16 
+        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+        # and ~84 it/sec with updates...
+        # Whereas 32 / 4 yielded ~25 it/sec....
+        THER_use_PER: False
+        THER_PER_alpha: 0.7
+        THER_PER_beta: 0.4
+        nbr_training_iteration_per_cycle: 40 # HER: 40
+        nbr_episode_per_cycle:  16  # HER: 16
+        THER_predictor_policy_shared_phi: True
 
 
     1step_double_THER_LargeCNN_HER40TrainPerCycle_32EpPerCycle:

@@ -1,12 +1,13 @@
+import os
+import copy
+from functools import partial 
+from collections import deque, OrderedDict
+
+import cv2 
 import numpy as np
+
 import gym
 from gym.wrappers import TimeLimit
-import cv2 
-
-from collections import deque, OrderedDict
-import copy
-
-from functools import partial 
 
 import logging
 import coloredlogs
@@ -1540,6 +1541,42 @@ class DictFrameStack(gym.Wrapper):
             self.observations[k].append(obs[k])        
         return self._get_obs(obs), reward, done, info
 
+class PeriodicVideoRecorderWrapper(gym.Wrapper):
+    def __init__(self, env, base_dirpath, video_recording_episode_period=1):
+        gym.Wrapper.__init__(self, env)
+
+        self.episode_idx = 0
+        self.base_dirpath = base_dirpath
+        os.makedirs(self.base_dirpath, exist_ok=True)
+        self.video_recording_episode_period = video_recording_episode_period
+        
+        self.is_video_enabled = True
+        self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
+
+    def _init_video_recorder(self, env, path):
+        self.video_recorder = gym.wrappers.monitoring.video_recorder.VideoRecorder(env=env, path=path, enabled=True)
+
+    def reset(self, **args):
+        self.episode_idx += 1
+
+        if self.episode_idx % self.video_recording_episode_period == 0:
+            path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
+            self._init_video_recorder(env=self.env, path=path) 
+            self.is_video_enabled = True
+        else:
+            if self.is_video_enabled:
+                self.video_recorder.close()
+                del self.video_recorder
+                self.is_video_enabled = False
+
+        return super(PeriodicVideoRecorderWrapper, self).reset()
+
+    def step(self, action):
+        if self.is_video_enabled:
+            self.video_recorder.capture_frame()
+
+        return super(PeriodicVideoRecorderWrapper, self).step(action)
+
 
 def baseline_ther_wrapper(env, 
                           size=None, 
@@ -1551,6 +1588,7 @@ def baseline_ther_wrapper(env,
                           max_sentence_length=32,
                           vocabulary=None,
                           time_limit=40):
+    
     env = TimeLimit(env, max_episode_steps=time_limit)
 
     if nbr_max_random_steps > 0:
@@ -1576,4 +1614,5 @@ def baseline_ther_wrapper(env,
                                  vocabulary=vocabulary)
 
     env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
+
     return env

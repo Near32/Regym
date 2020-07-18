@@ -142,7 +142,11 @@ class SplitReplayStorage(ReplayStorage):
                  test_train_split_interval=10,
                  test_capacity=None):
         '''
+        Contains two ReplayStorage, one for testing purpose and the other for training purpose.
         Use a different circular offset['succ_s']=n to implement truncated n-step return...
+
+        :param test_train_split_interval: Int, after adding this amount of training data,
+                                            we add the next data for testing purpose, and restart.
         '''
         if test_capacity is None: test_capacity=capacity
         self.test_capacity = test_capacity

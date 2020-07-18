@@ -65,39 +65,48 @@ def training_process(agent_config: Dict,
                      benchmarking_episodes: int = 10, 
                      benchmarking_record_episode_interval: int = None,
                      train_observation_budget: int = 1e7,
-                     base_path: str = './', 
+                     base_path: str = './',
+                     video_recording_episode_period: int = None,
                      seed: int = 0):
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    pixel_wrapping_fn = partial(baseline_ther_wrapper,
-                                size=task_config['observation_resize_dim'], 
-                                skip=task_config['nbr_frame_skipping'], 
-                                stack=task_config['nbr_frame_stacking'],
-                                single_life_episode=task_config['single_life_episode'],
-                                nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                clip_reward=task_config['clip_reward'],
-                                max_sentence_length=agent_config['THER_max_sentence_length'],
-                                vocabulary=agent_config['THER_vocabulary'])
+    pixel_wrapping_fn = partial(
+      baseline_ther_wrapper,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      single_life_episode=task_config['single_life_episode'],
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=task_config['clip_reward'],
+      max_sentence_length=agent_config['THER_max_sentence_length'],
+      vocabulary=agent_config['THER_vocabulary'],
+    )
 
-    test_pixel_wrapping_fn = partial(baseline_ther_wrapper,
-                                    size=task_config['observation_resize_dim'], 
-                                    skip=task_config['nbr_frame_skipping'], 
-                                    stack=task_config['nbr_frame_stacking'],
-                                    single_life_episode=False,
-                                    nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                    clip_reward=False,
-                                    max_sentence_length=agent_config['THER_max_sentence_length'],
-                                    vocabulary=agent_config['THER_vocabulary'])
-    
+    test_pixel_wrapping_fn = partial(
+      baseline_ther_wrapper,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      single_life_episode=False,
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=False,
+      max_sentence_length=agent_config['THER_max_sentence_length'],
+      vocabulary=agent_config['THER_vocabulary'],
+    )
+
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],
                          wrapping_fn=pixel_wrapping_fn,
                          test_wrapping_fn=test_pixel_wrapping_fn,
                          seed=seed,
                          test_seed=100+seed,
+                         train_video_recording_episode_period=video_recording_episode_period,
+                         train_video_recording_dirpath=os.path.join(base_path, 'recordings/train/'),
+                         #test_video_recording_episode_period=video_recording_episode_period,
+                         #test_video_recording_dirpath=os.path.join(base_path, 'recordings/test/'),
                          gathering=True)
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
@@ -158,6 +167,7 @@ def test():
                          benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])),
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
+                         video_recording_episode_period=int(float(experiment_config['video_recording_episode_period'])),
                          seed=experiment_config['seed'])
 
 if __name__ == '__main__':

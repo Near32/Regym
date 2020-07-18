@@ -314,7 +314,7 @@ def build_THER_Agent(task, config, agent_name):
     if kwargs['double'] or kwargs['dueling']:
         loss_fn = ddqn_ther_loss.compute_loss
 
-    ther_algorithm = DQNAlgorithm(kwargs, model, loss_fn=loss_fn)
+    dqn_algorithm = DQNAlgorithm(kwargs, model, loss_fn=loss_fn)
 
     assert('use_HER' in kwargs and kwargs['use_HER'])
 
@@ -326,7 +326,7 @@ def build_THER_Agent(task, config, agent_name):
     if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
         goal_predicated_reward_fn = partial(predictor_based_goal_predicated_reward_fn, predictor=predictor)
     
-    ther_algorithm = THERAlgorithmWrapper(algorithm=ther_algorithm,
+    ther_algorithm = THERAlgorithmWrapper(algorithm=dqn_algorithm,
                                         predictor=predictor,
                                         predictor_loss_fn=ther_predictor_loss.compute_loss,
                                         strategy=kwargs['HER_strategy'],

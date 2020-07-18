@@ -15,6 +15,10 @@ def generate_task(env_name: str,
                   test_wrapping_fn: object = None, 
                   seed: int = 0,
                   test_seed: int = 1,
+                  train_video_recording_episode_period: int = None,
+                  train_video_recording_dirpath: str = './tmp/recordings/train/',
+                  test_video_recording_episode_period: int = None,
+                  test_video_recording_dirpath: str = './tmp/recordings/teset/',
                   gathering: bool = False) -> Task:
     '''
     Returns a regym.environments.Task by creating an environment derived from :param: env_name
@@ -56,9 +60,23 @@ def generate_task(env_name: str,
 
     task = Task(task.name, 
                 #ParallelEnv(env_creator, nbr_parallel_env, seed=seed), 
-                VecEnv(env_creator, nbr_parallel_env, seed=seed, gathering=gathering), 
+                VecEnv(
+                    env_creator, 
+                    nbr_parallel_env, 
+                    seed=seed, 
+                    gathering=gathering,
+                    video_recording_episode_period=train_video_recording_episode_period,
+                    video_recording_dirpath=train_video_recording_dirpath,
+                ), 
                 env_type,
-                VecEnv(test_env_creator, nbr_parallel_env, seed=test_seed,gathering=False),
+                VecEnv(
+                    test_env_creator, 
+                    nbr_parallel_env, 
+                    seed=test_seed,
+                    gathering=False,
+                    video_recording_episode_period=test_video_recording_episode_period,
+                    video_recording_dirpath=test_video_recording_dirpath
+                ),
                 task.state_space_size, 
                 task.action_space_size, 
                 task.observation_shape, 

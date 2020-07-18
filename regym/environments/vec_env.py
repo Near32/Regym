@@ -3,10 +3,21 @@ import numpy as np
 import copy
 import time 
 from .utils import EnvironmentCreator
-
+from ..util.wrappers import PeriodicVideoRecorderWrapper
 
 class VecEnv():
-    def __init__(self, env_creator, nbr_parallel_env, single_agent=True, worker_id=None, seed=0, gathering=True):
+    def __init__(self, 
+                 env_creator, 
+                 nbr_parallel_env, 
+                 single_agent=True, 
+                 worker_id=None, 
+                 seed=0, 
+                 gathering=True,
+                 video_recording_episode_period=None,
+                 video_recording_dirpath='./tmp/regym/video_recording/'):
+        
+        self.video_recording_episode_period = video_recording_episode_period
+        self.video_recording_dirpath = video_recording_dirpath
         self.gathering = gathering
         self.seed = seed
         self.env_creator = env_creator
@@ -57,6 +68,14 @@ class VecEnv():
         if wid is not None: wid += worker_id_offset
         seed = self.seed+idx+1
         self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
+        if idx==0 and self.video_recording_episode_period is not None:
+            self.env_processes[idx] = PeriodicVideoRecorderWrapper(
+                env=self.env_processes[idx], 
+                base_dirpath=self.video_recording_dirpath,
+                video_recording_episode_period=self.video_recording_episode_period
+            )
+
+    
         
     def clean(self, idx):
         self.env_processes[idx].close()
