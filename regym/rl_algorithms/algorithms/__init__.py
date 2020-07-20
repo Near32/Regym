@@ -3,5 +3,6 @@ from .DQN import *
 from .THER import *
 from .PPO import *
 from .A2C import *
+from .DDPG import *
 from .I2A import *
 from .wrappers import *

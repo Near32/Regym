@@ -917,7 +917,104 @@ class DDPGConvBody(nn.Module):
         y = y.view(y.size(0), -1)
         return y
 
+class FCBody(nn.Module):
+    def __init__(
+        self, 
+        state_dim, 
+        hidden_units, 
+        non_linearities=None, 
+        gate=None,
+        dropout=0.0,
+        use_cuda=False,
+        add_non_lin_final_layer=False):
+        """
+        TODO: gate / nonlinearities hyperparameters...
+        """
+        super(FCBody, self).__init__()
+        
+        if isinstance(state_dim,int): state_dim = [state_dim]
 
+        dims = state_dim + hidden_units
+        self.dropout = dropout
+
+        if non_linearities is None:
+            non_linearities = [nn.ReLU]
+
+        self.non_linearities = non_linearities
+        if not isinstance(non_linearities, list):
+            self.non_linearities = [non_linearities] * (len(dims) - 1)
+        else:
+            while len(self.non_linearities) <= (len(dims) - 1):
+                self.non_linearities.append(self.non_linearities[0])
+        
+        self.layers = []
+        in_ch = dims[0]
+        for idx, cfg in enumerate(dims[1:]):
+            add_non_lin = True
+            if not(add_non_lin_final_layer) and idx == len(dims)-2:  add_non_lin = False
+            add_dp = (self.dropout > 0.0)
+            dropout = self.dropout
+            add_bn = False
+            add_ln = False
+            if isinstance(cfg, str) and 'NoNonLin' in cfg:
+                add_non_lin = False
+                cfg = cfg.replace('NoNonLin', '') 
+            if isinstance(cfg, str) and '_DP' in cfg:
+                add_dp = True
+                cfg = cfg.split('_DP')
+                dropout = float(cfg[-1])
+                cfg = cfg[0] 
+                # Assumes 'YX_DPZ'
+                # where Y may be BN/LN/nothing
+                # and X is an integer
+                # and Z is the float dropout value.
+            
+            if isinstance(cfg, str) and 'BN' in cfg:
+                add_bn = True
+                cfg = int(cfg[2:])
+                dims[idx+1] = cfg
+                # Assumes 'BNX' where X is an integer...
+            elif isinstance(cfg, str) and 'LN' in cfg:
+                add_ln = True
+                cfg = int(cfg[2:])
+                dims[idx+1] = cfg
+                # Assumes 'LNX' where X is an integer...
+            elif isinstance(cfg, str):
+                cfg = int(cfg)
+                dims[idx+1] = cfg
+                
+            layer = nn.Linear(in_ch, cfg, bias=not(add_bn)) 
+            layer = layer_init(layer, w_scale=math.sqrt(2))
+            in_ch = cfg
+            self.layers.append(layer)
+            if add_bn:
+                self.layers.append(nn.BatchNorm1d(in_ch))
+            if add_ln:
+                # Layer Normalization:
+                # solely about the last dimension of the 4D tensor, i.e. channels...
+                # TODO: It might be necessary to have the possibility to apply this 
+                # normalization over the other dimensions, i.e. width x height...
+                self.layers.append(nn.LayerNorm(in_ch))
+            if add_dp:
+                self.layers.append(nn.Dropout(p=dropout))
+            if add_non_lin:
+                self.layers.append(self.non_linearities[idx]())
+        self.layers = nn.Sequential(*self.layers)
+
+        self.feature_dim = dims[-1]
+
+        self.use_cuda = use_cuda
+        if self.use_cuda:
+            self = self.cuda()
+
+    def forward(self, x):
+        output = self.layers(x)
+        return output
+
+    def get_feature_shape(self):
+        return self.feature_dim
+
+"""
 class FCBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(64, 64), gate=F.relu, layer_fn=nn.Linear):
         super(FCBody, self).__init__()
@@ -936,6 +1033,7 @@ class FCBody(nn.Module):
 
     def get_feature_shape(self):
         return self.feature_dim
+"""
 
 class LSTMBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
