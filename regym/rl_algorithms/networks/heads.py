@@ -249,6 +249,93 @@ class QNet(nn.Module):
 
         return prediction
 
+class EnsembleQNet(nn.Module):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 critic_body,
+                 phi_body=None,
+                 action_phi_body=None,
+                 noisy=False,
+                 goal_oriented=False,
+                 goal_shape=None,
+                 goal_phi_body=None,
+                 nbr_models=2):
+        super(EnsembleQNet, self).__init__()
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.noisy = noisy 
+        self.goal_oriented = goal_oriented
+        self.nbr_models = nbr_models 
+
+        self.inner_models = [
+            QNet(state_dim=state_dim,
+                 action_dim=action_dim,
+                 critic_body=critic_body,
+                 phi_body=phi_body,
+                 action_phi_body=action_phi_body,
+                 noisy=noisy,
+                 goal_oriented=goal_oriented,
+                 goal_shape=goal_shape,
+                 goal_phi_body=goal_phi_body,
+            )
+        ]
+        for model in self.inner_models: model.apply(layer_init)
+    
+    def models(self):
+        return self.inner_models
+
+    def reset_noise(self):
+        for model in self.inner_models:
+            model.apply(reset_noisy_layer)
+
+    def forward(self, obs, action, rnn_states=None, goal=None):
+        # Retrieve Q-value from first model
+        prediction = self.inner_models[0](
+            obs=obs,
+            action=action,
+            rnn_states=rnn_states,
+            goal=goal
+        )
+
+        return prediction
+
+    def ensemble_q_values(self, obs, action, rnn_states=None, goal=None):
+        predictions = []
+        for model in self.inner_models:
+            predictions.append(
+                model(
+                    obs=obs,
+                    action=action,
+                    rnn_states=rnn_states,
+                    goal=goal
+                )
+            )
+
+        q_values = torch.cat([p["qa"] for p in predictions], dim=-1) 
+        output = prediction[0]
+        output["qa"] = q_values
+        
+        return output
+
+
+
+    def min_q_value(self, obs, action, rnn_states=None, goal=None):
+         pred = self.ensemble_q_values(
+                    obs=obs,
+                    action=action,
+                    rnn_states=rnn_states,
+                    goal=goal
+        )
+
+        q_values = pred["qa"]
+        min_q_value, _ = q_values.min(dim=-1)
+        
+        pred["qa"] = min_q_value
+        
+        return pred
+
+
 class GaussianActorNet(nn.Module):
     def __init__(self,
                  state_dim,

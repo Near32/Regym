@@ -5,6 +5,7 @@ from .bodies import ConvolutionalBody, BetaVAEBody, resnet18Input64, Convolution
 from .bodies import NoisyLinear
 from .heads import GaussianActorNet, CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
 from .heads import QNet, CategoricalQNet, InstructionPredictor
+from .heads import EnsembleQNet
 
 import torch.nn.functional as F 
 
