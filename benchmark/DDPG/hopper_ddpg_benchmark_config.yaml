@@ -116,7 +116,7 @@ experiment:
             {'env-id': 'Hopper-v2',
 
              #'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m4/Seed100_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentTrueL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
-             'run-id': 'B1M/SmallMLP/ReplayPeriod1_UpdatePerReplay1_MinCap5p3_Cap5p6_b64/CriticLr1m3_ActorLr1m4_Seed100_venv_ObsNone_tau1m3_GradClip1p0/WeightDecay1m2',
+             'run-id': 'B1M/SmallMLP/ActualExploration/ReplayPeriod1_UpdatePerReplay1_MinCap5p3_Cap5p6_b64/CriticLr1m3_ActorLr1m4_Seed100_venv_ObsNone_tau1m3_GradClip1p0/WeightDecay1m2',
              
              #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining_PredPiSharedPhi',
              #'agent-id': '1step_DDPG_MLP256',
@@ -134,7 +134,8 @@ experiment:
              'goal_resize_dim': None,
              },
             ]
-    experiment_id: 'DDPG_Benchmark'
+    #experiment_id: 'DDPG_Benchmark'
+    experiment_id: '/home/kevin/debug_TD3/'
     benchmarking_episodes: 1
     benchmarking_interval: 1.0e10
     benchmarking_record_episode_interval: 1.0e8

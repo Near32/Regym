@@ -9,6 +9,7 @@ def compute_loss(states: torch.Tensor,
                  rewards: torch.Tensor,
                  non_terminals: torch.Tensor,
                  goals: torch.Tensor,
+                 noise_fn: object,
                  model_critic: torch.nn.Module,
                  target_model_critic: torch.nn.Module,
                  model_actor: torch.nn.Module,
@@ -30,6 +31,7 @@ def compute_loss(states: torch.Tensor,
     :param non_terminals: Dimension: batch_size x 1: Non-terminal integers.
     :param rewards: Dimension: batch_size x 1. Environment rewards.
     :param goals: Dimension: batch_size x goal shape: Goal of the agent.
+    :param noise_fn: Function taking as argument the target actor action and applying noise to it.
     :param model_critic: torch.nn.Module used to compute the critic loss, critic network.
     :param target_model_critic: torch.nn.Module used to compute the loss, target critic network.
     :param model_actor: torch.nn.Module used to compute the loss, actor network.
@@ -59,16 +61,21 @@ def compute_loss(states: torch.Tensor,
       # Compute next_state's target actor action:
       ## Compute next rnn state if needs be:
       if rnn_states is not None:
+        raise NotImplementedError
+        """
         target_prediction = target_model_actor(states, action=actions, rnn_states=rnn_states, goal=goals)
         next_rnn_states = target_prediction['next_rnn_states']
+        """
       ##
       next_state_target_actor_prediction = target_model_actor(next_states, rnn_states=next_rnn_states, goal=goals)
-      nextS_target_actor_action = next_state_target_actor_prediction['a']
+      nextS_target_actor_action = noise_fn(next_state_target_actor_prediction['a'])
       
       #Compute next_state's target QA value using target actor action:
       next_critic_rnn_states = None
       ## Compute next rnn state if needs be:
       if rnn_states is not None:
+        raise NotImplementedError
+        """
         target_critic_prediction = target_model_critic(
           obs=states, 
           action=actions, 
@@ -76,6 +83,7 @@ def compute_loss(states: torch.Tensor,
           goal=goals
         )
         next_critic_rnn_states = target_critic_prediction['next_rnn_states']
+        """
       ##
       nextS_target_critic_prediction = target_model_critic.min_q_value(
         obs=next_states,
@@ -87,7 +95,7 @@ def compute_loss(states: torch.Tensor,
     
       # Compute the target Q values
       targetQA = rewards + non_terminals*(gamma * nextS_target_critic_QA)
-
+      
       if HER_target_clamping:
             # clip the target to [-50,0]
             targetQA = torch.clamp(targetQA, -1. / (1 - gamma), 0)
@@ -97,7 +105,8 @@ def compute_loss(states: torch.Tensor,
     #loss_per_item = 0.5*(targetQA.detach() - predictionQA).pow(2.0)
     loss_per_item = torch.zeros_like(targetQA)
     for model_idx in range(model_critic.nbr_models):
-        loss_per_item += F.smooth_l1_loss(predictionQA[..., model_idx], targetQA, reduction='none')
+        #loss_per_item += F.smooth_l1_loss(predictionQA[..., model_idx].reshape(targetQA.shape), targetQA, reduction='none')
+        loss_per_item += F.mse_loss(predictionQA[..., model_idx].reshape(targetQA.shape), targetQA, reduction='none')
     
     if use_PER:
       loss_per_item = importanceSamplingWeights * loss_per_item
@@ -110,10 +119,10 @@ def compute_loss(states: torch.Tensor,
     total_loss = loss + weights_decay_loss
 
     if summary_writer is not None:
-        summary_writer.add_scalar('Training/MeanQAValues', prediction['qa'].cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/StdQAValues', prediction['qa'].cpu().std().item(), iteration_count)
-        summary_writer.add_scalar('Training/QAValueLoss', loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/WeightsDecayLoss', weights_decay_loss.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/CriticLoss/MeanQAValues', prediction['qa'].cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/CriticLoss/StdQAValues', prediction['qa'].cpu().std().item(), iteration_count)
+        summary_writer.add_scalar('Training/CriticLoss/Loss', loss.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/CriticLoss/WeightsDecayLoss', weights_decay_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/TotalCriticLoss', total_loss.cpu().item(), iteration_count)
         if use_PER:
             summary_writer.add_scalar('Training/ImportanceSamplingMean', importanceSamplingWeights.cpu().mean().item(), iteration_count)

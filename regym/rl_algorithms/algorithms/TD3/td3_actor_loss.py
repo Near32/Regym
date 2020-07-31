@@ -79,10 +79,10 @@ def compute_loss(states: torch.Tensor,
 
     
     if summary_writer is not None:
-        summary_writer.add_scalar('Training/MeanQAValues', critic_prediction['qa'].cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/StdQAValues', critic_prediction['qa'].cpu().std().item(), iteration_count)
-        summary_writer.add_scalar('Training/QAValueLoss', loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/WeightsDecayLoss', weights_decay_loss.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/ActorLoss/MeanQAValues', critic_prediction['qa'].cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/ActorLoss/StdQAValues', critic_prediction['qa'].cpu().std().item(), iteration_count)
+        summary_writer.add_scalar('Training/ActorLoss/Loss', loss.cpu().item(), iteration_count)
+        summary_writer.add_scalar('Training/ActorLoss/WeightsDecayLoss', weights_decay_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/TotalActorLoss', total_loss.cpu().item(), iteration_count)
         ## PER logs are handled by the critic loss...
 

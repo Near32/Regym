@@ -10,13 +10,16 @@ EPS = 1e-8
 
 
 class DuelingLayer(nn.Module):
-    def __init__(self, input_dim, action_dim, layer_fn=nn.Linear):
+    def __init__(self, input_dim, action_dim, layer_fn=nn.Linear, layer_init_fn=None):
         super(DuelingLayer, self).__init__()
         self.input_dim = input_dim
         self.action_dim = action_dim
 
-        self.advantage = layer_init(layer_fn(self.input_dim, self.action_dim), 1e0)
-        self.value = layer_init(layer_fn(self.input_dim, 1), 1e0)
+        self.advantage = layer_fn(self.input_dim, self.action_dim)
+        self.value = layer_fn(self.input_dim, 1)
+
+        if layer_init_fn is not None:
+            self.apply(layer_init_fn)
 
     def forward(self, fx):
         v = self.value(fx)
@@ -53,7 +56,8 @@ class CategoricalQNet(nn.Module):
                  noisy=False,
                  goal_oriented=False,
                  goal_shape=None,
-                 goal_phi_body=None):
+                 goal_phi_body=None,
+                 layer_init_fn=None):
         super(CategoricalQNet, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -89,7 +93,9 @@ class CategoricalQNet(nn.Module):
         if self.dueling:
             self.fc_critic = DuelingLayer(input_dim=fc_critic_input_shape, action_dim=self.action_dim, layer_fn=layer_fn)
         else:
-            self.fc_critic = layer_init(layer_fn(fc_critic_input_shape, self.action_dim), 1e0)
+            self.fc_critic = layer_fn(fc_critic_input_shape, self.action_dim)
+            if layer_init_fn is not None:
+                self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
 
     def reset_noise(self):
         self.apply(reset_noisy_layer)
@@ -160,7 +166,8 @@ class QNet(nn.Module):
                  noisy=False,
                  goal_oriented=False,
                  goal_shape=None,
-                 goal_phi_body=None):
+                 goal_phi_body=None,
+                 layer_init_fn=None):
         super(QNet, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -193,7 +200,9 @@ class QNet(nn.Module):
         fc_critic_input_shape = self.critic_body.get_feature_shape()
         layer_fn = nn.Linear 
         if self.noisy:  layer_fn = NoisyLinear
-        self.fc_critic = layer_init(layer_fn(fc_critic_input_shape, 1), 1e0)
+        self.fc_critic = layer_fn(fc_critic_input_shape, 1)
+        if layer_init_fn is not None:
+            self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
 
     def reset_noise(self):
         self.apply(reset_noisy_layer)
@@ -260,7 +269,8 @@ class EnsembleQNet(nn.Module):
                  goal_oriented=False,
                  goal_shape=None,
                  goal_phi_body=None,
-                 nbr_models=2):
+                 nbr_models=2,
+                 layer_init_fn=None):
         super(EnsembleQNet, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -268,7 +278,7 @@ class EnsembleQNet(nn.Module):
         self.goal_oriented = goal_oriented
         self.nbr_models = nbr_models 
 
-        self.inner_models = [
+        self.inner_models = nn.ModuleList([
             QNet(state_dim=state_dim,
                  action_dim=action_dim,
                  critic_body=critic_body,
@@ -279,8 +289,12 @@ class EnsembleQNet(nn.Module):
                  goal_shape=goal_shape,
                  goal_phi_body=goal_phi_body,
             )
-        ]
-        for model in self.inner_models: model.apply(layer_init)
+            for _ in range(self.nbr_models)
+        ])
+        
+        if layer_init_fn is not None:
+            for model in self.inner_models: 
+                model.apply(layer_init_fn)
     
     def models(self):
         return self.inner_models
@@ -313,7 +327,7 @@ class EnsembleQNet(nn.Module):
             )
 
         q_values = torch.cat([p["qa"] for p in predictions], dim=-1) 
-        output = prediction[0]
+        output = predictions[0]
         output["qa"] = q_values
         
         return output
@@ -321,18 +335,20 @@ class EnsembleQNet(nn.Module):
 
 
     def min_q_value(self, obs, action, rnn_states=None, goal=None):
-         pred = self.ensemble_q_values(
-                    obs=obs,
-                    action=action,
-                    rnn_states=rnn_states,
-                    goal=goal
+        batch_size = obs.shape[0]
+        pred = self.ensemble_q_values(
+            obs=obs,
+            action=action,
+            rnn_states=rnn_states,
+            goal=goal
+        
         )
 
         q_values = pred["qa"]
         min_q_value, _ = q_values.min(dim=-1)
-        
-        pred["qa"] = min_q_value
-        
+
+        pred["qa"] = min_q_value.reshape(batch_size, 1)
+
         return pred
 
 
@@ -346,7 +362,9 @@ class GaussianActorNet(nn.Module):
                  goal_oriented=False,
                  goal_shape=None,
                  goal_phi_body=None,
-                 deterministic=False):
+                 deterministic=False,
+                 action_scaler=1.0,
+                 layer_init_fn=None):
         super(GaussianActorNet, self).__init__()
 
         self.deterministic = deterministic
@@ -354,6 +372,7 @@ class GaussianActorNet(nn.Module):
         self.action_dim = action_dim
         self.noisy = noisy 
         self.goal_oriented = goal_oriented
+        self.action_scaler = action_scaler
 
         self.actor_body = actor_body
 
@@ -379,7 +398,9 @@ class GaussianActorNet(nn.Module):
 
         layer_fn = nn.Linear 
         if self.noisy:  layer_fn = NoisyLinear
-        self.fc_actor = layer_init(layer_fn(fc_actor_input_shape, self.action_dim), 1e0)
+        self.fc_actor = layer_fn(fc_actor_input_shape, self.action_dim)
+        if layer_init_fn is not None:
+            self.fc_actor = layer_init_fn(self.fc_actor, 1e0)
         self.std = nn.Parameter(torch.zeros(action_dim))
 
     def reset_noise(self):
@@ -417,25 +438,25 @@ class GaussianActorNet(nn.Module):
             actor_output = self.actor_body(phi)
 
         # batch x action_dim
-        action = torch.tanh(self.fc_actor(actor_output))
+        action = self.action_scaler*torch.tanh(self.fc_actor(actor_output))
         
         prediction = {
             'a': action,
         }
 
 
-        if self.deterministic:
+        if not(self.deterministic):
             dist = torch.distributions.Normal(action, F.softplus(self.std))
-            if action is None:
-                action = dist.sample()
+            sampled_action = dist.sample()
+            
             # Log likelyhood of action = sum_i dist.log_prob(action[i])
-            log_prob = dist.log_prob(action).sum(-1).unsqueeze(-1)
+            log_prob = dist.log_prob(sampled_action).sum(-1).unsqueeze(-1)
             # batch x 1
             entropy = dist.entropy().sum(-1).unsqueeze(-1)
             # batch x 1
 
             prediction = {
-                'a': action,
+                'a': self.action_scaler*sampled_action,
                 'log_pi_a': log_prob,
                 'ent': entropy,
             }
@@ -448,7 +469,7 @@ class GaussianActorNet(nn.Module):
 
 
 class ActorCriticNet(nn.Module):
-    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, use_intrinsic_critic=False):
+    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, use_intrinsic_critic=False, layer_init_fn=None):
         super(ActorCriticNet, self).__init__()
         if phi_body is None: phi_body = DummyBody(state_dim)
         if actor_body is None: actor_body = DummyBody(phi_body.get_feature_shape())
@@ -456,12 +477,19 @@ class ActorCriticNet(nn.Module):
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
-        self.fc_action = layer_init(nn.Linear(actor_body.get_feature_shape(), action_dim), 1e-3)
-        self.fc_critic = layer_init(nn.Linear(critic_body.get_feature_shape(), 1), 1e0)
+        self.fc_action = nn.Linear(actor_body.get_feature_shape(), action_dim)
+        if layer_init_fn is not None:
+            self.fc_action = layer_init_fn(self.fc_action, 1e-3)
+        self.fc_critic = nn.Linear(critic_body.get_feature_shape(), 1)
+        if layer_init_fn is not None:
+            self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
 
         self.use_intrinsic_critic = use_intrinsic_critic
         self.fc_int_critic = None
-        if self.use_intrinsic_critic: self.fc_int_critic = layer_init(nn.Linear(critic_body.get_feature_shape(), 1), 1e-3)
+        if self.use_intrinsic_critic: 
+            self.fc_int_critic = nn.Linear(critic_body.get_feature_shape(), 1)
+            if layer_init_fn is not None:
+                self.fc_int_critic = layer_init_fn(self.fc_int_critic, 1e-3)
 
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())

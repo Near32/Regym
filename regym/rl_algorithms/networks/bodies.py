@@ -926,7 +926,8 @@ class FCBody(nn.Module):
         gate=None,
         dropout=0.0,
         use_cuda=False,
-        add_non_lin_final_layer=False):
+        add_non_lin_final_layer=False,
+        layer_init_fn=None):
         """
         TODO: gate / nonlinearities hyperparameters...
         """
@@ -984,7 +985,8 @@ class FCBody(nn.Module):
                 dims[idx+1] = cfg
                 
             layer = nn.Linear(in_ch, cfg, bias=not(add_bn)) 
-            layer = layer_init(layer, w_scale=math.sqrt(2))
+            if layer_init_fn is not None:
+                layer = layer_init(layer, w_scale=math.sqrt(2))
             in_ch = cfg
             self.layers.append(layer)
             if add_bn:

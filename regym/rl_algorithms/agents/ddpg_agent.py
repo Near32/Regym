@@ -156,13 +156,12 @@ class DDPGAgent(Agent):
             self.current_prediction = model_actor(state, goal=goal)
         self.current_prediction = self._post_process(self.current_prediction)
 
-        if self.training or self.noisy:
-            return self.current_prediction['a'].numpy()
-        else:
-            #self.algorithm.noise.setSigma(0.5)
-            new_action = action.cpu().data.numpy() + self.algorithm.noise.sample()*self.algorithm.model_actor.action_scaler
-            return new_action
-
+        action = self.current_prediction['a'].cpu().numpy()
+        if self.training and not(self.noisy):
+            exploration_action = action + self.algorithm.noise.sample()
+            self.current_prediction["a"] = torch.from_numpy(exploration_action).float()
+        
+        return action
 
     def clone(self, training=None):
         cloned_algo = self.algorithm.clone()

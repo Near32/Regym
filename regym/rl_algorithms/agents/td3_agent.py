@@ -34,6 +34,8 @@ class TD3Agent(Agent):
         self.nbr_training_iteration_per_cycle = int(self.kwargs['nbr_training_iteration_per_cycle']) if 'nbr_training_iteration_per_cycle' in self.kwargs else 1
 
         self.noisy = self.kwargs['noisy'] if 'noisy' in self.kwargs else False 
+        self.actor_start_delay = float(self.kwargs["actor_start_delay"])
+        self.action_scaler = self.kwargs["action_scaler"]
 
         # Number of training steps:
         self.nbr_steps = 0
@@ -156,13 +158,18 @@ class TD3Agent(Agent):
             self.current_prediction = model_actor(state, goal=goal)
         self.current_prediction = self._post_process(self.current_prediction)
 
-        if self.training or self.noisy:
-            return self.current_prediction['a'].numpy()
-        else:
-            #self.algorithm.noise.setSigma(0.5)
-            new_action = action.cpu().data.numpy() + self.algorithm.noise.sample()*self.algorithm.model_actor.action_scaler
-            return new_action
-
+        action = self.current_prediction['a'].cpu().numpy()
+            
+        if self.nbr_steps < self.actor_start_delay:
+            exploration_action = self.action_scaler*(np.random.random(size=action.shape)*2-1)
+            self.current_prediction['a'] = torch.from_numpy(exploration_action).reshape(action.shape).float()
+            action = exploration_action
+        elif self.training and not(self.noisy):
+            exploration_action = self.action_scaler*self.algorithm.noise.sample()
+            action = (action+exploration_action).clip(-self.action_scaler, self.action_scaler)
+            self.current_prediction['a'] = torch.from_numpy(action).float()
+            
+        return action
 
     def clone(self, training=None):
         cloned_algo = self.algorithm.clone()
@@ -186,7 +193,8 @@ def build_TD3_Agent(task, config, agent_name):
     kwargs['discount'] = float(kwargs['discount'])
     kwargs['replay_capacity'] = int(float(kwargs['replay_capacity']))
     kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
-    
+    kwargs["action_scaler"] = float(task.env.action_space.high[0])
+
     # Default preprocess function:
     kwargs['state_preprocess'] = partial(PreprocessFunction, normalization=False)
     kwargs['goal_preprocess'] = partial(PreprocessFunction, normalization=False)
@@ -278,6 +286,8 @@ def build_TD3_Agent(task, config, agent_name):
             )
 
         actor_input_dim = output_dim
+    else:
+        actor_input_dim = input_shape
 
     ##-----------------------------------------------------------------------------------------------------
     ## goal phi body:
@@ -382,6 +392,7 @@ def build_TD3_Agent(task, config, agent_name):
         goal_shape=goal_shape,
         goal_phi_body=actor_goal_phi_body,
         deterministic=True,
+        action_scaler=kwargs["action_scaler"],
     )
     model_actor.share_memory()
 
@@ -398,8 +409,8 @@ def build_TD3_Agent(task, config, agent_name):
     ##-----------------------------------------------------------------------------------------------------
     ## Phi Body:
     critic_phi_body = None
-    input_dim = list(task.observation_shape)
-    input_shape = input_dim
+    input_dim = task.observation_shape[0]
+    input_shape = list(task.observation_shape)
     critic_head_input_dim = None
     if kwargs['goal_oriented']:
         goal_input_shape = list(task.goal_shape)
@@ -422,7 +433,7 @@ def build_TD3_Agent(task, config, agent_name):
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
             kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            kwargs['preprocessed_observation_shape'] = [input_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
             input_shape = kwargs['preprocessed_observation_shape']
@@ -443,7 +454,7 @@ def build_TD3_Agent(task, config, agent_name):
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
             kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            kwargs['preprocessed_observation_shape'] = [input_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
             input_shape = kwargs['preprocessed_observation_shape']
@@ -453,7 +464,7 @@ def build_TD3_Agent(task, config, agent_name):
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
             kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            kwargs['preprocessed_observation_shape'] = [input_shape[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
             input_shape = kwargs['preprocessed_observation_shape']
@@ -473,6 +484,8 @@ def build_TD3_Agent(task, config, agent_name):
             )
 
         critic_head_input_dim = output_dim
+    else:
+        critic_head_input_dim = input_dim
 
     ##-----------------------------------------------------------------------------------------------------
     ## goal phi body:
@@ -595,11 +608,12 @@ def build_TD3_Agent(task, config, agent_name):
         noisy=kwargs['noisy'],
         goal_oriented=kwargs['goal_oriented'],
         goal_shape=goal_shape,
-        goal_phi_body=critic_goal_phi_body
+        goal_phi_body=critic_goal_phi_body,
+        nbr_models=kwargs["ensemble_qnet_nbr_models"]
     )
     model_critic.share_memory()
 
-   target_model_critic = EnsembleQNet(
+    target_model_critic = EnsembleQNet(
         state_dim=input_shape, 
         action_dim=task.action_dim,
         critic_body=critic_head_body,
@@ -608,7 +622,8 @@ def build_TD3_Agent(task, config, agent_name):
         noisy=kwargs['noisy'],
         goal_oriented=kwargs['goal_oriented'],
         goal_shape=goal_shape,
-        goal_phi_body=critic_goal_phi_body
+        goal_phi_body=critic_goal_phi_body,
+        nbr_models=kwargs["ensemble_qnet_nbr_models"]
     )
     target_model_critic.share_memory()
 
@@ -622,8 +637,8 @@ def build_TD3_Agent(task, config, agent_name):
         model_actor=model_actor,
         model_critic=model_critic, 
         target_model_critic=target_model_critic,
-        actor_loss_fn=ddpg_actor_loss.compute_loss,
-        critic_loss_fn=ddpg_critic_loss.compute_loss,
+        actor_loss_fn=td3_actor_loss.compute_loss,
+        critic_loss_fn=td3_critic_loss.compute_loss,
     )
 
     if 'use_HER' in kwargs and kwargs['use_HER']:

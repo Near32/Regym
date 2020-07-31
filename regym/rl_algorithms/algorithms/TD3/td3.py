@@ -1,5 +1,6 @@
 import copy 
 from collections import deque 
+from functools import partial
 
 import numpy as np
 import torch
@@ -35,6 +36,31 @@ class OrnsteinUhlenbeckNoise :
         dx += self.sigma *  np.random.randn( self.dim )
         self.X += dx
         return self.X
+
+class GaussianNoise :
+    def __init__(self, dim, mu=0.0, sigma=0.2) :
+        self.dim = dim
+        self.mu = mu
+        self.sigma = sigma
+
+    def setSigma(self,sigma):
+        self.sigma = sigma
+    
+    def sample(self) :
+        noise = self.mu+self.sigma*np.random.randn( self.dim )
+        return noise
+
+def apply_noise(action, noise_distr, action_clip=None, noise_clip=None):
+    noise = torch.from_numpy(noise_distr.sample())
+    if noise_clip is not None:
+        noise = torch.clamp(noise, -noise_clip, noise_clip)
+
+    action += noise.to(action.device)
+
+    if action_clip is not None:
+        action = torch.clamp(action, -action_clip, action_clip)
+
+    return action 
 
 
 class TD3Algorithm(Algorithm):
@@ -72,6 +98,8 @@ class TD3Algorithm(Algorithm):
         self.kwargs = copy.deepcopy(kwargs)
         self.use_cuda = kwargs["use_cuda"]
 
+        self.actor_update_delay = int(self.kwargs["actor_update_delay"])
+
         self.model_actor = model_actor
         self.model_critic = model_critic
         if self.kwargs['use_cuda']:
@@ -89,7 +117,8 @@ class TD3Algorithm(Algorithm):
         self.goal_oriented = self.kwargs['goal_oriented'] if 'goal_oriented' in self.kwargs else False
         self.use_HER = self.kwargs['use_HER'] if 'use_HER' in self.kwargs else False
         
-        self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
+        self.weights_decay_lambda_actor = float(self.kwargs['weights_decay_lambda_actor'])
+        self.weights_decay_lambda_critic = float(self.kwargs['weights_decay_lambda_critic'])
         
         self.nbr_actor = self.kwargs['nbr_actor']
         
@@ -142,7 +171,13 @@ class TD3Algorithm(Algorithm):
         print(f"WARNING: critic_loss_fn is {self.critic_loss_fn}")
             
         
-        self.noise = OrnsteinUhlenbeckNoise(self.model_actor.action_dim)
+        self.noise = GaussianNoise(self.model_actor.action_dim, sigma=kwargs["actor_noise_std"])
+        self.target_noise = GaussianNoise(self.model_actor.action_dim, sigma=kwargs["target_actor_noise_std"])
+        self.noise_fn = partial(
+            apply_noise,
+            noise_distr=self.target_noise,
+            action_clip=float(kwargs["action_scaler"]),
+            noise_clip=float(kwargs["target_actor_noise_clip"]))
 
         self.recurrent = False
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
@@ -188,7 +223,8 @@ class TD3Algorithm(Algorithm):
             for storage in self.storages: storage.reset()
 
         self.storages = []
-        keys = ['s', 'a', 'log_pi_a', 'r', 'non_terminal']
+        #keys = ['s', 'a', 'log_pi_a', 'r', 'non_terminal']
+        keys = ['s', 'a', 'r', 'non_terminal']
         if self.recurrent:  keys += ['rnn_states', 'next_rnn_states']
         if self.goal_oriented:    keys += ['g']
         
@@ -233,8 +269,9 @@ class TD3Algorithm(Algorithm):
             self.storages[actor_index].add(current_exp_dict)
 
     def update_targets(self):
-        soft_update(self.target_model_critic, self.model_critic, self.TAU)
-        soft_update(self.target_model_actor, self.model_actor, self.TAU)
+        if (self.target_update_count//self.nbr_actor) % self.actor_update_delay == 0:
+            soft_update(self.target_model_critic, self.model_critic, self.TAU)
+            soft_update(self.target_model_actor, self.model_actor, self.TAU)
 
     def train(self, minibatch_size=None):
         if minibatch_size is None:  minibatch_size = self.batch_size
@@ -260,7 +297,8 @@ class TD3Algorithm(Algorithm):
         """
 
     def retrieve_values_from_storages(self, minibatch_size):
-        keys=['s', 'a', 'log_pi_a', 'succ_s', 'r', 'non_terminal']
+        #keys=['s', 'a', 'log_pi_a', 'succ_s', 'r', 'non_terminal']
+        keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
 
         fulls = {}
         
@@ -366,11 +404,12 @@ class TD3Algorithm(Algorithm):
                 rnn_states=sampled_rnn_states,
                 goals=sampled_goals,
                 gamma=self.GAMMA,
+                noise_fn=self.noise_fn,
                 model_critic=self.model_critic,
                 target_model_critic=self.target_model_critic,
                 model_actor=self.model_actor,
                 target_model_actor=self.target_model_actor,
-                weights_decay_lambda=self.weights_decay_lambda,
+                weights_decay_lambda=self.weights_decay_lambda_critic,
                 use_PER=self.use_PER,
                 PER_beta=beta,
                 importanceSamplingWeights=sampled_importanceSamplingWeights,
@@ -400,7 +439,7 @@ class TD3Algorithm(Algorithm):
                     target_model_critic=self.target_model_critic,
                     model_actor=self.model_actor,
                     target_model_actor=self.target_model_actor,
-                    weights_decay_lambda=self.weights_decay_lambda,
+                    weights_decay_lambda=self.weights_decay_lambda_actor,
                     use_PER=self.use_PER,
                     PER_beta=beta,
                     importanceSamplingWeights=sampled_importanceSamplingWeights,
