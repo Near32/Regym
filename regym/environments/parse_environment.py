@@ -57,7 +57,7 @@ def generate_task(env_name: str,
 
     env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=wrapping_fn)
     test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn)
-
+    
     task = Task(task.name, 
                 #ParallelEnv(env_creator, nbr_parallel_env, seed=seed), 
                 VecEnv(
