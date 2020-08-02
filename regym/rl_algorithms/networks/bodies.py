@@ -986,7 +986,7 @@ class FCBody(nn.Module):
                 
             layer = nn.Linear(in_ch, cfg, bias=not(add_bn)) 
             if layer_init_fn is not None:
-                layer = layer_init(layer, w_scale=math.sqrt(2))
+                layer = layer_init_fn(layer)#, w_scale=math.sqrt(2))
             in_ch = cfg
             self.layers.append(layer)
             if add_bn:

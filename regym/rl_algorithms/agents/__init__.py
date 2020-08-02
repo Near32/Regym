@@ -7,6 +7,7 @@ from .reinforce_agent import build_Reinforce_Agent, ReinforceAgent
 from .a2c_agent import build_A2C_Agent, A2CAgent
 from .ddpg_agent import build_DDPG_Agent, DDPGAgent 
 from .td3_agent import build_TD3_Agent, TD3Agent
+from .sac_agent import build_SAC_Agent, SACAgent
 from .i2a_agent import build_I2A_Agent, I2AAgent
 
 rockAgent     = MixedStrategyAgent(support_vector=[1, 0, 0], name='RockAgent')

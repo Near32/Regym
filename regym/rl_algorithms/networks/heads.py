@@ -167,7 +167,8 @@ class QNet(nn.Module):
                  goal_oriented=False,
                  goal_shape=None,
                  goal_phi_body=None,
-                 layer_init_fn=None):
+                 layer_init_fn=None,
+                 init_w=3e-3):
         super(QNet, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -201,8 +202,12 @@ class QNet(nn.Module):
         layer_fn = nn.Linear 
         if self.noisy:  layer_fn = NoisyLinear
         self.fc_critic = layer_fn(fc_critic_input_shape, 1)
+
         if layer_init_fn is not None:
             self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
+        else:
+            self.fc_critic.weight.data.uniform_(-init_w, init_w)
+            self.fc_critic.bias.data.uniform_(-init_w, init_w)
 
     def reset_noise(self):
         self.apply(reset_noisy_layer)
@@ -288,6 +293,7 @@ class EnsembleQNet(nn.Module):
                  goal_oriented=goal_oriented,
                  goal_shape=goal_shape,
                  goal_phi_body=goal_phi_body,
+                 layer_init_fn=layer_init_fn,
             )
             for _ in range(self.nbr_models)
         ])
@@ -364,7 +370,8 @@ class GaussianActorNet(nn.Module):
                  goal_phi_body=None,
                  deterministic=False,
                  action_scaler=1.0,
-                 layer_init_fn=None):
+                 layer_init_fn=None,
+                 init_w=3e-3):
         super(GaussianActorNet, self).__init__()
 
         self.deterministic = deterministic
@@ -401,6 +408,10 @@ class GaussianActorNet(nn.Module):
         self.fc_actor = layer_fn(fc_actor_input_shape, self.action_dim)
         if layer_init_fn is not None:
             self.fc_actor = layer_init_fn(self.fc_actor, 1e0)
+        else:
+            self.fc_actor.weight.data.uniform_(-init_w, init_w)
+            self.fc_actor.bias.data.uniform_(-init_w, init_w)
+
         self.std = nn.Parameter(torch.zeros(action_dim))
 
     def reset_noise(self):
@@ -461,6 +472,141 @@ class GaussianActorNet(nn.Module):
                 'ent': entropy,
             }
         
+        if rnn_states is not None:
+            prediction.update({'rnn_states': rnn_states,
+                               'next_rnn_states': next_rnn_states})
+
+        return prediction
+
+
+LOG_STD_MAX = 2
+LOG_STD_MIN = -20
+
+
+class SquashedGaussianActorNet(nn.Module):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 actor_body,
+                 phi_body=None,
+                 noisy=False,
+                 goal_oriented=False,
+                 goal_shape=None,
+                 goal_phi_body=None,
+                 action_scaler=1.0,
+                 layer_init_fn=None,
+                 init_w=3e-3):
+        super(SquashedGaussianActorNet, self).__init__()
+
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.noisy = noisy 
+        self.goal_oriented = goal_oriented
+        self.action_scaler = action_scaler
+
+        self.actor_body = actor_body
+
+        if phi_body is None: phi_body = DummyBody(state_dim)
+        self.phi_body = phi_body
+        
+        actor_input_shape = self.phi_body.get_feature_shape()
+        
+        if self.goal_oriented:
+            self.goal_state_flattening = False
+            assert(goal_shape is not None)
+            if goal_phi_body is None:   
+                if goal_shape == state_dim:
+                    goal_phi_body = self.phi_body
+                else:
+                    self.goal_state_flattening = True
+            self.goal_phi_body = goal_phi_body
+
+            if not(self.goal_state_flattening):
+                actor_input_shape += self.goal_phi_body.get_feature_shape()
+        
+        fc_actor_input_shape = self.actor_body.get_feature_shape()
+
+        layer_fn = nn.Linear 
+        if self.noisy:  layer_fn = NoisyLinear
+        self.fc_actor_mu = layer_fn(fc_actor_input_shape, self.action_dim)
+        self.fc_actor_log_std = layer_fn(fc_actor_input_shape, self.action_dim)
+        if layer_init_fn is not None:
+            self.fc_actor_mu = layer_init_fn(self.fc_actor_mu)
+            self.fc_actor_log_std = layer_init_fn(self.fc_actor_log_std)
+        else:
+            self.fc_actor_mu.weight.data.uniform_(-init_w, init_w)
+            self.fc_actor_mu.bias.data.uniform_(-init_w, init_w)
+            self.fc_actor_log_std.weight.data.uniform_(-init_w, init_w)
+            self.fc_actor_log_std.bias.data.uniform_(-init_w, init_w)
+        
+    def reset_noise(self):
+        self.apply(reset_noisy_layer)
+
+    def forward(self, obs, action=None, rnn_states=None, goal=None):
+        if not(self.goal_oriented):  assert(goal==None)
+        
+        if self.goal_oriented:
+            if self.goal_state_flattening:
+                obs = torch.cat([obs, goal], dim=1)
+
+        next_rnn_states = None 
+        if rnn_states is not None:
+            next_rnn_states = {k: None for k in rnn_states}
+
+        if rnn_states is not None and 'phi_body' in rnn_states:
+            phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
+        else:
+            phi = self.phi_body(obs)
+
+        gphi = None
+        if self.goal_oriented and not(self.goal_state_flattening):
+            if rnn_states is not None and 'goal_phi_body' in rnn_states:
+                gphi, next_rnn_states['goal_phi_body'] = self.goal_phi_body( (goal, rnn_states['goal_phi_body']) )
+            else:
+                gphi = self.phi_body(goal)
+
+            phi = torch.cat([phi, gphi], dim=1)
+
+
+        if rnn_states is not None and 'actor_body' in rnn_states:
+            actor_output, next_rnn_states['actor_body'] = self.actor_body( (phi, rnn_states['actor_body']) )
+        else:
+            actor_output = self.actor_body(phi)
+
+        # batch x action_dim
+        action_mu = self.fc_actor_mu(actor_output)
+        action_log_std = self.fc_actor_log_std(actor_output)
+
+        action_std = action_log_std.clamp(LOG_STD_MIN, LOG_STD_MAX).exp()
+        #action_std = F.softplus(action_log_std)
+
+        #action_dist = torch.distributions.normal.Normal(action_mu, action_std)
+        action_dist = torch.distributions.normal.Normal(action_mu, 0.2*torch.ones_like(action_mu))
+        
+        sampled_action = action_dist.rsample()
+        action = self.action_scaler*torch.tanh(sampled_action)
+
+        # Log likelyhood of action = sum_i dist.log_prob(action[i])
+        log_prob = action_dist.log_prob(sampled_action)#.sum(dim=-1).unsqueeze(-1)
+        # batch x action_dim
+        extra_term = (2*(np.log(2) - sampled_action - F.softplus(-2*sampled_action)))#.sum(dim=-1).unsqueeze(-1)
+        #extra_term = torch.log(1-action.pow(2)+1e-6).sum(dim=-1).unsqueeze(-1)
+        # batch x action_dim
+        squashed_log_prob = (log_prob - extra_term).sum(dim=-1).unsqueeze(-1)
+        # batch x 1
+
+        entropy = squashed_log_prob.exp() * squashed_log_prob
+        # batch x 1
+
+        prediction = {
+            'a': action,
+            'mu': action_mu,
+            'std': action_std,
+            'log_pi_a': squashed_log_prob,
+            'log_normal_u': log_prob,
+            'ent': entropy,
+        }
+    
         if rnn_states is not None:
             prediction.update({'rnn_states': rnn_states,
                                'next_rnn_states': next_rnn_states})
