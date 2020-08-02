@@ -18,6 +18,7 @@ from regym.util.experiment_parsing import initialize_agents
 from regym.util.wrappers import TimeLimit
 
 import mujoco_py
+import pybullet_envs
 
 
 def check_path_for_agent(filepath, restore=True):

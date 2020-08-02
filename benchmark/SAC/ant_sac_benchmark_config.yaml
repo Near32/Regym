@@ -84,7 +84,7 @@ SAC_BaselineMLP: &SAC_BaselineMLP
         
 experiment:
     tasks: [
-            {'env-id': 'Ant-v2',
+            {'env-id': 'AntBulletEnv-v0', #'Ant-v2',
 
              'run-id': 'B1M/BaselineStdBU02+NoRecording+PerDimLogProb+Log+SeparateCompute&Update+ActionSamplingFromEnv/XavierUniformWHOLE+Bias0/EntropyRegAlpha2m1/ActorStart10p3TorchRand/MinCapacity10e3/ReplayPeriod1XNbrTrainIt1_UpdatePerReplay1_Cap1p6_b256/CriticLr3m4_ActorLr3m4_Seed0_tau5m3_GradClip0/WeightDecayCritic0Actor0/MSELOSS/',
              #'run-id': 'B1M/BaselineStdBUT02+PerDimLogProb+Log+SeparateCompute&Update+ActionSamplingFromEnv/XavierUniformWHOLE+Bias0/EntropyRegAlpha2m1/ActorStart10p3TorchRand/MinCapacity10e3/ReplayPeriod1XNbrTrainIt1_UpdatePerReplay1_Cap1p6_b256/CriticLr3m4_ActorLr3m4_Seed100_tau5m3_GradClip0/WeightDecayCritic0Actor0/MSELOSS/',
