@@ -91,9 +91,9 @@ def PreprocessFunction(x, use_cuda=False, normalization=True):
     if normalization:
         x = x/255.0
     if use_cuda:
-        return torch.from_numpy(x).cuda()
+        return torch.from_numpy(x).type(torch.FloatTensor).cuda()
     else:
-        return torch.from_numpy(x)
+        return torch.from_numpy(x).type(torch.FloatTensor)
 
 def ResizeCNNPreprocessFunction(x, size, use_cuda=False, normalize_rgb_values=True):
     '''
