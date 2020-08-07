@@ -1,6 +1,7 @@
 import os
 import copy
 from functools import partial 
+from collections.abc import Iterable
 from collections import deque, OrderedDict
 
 import cv2 
@@ -316,7 +317,7 @@ class FrameResizeWrapper(gym.ObservationWrapper):
         self.observation_space = gym.spaces.Box(low=low, high=high)
     
     def observation(self, observation):
-        obs = cv2.resize(observation, self.size)
+        obs = cv2.resize(observation, tuple(self.size))
         obs = obs.reshape(self.observation_space.shape)
         return obs
 
@@ -468,7 +469,7 @@ def baseline_atari_pixelwrap(env, size=None, skip=4, stack=4, grayscale=True,  s
     if skip > 0:
         env = MaxAndSkipEnv(env, skip=skip)
     
-    if size is not None and 'None' not in size:
+    if size is not None:
         env = FrameResizeWrapper(env, size=size) 
     
     if single_life_episode:

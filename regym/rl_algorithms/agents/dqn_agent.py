@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import copy
 import random
+from collections.abc import Iterable
 
 #from ..replay_buffers import EXP
 #from ..networks import LeakyReLU, DQN, DuelingDQN
@@ -164,6 +165,9 @@ class DQNAgent(Agent):
             self._pre_process_rnn_states()
             self.current_prediction = model(state, rnn_states=self.rnn_states, goal=goal)
         else:
+            ### TODO REMOVE MASSIVE HACK
+            state = state.permute(0, 3, 1, 2)
+            ### 
             self.current_prediction = model(state, goal=goal)
         self.current_prediction = self._post_process(self.current_prediction)
 
@@ -186,26 +190,7 @@ class DQNAgent(Agent):
         return clone
 
         
-def build_DQN_Agent(task, config, agent_name):
-    '''
-    :param task: Environment specific configuration
-    :param config: Dict containing configuration for ppo agent
-    :param agent_name: name of the agent
-    :returns: DeepQNetworkAgent adapted to be trained on :param: task under :param: config
-    '''
-    kwargs = config.copy()
-    kwargs['discount'] = float(kwargs['discount'])
-    kwargs['replay_capacity'] = int(float(kwargs['replay_capacity']))
-    kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
-    
-    # Default preprocess function:
-    kwargs['state_preprocess'] = partial(PreprocessFunction, normalization=False)
-    kwargs['goal_preprocess'] = partial(PreprocessFunction, normalization=False)
-
-    if 'None' in kwargs['observation_resize_dim']:  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
-    if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
-    
-
+def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
     phi_body = None
     input_dim = list(task.observation_shape)
     if kwargs['goal_oriented']:
@@ -397,6 +382,30 @@ def build_DQN_Agent(task, config, agent_name):
                             goal_phi_body=goal_phi_body)
 
     model.share_memory()
+    return model
+
+
+def build_DQN_Agent(task, config, agent_name):
+    '''
+    :param task: Environment specific configuration
+    :param config: Dict containing configuration for ppo agent
+    :param agent_name: name of the agent
+    :returns: DeepQNetworkAgent adapted to be trained on :param: task under :param: config
+    '''
+    kwargs = config.copy()
+    kwargs['discount'] = float(kwargs['discount'])
+    kwargs['replay_capacity'] = int(float(kwargs['replay_capacity']))
+    kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
+    
+    # Default preprocess function:
+    kwargs['state_preprocess'] = partial(PreprocessFunction, normalization=False)
+    kwargs['goal_preprocess'] = partial(PreprocessFunction, normalization=False)
+
+    if (isinstance(kwargs['observation_resize_dim'], Iterable)) and ('None' in kwargs['observation_resize_dim']):  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
+    #if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
+    
+
+    model = generate_model(task, config)
 
     loss_fn = dqn_loss.compute_loss
     if kwargs['double'] or kwargs['dueling']:

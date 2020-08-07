@@ -365,7 +365,7 @@ class PrioritizedReplayStorage(ReplayStorage):
         return (error+self.epsilon)**self.alpha
 
     def update(self, idx, priority):
-        if np.isnan(priority) or np.isinf(priority) :
+        if any(np.isnan(priority)) or any(np.isinf(priority)):
             priority = self.max_priority
 
         change = priority - self.tree[idx]

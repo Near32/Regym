@@ -40,6 +40,8 @@ def compute_loss(states: torch.Tensor,
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
     '''
+    states = states.permute(0, 3, 1, 2)
+    next_states = next_states.permute(0, 3, 1, 2)
     prediction = model(states, action=actions, rnn_states=rnn_states, goal=goals)
 
     state_action_values = prediction["qa"]

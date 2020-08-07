@@ -225,16 +225,16 @@ experiment:
              'run-id': 'test/Seed1_venv_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m2',
              #'agent-id': '1step_double_dqn_LargeCNN_r1e5_tau1m4',
              #'agent-id': '1step_double_dqn_LargeCNN_r1e5_tau1m4_targetAsMain',
-             'agent-id': '1step_fastprioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m4',
+             'agent-id': '5step_noisy_fastprioritized_double_dueling_dqn_LargeCNN_r1e5_B4m1_tau1m3',
 
-             'nbr_actor': 1,
+             'nbr_actor': 2,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': True,
              'single_life_episode': True,
              'nbr_max_random_steps': 30,
              'clip_reward': True,
-             'observation_resize_dim': 84
+             'observation_resize_dim': [84, 84]
              },
             
             # {'env-id': 'DoubleDunkNoFrameskip-v4', #'PongNoFrameskip-v4',
@@ -297,7 +297,7 @@ experiment:
             #  'observation_resize_dim': 84
             #  },
             ]
-    experiment_id: 'atari_10M_benchmark_dqn'
+    experiment_id: 'atari_10M_benchmark_dqn_low_memory'
     benchmarking_episodes: 1
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 1.0e8
@@ -305,209 +305,209 @@ experiment:
     seed: 1
 
 agents:    
-    1step_double_dqn_LargeCNN_r1e5:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        #dueling: True 
-        #noisy: True 
-        n_step: 1
+   #1step_double_dqn_LargeCNN_r1e5:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    #dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
 
-    1step_double_dqn_LargeCNN_r1e5_targetAsMain:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        #dueling: True 
-        #noisy: True 
-        n_step: 1
-        use_target_to_gather_data: True 
+   #1step_double_dqn_LargeCNN_r1e5_targetAsMain:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    #dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
+   #    use_target_to_gather_data: True 
 
-    1step_double_dqn_LargeCNN_r1e5_tau1m4:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        #dueling: True 
-        #noisy: True 
-        n_step: 1
-        tau: 1.0e-4
+   #1step_double_dqn_LargeCNN_r1e5_tau1m4:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    #dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
+   #    tau: 1.0e-4
 
-    1step_double_dqn_LargeCNN_r1e5_tau1m4_targetAsMain:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        #dueling: True 
-        #noisy: True 
-        n_step: 1
-        tau: 1.0e-4
-        use_target_to_gather_data: True
+   #1step_double_dqn_LargeCNN_r1e5_tau1m4_targetAsMain:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    #dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
+   #    tau: 1.0e-4
+   #    use_target_to_gather_data: True
 
-    1step_dueling_double_dqn_LargeCNN_r1e5:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        dueling: True 
-        #noisy: True 
-        n_step: 1
+   #1step_dueling_double_dqn_LargeCNN_r1e5:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
 
-    1step_dueling_double_dqn_LargeCNN_r1e5_tau1m4:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        dueling: True 
-        #noisy: True 
-        n_step: 1
-        tau: 1.0e-4
+   #1step_dueling_double_dqn_LargeCNN_r1e5_tau1m4:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
+   #    tau: 1.0e-4
 
-    1step_fastprioritized_double_dqn_LargeCNN_r1e5_tau1m4:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        use_PER: True
-        PER_beta: 0.5
-        replay_period: 2    
-        batch_size: 16
-        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
-        # but bottleneck on GPU batchsize gives a better trade-off 
-        # batch-regularization-effect / speed with a batch_size=16 
-        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
-        # and ~84 it/sec with updates...
-        # Whereas 32 / 4 yielded ~25 it/sec....
-        double: True
-        #dueling: True 
-        #noisy: True 
-        n_step: 1
-        tau: 1.0e-4
+   #1step_fastprioritized_double_dqn_LargeCNN_r1e5_tau1m4:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    use_PER: True
+   #    PER_beta: 0.5
+   #    replay_period: 2    
+   #    batch_size: 16
+   #    # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+   #    # but bottleneck on GPU batchsize gives a better trade-off 
+   #    # batch-regularization-effect / speed with a batch_size=16 
+   #    # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+   #    # and ~84 it/sec with updates...
+   #    # Whereas 32 / 4 yielded ~25 it/sec....
+   #    double: True
+   #    #dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
+   #    tau: 1.0e-4
 
-    1step_fastprioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m4:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        use_PER: True
-        PER_beta: 0.4
-        replay_period: 2    
-        batch_size: 16
-        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
-        # but bottleneck on GPU batchsize gives a better trade-off 
-        # batch-regularization-effect / speed with a batch_size=16 
-        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
-        # and ~84 it/sec with updates...
-        # Whereas 32 / 4 yielded ~25 it/sec....
-        double: True
-        #dueling: True 
-        #noisy: True 
-        n_step: 1
-        tau: 1.0e-4
-        use_target_to_gather_data: False
+   #1step_fastprioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m4:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    use_PER: True
+   #    PER_beta: 0.4
+   #    replay_period: 2    
+   #    batch_size: 16
+   #    # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+   #    # but bottleneck on GPU batchsize gives a better trade-off 
+   #    # batch-regularization-effect / speed with a batch_size=16 
+   #    # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+   #    # and ~84 it/sec with updates...
+   #    # Whereas 32 / 4 yielded ~25 it/sec....
+   #    double: True
+   #    #dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
+   #    tau: 1.0e-4
+   #    use_target_to_gather_data: False
     
-    1step_noisy_double_dqn_LargeCNN_r1e5:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        #dueling: True 
-        noisy: True 
-        n_step: 1
+   #1step_noisy_double_dqn_LargeCNN_r1e5:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    #dueling: True 
+   #    noisy: True 
+   #    n_step: 1
 
-    1step_noisy_double_dueling_dqn_LargeCNN_r1e5:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        dueling: True 
-        noisy: True 
-        n_step: 1
+   #1step_noisy_double_dueling_dqn_LargeCNN_r1e5:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    dueling: True 
+   #    noisy: True 
+   #    n_step: 1
 
-    3step_noisy_double_dqn_LargeCNN_r1e5:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        #dueling: True 
-        noisy: True 
-        n_step: 3
+   #3step_noisy_double_dqn_LargeCNN_r1e5:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    #dueling: True 
+   #    noisy: True 
+   #    n_step: 3
 
-    5step_noisy_double_dqn_LargeCNN_r1e5:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        double: True
-        #dueling: True 
-        noisy: True 
-        n_step: 5
+   #5step_noisy_double_dqn_LargeCNN_r1e5:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    double: True
+   #    #dueling: True 
+   #    noisy: True 
+   #    n_step: 5
 
-    1step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        use_PER: True
-        PER_beta: 0.5
-        replay_period: 2    
-        batch_size: 16
-        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
-        # but bottleneck on GPU batchsize gives a better trade-off 
-        # batch-regularization-effect / speed with a batch_size=16 
-        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
-        # and ~84 it/sec with updates...
-        # Whereas 32 / 4 yielded ~25 it/sec....
-        double: True
-        #dueling: True 
-        #noisy: True 
-        n_step: 1
+   #1step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    use_PER: True
+   #    PER_beta: 0.5
+   #    replay_period: 2    
+   #    batch_size: 16
+   #    # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+   #    # but bottleneck on GPU batchsize gives a better trade-off 
+   #    # batch-regularization-effect / speed with a batch_size=16 
+   #    # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+   #    # and ~84 it/sec with updates...
+   #    # Whereas 32 / 4 yielded ~25 it/sec....
+   #    double: True
+   #    #dueling: True 
+   #    #noisy: True 
+   #    n_step: 1
 
-    1step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        use_PER: True
-        PER_beta: 0.4
-        replay_period: 2    
-        batch_size: 16
-        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
-        # but bottleneck on GPU batchsize gives a better trade-off 
-        # batch-regularization-effect / speed with a batch_size=16 
-        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
-        # and ~84 it/sec with updates...
-        # Whereas 32 / 4 yielded ~25 it/sec....
-        double: True
-        #dueling: True 
-        noisy: True 
-        n_step: 1
+   #1step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    use_PER: True
+   #    PER_beta: 0.4
+   #    replay_period: 2    
+   #    batch_size: 16
+   #    # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+   #    # but bottleneck on GPU batchsize gives a better trade-off 
+   #    # batch-regularization-effect / speed with a batch_size=16 
+   #    # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+   #    # and ~84 it/sec with updates...
+   #    # Whereas 32 / 4 yielded ~25 it/sec....
+   #    double: True
+   #    #dueling: True 
+   #    noisy: True 
+   #    n_step: 1
 
-    3step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        use_PER: True
-        PER_beta: 0.4
-        replay_period: 2    
-        batch_size: 16
-        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
-        # but bottleneck on GPU batchsize gives a better trade-off 
-        # batch-regularization-effect / speed with a batch_size=16 
-        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
-        # and ~84 it/sec with updates...
-        # Whereas 32 / 4 yielded ~25 it/sec....
-        double: True
-        #dueling: True 
-        noisy: True 
-        n_step: 3
+   #3step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    use_PER: True
+   #    PER_beta: 0.4
+   #    replay_period: 2    
+   #    batch_size: 16
+   #    # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+   #    # but bottleneck on GPU batchsize gives a better trade-off 
+   #    # batch-regularization-effect / speed with a batch_size=16 
+   #    # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+   #    # and ~84 it/sec with updates...
+   #    # Whereas 32 / 4 yielded ~25 it/sec....
+   #    double: True
+   #    #dueling: True 
+   #    noisy: True 
+   #    n_step: 3
 
-    5step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
-        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
-        replay_capacity: 1e5
-        use_PER: True
-        PER_beta: 0.4
-        replay_period: 2    
-        batch_size: 16
-        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
-        # but bottleneck on GPU batchsize gives a better trade-off 
-        # batch-regularization-effect / speed with a batch_size=16 
-        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
-        # and ~84 it/sec with updates...
-        # Whereas 32 / 4 yielded ~25 it/sec....
-        double: True
-        #dueling: True 
-        noisy: True 
-        n_step: 5
+   #5step_noisy_fastprioritized_double_dqn_LargeCNN_r1e5_B4m1:
+   #    <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+   #    replay_capacity: 1e5
+   #    use_PER: True
+   #    PER_beta: 0.4
+   #    replay_period: 2    
+   #    batch_size: 16
+   #    # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+   #    # but bottleneck on GPU batchsize gives a better trade-off 
+   #    # batch-regularization-effect / speed with a batch_size=16 
+   #    # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+   #    # and ~84 it/sec with updates...
+   #    # Whereas 32 / 4 yielded ~25 it/sec....
+   #    double: True
+   #    #dueling: True 
+   #    noisy: True 
+   #    n_step: 5
 
     5step_noisy_fastprioritized_double_dueling_dqn_LargeCNN_r1e5_B4m1_tau1m3:
         <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
         tau: 1.0e-3
-        replay_capacity: 1e5
-        use_PER: True
+        replay_capacity: 5e4
+        use_PER: False
         PER_beta: 0.4
-        replay_period: 2    
+        replay_period: 1    
         batch_size: 16
         # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
         # but bottleneck on GPU batchsize gives a better trade-off 
@@ -519,6 +519,8 @@ agents:
         dueling: True 
         noisy: True 
         n_step: 5
-
-        
-        
+        goal_oriented: False
+        use_HER: False
+        use_cuda: False
+        min_capacity: 100
+        HER_target_clamping: null

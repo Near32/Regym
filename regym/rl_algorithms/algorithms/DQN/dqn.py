@@ -36,7 +36,6 @@ class DQNAlgorithm(Algorithm):
         
         self.goal_oriented = self.kwargs['goal_oriented'] if 'goal_oriented' in self.kwargs else False
         self.use_HER = self.kwargs['use_HER'] if 'use_HER' in self.kwargs else False
-        assert((self.use_HER and self.goal_oriented) or self.goal_oriented)
 
         self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
         
