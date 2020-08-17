@@ -1,6 +1,5 @@
 import pytest
 from regym.environments.gym_parser import parse_gym_environment
-from regym.environments import parse_environment
 
 @pytest.fixture
 def ppo_config_dict():
