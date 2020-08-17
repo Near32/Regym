@@ -111,7 +111,10 @@ class Agent(object):
         lookedup_keys = ['LSTM', 'GRU']
         rnn_states = {}
         kwargs = {'cuda': algorithm.kwargs['use_cuda'], 'repeat':nbr_actor}
-        look_for_keys_and_apply(algorithm.get_models()['model'], keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
+        #look_for_keys_and_apply(algorithm.get_models()['model'], keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
+        for name, model in algorithm.get_models().items():
+            if "model" in name:
+                look_for_keys_and_apply( model, keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
         rnn_keys = list(rnn_states.keys())
         return rnn_keys, rnn_states
         
@@ -159,9 +162,11 @@ class Agent(object):
                                               rnn_states_dict=rnn_states_dict[recurrent_submodule_name])                
             else:
                 for idx in range(len(rnn_states_dict[recurrent_submodule_name]['hidden'])):
-                    rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx].cpu()
-                    rnn_states_dict[recurrent_submodule_name]['cell'][idx]   = next_rnn_states_dict[recurrent_submodule_name]['cell'][idx].cpu()
-
+                    if next_rnn_states_dict[recurrent_submodule_name] is None: break
+                    # Updating rnn_states:
+                    rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx].detach().cpu()
+                    rnn_states_dict[recurrent_submodule_name]['cell'][idx]   = next_rnn_states_dict[recurrent_submodule_name]['cell'][idx].detach().cpu()
+                    
                     next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx].detach().cpu()
                     next_rnn_states_dict[recurrent_submodule_name]['cell'][idx] = next_rnn_states_dict[recurrent_submodule_name]['cell'][idx].detach().cpu()
     
@@ -169,6 +174,10 @@ class Agent(object):
     def _extract_from_rnn_states(rnn_states_batched: dict, batch_idx: int):
         rnn_states = {k: {} for k in rnn_states_batched}
         for recurrent_submodule_name in rnn_states_batched:
+            # It is possible that an initial rnn states dict has states for actor and critic, separately,
+            # but only the actor will be operated during the take_action interface.
+            # Here, we allow the critic rnn states to be skipped:
+            if rnn_states_batched[recurrent_submodule_name] is None:    continue
             if 'hidden' in rnn_states_batched[recurrent_submodule_name]:
                 rnn_states[recurrent_submodule_name] = {'hidden':[], 'cell':[]}
                 for idx in range(len(rnn_states_batched[recurrent_submodule_name]['hidden'])):
@@ -217,11 +226,11 @@ class Agent(object):
         return out_hdict
 
     def preprocess_environment_signals(self, state, reward, succ_state, done):
-        non_terminal = torch.from_numpy(1 - np.array(done)).type(torch.FloatTensor)
+        non_terminal = torch.from_numpy(1 - np.array(done)).reshape(-1,1).type(torch.FloatTensor)
         state = self.state_preprocessing(state, use_cuda=False)
         succ_state = self.state_preprocessing(succ_state, use_cuda=False)
-        if isinstance(reward, np.ndarray): r = torch.from_numpy(reward).type(torch.FloatTensor)
-        else: r = torch.ones(1).type(torch.FloatTensor)*reward
+        if isinstance(reward, np.ndarray): r = torch.from_numpy(reward).reshape(-1,1).type(torch.FloatTensor)
+        else: r = torch.ones(1,1).type(torch.FloatTensor)*reward
         return state, r, succ_state, non_terminal
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):

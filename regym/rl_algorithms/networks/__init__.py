@@ -3,8 +3,9 @@ from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreproces
 from .bodies import FCBody, LSTMBody, GRUBody, EmbeddingRNNBody, CaptionRNNBody 
 from .bodies import ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
 from .bodies import NoisyLinear
-from .heads import CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
-from .heads import CategoricalQNet, InstructionPredictor
+from .heads import GaussianActorNet, CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
+from .heads import QNet, CategoricalQNet, InstructionPredictor
+from .heads import EnsembleQNet
 
 import torch.nn.functional as F 
 
