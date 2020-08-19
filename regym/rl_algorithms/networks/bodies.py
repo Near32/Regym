@@ -83,15 +83,17 @@ class ConvolutionalBody(nn.Module):
             self.feature_dim = feature_dim[-1]
 
         self.features = []
-        dim = input_shape[1] # height
+        h_dim = input_shape[1]  # height
+        w_dim = input_shape[0]  # width
         in_ch = channels[0]
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
             if cfg == 'M':
                 layer = nn.MaxPool2d(kernel_size=k, stride=s)
                 self.features.append(layer)
                 # Update of the shape of the input-image, following Conv:
-                dim = (dim-k)//s+1
-                print(f"Dim: {dim}")
+                h_dim = (h_dim-k)//s+1
+                w_dim = (w_dim-k)//s+1
+                print(f"Dims: Height: {h_dim}\t Width: {w_dim}")
             else:
                 layer = nn.Conv2d(in_channels=in_ch, out_channels=cfg, kernel_size=k, stride=s, padding=p) 
                 layer = layer_init(layer, w_scale=math.sqrt(2))
@@ -99,14 +101,14 @@ class ConvolutionalBody(nn.Module):
                 self.features.append(layer)
                 self.features.append(self.non_linearities[idx](inplace=True))
                 # Update of the shape of the input-image, following Conv:
-                dim = (dim-k+2*p)//s+1
-                print(f"Dim: {dim}")
+                h_dim = (h_dim-k+2*p)//s+1
+                w_dim = (w_dim-k+2*p)//s+1
+                print(f"Dims: Height: {h_dim}\t Width: {w_dim}")
         self.features = nn.Sequential(*self.features)
 
-        self.feat_map_dim = dim 
         self.feat_map_depth = channels[-1]
 
-        hidden_units = (dim * dim * channels[-1],)
+        hidden_units = (h_dim * w_dim * channels[-1],)
         if isinstance(feature_dim, tuple):
             hidden_units = hidden_units + feature_dim
         else:
