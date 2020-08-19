@@ -29,7 +29,7 @@ class R2D3Algorithm(DQNAlgorithm):
     # NOTE: we are overriding this function from DQNAlgorithm
     def retrieve_values_from_storages(self, minibatch_size: int):
         '''
-        We sample from both replay buffers (expert_demonstrations and agent 
+        We sample from both replay buffers (expert_demonstrations and agent
         collected experiences) according to property self.demo_ratio
         '''
         coin_flips = scipy.stats.bernoulli.rvs(p=self.demo_ratio, size=minibatch_size)
@@ -38,7 +38,7 @@ class R2D3Algorithm(DQNAlgorithm):
         # TODO: Sample num_samples_expert_demonstrations from self.expert_demonstrations
         #       and num_replay_buffer from self.storages
         raise NotImplementedError()
-    
+
     # NOTE: we are overriding this function from DQNAlgorithm
     def update_replay_buffer_priorities(self):
         '''
