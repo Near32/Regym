@@ -208,9 +208,13 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
             phi_body = FCBody(input_dim, hidden_units=(output_dim, ), gate=F.leaky_relu)
         elif kwargs['phi_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            if isinstance(kwargs['observation_resize_dim'], int):
+                input_height, input_width = kwargs['observation_resize_dim'], kwargs['observation_resize_dim']
+            else:
+                input_height, input_width = kwargs['observation_resize_dim']
+
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=input_height, normalize_rgb_values=True)
+            kwargs['preprocessed_observation_shape'] = [input_dim[-1], input_height, input_width]
             if 'nbr_frame_stacking' in kwargs:
                 kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
             input_shape = kwargs['preprocessed_observation_shape']

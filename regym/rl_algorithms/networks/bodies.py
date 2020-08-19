@@ -83,8 +83,9 @@ class ConvolutionalBody(nn.Module):
             self.feature_dim = feature_dim[-1]
 
         self.features = []
-        h_dim = input_shape[1]  # height
-        w_dim = input_shape[0]  # width
+        # input_shape size: [channels, height, width]
+        h_dim = input_shape[1]
+        w_dim = input_shape[2]
         in_ch = channels[0]
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
             if cfg == 'M':
