@@ -403,10 +403,9 @@ def build_DQN_Agent(task, config, agent_name):
     kwargs['goal_preprocess'] = partial(PreprocessFunction, normalization=False)
 
     if 'None' in kwargs['observation_resize_dim']:  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
-    if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
+    #if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
     
-
-    model = generate_model(task, config)
+    model = generate_model(task, kwargs)
 
     loss_fn = dqn_loss.compute_loss
     if kwargs['double'] or kwargs['dueling']:
