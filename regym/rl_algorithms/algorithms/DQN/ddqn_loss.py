@@ -2,9 +2,9 @@ from typing import Dict, List
 import torch
 
 
-def compute_loss(states: torch.Tensor, 
+def compute_loss(states: torch.Tensor,
                  actions: torch.Tensor,
-                 next_states: torch.Tensor, 
+                 next_states: torch.Tensor,
                  rewards: torch.Tensor,
                  non_terminals: torch.Tensor,
                  goals: torch.Tensor,
@@ -67,7 +67,7 @@ def compute_loss(states: torch.Tensor,
         targetQ_nextS_argmaxA_Q_value = targetQ_nextS_A_values.gather(1, argmaxA_Q_nextS_A_values).squeeze(1)
 
         # Compute the expected Q values:
-        expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals    
+        expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals
 
         if HER_target_clamping:
             # clip the target to [-50,0]
@@ -75,15 +75,15 @@ def compute_loss(states: torch.Tensor,
     ############################
 
     # Compute loss:
-    #diff_squared = torch.abs(expected_state_action_values.detach() - state_action_values_g) 
+    #diff_squared = torch.abs(expected_state_action_values.detach() - state_action_values_g)
     diff_squared = (expected_state_action_values.detach() - state_action_values_g).pow(2.0)
     loss_per_item = diff_squared
-    
+
     if use_PER:
       diff_squared = importanceSamplingWeights * diff_squared
-    
+
     loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*prediction['ent'].mean()
-    
+
     if summary_writer is not None:
         summary_writer.add_scalar('Training/MeanQAValues', prediction['qa'].cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/StdQAValues', prediction['qa'].cpu().std().item(), iteration_count)
@@ -94,5 +94,5 @@ def compute_loss(states: torch.Tensor,
             summary_writer.add_scalar('Training/ImportanceSamplingMean', importanceSamplingWeights.cpu().mean().item(), iteration_count)
             summary_writer.add_scalar('Training/ImportanceSamplingStd', importanceSamplingWeights.cpu().std().item(), iteration_count)
             summary_writer.add_scalar('Training/PER_Beta', PER_beta, iteration_count)
-            
+
     return loss, loss_per_item
