@@ -1,5 +1,6 @@
 from .algorithm import Algorithm
 from .DQN import *
+from .R2D3 import *
 from .THER import *
 from .PPO import *
 from .A2C import *

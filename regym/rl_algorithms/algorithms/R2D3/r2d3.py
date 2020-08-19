@@ -12,11 +12,11 @@ sum_writer = None
 
 class R2D3Algorithm(DQNAlgorithm):
 
-    def __init__(self, kwargs: Dict[str, Any], model: nn.Model,
+    def __init__(self, kwargs: Dict[str, Any], model: nn.Module,
                  target_model: Optional[nn.Module] = None,
                  optimizer=None,
+                 expert_demonstrations: ReplayStorage = None,
                  loss_fn: Callable = dqn_loss.compute_loss,
-                 expert_demonstrations: ReplayStorage
                  sum_writer=None):
         super().__init__(
             kwargs, model, target_model, optimizer, loss_fn, sum_writer)

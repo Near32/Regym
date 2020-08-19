@@ -85,7 +85,7 @@ class ReplayStorage():
     def reset(self):
         for k in self.keys:
             if k in self.circular_keys: continue
-            setattr(self, k, np.zeros(self.capacity+1, dtype=object))
+            setattr(self, k, np.zeros(int(self.capacity) + 1, dtype=object))
             self.position[k] = 0
             self.current_size[k] = 0
 

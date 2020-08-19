@@ -165,9 +165,6 @@ class DQNAgent(Agent):
             self._pre_process_rnn_states()
             self.current_prediction = model(state, rnn_states=self.rnn_states, goal=goal)
         else:
-            ### TODO REMOVE MASSIVE HACK
-            state = state.permute(0, 3, 1, 2)
-            ### 
             self.current_prediction = model(state, goal=goal)
         self.current_prediction = self._post_process(self.current_prediction)
 
@@ -341,8 +338,8 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
         elif kwargs['critic_arch'] == 'MLP':
             hidden_units=(output_dim,)
             if 'critic_arch_hidden_units' in kwargs:
-                hidden_units = tuple(kwargs['critic_arch_hidden_units'])
-            critic_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu, layer_fn=layer_fn)
+                hidden_units = list(kwargs['critic_arch_hidden_units'])
+            critic_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
         elif kwargs['critic_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])

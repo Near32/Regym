@@ -347,7 +347,7 @@ class PrioritizedReplayStorage(ReplayStorage):
 
         self.epsilon = 1e-4
         
-        self.tree = np.zeros(2*self.capacity-1)
+        self.tree = np.zeros(2 * int(self.capacity) - 1)
         self.sumPi_alpha = 0.0
         self.max_priority = np.ones(1, dtype=np.float32)
 

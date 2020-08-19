@@ -1,8 +1,7 @@
 from typing import Dict
 
-import .dqn_agent import DQNAgent
-from regym.rl_algorithms.R2D3 import R2D3Algorithm
-from regym.rl_algorithms.R2D3 import R2D3Algorithm
+from .dqn_agent import DQNAgent, generate_model
+from regym.rl_algorithms.algorithms.R2D3 import R2D3Algorithm
 
 
 class R2D3Agent(DQNAgent):
@@ -31,7 +30,7 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
 
     :returns: R2D3 agent
     '''
-    model = dqn_agent.generate_model(task, config)
+    model = generate_model(task, config)
     algorithm = R2D3Algorithm(
             config, model=model,
             expert_demonstrations=config['expert_demonstrations'])
