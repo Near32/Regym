@@ -33,8 +33,8 @@ class R2D3Algorithm(DQNAlgorithm):
         collected experiences) according to property self.demo_ratio
         '''
         coin_flips = scipy.stats.bernoulli.rvs(p=self.demo_ratio, size=minibatch_size)
-        num_expert_demonstrations = coin_flips.tolist().count(1)
-        num_replay_buffer = minibatch_size - num_samples_expert_demonstrations
+        num_demonstrations_samples = coin_flips.tolist().count(1)
+        num_replay_buffer_samples = minibatch_size - num_demonstrations_samples
         # TODO: Sample num_samples_expert_demonstrations from self.expert_demonstrations
         #       and num_replay_buffer from self.storages
         raise NotImplementedError()
