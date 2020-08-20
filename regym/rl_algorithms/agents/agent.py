@@ -1,5 +1,5 @@
 import torch
-import numpy as np 
+import numpy as np
 
 
 def named_children(cm):
@@ -15,23 +15,23 @@ def look_for_keys_and_apply(cm, keys, prefix='', accum=dict(), apply_fn=None, kw
             if isinstance(apply_fn, str):   apply_fn = getattr(m, apply_fn, None)
             if apply_fn is not None:    accum[name] = apply_fn(**kwargs)
         elif accum[name]=={}:
-            del accum[name]    
+            del accum[name]
 
 
 class Agent(object):
     def __init__(self, name, algorithm):
         self.name = name
         self.algorithm = algorithm
-        
+
         self.handled_experiences = 0
         self.save_path = None
         self.episode_count = 0
 
         self.training = True
         self.state_preprocessing = self.algorithm.kwargs['state_preprocess']
-        
+
         self.goal_oriented = self.algorithm.kwargs['goal_oriented'] if 'goal_oriented' in self.algorithm.kwargs else False
-        self.goals = None 
+        self.goals = None
         if 'goal_preprocess' in self.algorithm.kwargs:
             self.goal_preprocessing = self.algorithm.kwargs['goal_preprocess']
         elif self.goal_oriented:
@@ -64,7 +64,7 @@ class Agent(object):
         the actors' internal values.
         '''
         if indices is None: indices = range(self.nbr_actor)
-        
+
         if init:
             self.previously_done_actors = [False]*self.nbr_actor
         else:
@@ -82,7 +82,7 @@ class Agent(object):
         It is assumed that update can only go by removing stuffs...
         Indeed, actors all start at the same time, and thus self.reset_actors()
         ought to be called at that time.
-        Note: since the number of environment that are running changes, 
+        Note: since the number of environment that are running changes,
         the size of the rnn_states on the batch dimension will change too.
         Therefore, we cannot identify an rnn_state by the actor/environment index.
         Thus, it is a batch index that is requested, that would truly be in touch
@@ -98,13 +98,13 @@ class Agent(object):
     def update_goals(self, goals):
         assert(self.goal_oriented)
         self.goals = goals
-        
+
     def remove_from_goals(self, batch_idx):
         self.goals = np.concatenate(
-                    [self.goals[:batch_idx,...], 
+                    [self.goals[:batch_idx,...],
                      self.goals[batch_idx+1:,...]],
                      axis=0)
-                
+
     @staticmethod
     def _reset_rnn_states(algorithm, nbr_actor):
         # TODO: account for the indices in rnn states:
@@ -117,7 +117,7 @@ class Agent(object):
                 look_for_keys_and_apply( model, keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
         rnn_keys = list(rnn_states.keys())
         return rnn_keys, rnn_states
-        
+
 
     def remove_from_rnn_states(self, batch_idx, rnn_states_dict=None):
         '''
@@ -131,24 +131,24 @@ class Agent(object):
             else:
                 for idx in range(len(rnn_states_dict[recurrent_submodule_name]['hidden'])):
                     rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = torch.cat(
-                        [rnn_states_dict[recurrent_submodule_name]['hidden'][idx][:batch_idx,...], 
+                        [rnn_states_dict[recurrent_submodule_name]['hidden'][idx][:batch_idx,...],
                          rnn_states_dict[recurrent_submodule_name]['hidden'][idx][batch_idx+1:,...]],
                          dim=0)
                     rnn_states_dict[recurrent_submodule_name]['cell'][idx] = torch.cat(
-                        [rnn_states_dict[recurrent_submodule_name]['cell'][idx][:batch_idx,...], 
+                        [rnn_states_dict[recurrent_submodule_name]['cell'][idx][:batch_idx,...],
                          rnn_states_dict[recurrent_submodule_name]['cell'][idx][batch_idx+1:,...]],
                          dim=0)
-        
+
     def _pre_process_rnn_states(self, rnn_states_dict=None):
-        if rnn_states_dict is None: 
-            if self.rnn_states is None: 
+        if rnn_states_dict is None:
+            if self.rnn_states is None:
                 _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
             rnn_states_dict = self.rnn_states
 
         if self.algorithm.kwargs['use_cuda']:
             for recurrent_submodule_name in rnn_states_dict:
                 if 'hidden' not in rnn_states_dict[recurrent_submodule_name]:
-                    self._pre_process_rnn_states(rnn_states_dict=rnn_states_dict[recurrent_submodule_name])                
+                    self._pre_process_rnn_states(rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
                 else:
                     for idx in range(len(rnn_states_dict[recurrent_submodule_name]['hidden'])):
                         rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = rnn_states_dict[recurrent_submodule_name]['hidden'][idx].cuda()
@@ -159,17 +159,17 @@ class Agent(object):
         for recurrent_submodule_name in rnn_states_dict:
             if 'hidden' not in rnn_states_dict[recurrent_submodule_name]:
                 Agent._post_process_rnn_states(next_rnn_states_dict=next_rnn_states_dict[recurrent_submodule_name],
-                                              rnn_states_dict=rnn_states_dict[recurrent_submodule_name])                
+                                              rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
             else:
                 for idx in range(len(rnn_states_dict[recurrent_submodule_name]['hidden'])):
                     if next_rnn_states_dict[recurrent_submodule_name] is None: break
                     # Updating rnn_states:
                     rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx].detach().cpu()
                     rnn_states_dict[recurrent_submodule_name]['cell'][idx]   = next_rnn_states_dict[recurrent_submodule_name]['cell'][idx].detach().cpu()
-                    
+
                     next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx] = next_rnn_states_dict[recurrent_submodule_name]['hidden'][idx].detach().cpu()
                     next_rnn_states_dict[recurrent_submodule_name]['cell'][idx] = next_rnn_states_dict[recurrent_submodule_name]['cell'][idx].detach().cpu()
-    
+
     @staticmethod
     def _extract_from_rnn_states(rnn_states_batched: dict, batch_idx: int):
         rnn_states = {k: {} for k in rnn_states_batched}
@@ -222,7 +222,7 @@ class Agent(object):
                     v = np.expand_dims(v[batch_idx, ...], axis=0)
                 if goal_preprocessing_fn is not None:
                     v = goal_preprocessing_fn(v)
-            out_hdict[k] = v 
+            out_hdict[k] = v
         return out_hdict
 
     def preprocess_environment_signals(self, state, reward, succ_state, done):
