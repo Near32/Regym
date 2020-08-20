@@ -24,20 +24,20 @@ class DDPGAgent(Agent):
     def __init__(self, name, algorithm):
         super(DDPGAgent, self).__init__(name=name, algorithm=algorithm)
         self.kwargs = algorithm.kwargs
-        
+
         self.replay_period = int(self.kwargs['replay_period']) if 'replay_period' in self.kwargs else 1
         self.replay_period_count = 0
-        
+
         self.nbr_episode_per_cycle = int(self.kwargs['nbr_episode_per_cycle']) if 'nbr_episode_per_cycle' in self.kwargs else None
         self.nbr_episode_per_cycle_count = 0
-        
+
         self.nbr_training_iteration_per_cycle = int(self.kwargs['nbr_training_iteration_per_cycle']) if 'nbr_training_iteration_per_cycle' in self.kwargs else 1
 
-        self.noisy = self.kwargs['noisy'] if 'noisy' in self.kwargs else False 
+        self.noisy = self.kwargs['noisy'] if 'noisy' in self.kwargs else False
 
         # Number of training steps:
         self.nbr_steps = 0
-        
+
         self.saving_interval = 1e4
 
 
@@ -70,37 +70,37 @@ class DDPGAgent(Agent):
         batch_index = -1
         done_actors_among_notdone = []
         for actor_index in range(self.nbr_actor):
-            # If this actor is already done with its episode:  
+            # If this actor is already done with its episode:
             if self.previously_done_actors[actor_index]:
                 continue
             # Otherwise, there is bookkeeping to do:
             batch_index +=1
-            
+
             # Bookkeeping of the actors whose episode just ended:
             if done[actor_index] and not(self.previously_done_actors[actor_index]):
                 done_actors_among_notdone.append(batch_index)
-                
+
             exp_dict = {}
             exp_dict['s'] = state[batch_index,...].unsqueeze(0)
             exp_dict['a'] = a[batch_index,...].unsqueeze(0)
             exp_dict['r'] = r[batch_index,...].unsqueeze(0)
             exp_dict['succ_s'] = succ_state[batch_index,...].unsqueeze(0)
-            # Watch out for the miss-match: 
+            # Watch out for the miss-match:
             # done is a list of nbr_actor booleans,
             # which is not sync with batch_index, purposefully...
             exp_dict['non_terminal'] = non_terminal[actor_index,...].unsqueeze(0)
-            # Watch out for the miss-match: 
+            # Watch out for the miss-match:
             # Similarly, infos is not sync with batch_index, purposefully...
             if infos is not None:
                 exp_dict['info'] = infos[actor_index]
 
             exp_dict.update(Agent._extract_from_prediction(self.current_prediction, batch_index))
-            
+
 
             if self.recurrent:
                 exp_dict['rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
                 exp_dict['next_rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
-            
+
             if self.goal_oriented:
                 exp_dict['goals'] = Agent._extract_from_hdict(goals, batch_index, goal_preprocessing_fn=self.goal_preprocessing)
 
@@ -114,7 +114,7 @@ class DDPGAgent(Agent):
             done_actors_among_notdone.sort(reverse=True)
             for batch_idx in done_actors_among_notdone:
                 self.update_actors(batch_idx=batch_idx)
-        
+
 
         self.replay_period_count += 1
         period_check = self.replay_period
@@ -133,21 +133,21 @@ class DDPGAgent(Agent):
                 self.nbr_episode_per_cycle_count = 1
             for train_it in range(self.nbr_training_iteration_per_cycle):
                 self.algorithm.train(minibatch_size=minibatch_size)
-            if self.save_path is not None and self.handled_experiences % self.saving_interval == 0: 
+            if self.save_path is not None and self.handled_experiences % self.saving_interval == 0:
                 self.save()
-        
+
     def take_action(self, state):
         if self.training:
             self.nbr_steps += state.shape[0]
-        
+
         state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
         goal = None
         if self.goal_oriented:
             goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.kwargs['use_cuda'])
 
         model_actor = self.algorithm.get_models()['model_actor']
-        if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:  
-            model_actor = self.algorithm.get_models()['target_model_actor'] 
+        if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
+            model_actor = self.algorithm.get_models()['target_model_actor']
 
         if self.recurrent:
             self._pre_process_rnn_states()
@@ -160,7 +160,7 @@ class DDPGAgent(Agent):
         if self.training and not(self.noisy):
             exploration_action = action + self.algorithm.noise.sample()
             self.current_prediction["a"] = torch.from_numpy(exploration_action).float()
-        
+
         return action
 
     def clone(self, training=None):
@@ -173,7 +173,7 @@ class DDPGAgent(Agent):
         clone.nbr_steps = self.nbr_steps
         return clone
 
-        
+
 def build_DDPG_Agent(task, config, agent_name):
     '''
     :param task: Environment specific configuration
@@ -185,20 +185,20 @@ def build_DDPG_Agent(task, config, agent_name):
     kwargs['discount'] = float(kwargs['discount'])
     kwargs['replay_capacity'] = int(float(kwargs['replay_capacity']))
     kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
-    
+
     # Default preprocess function:
     kwargs['state_preprocess'] = partial(PreprocessFunction, normalization=False)
     kwargs['goal_preprocess'] = partial(PreprocessFunction, normalization=False)
 
     if 'None' in kwargs['observation_resize_dim']:  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
     if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
-    
+
     ##-----------------------------------------------------------------------------------------------------
     ##-----------------------------------------------------------------------------------------------------
     # Actor Model:
     ##-----------------------------------------------------------------------------------------------------
     ##-----------------------------------------------------------------------------------------------------
-    
+
     ##-----------------------------------------------------------------------------------------------------
     ## Phi Body:
     actor_phi_body = None
@@ -292,7 +292,7 @@ def build_DDPG_Agent(task, config, agent_name):
             if 'preprocessed_observation_shape' in kwargs:
                 kwargs['preprocessed_goal_shape'] = kwargs['preprocessed_observation_shape']
                 goal_input_shape = kwargs['preprocessed_goal_shape']
-            actor_goal_phi_body = None 
+            actor_goal_phi_body = None
 
         elif kwargs['actor_goal_phi_arch'] != 'None':
             output_dim = kwargs['actor_goal_phi_arch_feature_dim']
@@ -368,11 +368,11 @@ def build_DDPG_Agent(task, config, agent_name):
             actor_head_body = GRUBody(actor_input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
         elif kwargs['actor_head_arch'] == 'MLP':
             actor_head_body = FCBody(actor_input_dim, hidden_units=hidden_units, gate=F.leaky_relu, add_non_lin_final_layer=True)
-        
+
     ##-----------------------------------------------------------------------------------------------------
     ## GaussianActorNet:
     model_actor = GaussianActorNet(
-        state_dim=input_shape, 
+        state_dim=input_shape,
         action_dim=task.action_dim,
         actor_body=actor_head_body,
         phi_body=actor_phi_body,
@@ -393,7 +393,7 @@ def build_DDPG_Agent(task, config, agent_name):
     # Critic Model:
     ##-----------------------------------------------------------------------------------------------------
     ##-----------------------------------------------------------------------------------------------------
-    
+
     ##-----------------------------------------------------------------------------------------------------
     ## Phi Body:
     critic_phi_body = None
@@ -487,7 +487,7 @@ def build_DDPG_Agent(task, config, agent_name):
             if 'preprocessed_observation_shape' in kwargs:
                 kwargs['preprocessed_goal_shape'] = kwargs['preprocessed_observation_shape']
                 goal_input_shape = kwargs['preprocessed_goal_shape']
-            critic_goal_phi_body = None 
+            critic_goal_phi_body = None
 
         elif kwargs['critic_goal_phi_arch'] != 'None':
             hidden_units = kwargs["critic_goal_phi_arch_hidden_units"]
@@ -582,11 +582,11 @@ def build_DDPG_Agent(task, config, agent_name):
             critic_head_body = GRUBody(critic_head_input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
         elif kwargs['critic_head_arch'] == 'MLP':
             critic_head_body = FCBody(critic_head_input_dim, hidden_units=hidden_units, gate=F.leaky_relu, add_non_lin_final_layer=True)
-        
+
     ##-----------------------------------------------------------------------------------------------------
     ## QNet:
     model_critic = QNet(
-        state_dim=input_shape, 
+        state_dim=input_shape,
         action_dim=task.action_dim,
         critic_body=critic_head_body,
         action_phi_body=critic_action_phi_body,
@@ -604,20 +604,20 @@ def build_DDPG_Agent(task, config, agent_name):
 
 
     ddpg_algorithm = DDPGAlgorithm(
-        kwargs, 
+        kwargs,
         model_actor=model_actor,
-        model_critic=model_critic, 
+        model_critic=model_critic,
         actor_loss_fn=ddpg_actor_loss.compute_loss,
         critic_loss_fn=ddpg_critic_loss.compute_loss,
     )
 
     if 'use_HER' in kwargs and kwargs['use_HER']:
         from ..algorithms.wrappers import latent_based_goal_predicated_reward_fn
-        goal_predicated_reward_fn = None 
+        goal_predicated_reward_fn = None
         if 'HER_use_latent' in kwargs and kwargs['HER_use_latent']:
             goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn
 
-        ddpg_algorithm = HERAlgorithmWrapper(algorithm=ddpg_algorithm, 
+        ddpg_algorithm = HERAlgorithmWrapper(algorithm=ddpg_algorithm,
                                             strategy=kwargs['HER_strategy'],
                                             goal_predicated_reward_fn=goal_predicated_reward_fn)
 
