@@ -36,6 +36,7 @@ def r2d3_config_dict():
     config['expert_demonstrations'] = None  # NOTE: Demonstrations are set below
     config['sequence_length'] = 8  # TODO: implement
     config['demo_ratio'] = 1/256  # TODO: implement
+    config['burn_in_length'] = 4  # TODO: implement
     # Multiagent hyperparams
     config['lr_account_for_nbr_actor'] = False
     config['nbr_actor'] = 12  # NOTE: you can use multiprocessing.cpu_count() here if you want to max out on processes.
@@ -102,14 +103,14 @@ def HallwayExpertDemonstrationReplayBuffer(HallwayExpertDemonstrations):
     Generates a replay buffer from expert demonstrations
     '''
     preprocessing_fn = partial(ResizeCNNInterpolationFunction, size=60)
-    demonstrations_buffer = PrioritizedReplayBuffer(capacity=sum(map(lambda t: len(t), trajectories))) # keys=['s', 'a', 'r', 'non_terminal'])
+    demonstrations_buffer = PrioritizedReplayBuffer(capacity=sum(map(lambda t: len(t), HallwayExpertDemonstrations))) # keys=['s', 'a', 'r', 'non_terminal'])
     # Neat double loop to add all demonstrations to buffer.
     [demonstrations_buffer.add(EXP(preprocessing_fn(torch.tensor(s).unsqueeze(0)), a,
                                    preprocessing_fn(torch.tensor(succ_s).unsqueeze(0)),
                                    torch.FloatTensor([[r]]),
                                    torch.from_numpy(1 - np.array([done])).reshape(-1,1).type(torch.FloatTensor)),
                                priority=1.0)  # NOTE: hardcoding initial priority here
-    for t in trajectories for (s, a, r, succ_s, done) in t]
+    for t in HallwayExpertDemonstrations for (s, a, r, succ_s, done) in t]
     return demonstrations_buffer
 
 
@@ -149,7 +150,7 @@ def test_dqn_can_solve_hallway_v0_miniworld(HallwayTask, r2d3_config_dict):
                                                        step_hooks=[])
 
 
-def test_r2d3_can_solve_hallway_v0_miniworld_using_expert_demonstrations(HallwayTask, HallwayExpertDemonstrations, r2d3_config_dict):
+def test_r2d3_can_solve_hallway_v0_miniworld_using_expert_demonstrations(HallwayTask, HallwayExpertDemonstrationReplayBuffer, r2d3_config_dict):
     base_path = './R2D3_Hallway'
     sum_writer = SummaryWriter(base_path)
     regym.rl_algorithms.algorithms.R2D3.r2d3.summary_writer = sum_writer

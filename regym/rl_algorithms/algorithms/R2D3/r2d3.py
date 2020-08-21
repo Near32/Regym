@@ -22,6 +22,7 @@ class R2D3Algorithm(DQNAlgorithm):
             kwargs, model, target_model, optimizer, loss_fn, sum_writer)
         self.sequence_length = kwargs['sequence_length']  # Not doing anything with this so far.
         self.demo_ratio = kwargs['demo_ratio']  # Should be small (around: 1 / 256)
+        self.burn_in_length = kwargs['burn_in_length']
 
         self.expert_demonstrations = expert_demonstrations  # Putting the 3 in R2D3
 
