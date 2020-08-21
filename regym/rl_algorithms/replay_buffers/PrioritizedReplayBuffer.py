@@ -2,8 +2,8 @@ import numpy as np
 from .experience import EXP
 
 
-class PrioritizedReplayBuffer :
-    def __init__(self,capacity, alpha=0.2, beta=1.0) :
+class PrioritizedReplayBuffer:
+    def __init__(self, capacity, alpha=0.2, beta=1.0) :
         self.length = 0
         self.counter = 0
         self.alpha = alpha
@@ -57,7 +57,7 @@ class PrioritizedReplayBuffer :
             priority = self.total()/self.capacity
 
         change = priority - self.tree[idx]
-        
+
         previous_priority = self.tree[idx]
         self.sumPi_alpha -= previous_priority
 
@@ -125,13 +125,13 @@ class PrioritizedReplayBuffer :
         low = 0.0
         step = (prioritysum-low) / batch_size
         randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size))
-        
+
         transitions = list()
         priorities = []
         for i in range(batch_size):
             '''
             Sampling from this replayBuffer requires it to be fully populated.
-            Otherwise, we might end up trying to sample a leaf ot the binary sumtree 
+            Otherwise, we might end up trying to sample a leaf ot the binary sumtree
             that does not contain any data, thus throwing a TypeError.
             '''
             try :
@@ -140,7 +140,7 @@ class PrioritizedReplayBuffer :
                 transitions.append(el)
             except TypeError as e :
                 continue
-        
+
         # Importance Sampling Weighting:
         priorities = np.array(priorities, dtype=np.float32)
         importanceSamplingWeights = np.power( len(self) * priorities , -self.beta)
@@ -165,7 +165,7 @@ class PrioritizedReplayStorage_:
         self.epsilon = 1e-2
         self.capacity = int(capacity)
         self.tree = np.zeros(2*self.capacity-1)
-        
+
         self.position = dict()
         self.current_size = dict()
 
@@ -211,7 +211,7 @@ class PrioritizedReplayStorage_:
             priority = self.total()/self.capacity
 
         change = priority - self.tree[idx]
-        
+
         previous_priority = self.tree[idx]
         self.sumPi_alpha -= previous_priority
 
@@ -246,7 +246,7 @@ class PrioritizedReplayStorage_:
             getattr(self, k)[self.position[k]] = v
             self.position[k] = int((self.position[k]+1) % self.capacity)
             self.current_size[k] = min(self.capacity, self.current_size[k]+1)
-        
+
         #self.counter += 1
         self.length = min(self.length+1, self.capacity)
         #if self.counter >= self.capacity :
@@ -286,7 +286,7 @@ class PrioritizedReplayStorage_:
             raise TypeError
         '''
         data = self.get_data_idx(dataidx)
-        
+
         priority = self.tree[idx]
 
         return (idx, priority, *data)
@@ -310,7 +310,7 @@ class PrioritizedReplayStorage_:
         low = 0.0
         step = (prioritysum-low) / batch_size
         randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size))
-        
+
         tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
         data_indices = [tidx-self.capacity+1 for tidx in tree_indices]
 
@@ -326,16 +326,16 @@ from .ReplayBuffer import ReplayStorage
 
 
 class PrioritizedReplayStorage(ReplayStorage):
-    def __init__(self, 
-                 capacity, 
-                 alpha=0.2, 
-                 beta=1.0, 
-                 beta_increase_interval=1e4, 
-                 keys=None, 
+    def __init__(self,
+                 capacity,
+                 alpha=0.2,
+                 beta=1.0,
+                 beta_increase_interval=1e4,
+                 keys=None,
                  circular_keys={'succ_s':'s'},
                  circular_offsets={'succ_s':1}):
-        super(PrioritizedReplayStorage, self).__init__(capacity=capacity, 
-                                                       keys=keys, 
+        super(PrioritizedReplayStorage, self).__init__(capacity=capacity,
+                                                       keys=keys,
                                                        circular_keys=circular_keys,
                                                        circular_offsets=circular_offsets)
         self.length = 0
@@ -343,10 +343,10 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.beta_start = beta
         self.beta_increase_interval = beta_increase_interval
         assert self.beta_increase_interval <= self.capacity
-        self.beta = self.beta_start 
+        self.beta = self.beta_start
 
         self.epsilon = 1e-4
-        
+
         self.tree = np.zeros(2 * int(self.capacity) - 1)
         self.sumPi_alpha = 0.0
         self.max_priority = np.ones(1, dtype=np.float32)
@@ -360,7 +360,7 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def __len__(self):
         return self.length
-    
+
     def priority(self, error) :
         return (error+self.epsilon)**self.alpha
 
@@ -369,7 +369,7 @@ class PrioritizedReplayStorage(ReplayStorage):
             priority = self.max_priority
 
         change = priority - self.tree[idx]
-        
+
         previous_priority = self.tree[idx]
         self.sumPi_alpha -= previous_priority
 
@@ -394,7 +394,7 @@ class PrioritizedReplayStorage(ReplayStorage):
 
         super(PrioritizedReplayStorage, self).add(data=exp)
         self.length = min(self.length+1, self.capacity)
-        
+
         if np.isnan(priority) or np.isinf(priority) :
             priority = self.max_priority
         self.sumPi_alpha += priority
@@ -418,16 +418,16 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def sample(self, batch_size, keys=None):
         if keys is None:    keys = self.keys + self.circular_keys.keys()
-        
+
         # Random Experience Sampling with priority
         prioritysum = self.total()
         low = 0.0
         step = (prioritysum-low) / batch_size
         randexp = np.arange(low,prioritysum,step)[:batch_size,...]+np.random.uniform(low=0.0,high=step,size=(batch_size))
-        
+
         self.tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
         priorities = [self.tree[tidx] for tidx in self.tree_indices]
-        
+
         #Check that priorities are valid:
         valid = False
         while not valid:
@@ -451,12 +451,12 @@ class PrioritizedReplayStorage(ReplayStorage):
 
 
 class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
-    def __init__(self, 
-                 capacity, 
-                 alpha=0.2, 
-                 beta=1.0, 
-                 beta_increase_interval=1e4, 
-                 keys=None, 
+    def __init__(self,
+                 capacity,
+                 alpha=0.2,
+                 beta=1.0,
+                 beta_increase_interval=1e4,
+                 keys=None,
                  circular_keys={'succ_s':'s'},
                  circular_offsets={'succ_s':1},
                  test_train_split_interval=10,
@@ -472,11 +472,11 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
                                                      keys=keys,
                                                      circular_keys=circular_keys,
                                                      circular_offsets=circular_offsets)
-        super(SplitPrioritizedReplayStorage, self).__init__(capacity=capacity, 
+        super(SplitPrioritizedReplayStorage, self).__init__(capacity=capacity,
                                                        alpha=alpha,
                                                        beta=beta,
                                                        beta_increase_interval=beta_increase_interval,
-                                                       keys=keys, 
+                                                       keys=keys,
                                                        circular_keys=circular_keys,
                                                        circular_offsets=circular_offsets)
 
@@ -505,7 +505,7 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
                 priority = self.max_priority
 
             change = priority - self.tree[idx]
-            
+
             previous_priority = self.tree[idx]
             self.sumPi_alpha -= previous_priority
 
@@ -525,15 +525,15 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
         self.data_count += 1
         if self.data_count % self.test_train_split_interval == 0:
             self.test_storage.add(exp=data, priority=priority)
-        else:  
-            super(SplitPrioritizedReplayStorage, self).add(exp=data, priority=priority)  
+        else:
+            super(SplitPrioritizedReplayStorage, self).add(exp=data, priority=priority)
             '''
             if priority is None:
                 priority = self.max_priority
 
             super(PrioritizedReplayStorage, self).add(data=exp)
             self.length = min(self.length+1, self.capacity)
-            
+
             if np.isnan(priority) or np.isinf(priority) :
                 priority = self.max_priority
             self.sumPi_alpha += priority
@@ -551,16 +551,16 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
             return super(SplitPrioritizedReplayStorage, self).sample(batch_size=batch_size, keys=keys)
         '''
         if keys is None:    keys = self.keys + self.circular_keys.keys()
-        
+
         # Random Experience Sampling with priority
         prioritysum = self.total()
         low = 0.0
         step = (prioritysum-low) / batch_size
         randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size))
-        
+
         self.tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
         priorities = [self.tree[tidx] for tidx in self.tree_indices]
-        
+
         #Check that priorities are valid:
         valid = False
         while not valid:
@@ -586,10 +586,10 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
 
 class FasterPrioritizedReplayStorage(PrioritizedReplayStorage):
     def __init__(self, capacity, alpha=0.2, beta=1.0, keys=None, circular_keys={'succ_s':'s'}):
-        super(FasterPrioritizedReplayStorage, self).__init__(capacity=capacity, 
+        super(FasterPrioritizedReplayStorage, self).__init__(capacity=capacity,
                                                              alpha=alpha,
                                                              beta=beta,
-                                                             keys=keys, 
+                                                             keys=keys,
                                                              circular_keys=circular_keys)
     # Attempted to accelerate the sampling function: not viable, it is already fast enough,
     # it might be better to tackle the update/propagate function...
@@ -613,7 +613,7 @@ class FasterPrioritizedReplayStorage(PrioritizedReplayStorage):
 
     def sample(self, batch_size, keys=None):
         if keys is None:    keys = self.keys + self.circular_keys.keys()
-        
+
         # Random Experience Sampling with priority
         prioritysum = self.total()
         low = 0.0
@@ -621,16 +621,16 @@ class FasterPrioritizedReplayStorage(PrioritizedReplayStorage):
         #randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size))
         step = (prioritysum-low) / (batch_size//2)
         randexp = np.arange(low,prioritysum,step)+np.random.uniform(low=0.0,high=step,size=(batch_size//2))
-        
+
         #self.tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
         self.tree_indices = []
         for r in randexp:
             i1, i2 = self._retrieve(0, r, twoleaves=True)
             self.tree_indices.append(i1)
             self.tree_indices.append(i2)
-        
+
         priorities = [self.tree[tidx] for tidx in self.tree_indices]
-        
+
         #Check that priorities are valid:
         valid = False
         while not valid:
