@@ -85,10 +85,10 @@ SAC_BaselineMLP: &SAC_BaselineMLP
         
 experiment:
     tasks: [
-            { #'env-id': 'AntBulletEnv-v0',
-              'env-id': 'Ant-v2',
+            { #'env-id': 'HalfCheetahBulletEnv-v0', #'Ant-v2',
+              'env-id': 'HalfCheetah-v2',
 
-             'run-id': 'B1M/TestNoDynamicRequiredGradSetting+CriticMSE/EntropyCoefficientTuningLog02+FailureBasedDone/BaselineStd+LessStableFormula+SeparateCompute&UpdateZeroGrad+ActionSamplingFromEnv/XavierUniformWHOLE+Bias0/EntropyRegAlpha2m1/ActorStart10p3TorchRand/MinCapacity10e3/ReplayPeriod1XNbrTrainIt1_UpdatePerReplay1_Cap1p6_b256/CriticLr3m4_ActorLr3m4_Seed0_tau5m3_GradClip0/WeightDecayCritic0Actor0/MSELOSS/',
+             'run-id': 'B1M/TestNoDynamicRequiredGradSetting+CriticMSE/EntropyCoefficientTuningLog02+FailureBasedDone/BaselineStd+LessStableFormula+SeparateCompute&UpdateZeroGrad+ActionSamplingFromEnv/XavierUniformWHOLE+Bias0/EntropyRegAlpha2m1/ActorStart10p3TorchRand/MinCapacity10e3/ReplayPeriod1XNbrTrainIt1_UpdatePerReplay1_Cap1p6_b256/CriticLr3m4_ActorLr3m4_Seed1_tau5m3_GradClip0/WeightDecayCritic0Actor0/MSELOSS/',
              #'run-id': 'B1M/BaselineStd+PerDimLogProb+Log/NOINITHiddenLayerFanInLayerInit+BiasUniform1m1+LastLayerUniform3m3+ActorSame/EntropyRegAlpha2m1/ActorStart10p3TorchRand/MinCapacity10e3/ReplayPeriod1XNbrTrainIt1_UpdatePerReplay1_Cap1p6_b256/CriticLr3m4_ActorLr3m4_Seed100_tau5m3_GradClip0/WeightDecayCritic0Actor0/MSELOSS/',
              
              'agent-id': '1step_SAC_BaselineMLP',
@@ -114,7 +114,7 @@ experiment:
     video_recording_episode_period_training: 1e2
     video_recording_episode_period_benchmarking: 5e0
     train_observation_budget: 1.0e6
-    seed: 0
+    seed: 1
 
 agents:        
     1step_SAC_BaselineMLP:

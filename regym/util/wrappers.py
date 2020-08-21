@@ -468,7 +468,7 @@ def baseline_atari_pixelwrap(env, size=None, skip=4, stack=4, grayscale=True,  s
     if skip > 0:
         env = MaxAndSkipEnv(env, skip=skip)
     
-    if size is not None and 'None' not in size:
+    if size is not None and isinstance(size, int):
         env = FrameResizeWrapper(env, size=size) 
     
     if single_life_episode:
@@ -1313,6 +1313,35 @@ class ContinuingTimeLimit(gym.Wrapper):
 
         if self._max_episode_steps <= self._elapsed_steps:
             info['real_done'] = True
+
+        return observation, reward, done, info
+
+    def reset(self):
+        self._elapsed_steps = 0
+        return self.env.reset()
+
+
+
+class FailureEndingTimeLimit(gym.Wrapper):
+    """TimeLimit wrapper for failure-ending environments.
+
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+
+    def __init__(self, env):
+        super(FailureEndingTimeLimit, self).__init__(env)
+        self._elapsed_steps = None
+
+    def step(self, action):
+        assert self._elapsed_steps is not None,\
+            "Cannot call env.step() before calling reset()."
+        observation, reward, done, info = self.env.step(action)
+        self._elapsed_steps += 1
+
+        if self._elapsed_steps >= self.env._max_episode_steps:
+            done = False
+            self.reset()
 
         return observation, reward, done, info
 

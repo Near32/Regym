@@ -84,8 +84,8 @@ class SACAlgorithm(Algorithm):
             self.target_model_critic = self.target_model_critic.cuda()
         hard_update(self.target_model_critic, self.model_critic)
 
-        for p in self.target_model_critic.parameters():
-            p.requires_grad = False
+        #for p in self.target_model_critic.parameters():
+        #    p.requires_grad = False
 
         self.target_model_critic.share_memory()
 
@@ -115,7 +115,6 @@ class SACAlgorithm(Algorithm):
         print(f"WARNING: actor_loss_fn is {self.actor_loss_fn}")
         self.critic_loss_fn = critic_loss_fn
         print(f"WARNING: critic_loss_fn is {self.critic_loss_fn}")
-            
         
         self.recurrent = False
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
@@ -133,7 +132,18 @@ class SACAlgorithm(Algorithm):
         self.target_update_interval = int(1.0/self.TAU)
         self.target_update_count = 0
         self.GAMMA = float(kwargs["discount"])
-        self.entropy_regularization_coefficient = float(kwargs["entropy_regularization_coefficient_alpha"])
+        
+        self.alpha_tuning = self.kwargs["alpha_tuning"] if "alpha_tuning" in self.kwargs else False
+        if self.alpha_tuning:
+            # Target entropy is -|A|.
+            self.target_expected_entropy = -self.kwargs["action_dim"]
+            self.log_alpha = nn.Parameter(float(kwargs["entropy_regularization_coefficient_alpha"])*torch.ones(1))
+            if self.kwargs["use_cuda"]: 
+                self.log_alpha = nn.Parameter(float(kwargs["entropy_regularization_coefficient_alpha"])*torch.ones(1).cuda().log())
+            else:
+                self.log_alpha = nn.Parameter(float(kwargs["entropy_regularization_coefficient_alpha"])*torch.ones(1))
+            self.optimizer_alpha = optim.Adam([self.log_alpha], lr=kwargs['critic_learning_rate'])
+        self.entropy_regularization_coefficient = float(kwargs["entropy_regularization_coefficient_alpha"]) if not(self.alpha_tuning) else self.log_alpha.exp().detach()
         
         global summary_writer
         if sum_writer is not None: summary_writer = sum_writer
@@ -333,7 +343,7 @@ class SACAlgorithm(Algorithm):
                 rnn_states=sampled_rnn_states,
                 goals=sampled_goals,
                 gamma=self.GAMMA,
-                alpha=self.entropy_regularization_coefficient,
+                alpha=self.entropy_regularization_coefficient if not(self.alpha_tuning) else self.log_alpha.exp(),
                 model_critic=self.model_critic,
                 target_model_critic=self.target_model_critic,
                 model_actor=self.model_actor,
@@ -348,7 +358,7 @@ class SACAlgorithm(Algorithm):
 
             ## Actor:
             if (self.target_update_count//self.nbr_actor) % self.actor_update_delay == 0:
-                actor_loss, actor_loss_per_item = self.actor_loss_fn(
+                actor_loss, actor_loss_per_item, alpha_tuning_loss = self.actor_loss_fn(
                     sampled_states, 
                     sampled_actions, 
                     sampled_next_states,
@@ -357,7 +367,10 @@ class SACAlgorithm(Algorithm):
                     rnn_states=sampled_rnn_states,
                     goals=sampled_goals,
                     gamma=self.GAMMA,
-                    alpha=self.entropy_regularization_coefficient,
+                    alpha=self.entropy_regularization_coefficient if not(self.alpha_tuning) else self.log_alpha.exp(),
+                    alpha_tuning=self.alpha_tuning,
+                    log_alpha=None if not(self.alpha_tuning) else self.log_alpha,
+                    target_expected_entropy=None if not(self.alpha_tuning) else self.target_expected_entropy, 
                     model_critic=self.model_critic,
                     target_model_critic=self.target_model_critic,
                     model_actor=self.model_actor,
@@ -378,6 +391,8 @@ class SACAlgorithm(Algorithm):
             if self.kwargs['gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.model_critic.parameters(), self.kwargs['gradient_clip'])
             self.optimizer_critic.step()
+            self.optimizer_critic.zero_grad()
+            
             # Actor
             if (self.target_update_count//self.nbr_actor) % self.actor_update_delay == 0:
                 self.optimizer_actor.zero_grad()
@@ -385,7 +400,16 @@ class SACAlgorithm(Algorithm):
                 if self.kwargs['gradient_clip'] > 1e-3:
                     nn.utils.clip_grad_norm_(self.model_actor.parameters(), self.kwargs['gradient_clip'])
                 self.optimizer_actor.step()
-
+                self.optimizer_actor.zero_grad()
+                
+            # Entropy regularization coefficient:
+            if self.alpha_tuning:
+                self.optimizer_alpha.zero_grad()
+                alpha_tuning_loss.backward(retain_graph=False)
+                if self.kwargs['gradient_clip'] > 1e-3:
+                    nn.utils.clip_grad_norm_(self.log_alpha, self.kwargs['gradient_clip'])
+                self.optimizer_alpha.step()
+                self.optimizer_alpha.zero_grad()
 
             # Bookkeeping:
             if self.use_PER:

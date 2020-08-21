@@ -167,7 +167,7 @@ class SACAgent(Agent):
         if self.nbr_steps < self.actor_start_delay:
             #exploration_action = self.action_scaler*(torch.rand_like(action)*2-1)
             exploration_action = self.task.sample()
-            #self.current_prediction['a'] = torch.from_numpy(exploration_action).reshape(action.shape).float()
+            self.current_prediction['a'] = torch.from_numpy(exploration_action).reshape(action.shape).float()
             action = exploration_action
             
         return action
@@ -195,6 +195,7 @@ def build_SAC_Agent(task, config, agent_name):
     kwargs['replay_capacity'] = int(float(kwargs['replay_capacity']))
     kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
     kwargs["action_scaler"] = float(task.env.action_space.high[0])
+    kwargs["action_dim"] = task.action_dim
 
     # Default preprocess function:
     kwargs['state_preprocess'] = partial(PreprocessFunction, normalization=False)

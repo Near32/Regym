@@ -60,13 +60,14 @@ def compute_loss(states: torch.Tensor,
       ## Compute next rnn state if needs be:
       if rnn_states is not None:
         raise NotImplementedError
-        """
-        target_prediction = target_model_actor(states, action=actions, rnn_states=rnn_states, goal=goals)
-        next_rnn_states = target_prediction['next_rnn_states']
-        """
       ##
       # SAC samples from the current actor model, not the target:
-      next_state_actor_prediction = model_actor(next_states, rnn_states=next_rnn_states, goal=goals)
+      next_state_actor_prediction = model_actor(
+        next_states, 
+        rnn_states=next_rnn_states, 
+        goal=goals
+      )
+
       nextS_actor_action = next_state_actor_prediction['a']
       nextS_actor_log_pi_action = next_state_actor_prediction['log_pi_a']
             
@@ -75,15 +76,6 @@ def compute_loss(states: torch.Tensor,
       ## Compute next rnn state if needs be:
       if rnn_states is not None:
         raise NotImplementedError
-        """
-        target_critic_prediction = target_model_critic(
-          obs=states, 
-          action=actions, 
-          rnn_states=rnn_states, 
-          goal=goals
-        )
-        next_critic_rnn_states = target_critic_prediction['next_rnn_states']
-        """
       ##
       nextS_target_critic_prediction = target_model_critic.min_q_value(
         obs=next_states,
@@ -91,9 +83,9 @@ def compute_loss(states: torch.Tensor,
         rnn_states=next_critic_rnn_states,
         goal=goals
       )
+      
       nextS_target_critic_QA = nextS_target_critic_prediction['qa']
     
-      # Compute the target Q values
       # SAC incorporates the entropy term to the target:
       targetQA = rewards + non_terminals*gamma * (nextS_target_critic_QA-alpha*nextS_actor_log_pi_action)
 
@@ -103,11 +95,11 @@ def compute_loss(states: torch.Tensor,
     ############################
 
     # Compute loss:
-    #loss_per_item = 0.5*(targetQA.detach() - predictionQA).pow(2.0)
     loss_per_item = torch.zeros_like(targetQA)
     for model_idx in range(model_critic.nbr_models):
         #loss_per_item += F.smooth_l1_loss(predictionQA[..., model_idx].reshape(targetQA.shape), targetQA, reduction='none')
         loss_term_idx =  F.mse_loss(predictionQA[..., model_idx].reshape(targetQA.shape), targetQA.detach(), reduction='none')
+        #loss_term_idx =  (predictionQA[..., model_idx].reshape(targetQA.shape)-targetQA.detach()).pow(2)
         #summary_writer.add_histogram(f'Training/CriticLoss/Loss{model_idx}', loss_term_idx.cpu(), iteration_count)
         loss_per_item = loss_per_item +loss_term_idx
     
@@ -124,12 +116,14 @@ def compute_loss(states: torch.Tensor,
     if summary_writer is not None:
         summary_writer.add_scalar('Training/CriticLoss/MeanQAValues', prediction['qa'].cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/CriticLoss/StdQAValues', prediction['qa'].cpu().std().item(), iteration_count)
-        summary_writer.add_scalar('Training/CriticLoss/MeanNextQAValues', nextS_target_critic_QA.cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/CriticLoss/StdQNextAValues', nextS_target_critic_QA.cpu().std().item(), iteration_count)
+
+        #summary_writer.add_scalar('Training/CriticLoss/MeanNextQAValues', nextS_target_critic_QA.cpu().mean().item(), iteration_count)
+        #summary_writer.add_scalar('Training/CriticLoss/StdQNextAValues', nextS_target_critic_QA.cpu().std().item(), iteration_count)
         #summary_writer.add_scalar('Training/CriticLoss/MeanTargetQAValues', targetQA.cpu().mean().item(), iteration_count)
         #summary_writer.add_scalar('Training/CriticLoss/StdTargetQAValues', targetQA.cpu().std().item(), iteration_count)
-        summary_writer.add_scalar('Training/CriticLoss/MeanLogPiAction', next_state_actor_prediction['log_pi_a'].cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/CriticLoss/StdLogPiAction', next_state_actor_prediction['log_pi_a'].cpu().std().item(), iteration_count)
+        #summary_writer.add_scalar('Training/CriticLoss/MeanLogPiAction', next_state_actor_prediction['log_pi_a'].cpu().mean().item(), iteration_count)
+        #summary_writer.add_scalar('Training/CriticLoss/StdLogPiAction', next_state_actor_prediction['log_pi_a'].cpu().std().item(), iteration_count)
+        
         summary_writer.add_scalar('Training/CriticLoss/Loss', loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/CriticLoss/WeightsDecayLoss', weights_decay_loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/TotalCriticLoss', total_loss.cpu().item(), iteration_count)

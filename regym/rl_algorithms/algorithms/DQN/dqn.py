@@ -36,7 +36,7 @@ class DQNAlgorithm(Algorithm):
         
         self.goal_oriented = self.kwargs['goal_oriented'] if 'goal_oriented' in self.kwargs else False
         self.use_HER = self.kwargs['use_HER'] if 'use_HER' in self.kwargs else False
-        assert((self.use_HER and self.goal_oriented) or self.goal_oriented)
+        assert (self.use_HER and self.goal_oriented) or not(self.goal_oriented)
 
         self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
         
@@ -303,7 +303,7 @@ class DQNAlgorithm(Algorithm):
                                           use_PER=self.use_PER,
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
-                                          HER_target_clamping=self.kwargs['HER_target_clamping'],
+                                          HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
                                           iteration_count=self.param_update_counter,
                                           summary_writer=summary_writer)
             
@@ -333,13 +333,15 @@ class DQNAlgorithm(Algorithm):
                 new_priority = self.storages[storage_idx].priority(sloss)
                 self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 
-    def clone(self):        
-        storages = self.storages
-        self.storages = None
+    def clone(self, with_replay_buffer=False):        
+        if not(with_replay_buffer): 
+            storages = self.storages
+            self.storages = None
         sum_writer = self.summary_writer
         self.summary_writer = None
         cloned_algo = copy.deepcopy(self)
-        self.storages = storages
+        if not(with_replay_buffer): 
+            self.storages = storages
         self.summary_writer = sum_writer
         return cloned_algo
 

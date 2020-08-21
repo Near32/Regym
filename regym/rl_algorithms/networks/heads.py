@@ -580,30 +580,31 @@ class SquashedGaussianActorNet(nn.Module):
         action_std = action_log_std.clamp(LOG_STD_MIN, LOG_STD_MAX).exp()
         #action_std = F.softplus(action_log_std)
 
-        #action_dist = torch.distributions.normal.Normal(action_mu, action_std)
-        action_dist = torch.distributions.normal.Normal(action_mu, 0.2*torch.ones_like(action_mu))
+        action_dist = torch.distributions.normal.Normal(action_mu, action_std)
+        #action_dist = torch.distributions.normal.Normal(action_mu, 0.1*torch.ones_like(action_mu))
         
         sampled_action = action_dist.rsample()
-        action = self.action_scaler*torch.tanh(sampled_action)
+        action = torch.tanh(sampled_action)
 
         # Log likelyhood of action = sum_i dist.log_prob(action[i])
         log_prob = action_dist.log_prob(sampled_action)#.sum(dim=-1).unsqueeze(-1)
         # batch x action_dim
-        extra_term = (2*(np.log(2) - sampled_action - F.softplus(-2*sampled_action)))#.sum(dim=-1).unsqueeze(-1)
-        #extra_term = torch.log(1-action.pow(2)+1e-6).sum(dim=-1).unsqueeze(-1)
+        #extra_term = (2*(np.log(2) - sampled_action - F.softplus(-2*sampled_action)))#.sum(dim=-1).unsqueeze(-1)
+        extra_term = torch.log(1-action.pow(2)+1e-6) #.sum(dim=-1).unsqueeze(-1)
         # batch x action_dim
         squashed_log_prob = (log_prob - extra_term).sum(dim=-1).unsqueeze(-1)
         # batch x 1
 
-        entropy = squashed_log_prob.exp() * squashed_log_prob
+        entropy = action_dist.entropy()
         # batch x 1
 
         prediction = {
-            'a': action,
+            'a': self.action_scaler*action,
             'mu': action_mu,
             'std': action_std,
             'log_pi_a': squashed_log_prob,
             'log_normal_u': log_prob,
+            'extra_term_log_prob': extra_term,
             'ent': entropy,
         }
     

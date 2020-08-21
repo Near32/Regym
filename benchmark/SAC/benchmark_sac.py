@@ -15,10 +15,10 @@ from regym.environments import generate_task
 from regym.rl_loops.singleagent_loops import rl_loop
 from regym.util.experiment_parsing import initialize_agents
 
-from regym.util.wrappers import TimeLimit
+from regym.util.wrappers import TimeLimit, FailureEndingTimeLimit
 
 import mujoco_py
-import pybullet_envs
+#import pybullet_envs
 
 
 def check_path_for_agent(filepath, restore=True):
@@ -75,8 +75,13 @@ def training_process(agent_config: Dict,
 
     np.random.seed(seed)
     torch.manual_seed(seed)
+    
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
-    pixel_wrapping_fn = None #partial(TimeLimit, max_episode_steps=1000)
+    #pixel_wrapping_fn = None 
+    #pixel_wrapping_fn = partial(TimeLimit, max_episode_steps=1000)
+    pixel_wrapping_fn = FailureEndingTimeLimit
     
     """
     partial(
