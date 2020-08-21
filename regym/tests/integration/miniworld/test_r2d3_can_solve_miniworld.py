@@ -1,10 +1,18 @@
+from functools import partial
+
 import pytest
+from tensorboardX import SummaryWriter
+import numpy as np
+import torch
 
 import regym
-from tensorboardX import SummaryWriter
 from regym.environments import generate_task
 from regym.rl_algorithms.agents import build_R2D3_Agent, build_DQN_Agent
 from regym.rl_loops.singleagent_loops import rl_loop
+from regym.rl_algorithms.replay_buffers import PrioritizedReplayBuffer
+from regym.rl_algorithms.replay_buffers import EXP
+from regym.rl_algorithms.networks.utils import ResizeCNNInterpolationFunction
+
 
 '''
 This file assumes that gym_miniworld has been installed:
