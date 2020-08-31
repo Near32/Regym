@@ -75,8 +75,10 @@ class VecEnv():
                 video_recording_episode_period=self.video_recording_episode_period
             )
 
-    
-        
+    def sample(self):
+        sampled_actions = np.concatenate([env_proc.action_space.sample().reshape(self.nbr_parallel_env,-1) for env_proc in self.env_processes], axis=0)
+        return sampled_actions
+
     def clean(self, idx):
         self.env_processes[idx].close()
 

@@ -40,6 +40,8 @@ def compute_loss(states: torch.Tensor,
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
     '''
+    batch_size = states.shape[0]
+
     prediction = model(states, action=actions, rnn_states=rnn_states, goal=goals)
 
     state_action_values = prediction["qa"]
@@ -64,18 +66,18 @@ def compute_loss(states: torch.Tensor,
         argmaxA_Q_nextS_A_values = Q_nextS_A_values.max(dim=1)[1].unsqueeze(1)
 
         targetQ_nextS_A_values = next_target_prediction['qa']
-        targetQ_nextS_argmaxA_Q_value = targetQ_nextS_A_values.gather(1, argmaxA_Q_nextS_A_values).squeeze(1)
+        targetQ_nextS_argmaxA_Q_value = targetQ_nextS_A_values.gather(1, argmaxA_Q_nextS_A_values).reshape(batch_size, -1)
 
         # Compute the expected Q values:
-        expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals    
-
+        expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals
+        
         if HER_target_clamping:
             # clip the target to [-50,0]
             expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)
     ############################
 
     # Compute loss:
-    loss_per_item = F.smooth_l1_loss(input=state_action_values_g, target=expected_state_action_values.detach(), reduction='none')
+    loss_per_item = F.smooth_l1_loss(input=state_action_values_g.reshape(expected_state_action_values.shape), target=expected_state_action_values.detach(), reduction='none')
     
     if use_PER:
       loss_per_item = importanceSamplingWeights * loss_per_item

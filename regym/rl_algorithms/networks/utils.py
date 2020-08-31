@@ -29,17 +29,20 @@ def layer_init(layer, w_scale=1.0):
     for name, param in layer._parameters.items():
         if param is None or param.data is None: continue
         if 'bias' in name:
-            #layer._parameters[name].data.fill_(0.0)
-            layer._parameters[name].data.uniform_(-0.08,0.08)
-            #nn.init.constant_(layer._parameters[name].data, 0)
+            #layer._parameters[name].data.fill_(0.1)
+            #layer._parameters[name].data.uniform_(-0.08,0.08)
+            nn.init.constant_(layer._parameters[name].data, 0)
         else:
             '''
             nn.init.orthogonal_(layer._parameters[name].data)
             layer._parameters[name].data.mul_(w_scale)
             '''
             
-            # Xavier init:
-            nn.init.xavier_normal_(layer._parameters[name].data, gain=w_scale)
+            # Xavier Normal init:
+            #nn.init.xavier_normal_(layer._parameters[name].data, gain=w_scale)
+            
+            # Xavier Uniform init:
+            nn.init.xavier_uniform_(layer._parameters[name].data)#, gain=nn.init.calculate_gain("relu"))
             
             '''
             
@@ -48,6 +51,9 @@ def layer_init(layer, w_scale=1.0):
             layer._parameters[name].data.mul_(w_scale)
             '''
             
+            # uniform fan_in:
+            #nn.init.kaiming_uniform_(layer._parameters[name], mode="fan_in", nonlinearity='relu')
+
             '''
             if len(layer._parameters[name].size()) > 1:
                 #nn.init.kaiming_normal_(layer._parameters[name], mode="fan_out", nonlinearity='leaky_relu')

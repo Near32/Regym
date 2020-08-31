@@ -1,5 +1,6 @@
 import copy 
 from collections import deque 
+from functools import partial
 
 import numpy as np
 import torch
@@ -7,26 +8,59 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F 
 
-from . import dqn_loss, ddqn_loss
+from . import sac_actor_loss, sac_critic_loss
 
 from ..algorithm import Algorithm
 from ...replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
-from ...networks import hard_update, random_sample
+from ...networks import hard_update, soft_update, random_sample
 
 
 summary_writer = None 
 
-
-class DQNAlgorithm(Algorithm):
-    def __init__(self, kwargs, model, target_model=None, optimizer=None, loss_fn=dqn_loss.compute_loss, sum_writer=None):
+class SACAlgorithm(Algorithm):
+    def __init__(self, 
+                 kwargs, 
+                 model_actor,
+                 model_critic,
+                 target_model_critic=None,
+                 optimizer_actor=None, 
+                 optimizer_critic=None, 
+                 actor_loss_fn=sac_critic_loss.compute_loss, 
+                 critic_loss_fn=sac_actor_loss.compute_loss, 
+                 sum_writer=None):
         '''
+        :param kwargs:
+            
+            "path": str specifying where to save the model(s).
+            "use_cuda": boolean to specify whether to use CUDA.
+            
+            "replay_capacity": int, capacity of the replay buffer to use.
+            "min_capacity": int, minimal capacity before starting to learn.
+            "batch_size": int, batch size to use [default: batch_size=256].
+            
+            "use_PER": boolean to specify whether to use a Prioritized Experience Replay buffer.
+            "PER_alpha": float, alpha value for the Prioritized Experience Replay buffer.
+            
+            "lr": float, learning rate [default: lr=1e-3].
+            "tau": float, soft-update rate [default: tau=1e-3].
+            "gamma": float, Q-learning gamma rate [default: gamma=0.999].
+            
+            "preprocess": preprocessing function/transformation to apply to observations [default: preprocess=T.ToTensor()]
+            "nbrTrainIteration": int, number of iteration to train the model at each new experience. [default: nbrTrainIteration=1]
         '''
-        self.kwargs = copy.deepcopy(kwargs)        
+        self.kwargs = copy.deepcopy(kwargs)
         self.use_cuda = kwargs["use_cuda"]
 
-        self.double = self.kwargs['double']
-        self.dueling = self.kwargs['dueling']
+        self.actor_update_delay = int(self.kwargs["actor_update_delay"])
+
+        self.model_actor = model_actor
+        self.model_critic = model_critic
+        if self.kwargs['use_cuda']:
+            self.model_actor = self.model_actor.cuda()
+            self.model_critic = self.model_critic.cuda()
+
+        
         self.noisy = self.kwargs['noisy']
         self.n_step = self.kwargs['n_step'] if 'n_step' in self.kwargs else 1
         if self.n_step > 1:
@@ -36,43 +70,52 @@ class DQNAlgorithm(Algorithm):
         
         self.goal_oriented = self.kwargs['goal_oriented'] if 'goal_oriented' in self.kwargs else False
         self.use_HER = self.kwargs['use_HER'] if 'use_HER' in self.kwargs else False
-
-        assert (self.use_HER and self.goal_oriented) or not(self.goal_oriented)
-
-        self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
+        
+        self.weights_decay_lambda_actor = float(self.kwargs['weights_decay_lambda_actor'])
+        self.weights_decay_lambda_critic = float(self.kwargs['weights_decay_lambda_critic'])
         
         self.nbr_actor = self.kwargs['nbr_actor']
         
-        self.model = model
+        if target_model_critic is None:
+            target_model_critic = copy.deepcopy(self.model_critic)
+        self.target_model_critic = target_model_critic
+
         if self.kwargs['use_cuda']:
-            self.model = self.model.cuda()
+            self.target_model_critic = self.target_model_critic.cuda()
+        hard_update(self.target_model_critic, self.model_critic)
 
-        if target_model is None:
-            target_model = copy.deepcopy(self.model)
+        #for p in self.target_model_critic.parameters():
+        #    p.requires_grad = False
 
-        self.target_model = target_model
-        self.target_model.share_memory()
+        self.target_model_critic.share_memory()
 
-        hard_update(self.target_model, self.model)
-        if self.use_cuda:
-            self.target_model = self.target_model.cuda()
-
-        
-        if optimizer is None:
-            parameters = self.model.parameters()
+        if optimizer_actor is None:
+            parameters_actor = self.model_actor.parameters()
             # Tuning learning rate with respect to the number of actors:
             # Following: https://arxiv.org/abs/1705.04862
-            lr = kwargs['learning_rate'] 
+            lr = kwargs['actor_learning_rate']
             if kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
-            print(f"Learning rate: {lr}")
-            self.optimizer = optim.Adam(parameters, lr=lr, betas=(0.9,0.999), eps=kwargs['adam_eps'])
-        else: self.optimizer = optimizer
+            print(f"Learning rate::Actor: {lr}")
+            self.optimizer_actor = optim.Adam(parameters_actor, lr=lr, betas=(0.9,0.999), eps=kwargs['adam_eps'])
+        else: self.optimizer_actor = optimizer_actor
 
-        self.loss_fn = loss_fn
-        print(f"WARNING: loss_fn is {self.loss_fn}")
-            
-            
+        if optimizer_critic is None:
+            parameters_critic = self.model_critic.parameters()
+            # Tuning learning rate with respect to the number of actors:
+            # Following: https://arxiv.org/abs/1705.04862
+            lr = kwargs['critic_learning_rate'] 
+            if kwargs['lr_account_for_nbr_actor']:
+                lr *= self.nbr_actor
+            print(f"Learning rate::Critic: {lr}")
+            self.optimizer_critic = optim.Adam(parameters_critic, lr=lr, betas=(0.9,0.999), eps=kwargs['adam_eps'])
+        else: self.optimizer_critic = optimizer_critic
+
+        self.actor_loss_fn = actor_loss_fn
+        print(f"WARNING: actor_loss_fn is {self.actor_loss_fn}")
+        self.critic_loss_fn = critic_loss_fn
+        print(f"WARNING: critic_loss_fn is {self.critic_loss_fn}")
+        
         self.recurrent = False
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
         # elements that do not concern the model trained by this algorithm, given that it is now use-able inside I2A...
@@ -90,10 +133,17 @@ class DQNAlgorithm(Algorithm):
         self.target_update_count = 0
         self.GAMMA = float(kwargs["discount"])
         
-        self.epsend = float(kwargs['epsend'])
-        self.epsstart = float(kwargs['epsstart'])
-        self.epsdecay = float(kwargs['epsdecay'])
-        self.eps = self.epsstart
+        self.alpha_tuning = self.kwargs["alpha_tuning"] if "alpha_tuning" in self.kwargs else False
+        if self.alpha_tuning:
+            # Target entropy is -|A|.
+            self.target_expected_entropy = -self.kwargs["action_dim"]
+            self.log_alpha = nn.Parameter(float(kwargs["entropy_regularization_coefficient_alpha"])*torch.ones(1))
+            if self.kwargs["use_cuda"]: 
+                self.log_alpha = nn.Parameter(float(kwargs["entropy_regularization_coefficient_alpha"])*torch.ones(1).cuda().log())
+            else:
+                self.log_alpha = nn.Parameter(float(kwargs["entropy_regularization_coefficient_alpha"])*torch.ones(1))
+            self.optimizer_alpha = optim.Adam([self.log_alpha], lr=kwargs['critic_learning_rate'])
+        self.entropy_regularization_coefficient = float(kwargs["entropy_regularization_coefficient_alpha"]) if not(self.alpha_tuning) else self.log_alpha.exp().detach()
         
         global summary_writer
         if sum_writer is not None: summary_writer = sum_writer
@@ -101,27 +151,17 @@ class DQNAlgorithm(Algorithm):
         self.param_update_counter = 0
     
     def get_models(self):
-        return {'model': self.model, 'target_model': self.target_model}
+        return {
+            'model_actor': self.model_actor, 
+            'model_critic': self.model_critic, 
+            'target_model_critic': self.target_model_critic,
+        }
 
     def get_nbr_actor(self):
         return self.nbr_actor
 
     def get_update_count(self):
         return self.param_update_counter
-
-    def get_epsilon(self, nbr_steps, strategy='exponential'):
-        global summary_writer
-        self.summary_writer = summary_writer
-        
-        if 'exponential' in strategy:
-            self.eps = self.epsend + (self.epsstart-self.epsend) * np.exp(-1.0 * nbr_steps / self.epsdecay)
-        else:
-            self.eps = self.epsend + max(0, (self.epsstart-self.epsend)/((float(nbr_steps)/self.epsdecay)+1))
-
-        if summary_writer is not None:
-            summary_writer.add_scalar('Training/Eps', self.eps, nbr_steps)
-
-        return self.eps 
 
     def reset_storages(self, nbr_actor=None):
         if nbr_actor is not None:
@@ -175,6 +215,10 @@ class DQNAlgorithm(Algorithm):
         else:
             self.storages[actor_index].add(current_exp_dict)
 
+    def update_targets(self):
+        if (self.target_update_count//self.nbr_actor) % self.actor_update_delay == 0:
+            soft_update(self.target_model_critic, self.model_critic, self.TAU)
+
     def train(self, minibatch_size=None):
         if minibatch_size is None:  minibatch_size = self.batch_size
 
@@ -183,18 +227,17 @@ class DQNAlgorithm(Algorithm):
         samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
         
         if self.noisy:  
-            self.model.reset_noise()
-            self.target_model.reset_noise()
+            self.model_actor.reset_noise()
+            self.model_critic.reset_noise()
+            self.target_model_critic.reset_noise()
+
 
         self.optimize_model(minibatch_size, samples)
-        
-        if self.target_update_count > self.target_update_interval:
-            self.target_update_count = 0
-            hard_update(self.target_model,self.model)
+        self.update_targets()
 
     def retrieve_values_from_storages(self, minibatch_size):
         keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
-
+        
         fulls = {}
         
         if self.use_PER:
@@ -288,33 +331,89 @@ class DQNAlgorithm(Algorithm):
             sampled_rewards = rewards[batch_indices].cuda() if self.kwargs['use_cuda'] else rewards[batch_indices]
             sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
             
-            self.optimizer.zero_grad()
-            
-            loss, loss_per_item = self.loss_fn(sampled_states, 
-                                          sampled_actions, 
-                                          sampled_next_states,
-                                          sampled_rewards,
-                                          sampled_non_terminals,
-                                          rnn_states=sampled_rnn_states,
-                                          goals=sampled_goals,
-                                          gamma=self.GAMMA,
-                                          model=self.model,
-                                          target_model=self.target_model,
-                                          weights_decay_lambda=self.weights_decay_lambda,
-                                          use_PER=self.use_PER,
-                                          PER_beta=beta,
-                                          importanceSamplingWeights=sampled_importanceSamplingWeights,
-                                          HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
-                                          iteration_count=self.param_update_counter,
-                                          summary_writer=summary_writer)
-            
-            loss.backward(retain_graph=False)
-            if self.kwargs['gradient_clip'] > 1e-3:
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
-            self.optimizer.step()
+            # Compute Losses:
 
+            ## Critic:
+            critic_loss, critic_loss_per_item = self.critic_loss_fn(
+                sampled_states, 
+                sampled_actions, 
+                sampled_next_states,
+                sampled_rewards,
+                sampled_non_terminals,
+                rnn_states=sampled_rnn_states,
+                goals=sampled_goals,
+                gamma=self.GAMMA,
+                alpha=self.entropy_regularization_coefficient if not(self.alpha_tuning) else self.log_alpha.exp(),
+                model_critic=self.model_critic,
+                target_model_critic=self.target_model_critic,
+                model_actor=self.model_actor,
+                weights_decay_lambda=self.weights_decay_lambda_critic,
+                use_PER=self.use_PER,
+                PER_beta=beta,
+                importanceSamplingWeights=sampled_importanceSamplingWeights,
+                HER_target_clamping=self.kwargs['HER_target_clamping'],
+                iteration_count=self.param_update_counter,
+                summary_writer=summary_writer
+            )
+
+            ## Actor:
+            if (self.target_update_count//self.nbr_actor) % self.actor_update_delay == 0:
+                actor_loss, actor_loss_per_item, alpha_tuning_loss = self.actor_loss_fn(
+                    sampled_states, 
+                    sampled_actions, 
+                    sampled_next_states,
+                    sampled_rewards,
+                    sampled_non_terminals,
+                    rnn_states=sampled_rnn_states,
+                    goals=sampled_goals,
+                    gamma=self.GAMMA,
+                    alpha=self.entropy_regularization_coefficient if not(self.alpha_tuning) else self.log_alpha.exp(),
+                    alpha_tuning=self.alpha_tuning,
+                    log_alpha=None if not(self.alpha_tuning) else self.log_alpha,
+                    target_expected_entropy=None if not(self.alpha_tuning) else self.target_expected_entropy, 
+                    model_critic=self.model_critic,
+                    target_model_critic=self.target_model_critic,
+                    model_actor=self.model_actor,
+                    weights_decay_lambda=self.weights_decay_lambda_actor,
+                    use_PER=self.use_PER,
+                    PER_beta=beta,
+                    importanceSamplingWeights=sampled_importanceSamplingWeights,
+                    HER_target_clamping=self.kwargs['HER_target_clamping'],
+                    iteration_count=self.param_update_counter,
+                    summary_writer=summary_writer
+                )
+
+
+            # Update Parameters:
+            ## Critic
+            self.optimizer_critic.zero_grad()
+            critic_loss.backward(retain_graph=False)
+            if self.kwargs['gradient_clip'] > 1e-3:
+                nn.utils.clip_grad_norm_(self.model_critic.parameters(), self.kwargs['gradient_clip'])
+            self.optimizer_critic.step()
+            self.optimizer_critic.zero_grad()
+            
+            # Actor
+            if (self.target_update_count//self.nbr_actor) % self.actor_update_delay == 0:
+                self.optimizer_actor.zero_grad()
+                actor_loss.backward(retain_graph=False)
+                if self.kwargs['gradient_clip'] > 1e-3:
+                    nn.utils.clip_grad_norm_(self.model_actor.parameters(), self.kwargs['gradient_clip'])
+                self.optimizer_actor.step()
+                self.optimizer_actor.zero_grad()
+                
+            # Entropy regularization coefficient:
+            if self.alpha_tuning:
+                self.optimizer_alpha.zero_grad()
+                alpha_tuning_loss.backward(retain_graph=False)
+                if self.kwargs['gradient_clip'] > 1e-3:
+                    nn.utils.clip_grad_norm_(self.log_alpha, self.kwargs['gradient_clip'])
+                self.optimizer_alpha.step()
+                self.optimizer_alpha.zero_grad()
+
+            # Bookkeeping:
             if self.use_PER:
-                sampled_losses_per_item.append(loss_per_item)
+                sampled_losses_per_item.append(critic_loss_per_item)
 
             if summary_writer is not None:
                 self.param_update_counter += 1 
@@ -334,15 +433,13 @@ class DQNAlgorithm(Algorithm):
                 new_priority = self.storages[storage_idx].priority(sloss)
                 self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 
-    def clone(self, with_replay_buffer=False):        
-        if not(with_replay_buffer): 
-            storages = self.storages
-            self.storages = None
+    def clone(self):        
+        storages = self.storages
+        self.storages = None
         sum_writer = self.summary_writer
         self.summary_writer = None
         cloned_algo = copy.deepcopy(self)
-        if not(with_replay_buffer): 
-            self.storages = storages
+        self.storages = storages
         self.summary_writer = sum_writer
         return cloned_algo
 

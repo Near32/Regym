@@ -15,6 +15,7 @@ from regym.rl_algorithms import build_PPO_Agent
 from regym.rl_algorithms import build_A2C_Agent
 from regym.rl_algorithms import build_DDPG_Agent
 from regym.rl_algorithms import build_TD3_Agent
+from regym.rl_algorithms import build_SAC_Agent
 from regym.rl_algorithms import rockAgent, paperAgent, scissorsAgent, randomAgent
 
 
@@ -65,6 +66,7 @@ def initialize_agents(task, agent_configurations):
         if 'a2c' in agent_name.lower(): return build_A2C_Agent(task, config, agent_name)
         if 'ddpg' in agent_name.lower(): return build_DDPG_Agent(task, config, agent_name)
         if 'td3' in agent_name.lower(): return build_TD3_Agent(task, config, agent_name)
+        if 'sac' in agent_name.lower(): return build_SAC_Agent(task, config, agent_name)
         else: raise ValueError(f'Unkown agent name: {agent_name}')
     return [partial_match_build_function(agent, task, config) for agent, config in agent_configurations.items()]
 

@@ -171,8 +171,8 @@ class DQNAgent(Agent):
             random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
             return random_actions
 
-    def clone(self, training=None):
-        cloned_algo = self.algorithm.clone()
+    def clone(self, training=None, with_replay_buffer=False):
+        cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
 
         clone.handled_experiences = self.handled_experiences
@@ -185,7 +185,7 @@ class DQNAgent(Agent):
 def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
     phi_body = None
     input_dim = list(task.observation_shape)
-    if kwargs['goal_oriented']:
+    if 'goal_oriented' in kwargs and kwargs['goal_oriented']:
         goal_input_shape = list(task.goal_shape)
         if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
             if isinstance(input_dim, int):
@@ -258,7 +258,7 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
 
 
     goal_phi_body = None
-    if kwargs['goal_oriented']:
+    if 'goal_oriented' in kwargs and kwargs['goal_oriented']:
         goal_input_shape = task.goal_shape
         if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
             kwargs['goal_preprocess'] = kwargs['state_preprocess']
@@ -373,7 +373,7 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                             critic_body=critic_body,
                             dueling=kwargs['dueling'],
                             noisy=kwargs['noisy'],
-                            goal_oriented=kwargs['goal_oriented'],
+                            goal_oriented=kwargs['goal_oriented'] if 'goal_oriented' in kwargs else False,
                             goal_shape=goal_shape,
                             goal_phi_body=goal_phi_body)
 

@@ -64,12 +64,11 @@ class AgentWrapper(Agent):
     def take_action(self, state):
         raise NotImplementedError
 
-    def clone(self, training=None):
-        return AgentWrapper(agent=self.agent.clone(training=training))
+    def clone(self, training=None, with_replay_buffer=False):
+        return AgentWrapper(agent=self.agent.clone(training=training, with_replay_buffer=with_replay_buffer))
 
-    def save(self):
-        torch.save(self.clone(), self.save_path)
-
+    def save(self, with_replay_buffer=False):
+        torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)
 
 class DictHandlingAgentWrapper(AgentWrapper):
     def __init__(self, agent, use_achieved_goal=True):

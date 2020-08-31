@@ -14,14 +14,18 @@ import regym
 from regym.environments import generate_task
 from regym.rl_loops.singleagent_loops import rl_loop
 from regym.util.experiment_parsing import initialize_agents
-from regym.util.wrappers import baseline_atari_pixelwrap
+
+from regym.util.wrappers import TimeLimit, FailureEndingTimeLimit
+
+import mujoco_py
+#import pybullet_envs
 
 
-def check_path_for_agent(filepath):
+def check_path_for_agent(filepath, restore=True):
     #filepath = os.path.join(path,filename)
     agent = None
     offset_episode_count = 0
-    if os.path.isfile(filepath):
+    if restore and os.path.isfile(filepath):
         print('==> loading checkpoint {}'.format(filepath))
         agent = torch.load(filepath)
         offset_episode_count = agent.episode_count
@@ -51,9 +55,6 @@ def train_and_evaluate(agent: object,
                                                        test_nbr_episode=test_nbr_episode,
                                                        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
                                                        step_hooks=step_hooks)
-    trained_agent.save(with_replay_buffer=True)
-    print(f"Agent saved at: {trained_agent.save_path}")
-    
     task.env.close()
     task.test_env.close()
 
@@ -66,49 +67,73 @@ def training_process(agent_config: Dict,
                      benchmarking_episodes: int = 10, 
                      benchmarking_record_episode_interval: int = None,
                      train_observation_budget: int = 1e7,
-                     base_path: str = './', 
+                     base_path: str = './',
+                     video_recording_episode_period_training: int = None,
+                     video_recording_episode_period_benchmarking: int = None,
                      seed: int = 0):
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     np.random.seed(seed)
     torch.manual_seed(seed)
-
-    pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
-                                size=task_config['observation_resize_dim'], 
-                                skip=task_config['nbr_frame_skipping'], 
-                                stack=task_config['nbr_frame_stacking'],
-                                grayscale=task_config['grayscale'],
-                                single_life_episode=task_config['single_life_episode'],
-                                nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                clip_reward=task_config['clip_reward'])
-
-    test_pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
-                                    size=task_config['observation_resize_dim'], 
-                                    skip=task_config['nbr_frame_skipping'], 
-                                    stack=task_config['nbr_frame_stacking'],
-                                    grayscale=task_config['grayscale'],
-                                    single_life_episode=False,
-                                    nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                    clip_reward=False)
     
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    #pixel_wrapping_fn = None 
+    #pixel_wrapping_fn = partial(TimeLimit, max_episode_steps=1000)
+    pixel_wrapping_fn = FailureEndingTimeLimit
+    
+    """
+    partial(
+      baseline_ther_wrapper,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      single_life_episode=task_config['single_life_episode'],
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=task_config['clip_reward'],
+      max_sentence_length=agent_config['THER_max_sentence_length'],
+      vocabulary=agent_config['THER_vocabulary'],
+    )
+    """
+
+    test_pixel_wrapping_fn = None
+    """
+    partial(
+      baseline_ther_wrapper,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      single_life_episode=False,
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=False,
+      max_sentence_length=agent_config['THER_max_sentence_length'],
+      vocabulary=agent_config['THER_vocabulary'],
+    )
+    """
+
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],
                          wrapping_fn=pixel_wrapping_fn,
                          test_wrapping_fn=test_pixel_wrapping_fn,
                          seed=seed,
                          test_seed=100+seed,
+                         train_video_recording_episode_period=video_recording_episode_period_training,
+                         train_video_recording_dirpath=os.path.join(base_path, 'recordings/train/'),
+                         test_video_recording_episode_period=video_recording_episode_period_benchmarking,
+                         test_video_recording_dirpath=os.path.join(base_path, 'recordings/test/'),
                          gathering=True)
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
     sum_writer = SummaryWriter(base_path)
     save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
-    agent, offset_episode_count = check_path_for_agent(save_path)
+    agent, offset_episode_count = check_path_for_agent(save_path, restore=False)
     if agent is None: 
         agent = initialize_agents(task=task,
                                   agent_configurations={task_config['agent-id']: agent_config})[0]
     agent.save_path = save_path
-    regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
+    regym.rl_algorithms.algorithms.SAC.sac.summary_writer = sum_writer
     
     trained_agent = train_and_evaluate(agent=agent,
                        task=task,
@@ -136,7 +161,7 @@ def load_configs(config_file_path: str):
 
 def test():
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger('Atari 10 Millions Frames Benchmark')
+    logger = logging.getLogger('SAC Benchmark')
 
     config_file_path = sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
@@ -157,6 +182,8 @@ def test():
                          benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])),
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
+                         video_recording_episode_period_training=int(float(experiment_config['video_recording_episode_period_training'])),
+                         video_recording_episode_period_benchmarking=int(float(experiment_config['video_recording_episode_period_benchmarking'])),
                          seed=experiment_config['seed'])
 
 if __name__ == '__main__':

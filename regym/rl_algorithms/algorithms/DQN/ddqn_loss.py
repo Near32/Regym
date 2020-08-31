@@ -40,6 +40,8 @@ def compute_loss(states: torch.Tensor,
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
     '''
+    batch_size = states.shape[0]
+
     prediction = model(states, action=actions, rnn_states=rnn_states, goal=goals)
 
     state_action_values = prediction["qa"]
@@ -64,7 +66,7 @@ def compute_loss(states: torch.Tensor,
         argmaxA_Q_nextS_A_values = Q_nextS_A_values.max(dim=1)[1].unsqueeze(1)
 
         targetQ_nextS_A_values = next_target_prediction['qa']
-        targetQ_nextS_argmaxA_Q_value = targetQ_nextS_A_values.gather(1, argmaxA_Q_nextS_A_values).squeeze(1)
+        targetQ_nextS_argmaxA_Q_value = targetQ_nextS_A_values.gather(1, argmaxA_Q_nextS_A_values).reshape(batch_size, -1)
 
         # Compute the expected Q values:
         expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals
@@ -76,7 +78,7 @@ def compute_loss(states: torch.Tensor,
 
     # Compute loss:
     #diff_squared = torch.abs(expected_state_action_values.detach() - state_action_values_g)
-    diff_squared = (expected_state_action_values.detach() - state_action_values_g).pow(2.0)
+    diff_squared = (expected_state_action_values.detach() - state_action_values_g.reshape(expected_state_action_values.shape)).pow(2.0)
     loss_per_item = diff_squared
 
     if use_PER:

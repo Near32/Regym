@@ -50,5 +50,5 @@ class Algorithm(object):
                     out_hd[key] = Algorithm._concatenate_hdict(hd1=hd1[key], hds=[hd[key] for hd in hds], map_keys=map_keys, dim=dim)
         return out_hd
 
-    def clone(self):
+    def clone(self, with_replay_buffer=False):
         raise NotImplementedError

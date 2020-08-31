@@ -77,6 +77,8 @@ class Task:
 
         self.total_episodes_run = 0
 
+    def sample(self):
+        return self.env.sample()
 
     def run_episode(self, agent_vector, training):
         '''

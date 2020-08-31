@@ -251,9 +251,9 @@ class Agent(object):
     def take_action(self, state):
         raise NotImplementedError
 
-    def clone(self, training=None):
+    def clone(self, training=None, with_replay_buffer=False):
         raise NotImplementedError
 
-    def save(self):
+    def save(self, with_replay_buffer=False):
         assert(self.save_path is not None)
-        torch.save(self.clone(), self.save_path)
+        torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)

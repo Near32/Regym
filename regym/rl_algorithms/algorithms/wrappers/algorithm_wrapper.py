@@ -39,5 +39,5 @@ class AlgorithmWrapper(Algorithm):
     def train(self, minibatch_size=None):
         self.algorithm.train(minibatch_size=minibatch_size)
 
-    def clone(self):
-        return self.algorithm.clone()
+    def clone(self, with_replay_buffer=False):
+        return self.algorithm.clone(with_replay_buffer=with_replay_buffer)
