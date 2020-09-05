@@ -47,7 +47,7 @@ class R2D2Algorithm(DQNAlgorithm):
             if self.n_step > 1:
                 self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
 
-            self.sequence_replay_buffers = [deque(self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
+            self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
             self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]    
             
         if self.storages is not None:
@@ -158,7 +158,7 @@ class R2D2Algorithm(DQNAlgorithm):
         for exp_it in range(nbr_experience_to_handle):
             if self.n_step>1:
                 # Compute n-step return of the first element of deque:
-                truncated_n_step_return = self._compute_truncated_n_step_return()
+                truncated_n_step_return = self._compute_truncated_n_step_return(actor_index=actor_index)
                 # Retrieve the first element of deque:
                 current_exp_dict = copy.deepcopy(self.n_step_buffers[actor_index][0])
                 current_exp_dict['r'] = truncated_n_step_return

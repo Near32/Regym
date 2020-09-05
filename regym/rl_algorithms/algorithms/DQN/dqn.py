@@ -269,16 +269,20 @@ class DQNAlgorithm(Algorithm):
                 values[key] = value 
 
             for key, value in values.items():
-                if isinstance(value, torch.Tensor):
-                    fulls[key].append(value)
-                else:
-                    fulls[key] = value
-
+                fulls[key].append(value)
+        
         for key, value in fulls.items():
-            if isinstance(value, dict):
-                fulls[key] = value
-            else:
-                fulls[key] = torch.cat(value, dim=0)
+            if len(value) >1:
+                if isinstance(value[0], dict):
+                    value = Algorithm._concatenate_hdict(
+                        value.pop(0), 
+                        value, 
+                        map_keys=['hidden', 'cell'], 
+                        concat_fn=partial(torch.cat, dim=0)
+                    )
+                else:
+                    value = torch.cat(value, dim=0)
+            fulls[key] = value
         
         return fulls
 
