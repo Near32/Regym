@@ -1,5 +1,8 @@
+from typing import Dict, List
+
 import copy 
 from collections import deque 
+from functools import partial 
 
 import numpy as np
 import torch
@@ -24,13 +27,14 @@ class DQNAlgorithm(Algorithm):
         '''
         self.kwargs = copy.deepcopy(kwargs)        
         self.use_cuda = kwargs["use_cuda"]
-
+        self.nbr_actor = self.kwargs['nbr_actor']
+        
         self.double = self.kwargs['double']
         self.dueling = self.kwargs['dueling']
         self.noisy = self.kwargs['noisy']
         self.n_step = self.kwargs['n_step'] if 'n_step' in self.kwargs else 1
         if self.n_step > 1:
-            self.n_step_buffer = deque(maxlen=self.n_step)
+            self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
 
         self.use_PER = self.kwargs['use_PER']
         
@@ -40,8 +44,8 @@ class DQNAlgorithm(Algorithm):
         assert (self.use_HER and self.goal_oriented) or not(self.goal_oriented)
 
         self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
+        self.weights_entropy_lambda = float(self.kwargs['weights_entropy_lambda']) if 'weights_entropy_lambda' in self.kwargs else 0.0
         
-        self.nbr_actor = self.kwargs['nbr_actor']
         
         self.model = model
         if self.kwargs['use_cuda']:
@@ -123,51 +127,78 @@ class DQNAlgorithm(Algorithm):
 
         return self.eps 
 
-    def reset_storages(self, nbr_actor=None):
+    def reset_storages(self, nbr_actor: int=None):
         if nbr_actor is not None:
             self.nbr_actor = nbr_actor
+
+            if self.n_step > 1:
+                self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
 
         if self.storages is not None:
             for storage in self.storages: storage.reset()
 
         self.storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
-        if self.recurrent:  keys += ['rnn_states', 'next_rnn_states']
+        if self.recurrent:  keys += ['rnn_states']
         if self.goal_oriented:    keys += ['g']
         
+        circular_keys={'succ_s':'s'}
+        circular_offsets={'succ_s':self.n_step}
+        if self.recurrent:
+            circular_keys.update({'next_rnn_states':'rnn_states'})
+            circular_offsets.update({'next_rnn_states':1})
+
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
-                self.storages.append(PrioritizedReplayStorage(capacity=self.kwargs['replay_capacity'],
-                                                                alpha=self.kwargs['PER_alpha'],
-                                                                beta=self.kwargs['PER_beta'],
-                                                                keys=keys,
-                                                                circular_offsets={'succ_s':self.n_step})
+                self.storages.append(
+                    PrioritizedReplayStorage(
+                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                        alpha=self.kwargs['PER_alpha'],
+                        beta=self.kwargs['PER_beta'],
+                        keys=keys,
+                        circular_keys=circular_keys,                 
+                        circular_offsets=circular_offsets
+                    )
                 )
             else:
-                self.storages.append(ReplayStorage(capacity=self.kwargs['replay_capacity'],
-                                                   keys=keys,
-                                                   circular_offsets={'succ_s':self.n_step})
+                self.storages.append(
+                    ReplayStorage(
+                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                        keys=keys,
+                        circular_keys=circular_keys,                 
+                        circular_offsets=circular_offsets
+                    )
                 )
             
-    def _compute_truncated_n_step_return(self):
-        truncated_n_step_return = self.n_step_buffer[-1]['r']
-        for exp_dict in reversed(list(self.n_step_buffer)[:-1]):
+    def _compute_truncated_n_step_return(self, actor_index=0):
+        '''
+        Compute n-step return for the first element of `self.n_step_buffer` deque.
+        '''
+        truncated_n_step_return = self.n_step_buffers[actor_index][-1]['r']
+        for exp_dict in reversed(list(self.n_step_buffers[actor_index])[:-1]):
             truncated_n_step_return = exp_dict['r'] + self.GAMMA * truncated_n_step_return * exp_dict['non_terminal']
         return truncated_n_step_return
 
     def store(self, exp_dict, actor_index=0):
+        '''
+        Compute n-step returns, for each actor, separately,
+        and then store the experience in the relevant-actor's storage.        
+        '''
         if self.n_step>1:
-            self.n_step_buffer.append(exp_dict)
-            if len(self.n_step_buffer) < self.n_step:
+            # Append to deque:
+            self.n_step_buffers[actor_index].append(exp_dict)
+            if len(self.n_step_buffers[actor_index]) < self.n_step:
                 return
+            # Compute n-step return of the first element of deque:
             truncated_n_step_return = self._compute_truncated_n_step_return()
-            current_exp_dict = copy.deepcopy(exp_dict)
+            # Retrieve the first element of deque:
+            current_exp_dict = copy.deepcopy(self.n_step_buffers[actor_index][0])
             current_exp_dict['r'] = truncated_n_step_return
         else:
-            current_exp_dict = exp_dict    
+            current_exp_dict = exp_dict
         
-        if self.goal_oriented and 'g' not in exp_dict:
-            exp_dict['g'] = exp_dict['goals']['desired_goals']['s']
+        if self.goal_oriented and 'g' not in current_exp_dict:
+            current_exp_dict['g'] = current_exp_dict['goals']['desired_goals']['s']
 
         if self.use_PER:
             init_sampling_priority = None 
@@ -175,7 +206,7 @@ class DQNAlgorithm(Algorithm):
         else:
             self.storages[actor_index].add(current_exp_dict)
 
-    def train(self, minibatch_size=None):
+    def train(self, minibatch_size:int=None):
         if minibatch_size is None:  minibatch_size = self.batch_size
 
         self.target_update_count += self.nbr_actor
@@ -192,7 +223,12 @@ class DQNAlgorithm(Algorithm):
             self.target_update_count = 0
             hard_update(self.target_model,self.model)
 
-    def retrieve_values_from_storages(self, minibatch_size):
+    def retrieve_values_from_storages(self, minibatch_size: int):
+        '''
+        Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
+        This function samples from each storage, concatenate the sampled elements on the batch dimension,
+        and maintains the hierarchy of dictionnaries.
+        '''
         keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
 
         fulls = {}
@@ -201,7 +237,7 @@ class DQNAlgorithm(Algorithm):
             fulls['importanceSamplingWeights'] = []
 
         if self.recurrent:
-            keys += ['rnn_states']
+            keys += ['rnn_states', 'next_rnn_states']
         
         if self.goal_oriented:
             keys += ['g']
@@ -222,7 +258,12 @@ class DQNAlgorithm(Algorithm):
             for key, value in zip(keys, sample):
                 value = value.tolist()
                 if isinstance(value[0], dict):   
-                    value = Algorithm._concatenate_hdict(value.pop(0), value, map_keys=['hidden', 'cell'])
+                    value = Algorithm._concatenate_hdict(
+                        value.pop(0), 
+                        value, 
+                        map_keys=['hidden', 'cell'], 
+                        concat_fn=partial(torch.cat, dim=0)
+                    )
                 else:
                     value = torch.cat(value, dim=0)
                 values[key] = value 
@@ -241,7 +282,7 @@ class DQNAlgorithm(Algorithm):
         
         return fulls
 
-    def optimize_model(self, minibatch_size, samples):
+    def optimize_model(self, minibatch_size: int, samples: Dict):
         global summary_writer
         self.summary_writer = summary_writer
 
@@ -254,6 +295,7 @@ class DQNAlgorithm(Algorithm):
         non_terminals = samples['non_terminal']
 
         rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
+        next_rnn_states = samples['next_rnn_states'] if 'next_rnn_states' in samples else None
         goals = samples['g'] if 'g' in samples else None
 
         importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
@@ -271,8 +313,11 @@ class DQNAlgorithm(Algorithm):
             sampled_batch_indices.append(batch_indices)
 
             sampled_rnn_states = None
+            sampled_next_rnn_states = None
             if self.recurrent:
                 sampled_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_next_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                # (batch_size, unroll_dim, ...)
 
             sampled_goals = None
             if self.goal_oriented:
@@ -287,7 +332,8 @@ class DQNAlgorithm(Algorithm):
             sampled_next_states = next_states[batch_indices].cuda() if self.kwargs['use_cuda'] else next_states[batch_indices]
             sampled_rewards = rewards[batch_indices].cuda() if self.kwargs['use_cuda'] else rewards[batch_indices]
             sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
-            
+            # (batch_size, unroll_dim, ...)
+
             self.optimizer.zero_grad()
             
             loss, loss_per_item = self.loss_fn(sampled_states, 
@@ -296,17 +342,20 @@ class DQNAlgorithm(Algorithm):
                                           sampled_rewards,
                                           sampled_non_terminals,
                                           rnn_states=sampled_rnn_states,
+                                          next_rnn_states=sampled_next_rnn_states,
                                           goals=sampled_goals,
-                                          gamma=self.GAMMA,
+                                          gamma=self.GAMMA**(self.n_step),
                                           model=self.model,
                                           target_model=self.target_model,
                                           weights_decay_lambda=self.weights_decay_lambda,
+                                          weights_entropy_lambda=self.weights_entropy_lambda,
                                           use_PER=self.use_PER,
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
                                           HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
                                           iteration_count=self.param_update_counter,
-                                          summary_writer=summary_writer)
+                                          summary_writer=summary_writer,
+                                          kwargs=self.kwargs)
             
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
@@ -320,21 +369,34 @@ class DQNAlgorithm(Algorithm):
                 self.param_update_counter += 1 
 
         if self.use_PER :
-            # losses corresponding to sampled batch indices: 
-            sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
             sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
             # let us align the batch indices with the losses:
             array_batch_indices = array_batch_indices[sampled_batch_indices]
             # Now we can iterate through the losses and retrieve what 
             # storage and what batch index they were associated with:
-            for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
-                storage_idx = arr_bidx//minibatch_size
-                el_idx_in_batch = arr_bidx%minibatch_size
-                el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
-                new_priority = self.storages[storage_idx].priority(sloss)
-                self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
+            self._update_replay_buffer_priorities(
+                sampled_losses_per_item=sampled_losses_per_item, 
+                array_batch_indices=array_batch_indices,
+                minibatch_size=minibatch_size,
+            )
 
-    def clone(self, with_replay_buffer=False):        
+    def _update_replay_buffer_priorities(self, 
+                                         sampled_losses_per_item: List[torch.Tensor], 
+                                         array_batch_indices: List,
+                                         minibatch_size: int):
+        '''
+        Updates the priorities of each sampled elements from their respective storages.
+        '''
+        # losses corresponding to sampled batch indices: 
+        sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
+        for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
+            storage_idx = arr_bidx//minibatch_size
+            el_idx_in_batch = arr_bidx%minibatch_size
+            el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
+            new_priority = self.storages[storage_idx].priority(sloss)
+            self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
+
+    def clone(self, with_replay_buffer: bool=False):        
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None

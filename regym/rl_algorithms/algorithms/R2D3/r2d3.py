@@ -12,14 +12,22 @@ sum_writer = None
 
 class R2D3Algorithm(DQNAlgorithm):
 
-    def __init__(self, kwargs: Dict[str, Any], model: nn.Module,
+    def __init__(self, kwargs: Dict[str, Any], 
+                 model: nn.Module,
                  target_model: Optional[nn.Module] = None,
                  optimizer=None,
                  expert_demonstrations: ReplayStorage = None,
                  loss_fn: Callable = dqn_loss.compute_loss,
                  sum_writer=None):
         super().__init__(
-            kwargs, model, target_model, optimizer, loss_fn, sum_writer)
+            kwargs=kwargs, 
+            model=model, 
+            target_model=target_model, 
+            optimizer=optimizer, 
+            loss_fn=loss_fn, 
+            sum_writer=sum_writer
+        )
+        
         self.sequence_length = kwargs['sequence_length']  # Not doing anything with this so far.
         self.demo_ratio = kwargs['demo_ratio']  # Should be small (around: 1 / 256)
         self.burn_in_length = kwargs['burn_in_length']

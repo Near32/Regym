@@ -10,6 +10,7 @@ from regym.training_schemes import DeltaDistributionalSelfPlay
 
 from regym.rl_algorithms import build_DQN_Agent
 from regym.rl_algorithms import build_THER_Agent
+from regym.rl_algorithms import build_R2D2_Agent
 from regym.rl_algorithms import build_TabularQ_Agent
 from regym.rl_algorithms import build_PPO_Agent
 from regym.rl_algorithms import build_A2C_Agent
@@ -62,6 +63,7 @@ def initialize_agents(task, agent_configurations):
         if 'tabularqlearning' in agent_name.lower(): return build_TabularQ_Agent(task, config, agent_name)
         if 'dqn' in agent_name.lower(): return build_DQN_Agent(task, config, agent_name)
         if 'ther' in agent_name.lower(): return build_THER_Agent(task, config, agent_name)
+        if 'r2d2' in agent_name.lower(): return build_R2D2_Agent(task, config, agent_name)
         if 'ppo' in agent_name.lower(): return build_PPO_Agent(task, config, agent_name)
         if 'a2c' in agent_name.lower(): return build_A2C_Agent(task, config, agent_name)
         if 'ddpg' in agent_name.lower(): return build_DDPG_Agent(task, config, agent_name)

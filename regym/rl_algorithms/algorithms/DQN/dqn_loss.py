@@ -18,7 +18,8 @@ def compute_loss(states: torch.Tensor,
                  HER_target_clamping: bool = False,
                  summary_writer: object = None,
                  iteration_count: int = 0,
-                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
+                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
+                 **kwargs) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x state_size: States visited by the agent.
     :param actions: Dimension: batch_size x action_size. Actions which the agent

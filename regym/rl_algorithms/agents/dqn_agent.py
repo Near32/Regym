@@ -6,7 +6,8 @@ from collections.abc import Iterable
 
 from ..algorithms.DQN import DQNAlgorithm, dqn_loss, ddqn_loss
 from ..networks import CategoricalQNet
-from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalGruBody
+from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
+from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
 from ..networks import NoisyLinear
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
@@ -110,7 +111,6 @@ class DQNAgent(Agent):
             if self.goal_oriented:
                 exp_dict['goals'] = Agent._extract_from_hdict(goals, batch_index, goal_preprocessing_fn=self.goal_preprocessing)
 
-            #self.algorithm.storages[actor_index].add(exp_dict)
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
             self.handled_experiences +=1
@@ -248,6 +248,26 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
             paddings = kwargs['phi_arch_paddings']
             output_dim = kwargs['phi_arch_hidden_units'][-1]
             phi_body = ConvolutionalGruBody(input_shape=input_shape,
+                                         feature_dim=output_dim,
+                                         channels=channels,
+                                         kernel_sizes=kernels,
+                                         strides=strides,
+                                         paddings=paddings,
+                                         hidden_units=kwargs['phi_arch_hidden_units'])
+        elif kwargs['phi_arch'] == 'CNN-LSTM-RNN':
+            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
+            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+            if 'nbr_frame_stacking' in kwargs:
+                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+            input_shape = kwargs['preprocessed_observation_shape']
+            channels = [input_shape[0]] + kwargs['phi_arch_channels']
+            kernels = kwargs['phi_arch_kernels']
+            strides = kwargs['phi_arch_strides']
+            paddings = kwargs['phi_arch_paddings']
+            output_dim = kwargs['phi_arch_hidden_units'][-1]
+            phi_body = ConvolutionalLstmBody(input_shape=input_shape,
                                          feature_dim=output_dim,
                                          channels=channels,
                                          kernel_sizes=kernels,
@@ -397,7 +417,7 @@ def build_DQN_Agent(task, config, agent_name):
     kwargs['state_preprocess'] = partial(PreprocessFunction, normalization=False)
     kwargs['goal_preprocess'] = partial(PreprocessFunction, normalization=False)
 
-    if 'None' in kwargs['observation_resize_dim']:  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
+    if not isinstance(kwargs['observation_resize_dim'], int):  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
     #if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
 
     model = generate_model(task, kwargs)

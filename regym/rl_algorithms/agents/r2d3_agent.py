@@ -5,21 +5,23 @@ from regym.rl_algorithms.algorithms.R2D3 import R2D3Algorithm
 
 
 class R2D3Agent(DQNAgent):
-    def clone(self, training=None):
+    def clone(self, training=None, with_replay_buffer=False):
         '''
         TODO: test
         '''
-        cloned_algo = self.algorithm.clone()
+        cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
         clone = R2D3Agent(name=self.name, algorithm=cloned_algo)
+        
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
-        if training is not None: clone.training = training
+        if training is not None:    clone.training = training
         clone.nbr_steps = self.nbr_steps
         return clone
 
 
 def build_R2D3_Agent(task: 'regym.environments.Task',
-                     config: Dict, agent_name: str):
+                     config: Dict, 
+                     agent_name: str):
     '''
     TODO: say that config is the same as DQN agent except for
     - expert_demonstrations: ReplayStorage object with expert demonstrations
@@ -32,7 +34,11 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
     '''
     model = generate_model(task, config)
     algorithm = R2D3Algorithm(
-            config, model=model,
-            expert_demonstrations=config['expert_demonstrations'])
+            kwargs=config, 
+            model=model,
+            expert_demonstrations=config['expert_demonstrations']
+    )
+    
     agent = R2D3Agent(name=agent_name, algorithm=algorithm)
+    
     return agent

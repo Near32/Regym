@@ -19,18 +19,21 @@ def compute_loss(states: torch.Tensor,
                  HER_target_clamping: bool = False,
                  summary_writer: object = None,
                  iteration_count: int = 0,
-                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
+                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
+                 **kwargs) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x state_size: States visited by the agent.
     :param actions: Dimension: batch_size x action_size. Actions which the agent
                     took at every state in :param states: with the same index.
     :param next_states: Dimension: batch_size x state_size: Next states visited by the agent.
+                        NOTE: if n-step returns are used, then it is the n-th subsequent states.
+                        It may breach the episode barrier... 
     :param non_terminals: Dimension: batch_size x 1: Non-terminal integers.
-    :param rewards: Dimension: batch_size x 1. Environment rewards.
+    :param rewards: Dimension: batch_size x 1. Environment rewards, or n-step returns if using n-step returns.
     :param goals: Dimension: batch_size x goal shape: Goal of the agent.
     :param model: torch.nn.Module used to compute the loss.
     :param target_model: torch.nn.Module used to compute the loss.
-    :param gamma: float discount factor.
+    :param gamma: float discount factor, or raised to the power of n if using n-step returns.
     :param weights_decay_lambda: Coefficient to be used for the weight decay loss.
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
@@ -45,8 +48,17 @@ def compute_loss(states: torch.Tensor,
     prediction = model(states, action=actions, rnn_states=rnn_states, goal=goals)
 
     state_action_values = prediction["qa"]
+    
+    '''
+    # Sample actions from the replay buffer:
     state_action_values_g = state_action_values.gather(dim=1, index=actions.unsqueeze(1)).squeeze(1)
-
+    
+    '''
+    # Sample actions from the current model outputs:
+    current_actions = prediction["a"]
+    state_action_values_g = state_action_values.gather(dim=1, index=current_actions.unsqueeze(1)).squeeze(1)
+    
+    
     ############################
     with torch.no_grad():
         next_rnn_states = None

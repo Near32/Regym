@@ -331,6 +331,7 @@ class PrioritizedReplayStorage(ReplayStorage):
                  alpha=0.2,
                  beta=1.0,
                  beta_increase_interval=1e4,
+                 eta=0.9,
                  keys=None,
                  circular_keys={'succ_s':'s'},
                  circular_offsets={'succ_s':1}):
@@ -345,6 +346,7 @@ class PrioritizedReplayStorage(ReplayStorage):
         assert self.beta_increase_interval <= self.capacity
         self.beta = self.beta_start
 
+        self.eta = eta
         self.epsilon = 1e-4
 
         self.tree = np.zeros(2 * int(self.capacity) - 1)
@@ -363,6 +365,14 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def priority(self, error) :
         return (error+self.epsilon)**self.alpha
+
+    def sequence_priority(self, sequence_errors) :
+        '''
+        :param sequence_errors: torch.Tensor of shape (unroll_dim,)
+        '''
+        max_error = sequence_errors.max(dim=0)
+        mean_error = sequence_errors.mean()
+        return self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
 
     def update(self, idx, priority):
         if any(np.isnan(priority)) or any(np.isinf(priority)):
