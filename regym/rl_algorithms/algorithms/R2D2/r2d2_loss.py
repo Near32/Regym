@@ -324,7 +324,7 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_rnn_states,
         grad_enabler=True,
         use_zero_initial_states=False,
-        extras=False
+        extras=True
     )
 
     target_model.reset_noise()
@@ -406,6 +406,20 @@ def compute_loss(states: torch.Tensor,
     loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*training_predictions['ent'].mean()
 
     if summary_writer is not None:
+        denominator = eps+torch.abs(training_burned_in_predictions['qa'].reshape(batch_size, -1).max(dim=-1)[0])
+        # (batch_size, )
+        initial_diff = training_burned_in_predictions['qa'][:,0,...]-training_unrolled_predictions['qa'][:,0,...]
+        # (batch_size, num_actions)
+        final_diff = training_burned_in_predictions['qa'][:,-1,...]-training_unrolled_predictions['qa'][:,-1,...]
+        # (batch_size, num_actions)
+        initial_discrepancy_qa = initial_diff.pow(2).sum(-1).sqrt() / denominator
+        # (batch_size,)
+        final_discrepancy_qa = final_diff.pow(2).sum(-1).sqrt() / denominator
+        # (batch_size, )
+        
+        summary_writer.add_scalar('Training/DiscrepancyQAValues/Initial', initial_discrepancy_qa.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/DiscrepancyQAValues/Final', final_discrepancy_qa.cpu().mean().item(), iteration_count)
+        
         summary_writer.add_scalar('Training/MeanQAValues', training_predictions['qa'].cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/StdQAValues', training_predictions['qa'].cpu().std().item(), iteration_count)
         summary_writer.add_scalar('Training/QAValueLoss', loss.cpu().item(), iteration_count)

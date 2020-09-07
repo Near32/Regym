@@ -282,6 +282,9 @@ class DQNAlgorithm(Algorithm):
                     )
                 else:
                     value = torch.cat(value, dim=0)
+            else:
+                value = value[0]
+                
             fulls[key] = value
         
         return fulls
