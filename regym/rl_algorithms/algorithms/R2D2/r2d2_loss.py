@@ -12,18 +12,22 @@ def value_function_rescaling(x):
     '''
     Value function rescaling (table 2).
     '''
-    return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
+    return x
+    #return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
 
 
 def inverse_value_function_rescaling(x):
     '''
     See Proposition A.2 in paper "Observe and Look Further".
     '''
+    return x
+    '''
     return torch.sign(x) * (
         (
             (torch.sqrt(1. + 4. * eps * (torch.abs(x) + 1. + eps)) - 1.) / (2. * eps)
         ).pow(2.0) - 1.
     )
+    '''
 
 
 def extract_rnn_states_from_time_indices(rnn_states_batched: Dict, 
@@ -96,6 +100,7 @@ def roll_sequences(unrolled_sequences:List[Dict[str, torch.Tensor]], batch_size:
     keys = unrolled_sequences[0].keys()
     d = {}
     for key in keys:
+        if unrolled_sequences[0][key] is None:  continue
         # (batch_size=1, unroll_dim, ...)
         if isinstance(unrolled_sequences[0][key], dict):
             values = [unrolled_sequences[i][key] for i in range(len(unrolled_sequences))]
@@ -228,7 +233,7 @@ def compute_loss(states: torch.Tensor,
     :param goals: Dimension: batch_size x unroll_length x goal shape: Goal of the agent.
     :param model: torch.nn.Module used to compute the loss.
     :param target_model: torch.nn.Module used to compute the loss.
-    :param gamma: float discount factor, or raised to the power of n if using n-step returns.
+    :param gamma: float discount factor.
     :param weights_decay_lambda: Coefficient to be used for the weight decay loss.
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
@@ -336,7 +341,7 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_target_rnn_states,
         grad_enabler=False,
         use_zero_initial_states=False,
-        extras=False
+        extras=not(kwargs['burn_in'])
     )
 
     if kwargs['burn_in']:
@@ -352,37 +357,38 @@ def compute_loss(states: torch.Tensor,
     # (batch_size, unroll_dim, ...)
     
     state_action_values_g = state_action_values.gather(dim=-1, index=current_actions).reshape(batch_size, training_length, -1)
-    # (batch_size, unroll_dim, ...)
+    # (batch_size, unroll_dim, 1)
     
-    targetQ_Si_Ai_values = training_target_predictions['qa']
-    # (batch_size, training_length, ...)
-    targetQ_Sipn_Aipn_values = torch.cat(
+    targetQ_Si_Ai_values = inverse_value_function_rescaling(training_target_predictions['qa'])
+    # (batch_size, training_length, num_actions)
+    
+    targetQ_Si_argmaxAQvalue = targetQ_Si_Ai_values.gather(dim=-1, index=current_actions).reshape(batch_size, training_length, -1)
+    # (batch_size, training_length, 1)
+
+    targetQ_Sipn_argmaxAipn_values = torch.cat(
         [
-            targetQ_Si_Ai_values[:, kwargs['n_step']:, ...]
+            targetQ_Si_argmaxAQvalue[:, kwargs['n_step']:, ...]
         ]+[
-            targetQ_Si_Ai_values[:, -1:, ...]/gamma # it will normalized down below when computing bellman target    
-        ]*kwargs['n_step'],
+            targetQ_Si_argmaxAQvalue[:, -1:, ...] / gamma**k # it will be normalized down below when computing bellman target    
+            for k in range(kwargs['n_step'])
+        ],
         dim=1,
     )
-    # (batch_size, training_length, ...)
-    
-    current_actions_ipn = torch.cat(
-        [
-            current_actions[:, kwargs['n_step']:, ...]
-        ]+[
-            current_actions[:, -1:, ...]    
-        ]*kwargs['n_step'],
-        dim=1,
-    ).reshape(batch_size, training_length, -1)
     # (batch_size, training_length, 1)
-    
 
-    targetQ_Sipn_argmaxAQvalue = targetQ_Sipn_Aipn_values.gather(dim=-1, index=current_actions_ipn).reshape(batch_size, training_length, -1)
-    # (batch_size, training_length, -1)
+    training_non_terminals_ipn = torch.cat(
+        [
+            training_non_terminals[:, :k+1, ...].prod(dim=1).reshape(batch_size, 1, -1)
+            for k in range(kwargs['n_step'])
+        ]+[
+            training_non_terminals.prod(dim=1).reshape(batch_size, 1, -1)
+        ]*(kwargs['n_step']-1),
+        dim=1,
+    )
 
-    # Compute the Bellman Target for Q values at Si,Ai: with gamma <-- gamma ** n_step ...
-    unscaled_targetQ_Sipn_argmaxAQvalue = inverse_value_function_rescaling(targetQ_Sipn_argmaxAQvalue)
-    bellman_target_Sipn_Aipn = training_rewards + (gamma * unscaled_targetQ_Sipn_argmaxAQvalue)*training_non_terminals
+    # Compute the Bellman Target for Q values at Si,Ai: with gamma
+    bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values * training_non_terminals_ipn
+
     # (batch_size, training_length, ...)
     scaled_bellman_target_Sipn_Aipn = value_function_rescaling(bellman_target_Sipn_Aipn)
 

@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 import torch
 
 
@@ -20,7 +20,7 @@ def compute_loss(states: torch.Tensor,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
-                 **kwargs) -> torch.Tensor:
+                 kwargs:Optional[Dict]=None) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x state_size: States visited by the agent.
     :param actions: Dimension: batch_size x action_size. Actions which the agent
@@ -33,7 +33,7 @@ def compute_loss(states: torch.Tensor,
     :param goals: Dimension: batch_size x goal shape: Goal of the agent.
     :param model: torch.nn.Module used to compute the loss.
     :param target_model: torch.nn.Module used to compute the loss.
-    :param gamma: float discount factor, or raised to the power of n if using n-step returns.
+    :param gamma: float discount factor.
     :param weights_decay_lambda: Coefficient to be used for the weight decay loss.
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
@@ -58,7 +58,7 @@ def compute_loss(states: torch.Tensor,
     current_actions = prediction["a"]
     state_action_values_g = state_action_values.gather(dim=1, index=current_actions.unsqueeze(1)).squeeze(1)
     
-    
+
     ############################
     with torch.no_grad():
         next_rnn_states = None
@@ -81,7 +81,7 @@ def compute_loss(states: torch.Tensor,
         targetQ_nextS_argmaxA_Q_value = targetQ_nextS_A_values.gather(1, argmaxA_Q_nextS_A_values).reshape(batch_size, -1)
 
         # Compute the expected Q values:
-        expected_state_action_values = rewards + (gamma * targetQ_nextS_argmaxA_Q_value)*non_terminals
+        expected_state_action_values = rewards + (gamma**kwargs['n_step']) * targetQ_nextS_argmaxA_Q_value * non_terminals
 
         if HER_target_clamping:
             # clip the target to [-50,0]

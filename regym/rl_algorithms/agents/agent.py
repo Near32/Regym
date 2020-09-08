@@ -196,7 +196,9 @@ class Agent(object):
                 if isinstance(v, torch.Tensor):
                     prediction[k] = v.detach().cpu()
         else:
-            prediction = {k: v.detach().cpu() for k, v in prediction.items()}
+            prediction = {k: v.detach().cpu() if isinstance(v, torch.Tensor) else v
+                             for k, v in prediction.items()
+                            }
 
         return prediction
 
@@ -204,7 +206,7 @@ class Agent(object):
     def _extract_from_prediction(prediction: dict, batch_idx: int):
         out_pred = dict()
         for k, v in prediction.items():
-            if isinstance(v, dict):
+            if v is None or isinstance(v, dict):
                 continue
             out_pred[k] = v[batch_idx,...].unsqueeze(0)
         return out_pred

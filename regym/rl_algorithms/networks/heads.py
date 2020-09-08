@@ -149,8 +149,7 @@ class CategoricalQNet(nn.Module):
                     'ent': entropy,
                     'qa': qa}
         
-        if rnn_states is not None:
-            prediction.update({'rnn_states': rnn_states,
+        prediction.update({'rnn_states': rnn_states,
                                'next_rnn_states': next_rnn_states})
 
         return prediction
@@ -257,8 +256,7 @@ class QNet(nn.Module):
             'qa': qa
         }
         
-        if rnn_states is not None:
-            prediction.update({'rnn_states': rnn_states,
+        prediction.update({'rnn_states': rnn_states,
                                'next_rnn_states': next_rnn_states})
 
         return prediction
@@ -472,8 +470,7 @@ class GaussianActorNet(nn.Module):
                 'ent': entropy,
             }
         
-        if rnn_states is not None:
-            prediction.update({'rnn_states': rnn_states,
+        prediction.update({'rnn_states': rnn_states,
                                'next_rnn_states': next_rnn_states})
 
         return prediction
@@ -608,8 +605,7 @@ class SquashedGaussianActorNet(nn.Module):
             'ent': entropy,
         }
     
-        if rnn_states is not None:
-            prediction.update({'rnn_states': rnn_states,
+        prediction.update({'rnn_states': rnn_states,
                                'next_rnn_states': next_rnn_states})
 
         return prediction
@@ -705,8 +701,7 @@ class GaussianActorCriticNet(nn.Module):
         if self.use_intrinsic_critic:
             prediction['int_v'] = int_v
 
-        if rnn_states is not None:
-            prediction.update({'rnn_states': rnn_states,
+        prediction.update({'rnn_states': rnn_states,
                                'next_rnn_states': next_rnn_states})
 
         return prediction
@@ -819,8 +814,7 @@ class CategoricalActorCriticNet(nn.Module):
         if self.use_intrinsic_critic:
             prediction['int_v'] = int_v
 
-        if rnn_states is not None:
-            prediction.update({'rnn_states': rnn_states,
+        prediction.update({'rnn_states': rnn_states,
                                'next_rnn_states': next_rnn_states})
 
         return prediction

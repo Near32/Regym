@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 import torch
 
 
@@ -19,7 +19,7 @@ def compute_loss(states: torch.Tensor,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
-                 **kwargs) -> torch.Tensor:
+                 kwargs:Optional[Dict]=None) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x state_size: States visited by the agent.
     :param actions: Dimension: batch_size x action_size. Actions which the agent
@@ -58,7 +58,7 @@ def compute_loss(states: torch.Tensor,
       maxA_targetQ_nextS_A_values = targetQ_nextS_A_values.max(dim=1)[0]
     
       # Compute the expected Q values
-      expected_state_action_values = rewards + non_terminals*(gamma * maxA_targetQ_nextS_A_values)
+      expected_state_action_values = rewards + non_terminals*(gamma**kwargs['n_step']) * maxA_targetQ_nextS_A_values
       if HER_target_clamping:
             # clip the target to [-50,0]
             expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)

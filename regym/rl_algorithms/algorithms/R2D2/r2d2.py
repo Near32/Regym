@@ -23,6 +23,17 @@ class R2D2Algorithm(DQNAlgorithm):
                  optimizer=None,
                  loss_fn: Callable = r2d2_loss.compute_loss,
                  sum_writer=None):
+        
+        self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
+        self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
+        self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
+        
+        self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
+        
+        assert kwargs['n_step'] < kwargs['sequence_replay_unroll_length'], \
+                "Squence_replay_unroll_length needs to be set to a value greater than n_step return, \
+                in order to be able to compute the bellman target."
+        
         super().__init__(
             kwargs=kwargs, 
             model=model, 
@@ -31,10 +42,6 @@ class R2D2Algorithm(DQNAlgorithm):
             loss_fn=loss_fn, 
             sum_writer=sum_writer
         )
-        
-        self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
-        self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
-        self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
         
         self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
@@ -72,7 +79,7 @@ class R2D2Algorithm(DQNAlgorithm):
             if self.kwargs['use_PER']:
                 self.storages.append(
                     PrioritizedReplayStorage(
-                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                        capacity=self.replay_buffer_capacity//self.nbr_actor,
                         alpha=self.kwargs['PER_alpha'],
                         beta=self.kwargs['PER_beta'],
                         eta=self.kwargs['sequence_replay_PER_eta'],
@@ -84,7 +91,7 @@ class R2D2Algorithm(DQNAlgorithm):
             else:
                 self.storages.append(
                     ReplayStorage(
-                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                        capacity=self.replay_buffer_capacity//self.nbr_actor,
                         keys=keys,
                         circular_keys=circular_keys,                 
                         circular_offsets=circular_offsets
@@ -124,7 +131,7 @@ class R2D2Algorithm(DQNAlgorithm):
         # Can we add the current sequence buffer to the replay storage?
         if not override and len(self.sequence_replay_buffers[actor_index]) < self.sequence_replay_unroll_length:
             return
-        if override or self.sequence_replay_buffers_count[actor_index] % self.sequence_replay_overlap_length == 0:
+        if override or self.sequence_replay_overlap_length == 0 or self.sequence_replay_buffers_count[actor_index] % self.sequence_replay_overlap_length == 0:
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
             if self.use_PER:
                 init_sampling_priority = None 

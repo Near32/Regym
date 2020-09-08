@@ -284,7 +284,7 @@ class DQNAlgorithm(Algorithm):
                     value = torch.cat(value, dim=0)
             else:
                 value = value[0]
-                
+
             fulls[key] = value
         
         return fulls
@@ -351,7 +351,7 @@ class DQNAlgorithm(Algorithm):
                                           rnn_states=sampled_rnn_states,
                                           next_rnn_states=sampled_next_rnn_states,
                                           goals=sampled_goals,
-                                          gamma=self.GAMMA**(self.n_step),
+                                          gamma=self.GAMMA,
                                           model=self.model,
                                           target_model=self.target_model,
                                           weights_decay_lambda=self.weights_decay_lambda,
