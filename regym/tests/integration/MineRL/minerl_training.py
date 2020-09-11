@@ -1,4 +1,3 @@
-import logging
 import yaml
 import os
 import sys
@@ -18,13 +17,14 @@ from regym.util.experiment_parsing import initialize_agents
 from regym.util.wrappers import LazyFrames, FrameSkipStack, ContinuingTimeLimit
 
 import time
-import aicrowd_helper
+#import aicrowd_helper
 import gym
 import minerl
 
-from utility.parser import Parser
-import coloredlogs
-coloredlogs.install(logging.DEBUG)
+#from utility.parser import Parser
+#import logging
+#import coloredlogs
+#coloredlogs.install(logging.DEBUG)
 #logger = logging.getLogger(__name__)
 
 # All the evaluations will be evaluated on MineRLObtainDiamond-v0 environment
@@ -40,6 +40,7 @@ MINERL_TRAINING_TIMEOUT = int(os.getenv('MINERL_TRAINING_TIMEOUT_MINUTES', 4*24*
 # The dataset is available in data/ directory from repository root.
 MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
 
+"""
 # Optional: You can view best effort status of your instances with the help of parser.py
 # This will give you current state like number of steps completed, instances launched and so on. Make your you keep a tap on the numbers to avoid breaching any limits.
 parser = Parser('performance/',
@@ -50,7 +51,7 @@ parser = Parser('performance/',
                 no_entry_poll_timeout=600,
                 submission_timeout=MINERL_TRAINING_TIMEOUT*60,
                 initial_poll_timeout=600)
-
+"""
 
 '''
 Adapted from:
@@ -273,11 +274,11 @@ class LinearInterpolationHook(object):
     self.setter(env, agent, value)
 
 
-def check_path_for_agent(filepath):
+def check_path_for_agent(filepath, restore=True):
   #filepath = os.path.join(path,filename)
   agent = None
   offset_episode_count = 0
-  if os.path.isfile(filepath):
+  if restore and os.path.isfile(filepath):
     print('==> loading checkpoint {}'.format(filepath))
     agent = torch.load(filepath)
     offset_episode_count = agent.episode_count
@@ -420,8 +421,8 @@ def load_configs(config_file_path: str):
 
 
 def training():
-  logging.basicConfig(level=logging.INFO)
-  logger = logging.getLogger('MineRL Training.')
+  #logging.basicConfig(level=logging.INFO)
+  #logger = logging.getLogger('MineRL Training.')
 
   #config_file_path = "./minerl_config.yaml"
   config_file_path = "./sac_minerl_config.yaml"

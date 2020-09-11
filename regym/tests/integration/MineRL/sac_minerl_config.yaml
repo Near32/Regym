@@ -124,7 +124,7 @@ SAC_LargeCNN: &SAC_LargeCNN
 experiment:
     tasks: [{'env-id': 'MineRLTreechopVectorObf-v0',
              
-             'run-id': 'Seed10_venv_sac_1actors_Sk4_St4_Obs64_Grayscale_NoScaling_Replay1p6Min1p4_ReplayPeriod1_RewardSchemeNone',
+             'run-id': 'Seed10_venv_sac_1actors_Sk4_St4_Obs32_Grayscale_NoScaling_Replay1p6Min1p4_ReplayPeriod1_RewardSchemeNone',
              
              'agent-id': '1step_PER_SAC_LargeCNN_b64_tau1m3',
              
@@ -133,7 +133,7 @@ experiment:
              'nbr_frame_stacking': 4,
              'grayscale': True,
              'scaling': False,
-             'observation_resize_dim': 64, #84,
+             'observation_resize_dim': 32, #84,
              'reward_scheme': 'None', #'penalizing_progressive1e4' #'penalizing_single_reward_episode'
              },
             ]
