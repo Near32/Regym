@@ -67,13 +67,16 @@ experiment:
             {'env-id': 'PongNoFrameskip-v4',
 
              #'run-id': 'Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m2_EntropyReg0_b16_RepP2_DEBUGNSTEP+ProperGammaLoss+CurrentActionLoss+DetachedRNNStates',
-             'run-id': 'DEBUG1_AlignedTargetActions_Done/CNN/NOScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
+             'run-id': 'DEBUG6_Argmax_AlignedTargetActions_INM1Done_LossMasked/QReplayAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
+             # Not learning because of QOnlineActions:
+             # 'run-id': 'DEBUG6_Argmax_AlignedTargetActions_INM1Done_LossMasked/QOnlineAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
              #'agent-id': '5step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L20_O10_B5',
              #'agent-id': '5step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b2_L20_O10_B5',
              
              #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L2_O1_B1',
              #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L10_O5_B5',
              'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L2_O1_B0',
+             #'agent-id': '3step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L4_O1_B0',
              #'agent-id': '20step_prioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L80_O40_B20',
              
              'nbr_actor': 1,
@@ -90,7 +93,7 @@ experiment:
     benchmarking_episodes: 1
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 1.0e8
-    train_observation_budget: 1.0e6 #3.0e5 #1.0e7
+    train_observation_budget: 4.0e5 #3.0e5 #1.0e7
     seed: 1
 
 agents:
@@ -156,6 +159,29 @@ agents:
         tau: 1.0e-3
         burn_in: False
         sequence_replay_unroll_length: 2
+        sequence_replay_overlap_length: 1
+        sequence_replay_burn_in_length: 0
+
+    3step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L4_O1_B0:
+        <<: *r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        replay_capacity: 1e5
+        use_PER: False
+        PER_beta: 0.4
+        replay_period: 2
+        batch_size: 16
+        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+        # but bottleneck on GPU batchsize gives a better trade-off 
+        # batch-regularization-effect / speed with a batch_size=16 
+        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+        # and ~84 it/sec with updates...
+        # Whereas 32 / 4 yielded ~25 it/sec....
+        double: True
+        #dueling: True 
+        #noisy: True 
+        n_step: 3
+        tau: 1.0e-3
+        burn_in: False
+        sequence_replay_unroll_length: 4
         sequence_replay_overlap_length: 1
         sequence_replay_burn_in_length: 0
 

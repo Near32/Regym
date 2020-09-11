@@ -30,9 +30,9 @@ class R2D2Algorithm(DQNAlgorithm):
         
         self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
         
-        assert kwargs['n_step'] < kwargs['sequence_replay_unroll_length'], \
-                "Squence_replay_unroll_length needs to be set to a value greater than n_step return, \
-                in order to be able to compute the bellman target."
+        assert kwargs['n_step'] < kwargs['sequence_replay_unroll_length']-kwargs['sequence_replay_burn_in_length'], \
+                "Sequence_replay_unroll_length-sequence_replay_burn_in_length needs to be set to a value greater \
+                 than n_step return, in order to be able to compute the bellman target."
         
         super().__init__(
             kwargs=kwargs, 

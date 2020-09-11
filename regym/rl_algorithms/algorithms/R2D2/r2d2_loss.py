@@ -12,13 +12,14 @@ def value_function_rescaling(x):
     '''
     Value function rescaling (table 2).
     '''
-    return x
-    #return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
+    #return x
+    return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
 
 
 def inverse_value_function_rescaling(x):
     '''
     See Proposition A.2 in paper "Observe and Look Further".
+    '''
     '''
     return x
     '''
@@ -27,8 +28,7 @@ def inverse_value_function_rescaling(x):
             (torch.sqrt(1. + 4. * eps * (torch.abs(x) + 1. + eps)) - 1.) / (2. * eps)
         ).pow(2.0) - 1.
     )
-    '''
-
+    
 
 def extract_rnn_states_from_time_indices(rnn_states_batched: Dict, 
                                          time_indices_start:int, 
@@ -273,6 +273,11 @@ def compute_loss(states: torch.Tensor,
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
         )
+        _, training_actions = torch.split(
+            actions, 
+            split_size_or_sections=[burn_in_length, training_length],
+            dim=1
+        )
 
         burned_in_predictions, \
         unrolled_predictions, \
@@ -315,6 +320,7 @@ def compute_loss(states: torch.Tensor,
     else:
         training_length = unroll_length
         training_states = states 
+        training_actions = actions 
         training_rewards = rewards
         training_non_terminals = non_terminals
         training_rnn_states = rnn_states
@@ -356,39 +362,69 @@ def compute_loss(states: torch.Tensor,
     current_actions = training_predictions["a"].reshape(batch_size, training_length, -1)
     # (batch_size, unroll_dim, ...)
     
-    state_action_values_g = state_action_values.gather(dim=-1, index=current_actions).reshape(batch_size, training_length, -1)
+    # Although it is the approach in some other repo, this is unstable (unless maybe the greater n_step values help regularize):
+    #state_action_values_g = state_action_values.gather(dim=-1, index=current_actions).reshape(batch_size, training_length, -1)
+    # Stable training: crucial:
+    state_action_values_g = state_action_values.gather(dim=-1, index=training_actions.reshape(batch_size, training_length,-1)).reshape(batch_size, training_length, -1)
     # (batch_size, unroll_dim, 1)
     
     targetQ_Si_Ai_values = inverse_value_function_rescaling(training_target_predictions['qa'])
     # (batch_size, training_length, num_actions)
+    argmaxA_Q_Si_A_values = state_action_values.max(dim=-1)[1].unsqueeze(-1)
+    # (batch_size, training_length, 1)
     
-    targetQ_Si_argmaxAQvalue = targetQ_Si_Ai_values.gather(dim=-1, index=current_actions).reshape(batch_size, training_length, -1)
+    # Non-greedy:
+    #targetQ_Si_argmaxAQvalue = targetQ_Si_Ai_values.gather(dim=-1, index=current_actions).reshape(batch_size, training_length, -1)
+    # Greedy:
+    targetQ_Si_argmaxAQvalue = targetQ_Si_Ai_values.gather(dim=-1, index=argmaxA_Q_Si_A_values).reshape(batch_size, training_length, -1)
     # (batch_size, training_length, 1)
 
     targetQ_Sipn_argmaxAipn_values = torch.cat(
         [
             targetQ_Si_argmaxAQvalue[:, kwargs['n_step']:, ...]
         ]+[
-            targetQ_Si_argmaxAQvalue[:, -1:, ...] / gamma**k # it will be normalized down below when computing bellman target    
+            targetQ_Si_argmaxAQvalue[:, -1:, ...] / gamma**(k+1) # it will be normalized down below when computing bellman target    
             for k in range(kwargs['n_step'])
         ],
         dim=1,
     )
     # (batch_size, training_length, 1)
-
+    
+    '''
+    # Adapted from hanabi_SAD :
+    targetQ_Sipn_argmaxAipn_values = torch.cat([
+            targetQ_Si_argmaxAQvalue[:, kwargs['n_step']:],
+            targetQ_Si_argmaxAQvalue[:, :kwargs['n_step']]
+        ],
+        dim=1
+    )
+    targetQ_Sipn_argmaxAipn_values[:, -kwargs['n_step']:] = 0
+    '''
+    
+    '''
     training_non_terminals_ipn = torch.cat(
-        [
-            training_non_terminals[:, :k+1, ...].prod(dim=1).reshape(batch_size, 1, -1)
+        [   # :k+1 since k \in [0, n_step-1], and np.zeros(length)[:0] has shape (0,)...
+            training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
             for k in range(kwargs['n_step'])
         ]+[
             training_non_terminals.prod(dim=1).reshape(batch_size, 1, -1)
-        ]*(kwargs['n_step']-1),
+        ]*(training_non_terminals.shape[1]-kwargs['n_step']),
         dim=1,
     )
-
+    '''
+    training_non_terminals_ipnm1 = torch.cat(
+        [   
+            training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
+            for k in range(training_non_terminals.shape[1])
+        ],
+        dim=1,
+    )
+    
     # Compute the Bellman Target for Q values at Si,Ai: with gamma
-    bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values * training_non_terminals_ipn
-
+    #bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values * training_non_terminals
+    #bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values * training_non_terminals_ipn
+    bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values * training_non_terminals_ipnm1
+    
     # (batch_size, training_length, ...)
     scaled_bellman_target_Sipn_Aipn = value_function_rescaling(bellman_target_Sipn_Aipn)
 
@@ -400,16 +436,23 @@ def compute_loss(states: torch.Tensor,
     '''
 
     # Compute loss:
+    #scaled_bellman_target_Sipn_Aipn = scaled_bellman_target_Sipn_Aipn[:,:-1,...]
+    #state_action_values_g = state_action_values_g[:,:-1,...]
+
     state_action_values_g = state_action_values_g.reshape(scaled_bellman_target_Sipn_Aipn.shape)
 
-    td_error = torch.abs(scaled_bellman_target_Sipn_Aipn - state_action_values_g)
+    td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
     loss_per_item = td_error
     diff_squared = td_error.pow(2.0)
 
     if use_PER:
       diff_squared = importanceSamplingWeights * diff_squared
 
-    loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*training_predictions['ent'].mean()
+    mask = torch.ones_like(diff_squared)
+    mask[:,-1, ...] = (1-training_non_terminals[:,-1,...])
+
+    #loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*training_predictions['ent'].mean()
+    loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
 
     if summary_writer is not None:
         denominator = eps+torch.abs(training_burned_in_predictions['qa'].reshape(batch_size, -1).max(dim=-1)[0])
@@ -426,7 +469,14 @@ def compute_loss(states: torch.Tensor,
         summary_writer.add_scalar('Training/DiscrepancyQAValues/Initial', initial_discrepancy_qa.cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/DiscrepancyQAValues/Final', final_discrepancy_qa.cpu().mean().item(), iteration_count)
         
+        summary_writer.add_scalar('Training/MeanBellmanTarget', bellman_target_Sipn_Aipn.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MinBellmanTarget', bellman_target_Sipn_Aipn.cpu().min().item(), iteration_count)
+        summary_writer.add_scalar('Training/MaxBellmanTarget', bellman_target_Sipn_Aipn.cpu().max().item(), iteration_count)
+        
         summary_writer.add_scalar('Training/MeanQAValues', training_predictions['qa'].cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MinQAValues', training_predictions['qa'].cpu().min().item(), iteration_count)
+        summary_writer.add_scalar('Training/MaxQAValues', training_predictions['qa'].cpu().max().item(), iteration_count)
+        
         summary_writer.add_scalar('Training/StdQAValues', training_predictions['qa'].cpu().std().item(), iteration_count)
         summary_writer.add_scalar('Training/QAValueLoss', loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/EntropyVal', training_predictions['ent'].mean().cpu().item(), iteration_count)

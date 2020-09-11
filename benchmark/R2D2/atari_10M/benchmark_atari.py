@@ -51,7 +51,7 @@ def train_and_evaluate(agent: object,
                                                        test_nbr_episode=test_nbr_episode,
                                                        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
                                                        step_hooks=step_hooks)
-    trained_agent.save(with_replay_buffer=True)
+    trained_agent.save(with_replay_buffer=False)
     print(f"Agent saved at: {trained_agent.save_path}")
     
     task.env.close()
