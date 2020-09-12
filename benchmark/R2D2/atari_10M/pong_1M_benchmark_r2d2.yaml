@@ -14,7 +14,7 @@ extra_hyperparameters: &extra_hyperparameters
     
 
 LargeLSTMCNN: &LargeLSTMCNN
-        phi_arch: 'CNN' #-LSTM-RNN'
+        phi_arch: 'CNN-LSTM-RNN' #-LSTM-RNN'
         actor_arch: 'None'
         critic_arch: 'None'
         
@@ -47,7 +47,7 @@ r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLST
 
         observation_resize_dim: 84
         discount: 0.99 #0.997
-        use_cuda: True
+        use_cuda: False
         gradient_clip: 0.5
         batch_size: 32
         tau: 1.0e-2
@@ -79,7 +79,7 @@ experiment:
              #'agent-id': '3step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L4_O1_B0',
              #'agent-id': '20step_prioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L80_O40_B20',
              
-             'nbr_actor': 1,
+             'nbr_actor': 2,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': True,
