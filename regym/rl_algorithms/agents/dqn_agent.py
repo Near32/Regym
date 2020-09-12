@@ -1,3 +1,4 @@
+from typing import Dict, Any
 import torch
 import numpy as np
 import copy
@@ -46,6 +47,9 @@ class DQNAgent(Agent):
         self.nbr_steps = 0
 
         self.saving_interval = 1e4
+
+        # Holds model output from last observation
+        self.current_prediction: Dict[str, Any] = None
 
 
     def get_experience_count(self):
@@ -156,11 +160,7 @@ class DQNAgent(Agent):
         if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
             model = self.algorithm.get_models()['target_model']
 
-        if self.recurrent:
-            self._pre_process_rnn_states()
-            self.current_prediction = model(state, rnn_states=self.rnn_states, goal=goal)
-        else:
-            self.current_prediction = model(state, goal=goal)
+        self.current_prediction = self.query_model(model, state, goal)
         self.current_prediction = self._post_process(self.current_prediction)
 
         sample = np.random.random()
@@ -170,6 +170,14 @@ class DQNAgent(Agent):
             random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
             random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
             return random_actions
+
+    def query_model(self, model, state, goal):
+        if self.recurrent:
+            self._pre_process_rnn_states()
+            current_prediction = model(state, rnn_states=self.rnn_states, goal=goal)
+        else:
+            current_prediction = model(state, goal=goal)
+        return current_prediction
 
     def clone(self, training=None, with_replay_buffer=False):
         cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
@@ -266,13 +274,14 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
             kernels = kwargs['phi_arch_kernels']
             strides = kwargs['phi_arch_strides']
             paddings = kwargs['phi_arch_paddings']
-            output_dim = kwargs['phi_arch_hidden_units'][-1]
+            output_dim = kwargs['phi_arch_feature_dim']  # TODO: figure out if this breaks anything else
             phi_body = ConvolutionalLstmBody(input_shape=input_shape,
                                          feature_dim=output_dim,
                                          channels=channels,
                                          kernel_sizes=kernels,
                                          strides=strides,
                                          paddings=paddings,
+                                         lstm_input_dim=kwargs.get('lstm_input_dim', -1),
                                          hidden_units=kwargs['phi_arch_hidden_units'])
         input_dim = output_dim
 

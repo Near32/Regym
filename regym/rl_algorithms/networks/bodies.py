@@ -802,7 +802,10 @@ def resnet18Input64(input_shape, output_dim, **kwargs):
 
 #class ConvolutionalLstmBody(ConvolutionalBody):
 class ConvolutionalLstmBody(nn.Module):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
+    def __init__(self, input_shape, feature_dim=256, channels=[3, 3],
+                 kernel_sizes=[1], strides=[1], paddings=[0],
+                 lstm_input_dim: int = -1,
+                 non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -834,9 +837,9 @@ class ConvolutionalLstmBody(nn.Module):
                                                 paddings=paddings,
                                                 non_linearities=non_linearities)
 
-        
-        #self.lstm_body = LSTMBody( state_dim=self.feature_dim, hidden_units=hidden_units, gate=gate)
-        self.lstm_body = LSTMBody( state_dim=self.cnn_body.get_feature_shape(), hidden_units=hidden_units, gate=gate)
+        # Use lstm_input_dim instead of cnn_body output feature dimension 
+        lstm_input_dim = lstm_input_dim if lstm_input_dim != -1 else self.cnn_body.get_feature_shape()
+        self.lstm_body = LSTMBody( state_dim=lstm_input_dim, hidden_units=hidden_units, gate=gate)
 
     def forward(self, inputs):
         '''
@@ -844,9 +847,17 @@ class ConvolutionalLstmBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, recurrent_neurons = inputs
-        #features = super(ConvolutionalLstmBody,self).forward(x)
+        x, recurrent_neurons = inputs[0], inputs[1]
+
         features = self.cnn_body.forward(x)
+
+        # As defined in R2D2 paper, concatenating previous action and reward
+        previous_action, previous_reward = inputs[2], inputs[3]
+        # Concatenate on feature dimension rather than on batch dimension.
+        # We are augmenting the features, not adding new datapoints to the batch
+        if previous_action is not None: features = torch.cat((features, previous_action), dim=1)
+        if previous_reward is not None: features = torch.cat((features, previous_reward), dim=1)
+
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
         return x, recurrent_neurons
 
@@ -1056,7 +1067,7 @@ class LSTMBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, recurrent_neurons = inputs
+        x, recurrent_neurons = inputs[0], inputs[1]
         if next(self.layers[0].parameters()).is_cuda and not(x.is_cuda):    x = x.cuda() 
         hidden_states, cell_states = recurrent_neurons['hidden'], recurrent_neurons['cell']
 
