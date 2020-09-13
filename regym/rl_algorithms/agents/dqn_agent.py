@@ -48,10 +48,6 @@ class DQNAgent(Agent):
 
         self.saving_interval = 1e4
 
-        # Holds model output from last observation
-        self.current_prediction: Dict[str, Any] = None
-
-
     def get_experience_count(self):
         return self.handled_experiences
 

@@ -1,3 +1,4 @@
+from typing import Dict, Any 
 import torch
 import numpy as np
 
@@ -39,6 +40,8 @@ class Agent(object):
 
         self.nbr_actor = self.algorithm.get_nbr_actor()
         self.previously_done_actors = [False]*self.nbr_actor
+        # Holds model output from last observation
+        self.current_prediction: Dict[str, Any] = None
 
         self.recurrent = False
         self.rnn_states = None
@@ -63,6 +66,8 @@ class Agent(object):
         In case of a multi-actor process, this function is called to reset
         the actors' internal values.
         '''
+        self.current_prediction: Dict[str, Any] = None
+        
         if indices is None: indices = range(self.nbr_actor)
 
         if init:

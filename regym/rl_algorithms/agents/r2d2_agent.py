@@ -14,21 +14,21 @@ class R2D2Agent(DQNAgent):
         super(R2D2Agent, self).__init__(name, algorithm)
 
         self.action_space_dim = action_space_dim
-        self.previous_reward = torch.zeros(size=(self.nbr_actor,  # Batch size
-                                                 1))
+        self.previous_reward: torch.Tensor = None
+        
     # NOTE: overriding from DQNAgent
     def query_model(self, model, state, goal):
+        batch_size = state.shape[0]
         if self.current_prediction:
             # Turn previous action to one-hot
-            one_hot = torch.zeros(size=(state.shape[0],  # Batch size
-                                        self.action_space_dim))
+            one_hot = torch.zeros(batch_size, self.action_space_dim)
             for actor_i, action_i in enumerate(self.current_prediction['a']):
                 one_hot[actor_i, action_i] = 1.
             previous_action = one_hot
         else:
-            dummy_action = torch.zeros(size=(state.shape[0],  # Batch size
-                                             self.action_space_dim))
+            dummy_action = torch.zeros(batch_size, self.action_space_dim)
             previous_action = dummy_action
+            self.previous_reward = torch.zeros(batch_size,1)
 
         if self.recurrent:
             self._pre_process_rnn_states()

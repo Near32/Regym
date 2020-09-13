@@ -42,7 +42,7 @@ r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLST
         PER_beta: 1.0
 
         replay_capacity: 1e6
-        min_capacity: 1e4
+        min_capacity: 1e3
         replay_period: 1
 
         observation_resize_dim: 84
@@ -67,7 +67,7 @@ experiment:
             {'env-id': 'PongNoFrameskip-v4',
 
              #'run-id': 'Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m2_EntropyReg0_b16_RepP2_DEBUGNSTEP+ProperGammaLoss+CurrentActionLoss+DetachedRNNStates',
-             'run-id': 'DEBUG6_Argmax_AlignedTargetActions_INM1Done_LossMasked/QReplayAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
+             'run-id': 'DEBUG_RNN_Argmax_AlignedTargetActions_INM1Done_LossMasked/QReplayAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
              # Not learning because of QOnlineActions:
              # 'run-id': 'DEBUG6_Argmax_AlignedTargetActions_INM1Done_LossMasked/QOnlineAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
              #'agent-id': '5step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L20_O10_B5',
