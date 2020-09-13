@@ -5,6 +5,8 @@ from functools import partial
 import torch
 
 from regym.rl_algorithms.algorithms import Algorithm 
+from regym.rl_algorithms.utils import _concatenate_hdict
+
 
 eps = 1e-4
 

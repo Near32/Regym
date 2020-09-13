@@ -12,6 +12,7 @@ from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
 from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
 from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage
+from regym.rl_algorithms.utils import _concatenate_hdict
 
 sum_writer = None
 
@@ -109,7 +110,7 @@ class R2D2Algorithm(DQNAlgorithm):
             # (batch_size=1, unroll_dim, ...)
             if isinstance(sequence_buffer[0][key], dict):
                 values = [sequence_buffer[i][key] for i in range(len(sequence_buffer))]
-                value = Algorithm._concatenate_hdict(
+                value = _concatenate_hdict(
                     values.pop(0), 
                     values, 
                     map_keys=['hidden', 'cell'], 

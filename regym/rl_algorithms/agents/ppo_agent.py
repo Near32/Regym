@@ -11,6 +11,7 @@ from ..algorithms.PPO import PPOAlgorithm
 import torch.nn.functional as F
 import numpy as np
 from functools import partial
+from regym.rl_algorithms.utils import _extract_from_rnn_states
 
 
 class PPOAgent(Agent):
@@ -79,8 +80,8 @@ class PPOAgent(Agent):
                 exp_dict.update(rnd_dict)
 
             if self.recurrent:
-                exp_dict['rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
-                exp_dict['next_rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
+                exp_dict['rnn_states'] = _extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
+                exp_dict['next_rnn_states'] = _extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
             
             self.algorithm.storages[actor_index].add(exp_dict)
             self.previously_done_actors[actor_index] = done[actor_index]

@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from functools import reduce
 from .utils import layer_init, layer_init_lstm, layer_init_gru
-
+from regym.rl_algorithms.utils import _extract_from_rnn_states
 
 # From : https://github.com/Kaixhin/Raynbow/blob/master/model.py#10
 class NoisyLinear(nn.Module):
@@ -847,16 +847,24 @@ class ConvolutionalLstmBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, recurrent_neurons = inputs[0], inputs[1]
+        x, frame_states = inputs[0], inputs[1]
+        recurrent_neurons = _extract_from_rnn_states(
+            rnn_states_batched=frame_states,
+            batch_idx=None,
+            map_keys=['hidden', 'cell'],
+        )
+        
+        extra_inputs = _extract_from_rnn_states(
+            rnn_states_batched=frame_states,
+            batch_idx=None,
+            map_keys=['extra_inputs'],
+        ).values()
+        
+        import ipdb; ipdb.set_trace()
 
         features = self.cnn_body.forward(x)
 
-        # As defined in R2D2 paper, concatenating previous action and reward
-        previous_action, previous_reward = inputs[2], inputs[3]
-        # Concatenate on feature dimension rather than on batch dimension.
-        # We are augmenting the features, not adding new datapoints to the batch
-        if previous_action is not None: features = torch.cat((features, previous_action), dim=1)
-        if previous_reward is not None: features = torch.cat((features, previous_reward), dim=1)
+        if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
 
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
         return x, recurrent_neurons

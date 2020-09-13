@@ -30,12 +30,14 @@ class R2D2Agent(DQNAgent):
             previous_action = dummy_action
             self.previous_reward = torch.zeros(batch_size,1)
 
+
         if self.recurrent:
             self._pre_process_rnn_states()
-            current_prediction = model(state, rnn_states=self.rnn_states,
-                                       previous_action=previous_action,
-                                       previous_reward=self.previous_reward,
-                                       goal=goal)
+            current_prediction = model(
+                state, 
+                rnn_states=self.rnn_states,
+                goal=goal
+            )
         else:
             current_prediction = model(state, goal=goal)
         return current_prediction

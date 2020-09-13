@@ -14,6 +14,7 @@ from ..algorithm import Algorithm
 from ...replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, soft_update, random_sample
+from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict
 
 
 summary_writer = None 
@@ -265,7 +266,7 @@ class SACAlgorithm(Algorithm):
             for key, value in zip(keys, sample):
                 value = value.tolist()
                 if isinstance(value[0], dict):   
-                    value = Algorithm._concatenate_hdict(value.pop(0), value, map_keys=['hidden', 'cell'])
+                    value = _concatenate_hdict(value.pop(0), value, map_keys=['hidden', 'cell'])
                 else:
                     value = torch.cat(value, dim=0)
                 values[key] = value 
@@ -315,7 +316,7 @@ class SACAlgorithm(Algorithm):
 
             sampled_rnn_states = None
             if self.recurrent:
-                sampled_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
 
             sampled_goals = None
             if self.goal_oriented:

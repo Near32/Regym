@@ -16,6 +16,8 @@ from ..algorithm import Algorithm
 from ...replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, random_sample
+from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict
+
 
 
 summary_writer = None 
@@ -258,7 +260,7 @@ class DQNAlgorithm(Algorithm):
             for key, value in zip(keys, sample):
                 value = value.tolist()
                 if isinstance(value[0], dict):   
-                    value = Algorithm._concatenate_hdict(
+                    value = _concatenate_hdict(
                         value.pop(0), 
                         value, 
                         map_keys=['hidden', 'cell'], 
@@ -274,7 +276,7 @@ class DQNAlgorithm(Algorithm):
         for key, value in fulls.items():
             if len(value) >1:
                 if isinstance(value[0], dict):
-                    value = Algorithm._concatenate_hdict(
+                    value = _concatenate_hdict(
                         value.pop(0), 
                         value, 
                         map_keys=['hidden', 'cell'], 
@@ -315,6 +317,8 @@ class DQNAlgorithm(Algorithm):
         sampled_batch_indices = []
         sampled_losses_per_item = []
 
+        import ipdb; ipdb.set_trace()
+
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
             sampled_batch_indices.append(batch_indices)
@@ -322,8 +326,8 @@ class DQNAlgorithm(Algorithm):
             sampled_rnn_states = None
             sampled_next_rnn_states = None
             if self.recurrent:
-                sampled_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
-                sampled_next_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
                 # (batch_size, unroll_dim, ...)
 
             sampled_goals = None

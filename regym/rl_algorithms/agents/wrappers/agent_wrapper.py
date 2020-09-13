@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from ..agent import Agent
+from regym.rl_algorithms.utils import _extract_from_rnn_states
 
 
 class AgentWrapper(Agent):
@@ -8,44 +9,6 @@ class AgentWrapper(Agent):
         super(AgentWrapper, self).__init__(name=agent.name, algorithm=agent.algorithm)
         self.agent = agent
         
-    def get_experience_count(self):
-        return self.agent.get_experience_count()
-
-    def get_update_count(self):
-        return self.agent.get_update_count()
-
-    def set_nbr_actor(self, nbr_actor):
-        self.agent.set_nbr_actor(nbr_actor)
-
-    def reset_actors(self, indices=None, init=False):
-        self.agent.reset_actors(indices, init)
-
-    def update_actors(self, batch_idx):
-        self.agent.update_actors(batch_idx)
-
-    def update_goals(self, goals):
-        self.agent.update_goals(goals)
-
-    def remove_from_rnn_states(self, batch_idx):
-        self.agent.remove_from_rnn_states(batch_idx)
-
-    def _pre_process_rnn_states(self):
-        self.agent._pre_process_rnn_states()
-
-    @staticmethod
-    def _extract_from_rnn_states(rnn_states_batched: dict, batch_idx: int):
-        return self.agent._extract_from_rnn_states(rnn_states_batched, batch_idx)
-
-    def _post_process(self, prediction):
-        return self.agent._post_process(prediction)
-
-    @staticmethod
-    def _extract_from_prediction(prediction: dict, batch_idx: int):
-        return self.agent._extract_from_prediction(prediction, batch_idx)
-
-    def preprocess_environment_signals(self, state, reward, succ_state, done):
-        return self.agent.preprocess_environment_signals(state, reward, succ_state, done)
-    
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some

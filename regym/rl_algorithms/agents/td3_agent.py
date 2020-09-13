@@ -18,6 +18,7 @@ from .agent import Agent
 from .wrappers import DictHandlingAgentWrapper
 from gym.spaces import Dict
 from ..algorithms.wrappers import HERAlgorithmWrapper
+from regym.rl_algorithms.utils import _extract_from_rnn_states
 
 
 class TD3Agent(Agent):
@@ -100,8 +101,8 @@ class TD3Agent(Agent):
             
 
             if self.recurrent:
-                exp_dict['rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
-                exp_dict['next_rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
+                exp_dict['rnn_states'] = _extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
+                exp_dict['next_rnn_states'] = _extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
             
             if self.goal_oriented:
                 exp_dict['goals'] = Agent._extract_from_hdict(goals, batch_index, goal_preprocessing_fn=self.goal_preprocessing)
