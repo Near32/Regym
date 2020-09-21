@@ -274,9 +274,14 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
             extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
             extra_inputs_infos_phi_body = {}
             if extra_inputs_infos != {}:
-                for key, (shape, tl) in extra_inputs_infos.items():
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
                     if 'phi_body' in tl:
-                        extra_inputs_infos_phi_body[key] = [shape, tl]
+                        extra_inputs_infos_phi_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
             
             phi_body = ConvolutionalLstmBody(input_shape=input_shape,
                                          feature_dim=output_dim,

@@ -16,7 +16,7 @@ from ..algorithm import Algorithm
 from ...replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, random_sample
-from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict
+from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
 
 
 
@@ -259,13 +259,21 @@ class DQNAlgorithm(Algorithm):
             values = {}
             for key, value in zip(keys, sample):
                 value = value.tolist()
-                if isinstance(value[0], dict):   
+                if isinstance(value[0], dict): 
+                    value = _concatenate_list_hdict(
+                        lhds=value, 
+                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        preprocess_fn=(lambda x:x),
+                    )
+                    """  
                     value = _concatenate_hdict(
                         value.pop(0), 
                         value, 
                         map_keys=['hidden', 'cell'], 
-                        concat_fn=partial(torch.cat, dim=0)
+                        concat_fn=partial(torch.cat, dim=0),
+                        preprocess_fn=(lambda x:x),
                     )
+                    """
                 else:
                     value = torch.cat(value, dim=0)
                 values[key] = value 
@@ -276,12 +284,19 @@ class DQNAlgorithm(Algorithm):
         for key, value in fulls.items():
             if len(value) >1:
                 if isinstance(value[0], dict):
+                    value = _concatenate_list_hdict(
+                        lhds=value, 
+                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        preprocess_fn=(lambda x:x),
+                    )
+                    """
                     value = _concatenate_hdict(
                         value.pop(0), 
                         value, 
                         map_keys=['hidden', 'cell'], 
                         concat_fn=partial(torch.cat, dim=0)
                     )
+                    """
                 else:
                     value = torch.cat(value, dim=0)
             else:
@@ -316,8 +331,6 @@ class DQNAlgorithm(Algorithm):
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
-
-        import ipdb; ipdb.set_trace()
 
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()

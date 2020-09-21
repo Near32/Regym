@@ -1350,8 +1350,12 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
 
     def __init__(self, env):
         super(PreviousRewardActionInfoWrapper, self).__init__(env)
-        self.previous_reward = np.zeros(1)
-        self.previous_action = np.zeros(env.action_space.n)
+        self.nbr_actions = env.action_space.n
+
+    def reset(self):
+        self.previous_reward = np.zeros((1, 1))
+        self.previous_action = np.zeros((1, self.nbr_actions))
+        return self.env.reset()
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
@@ -1359,8 +1363,8 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         info['previous_reward'] = copy.deepcopy(self.previous_reward)
         info['previous_action'] = copy.deepcopy(self.previous_action)
 
-        self.previous_reward = np.ndarray([reward])
-        self.previous_action = np.eye(action.shape[-1])[action]
+        self.previous_reward = np.ones((1, 1))*reward
+        self.previous_action = np.eye(self.nbr_actions)[action].reshape(1, -1)
 
         return observation, reward, done, info
 

@@ -41,7 +41,6 @@ class AgentWrapper(Agent):
         self.agent_post_process(self, prediction)
 
     def take_action(self, state):
-        import ipdb; ipdb.set_trace()
         self.agent.take_action(state=state)
 
     def clone(self, training=None, with_replay_buffer=False):
@@ -62,18 +61,19 @@ class ExtraInputsHandlingAgentWrapper(AgentWrapper):
         super(ExtraInputsHandlingAgentWrapper, self).__init__(agent=agent)
 
     def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
-        import ipdb; ipdb.set_trace()
         rnn_keys, rnn_states = self.agent._reset_rnn_states(algorithm=algorithm, nbr_actor=nbr_actor)
         # Resetting extra inputs:
         hdict = self._build_dict_from(fhdict={})
         
         recursive_inplace_update(rnn_states, hdict)
+        self.agent.rnn_keys, self.agent.rnn_states = rnn_keys, rnn_states
         return rnn_keys, rnn_states
 
     def _build_dict_from(self, fhdict: Dict):
         hdict = {}
         for key in self.extra_inputs_infos:
-            value = fhdict.get(key, self.dummies[key])
+            value = fhdict.get(key, torch.stack([self.dummies[key]]*self.nbr_actor, dim=0))
+            import ipdb; ipdb.set_trace()
             if not isinstance(value, torch.Tensor): 
                 if isinstance(value, np.ndarray):
                     value = torch.from_numpy(value)
@@ -85,7 +85,7 @@ class ExtraInputsHandlingAgentWrapper(AgentWrapper):
                     pointer[child_node] = {}
                 pointer = pointer[child_node]
             
-            pointer[key] = value
+            pointer[key] = [value]
         return hdict 
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):

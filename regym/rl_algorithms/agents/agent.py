@@ -2,7 +2,9 @@ from typing import Dict, Any, Optional, List, Callable
 import torch
 import numpy as np
 
-from regym.rl_algorithms.utils import is_leaf
+from functools import partial
+from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
+
 
 def named_children(cm):
     for name, m in cm._modules.items():
@@ -158,9 +160,10 @@ class Agent(object):
                     self._pre_process_rnn_states(rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
                 else:
                     for key in map_keys:
-                        for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
-                            rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
-                            rnn_states_dict[recurrent_submodule_name][key][idx]   = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
+                        if key in rnn_states_dict[recurrent_submodule_name]:
+                            for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
+                                rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
+                                rnn_states_dict[recurrent_submodule_name][key][idx]   = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
 
     @staticmethod
     def _post_process_rnn_states(next_rnn_states_dict: Dict, rnn_states_dict: Dict, map_keys: Optional[List]=['hidden', 'cell']):
@@ -173,12 +176,13 @@ class Agent(object):
                                               rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
             else:
                 for key in map_keys:
-                    for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
-                        if next_rnn_states_dict[recurrent_submodule_name] is None: break
-                        # Updating rnn_states:
-                        rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
-                        
-                        next_rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                    if key in rnn_states_dict[recurrent_submodule_name]:
+                        for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
+                            if next_rnn_states_dict[recurrent_submodule_name] is None: break
+                            # Updating rnn_states:
+                            rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                            
+                            next_rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
 
     def _post_process(self, prediction: Dict[str, Any]):
         if self.recurrent:
@@ -254,3 +258,88 @@ class Agent(object):
     def save(self, with_replay_buffer=False):
         assert(self.save_path is not None)
         torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)
+
+
+
+class ExtraInputsHandlingAgent(Agent):
+    def __init__(self, name, algorithm, extra_inputs_infos):
+        self.extra_inputs_infos = extra_inputs_infos
+        self.dummies = {
+            key: torch.zeros(size=(1, *extra_inputs_infos[key]['shape'])) 
+            for key in self.extra_inputs_infos
+        }
+
+        Agent.__init__(
+            self,
+            name=name, 
+            algorithm=algorithm
+        )
+
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
+        self.rnn_keys, self.rnn_states = super()._reset_rnn_states(algorithm=algorithm, nbr_actor=nbr_actor)
+        
+        # Resetting extra inputs:
+        hdict = self._init_hdict()
+        recursive_inplace_update(self.rnn_states, hdict)
+        
+        return self.rnn_keys, self.rnn_states
+
+    def _init_hdict(self, init:Optional[Dict]={}):
+        hdict = {}
+        for key in self.extra_inputs_infos:
+            value = init.get(key, torch.cat([self.dummies[key]]*self.nbr_actor, dim=0))
+            pointer = hdict
+            for child_node in self.extra_inputs_infos[key]['target_location']:
+                if child_node not in pointer:
+                    pointer[child_node] = {}
+                pointer = pointer[child_node]
+            pointer[key] = [value]
+        return hdict
+    
+    def _build_dict_from(self, lhdict: Dict):
+        concat_hdict = _concatenate_list_hdict(
+            lhds=lhdict, 
+            concat_fn=partial(torch.cat, dim=0),
+            preprocess_fn=(lambda x:torch.from_numpy(x) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x),
+        )
+
+        out_hdict = self._init_hdict(init=concat_hdict)
+
+        return out_hdict
+
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+        '''
+        Wrapper around the actual function now living in _handle_experience.
+        It prepares the rnn_states.
+
+        Note: the batch size may differ from the nbr_actor as soon as some
+        actors' episodes end before the others...
+
+        :param s: numpy tensor of states of shape batch x state_shape.
+        :param a: numpy tensor of actions of shape batch x action_shape.
+        :param r: numpy tensor of rewards of shape batch x reward_shape.
+        :param succ_s: numpy tensor of successive states of shape batch x state_shape.
+        :param done: list of boolean (batch=nbr_actor) x state_shape.
+        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
+        :param infos: List of Dictionnaries of information from the environment.
+        '''
+        hdict = self._build_dict_from(lhdict=infos)
+        
+        recursive_inplace_update(self.rnn_states, hdict)
+        
+        self._handle_experience(s, a, r, succ_s, done, goals=goals, infos=infos)
+    
+    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+        '''
+        Note: the batch size may differ from the nbr_actor as soon as some
+        actors' episodes end before the others...
+
+        :param s: numpy tensor of states of shape batch x state_shape.
+        :param a: numpy tensor of actions of shape batch x action_shape.
+        :param r: numpy tensor of rewards of shape batch x reward_shape.
+        :param succ_s: numpy tensor of successive states of shape batch x state_shape.
+        :param done: list of boolean (batch=nbr_actor) x state_shape.
+        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
+        :param infos: Dictionnary of information from the environment.
+        '''
+        raise NotImplementedError

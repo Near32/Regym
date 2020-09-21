@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional, List, Callable, Union
 import torch
 from functools import partial 
+import copy
 
 
 def is_leaf(node: Dict):
@@ -13,12 +14,36 @@ def recursive_inplace_update(in_dict: Dict,
     Taking both :param: in_dict, extra_dict as tree structures,
     adds the nodes of extra_dict into in_dict via tree traversal
     '''
-    for k in extra_dict.keys():
-        if k not in in_dict: in_dict[k] = extra_dict[k]
-        else: recursive_inplace_update(in_dict[k], extra_dict[k])
+    for node_key in extra_dict:
+        if not is_leaf(extra_dict[node_key]):
+            if node_key not in in_dict: in_dict[node_key] = {}
+            recursive_inplace_update(in_dict[node_key], extra_dict[node_key])
+        else:
+            in_dict[node_key] = copy.deepcopy(extra_dict[node_key])
 
 
-def _extract_from_rnn_states(rnn_states_batched: Dict, batch_idx: Optional[int]=None, map_keys: Optional[List]=['hidden', 'cell']):
+def extract_subtree(in_dict: Dict,
+                    node_id: str):
+    '''
+    Extracts subtree whose root is named :param node_id: from :param in_dict:.
+    '''
+    queue = [in_dict]
+    pointer = None
+
+    while len(queue):
+        pointer = queue.pop(0)
+        for k in pointer.keys():
+            if node_id==k:
+                return pointer[k]
+            else:
+                queue.append(pointer[k])
+        
+    return None
+
+
+def _extract_from_rnn_states(rnn_states_batched: Dict, 
+                             batch_idx: Optional[int]=None, 
+                             map_keys: Optional[List]=None): #['hidden', 'cell']):
     '''
     :param map_keys: List of keys we map the operation to.
     '''
@@ -29,13 +54,16 @@ def _extract_from_rnn_states(rnn_states_batched: Dict, batch_idx: Optional[int]=
         # Here, we allow the critic rnn states to be skipped:
         if rnn_states_batched[recurrent_submodule_name] is None:    continue
         if is_leaf(rnn_states_batched[recurrent_submodule_name]):
-            rnn_states[recurrent_submodule_name] = {key:[] for key in map_keys}
-            for key in map_keys:
-                for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
-                    value = rnn_states_batched[recurrent_submodule_name][key][idx]
-                    if batch_idx is not None:
-                        value = value[batch_idx,...].unsqueeze(0)
-                    rnn_states[recurrent_submodule_name][key].append(value)
+            rnn_states[recurrent_submodule_name] = {}
+            eff_map_keys = map_keys if map_keys is not None else rnn_states_batched[recurrent_submodule_name].keys()
+            for key in eff_map_keys:
+                if key in rnn_states_batched[recurrent_submodule_name]:
+                    rnn_states[recurrent_submodule_name][key] = []
+                    for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
+                        value = rnn_states_batched[recurrent_submodule_name][key][idx]
+                        if batch_idx is not None:
+                            value = value[batch_idx,...].unsqueeze(0)
+                        rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_from_rnn_states(rnn_states_batched=rnn_states_batched[recurrent_submodule_name], batch_idx=batch_idx)
     return rnn_states
@@ -50,12 +78,14 @@ def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
     rnn_states = {k: {} for k in rnn_states_batched}
     for recurrent_submodule_name in rnn_states_batched:
         if is_leaf(rnn_states_batched[recurrent_submodule_name]):
-            rnn_states[recurrent_submodule_name] = {key:[] for key in map_keys}
+            rnn_states[recurrent_submodule_name] = {}
             for key in map_keys:
-                for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
-                    value = rnn_states_batched[recurrent_submodule_name][key][idx][batch_indices,...]
-                    if use_cuda: hidden = value.cuda()
-                    rnn_states[recurrent_submodule_name][key].append(value)
+                if key in rnn_states_batched[recurrent_submodule_name]:
+                    rnn_states[recurrent_submodule_name][key] = []
+                    for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
+                        value = rnn_states_batched[recurrent_submodule_name][key][idx][batch_indices,...]
+                        if use_cuda: hidden = value.cuda()
+                        rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
@@ -71,7 +101,7 @@ def _concatenate_hdict(hd1: Union[Dict, List],
                        concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
                        preprocess_fn: Optional[Callable] = (lambda x:x) ):
     if not(isinstance(hd1, dict)):
-        return Algorithm._concatenate_hdict(
+        return _concatenate_hdict(
             hd1=hds.pop(0), 
             hds=hds, 
             map_keys=map_keys, 
@@ -100,4 +130,50 @@ def _concatenate_hdict(hd1: Union[Dict, List],
                 concat_fn=concat_fn,
                 preprocess_fn=preprocess_fn,
             )
+    return out_hd
+
+def _concatenate_list_hdict(lhds: List[Dict],
+                       concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
+                       preprocess_fn: Optional[Callable] = (lambda x:torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x)):
+    out_hd = copy.deepcopy(lhds[0])
+    
+    queue = [lhds]
+    pointers = None
+
+    out_queue = [out_hd]
+    out_pointer = None
+
+    while len(queue):
+        pointers = [hds for hds in queue.pop(0)]
+        out_pointer = out_queue.pop(0)
+
+        if not is_leaf(pointers[0]):
+            #out_pointer = {}
+            for k in pointers[0]:
+                queue_element = [pointer[k] for pointer in pointers]
+                queue.insert(0, queue_element)
+
+                out_pointer[k] = {}
+                out_queue.insert(0, out_pointer[k])
+        else:
+            for k in pointers[0]:
+                out_pointer[k] = []
+                # Since we are at a leaf then value is 
+                # either numpy or numpy.float64
+                # or list of tensors:
+                if isinstance(pointers[0][k], list):
+                    for idx in range(len(pointers[0][k])):
+                        concat_list = [
+                            preprocess_fn(pointer[k][idx])
+                            for pointer in pointers
+                        ]
+                        out_pointer[k].append(
+                            concat_fn(concat_list)
+                        )
+                else:
+                    concat_list = [
+                        preprocess_fn(pointer[k])
+                        for pointer in pointers
+                    ]
+                    out_pointer[k] = concat_fn(concat_list)
     return out_hd

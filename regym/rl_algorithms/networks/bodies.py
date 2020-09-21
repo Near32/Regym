@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from functools import reduce
 from .utils import layer_init, layer_init_lstm, layer_init_gru
-from regym.rl_algorithms.utils import _extract_from_rnn_states
+from regym.rl_algorithms.utils import _extract_from_rnn_states, extract_subtree
 
 # From : https://github.com/Kaixhin/Raynbow/blob/master/model.py#10
 class NoisyLinear(nn.Module):
@@ -849,22 +849,21 @@ class ConvolutionalLstmBody(nn.Module):
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
         x, frame_states = inputs[0], inputs[1]
+        
+        features = self.cnn_body.forward(x)
+        
         recurrent_neurons = _extract_from_rnn_states(
             rnn_states_batched=frame_states,
             batch_idx=None,
             map_keys=['hidden', 'cell'],
         )
         
-        extra_inputs = _extract_from_rnn_states(
-            rnn_states_batched=frame_states,
-            batch_idx=None,
-            map_keys=['extra_inputs'],
-        ).values()
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
         
-        import ipdb; ipdb.set_trace()
-
-        features = self.cnn_body.forward(x)
-
+        extra_inputs = [v[0].to(features.dtype) for v in extra_inputs.values()]
         if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
 
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
