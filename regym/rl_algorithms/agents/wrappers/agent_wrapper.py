@@ -1,14 +1,15 @@
+from typing import Dict
 import torch
 import numpy as np
 from ..agent import Agent
-from regym.rl_algorithms.utils import _extract_from_rnn_states
+from regym.rl_algorithms.utils import _extract_from_rnn_states, recursive_inplace_update
 
 
 class AgentWrapper(Agent):
     def __init__(self, agent):
         super(AgentWrapper, self).__init__(name=agent.name, algorithm=agent.algorithm)
         self.agent = agent
-        
+
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
@@ -25,7 +26,7 @@ class AgentWrapper(Agent):
         raise NotImplementedError
 
     def take_action(self, state):
-        raise NotImplementedError
+        self.agent.take_action(state=state)
 
     def clone(self, training=None, with_replay_buffer=False):
         return AgentWrapper(agent=self.agent.clone(training=training, with_replay_buffer=with_replay_buffer))
@@ -35,19 +36,42 @@ class AgentWrapper(Agent):
 
 
 
-class ExtraInputsHandlingAgentWrapper(Agent):
-    def __init__(self, agent, extra_inputs_kwargs):
-        super(ExtraInputsHandlingAgentWrapper, self).__init__(
-            name=agent.name, 
-            algorithm=agent.algorithm,
-        )
-        self.agent = agent
-        self.extra_inputs_kwargs = extra_inputs_kwargs
+class ExtraInputsHandlingAgentWrapper(AgentWrapper):
+    def __init__(self, agent, extra_inputs_infos):
+        self.extra_inputs_infos = extra_inputs_infos
+        self.dummies = {
+            key: torch.zeros(size=extra_inputs_infos[key]['shape']) 
+            for key in self.extra_inputs_infos
+        }
+
+        super(ExtraInputsHandlingAgentWrapper, self).__init__(agent=agent)
+
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
+        rnn_keys, rnn_states = super()._reset_rnn_states(algorithm=algorithm, nbr_actor=nbr_actor)
+        # Resetting extra inputs:
+        hdict = self._build_dict_from(fhdict={})
         
-        self.dummies = [
-            torch.Tensor(shape=extra_inputs_kwargs[key]['shape']) 
-            for key in self.extra_inputs_kwargs
-        ]
+        recursive_inplace_update(rnn_states, hdict)
+        
+        return rnn_keys, rnn_states
+
+    def _build_dict_from(self, fhdict: Dict):
+        hdict = {}
+        for key in self.extra_inputs_infos:
+            value = fhdict.get(key, self.dummies[key])
+            if not isinstance(value, torch.Tensor): 
+                if isinstance(value, np.ndarray):
+                    value = torch.from_numpy(value)
+                else:
+                    raise NotImplementedError 
+            pointer = hdict
+            for child_node in self.extra_inputs_infos[key]['target_location']:
+                if child_node not in pointer:
+                    pointer[child_node] = {}
+                pointer = pointer[child_node]
+            
+            pointer[key] = value
+        return hdict 
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
@@ -62,27 +86,12 @@ class ExtraInputsHandlingAgentWrapper(Agent):
         :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
         :param infos: Dictionnary of information from the environment.
         '''
-        for key, hierarchical_list in self.extra_inputs_kwargs.items():
-            value = infos.get(key, self.dummies[key])
-            hdict = {}
-            pointer = hdict
-            for next_location in self.extra_inputs_kwargs[key]['target_location']:
-                if next_location not in pointer:
-                    pointer[next_location] = {}
-                pointer = pointer[next_location]
-            
-            import ipdb; ipdb.set_trace()
-
-            pointer[key] = value
-            self.agent.rnn_states.update(hdict)
+        hdict = self._build_dict_from(fhdict=infos)
+        
+        recursive_inplace_update(self.agent.rnn_states, hdict)
 
         self.agent.handle_experience(s, a, r, succ_s, done, goals=goals, infos=infos)
         
-
-
-    def take_action(self, state):
-        raise NotImplementedError
-
     def clone(self, training=None, with_replay_buffer=False):
         return AgentWrapper(agent=self.agent.clone(training=training, with_replay_buffer=with_replay_buffer))
 

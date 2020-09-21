@@ -73,23 +73,29 @@ def training_process(agent_config: Dict,
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
-                                size=task_config['observation_resize_dim'], 
-                                skip=task_config['nbr_frame_skipping'], 
-                                stack=task_config['nbr_frame_stacking'],
-                                grayscale=task_config['grayscale'],
-                                single_life_episode=task_config['single_life_episode'],
-                                nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                clip_reward=task_config['clip_reward'])
+    pixel_wrapping_fn = partial(
+      baseline_atari_pixelwrap,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      grayscale=task_config['grayscale'],
+      single_life_episode=task_config['single_life_episode'],
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=task_config['clip_reward'],
+      previous_reward_action=task_config.get('previous_reward_action', False)
+    )
 
-    test_pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
-                                    size=task_config['observation_resize_dim'], 
-                                    skip=task_config['nbr_frame_skipping'], 
-                                    stack=task_config['nbr_frame_stacking'],
-                                    grayscale=task_config['grayscale'],
-                                    single_life_episode=False,
-                                    nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                    clip_reward=False)
+    test_pixel_wrapping_fn = partial(
+      baseline_atari_pixelwrap,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      grayscale=task_config['grayscale'],
+      single_life_episode=False,
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=False,
+      previous_reward_action=task_config.get('previous_reward_action', False)
+    )
     
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],

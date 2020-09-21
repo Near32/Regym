@@ -47,12 +47,12 @@ class Agent(object):
 
         self.recurrent = False
         self.rnn_states = None
-        self.rnn_keys, self.rnn_states = Agent._reset_rnn_states(self.algorithm, self.nbr_actor)
+        self.rnn_keys, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
         if len(self.rnn_keys):
             self.recurrent = True
 
     def get_experience_count(self):
-        raise NotImplementedError
+        return self.handled_experiences
 
     def get_update_count(self):
         raise NotImplementedError
@@ -112,8 +112,7 @@ class Agent(object):
                      self.goals[batch_idx+1:,...]],
                      axis=0)
 
-    @staticmethod
-    def _reset_rnn_states(algorithm: object, nbr_actor: int):
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
         # TODO: account for the indices in rnn states:
         lookedup_keys = ['LSTM', 'GRU']
         rnn_states = {}

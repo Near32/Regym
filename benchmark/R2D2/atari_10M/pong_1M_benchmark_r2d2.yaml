@@ -26,13 +26,13 @@ LargeLSTMCNN: &LargeLSTMCNN
         phi_arch_feature_dim: 512
         phi_arch_hidden_units: [512,]
 
-        extra_inputs_keys: {
+        extra_inputs_infos: {
             'previous_reward':{
-                shape: (1,), 
-                target_location: ['phi_body','extra_inputs']
+                shape: [1,], 
+                target_location: ['phi_body', 'extra_inputs']
             },
             'previous_action':{
-                shape: (1, 'task.action_space.dim'), 
+                shape: ['task.action_dim',], 
                 target_location: ['phi_body','extra_inputs']
             }
         }
@@ -101,6 +101,7 @@ experiment:
              'single_life_episode': True,
              'nbr_max_random_steps': 30,
              'clip_reward': True,
+             'previous_reward_action': True,
              'observation_resize_dim': (84,84),
              },
             ]

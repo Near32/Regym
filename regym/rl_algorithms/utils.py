@@ -1,8 +1,13 @@
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List, Callable, Union
+import torch
+from functools import partial 
+
 
 def is_leaf(node: Dict):
     return all([ not isinstance(node[key], dict) for key in node.keys()])
 
+# TODO
+def recursive_inplace_update(odict: Dict,)
 
 def _extract_from_rnn_states(rnn_states_batched: Dict, batch_idx: Optional[int]=None, map_keys: Optional[List]=['hidden', 'cell']):
     '''
@@ -18,8 +23,9 @@ def _extract_from_rnn_states(rnn_states_batched: Dict, batch_idx: Optional[int]=
             rnn_states[recurrent_submodule_name] = {key:[] for key in map_keys}
             for key in map_keys:
                 for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
-                	value = rnn_states_batched[recurrent_submodule_name][key][idx]
-                	if batch_idx is not None:	value = value[batch_idx,...].unsqueeze(0)
+                    value = rnn_states_batched[recurrent_submodule_name][key][idx]
+                    if batch_idx is not None:
+                        value = value[batch_idx,...].unsqueeze(0)
                     rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_from_rnn_states(rnn_states_batched=rnn_states_batched[recurrent_submodule_name], batch_idx=batch_idx)

@@ -49,9 +49,6 @@ class DQNAgent(Agent):
 
         self.saving_interval = 1e4
 
-    def get_experience_count(self):
-        return self.handled_experiences
-
     def get_update_count(self):
         return self.algorithm.get_update_count()
 
@@ -272,13 +269,22 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
             strides = kwargs['phi_arch_strides']
             paddings = kwargs['phi_arch_paddings']
             output_dim = kwargs['phi_arch_feature_dim']  # TODO: figure out if this breaks anything else
+            
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_phi_body = {}
+            if extra_inputs_infos != {}:
+                for key, (shape, tl) in extra_inputs_infos.items():
+                    if 'phi_body' in tl:
+                        extra_inputs_infos_phi_body[key] = [shape, tl]
+            
             phi_body = ConvolutionalLstmBody(input_shape=input_shape,
                                          feature_dim=output_dim,
                                          channels=channels,
                                          kernel_sizes=kernels,
                                          strides=strides,
                                          paddings=paddings,
-                                         lstm_input_dim=kwargs.get('lstm_input_dim', -1),
+                                         extra_inputs_infos=extra_inputs_infos_phi_body,
                                          hidden_units=kwargs['phi_arch_hidden_units'])
         input_dim = output_dim
 

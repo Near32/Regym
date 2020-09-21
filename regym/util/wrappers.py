@@ -248,7 +248,14 @@ class FrameSkipStackAtari(gym.Wrapper):
         return self._get_obs(), total_reward, force_done, info
 
 
-def atari_pixelwrap(env, size, skip=None, act_rand_repeat=False, stack=None, grayscale=False, nbr_max_random_steps=0, single_life_episode=True):
+def atari_pixelwrap(env, 
+                    size, 
+                    skip=None, 
+                    act_rand_repeat=False, 
+                    stack=None, 
+                    grayscale=False, 
+                    nbr_max_random_steps=0, 
+                    single_life_episode=True):
     # Observations:
     if grayscale:
         env = GrayScaleObservation(env=env) 
@@ -459,7 +466,15 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(env, size=None, skip=4, stack=4, grayscale=True,  single_life_episode=True, nbr_max_random_steps=30, clip_reward=True):
+def baseline_atari_pixelwrap(env, 
+                             size=None, 
+                             skip=4, 
+                             stack=4, 
+                             grayscale=True,  
+                             single_life_episode=True, 
+                             nbr_max_random_steps=30, 
+                             clip_reward=True,
+                             previous_reward_action=False):
     if grayscale:
         env = GrayScaleObservation(env=env) 
     
@@ -480,6 +495,9 @@ def baseline_atari_pixelwrap(env, size=None, skip=4, stack=4, grayscale=True,  s
     
     if clip_reward:
         env = ClipRewardEnv(env)
+
+    if previous_reward_action:
+        env = PreviousRewardActionInfoWrapper(env=env)
 
     return env
 
@@ -1321,6 +1339,30 @@ class ContinuingTimeLimit(gym.Wrapper):
         self._elapsed_steps = 0
         return self.env.reset()
 
+
+
+class PreviousRewardActionInfoWrapper(gym.Wrapper):
+    """
+    Integrates the previous reward and previous action into the info dictionnary.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+
+    def __init__(self, env):
+        super(PreviousRewardActionInfoWrapper, self).__init__(env)
+        self.previous_reward = np.zeros(1)
+        self.previous_action = np.zeros(env.action_space.n)
+
+    def step(self, action):
+        observation, reward, done, info = self.env.step(action)
+        
+        info['previous_reward'] = copy.deepcopy(self.previous_reward)
+        info['previous_action'] = copy.deepcopy(self.previous_action)
+
+        self.previous_reward = np.ndarray([reward])
+        self.previous_action = np.eye(action.shape[-1])[action]
+
+        return observation, reward, done, info
 
 
 class FailureEndingTimeLimit(gym.Wrapper):

@@ -6,7 +6,7 @@ import torch
 from .dqn_agent import DQNAgent, generate_model
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
-from regym.rl_algorithms.agents import ExtraInputHandlingAgentWrapper
+from regym.rl_algorithms.agents.wrappers import ExtraInputsHandlingAgentWrapper
 
 class R2D2Agent(DQNAgent):
     def __init__(self, name, algorithm):
@@ -30,6 +30,42 @@ hdict -> phi_body (ConvLSTMBody)  -> (self.)lstm_body -> hidden/cell -> tensor v
                                   -> (self.)conv_body 
                                   -> <extra_input_key>s -> tensor value 
 '''
+
+def parse_and_check(kwargs: Dict,
+                    task: 'regym.environments.Task'):
+    
+    # Extra Inputs:
+    kwargs['task'] = task 
+
+    extra_inputs = kwargs['extra_inputs_infos']
+    for key in extra_inputs:
+        shape = extra_inputs[key]['shape']
+        for idxdim, dimvalue in enumerate(shape):
+            if isinstance(dimvalue, str):
+                path = dimvalue.split('.')
+                if len(path) > 1:
+                    pointer = kwargs
+                    for el in path:
+                        try:     
+                            if hasattr(pointer, el):
+                                pointer = getattr(pointer, el)
+                            elif el in pointer: 
+                                pointer = pointer[el]
+                            else:
+                                raise RuntimeError
+                        except:
+                            raise RuntimeError
+                else:
+                    pointer = path
+                
+                try: 
+                    pointer = int(pointer)
+                except Exception as e:
+                    print('Exception during parsing and checking:', e)
+                    raise e
+                shape[idxdim] = pointer
+
+    return kwargs    
 
 def build_R2D2_Agent(task: 'regym.environments.Task',
                      config: Dict,
@@ -63,6 +99,8 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     kwargs['lstm_input_dim'] = kwargs['phi_arch_hidden_units'][0] + (task.action_dim + 1)  # +1 represents scalar reward
     kwargs['phi_arch_hidden_units'][-1] += task.action_dim + 1
 
+    kwargs = parse_and_check(kwargs, task)
+
     model = generate_model(task, kwargs)
 
     algorithm = R2D2Algorithm(
@@ -70,9 +108,11 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         model=model,
     )
 
-    agent = R2D2Agent(name=agent_name, algorithm=algorithm,
-                      action_space_dim=task.action_dim)
+    agent = R2D2Agent(name=agent_name, algorithm=algorithm)
 
-    wrapped_agent = ExtraInputHandlingAgentWrapper(agent=agent)
+    wrapped_agent = ExtraInputsHandlingAgentWrapper(
+        agent=agent, 
+        extra_inputs_infos=kwargs['extra_inputs_infos']
+    )
 
     return wrapped_agent

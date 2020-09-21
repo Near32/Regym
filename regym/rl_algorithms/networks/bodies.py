@@ -1,3 +1,5 @@
+from typing import Dict 
+
 import math
 import torch
 import torch.nn as nn
@@ -804,7 +806,7 @@ def resnet18Input64(input_shape, output_dim, **kwargs):
 class ConvolutionalLstmBody(nn.Module):
     def __init__(self, input_shape, feature_dim=256, channels=[3, 3],
                  kernel_sizes=[1], strides=[1], paddings=[0],
-                 lstm_input_dim: int = -1,
+                 extra_inputs_infos: Dict={},
                  non_linearities=[nn.ReLU], hidden_units=(256,), gate=F.relu):
         '''
         Default input channels assume a RGB image (3 channels).
@@ -816,29 +818,28 @@ class ConvolutionalLstmBody(nn.Module):
         :param kernel_sizes: list of kernel sizes for each convolutional layer.
         :param strides: list of strides for each convolutional layer.
         :param paddings: list of paddings for each convolutional layer.
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
         '''
-        '''
-        super(ConvolutionalLstmBody, self).__init__(input_shape=input_shape,
-                                                feature_dim=feature_dim,
-                                                channels=channels,
-                                                kernel_sizes=kernel_sizes,
-                                                strides=strides,
-                                                paddings=paddings,
-                                                non_linearities=non_linearities)
-        '''
         super(ConvolutionalLstmBody, self).__init__()
-        self.cnn_body = ConvolutionalBody(input_shape=input_shape,
-                                                feature_dim=feature_dim,
-                                                channels=channels,
-                                                kernel_sizes=kernel_sizes,
-                                                strides=strides,
-                                                paddings=paddings,
-                                                non_linearities=non_linearities)
+        self.cnn_body = ConvolutionalBody(
+            input_shape=input_shape,
+            feature_dim=feature_dim,
+            channels=channels,
+            kernel_sizes=kernel_sizes,
+            strides=strides,
+            paddings=paddings,
+            non_linearities=non_linearities
+        )
 
         # Use lstm_input_dim instead of cnn_body output feature dimension 
-        lstm_input_dim = lstm_input_dim if lstm_input_dim != -1 else self.cnn_body.get_feature_shape()
+        lstm_input_dim = self.cnn_body.get_feature_shape() # lstm_input_dim if lstm_input_dim != -1 else self.cnn_body.get_feature_shape()
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            lstm_input_dim += shape[-1]
+
         self.lstm_body = LSTMBody( state_dim=lstm_input_dim, hidden_units=hidden_units, gate=gate)
 
     def forward(self, inputs):
