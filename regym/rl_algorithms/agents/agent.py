@@ -125,7 +125,6 @@ class Agent(object):
         rnn_keys = list(rnn_states.keys())
         return rnn_keys, rnn_states
 
-
     def remove_from_rnn_states(self, batch_idx:int, rnn_states_dict:Optional[Dict]=None, map_keys: Optional[List]=['hidden', 'cell']):
         '''
         Remove a row(=batch) of data from the rnn_states.

@@ -26,6 +26,21 @@ LargeLSTMCNN: &LargeLSTMCNN
         phi_arch_feature_dim: 512
         phi_arch_hidden_units: [512,]
 
+        extra_inputs_keys: {
+            'previous_reward':{
+                shape: (1,), 
+                target_location: ['phi_body','extra_inputs']
+            },
+            'previous_action':{
+                shape: (1, 'task.action_space.dim'), 
+                target_location: ['phi_body','extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
         # Actor architecture:
         actor_arch_hidden_units: []
         # Critic architecture:

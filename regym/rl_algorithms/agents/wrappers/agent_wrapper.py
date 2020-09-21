@@ -33,6 +33,63 @@ class AgentWrapper(Agent):
     def save(self, with_replay_buffer=False):
         torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)
 
+
+
+class ExtraInputsHandlingAgentWrapper(Agent):
+    def __init__(self, agent, extra_inputs_kwargs):
+        super(ExtraInputsHandlingAgentWrapper, self).__init__(
+            name=agent.name, 
+            algorithm=agent.algorithm,
+        )
+        self.agent = agent
+        self.extra_inputs_kwargs = extra_inputs_kwargs
+        
+        self.dummies = [
+            torch.Tensor(shape=extra_inputs_kwargs[key]['shape']) 
+            for key in self.extra_inputs_kwargs
+        ]
+
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+        '''
+        Note: the batch size may differ from the nbr_actor as soon as some
+        actors' episodes end before the others...
+
+        :param s: numpy tensor of states of shape batch x state_shape.
+        :param a: numpy tensor of actions of shape batch x action_shape.
+        :param r: numpy tensor of rewards of shape batch x reward_shape.
+        :param succ_s: numpy tensor of successive states of shape batch x state_shape.
+        :param done: list of boolean (batch=nbr_actor) x state_shape.
+        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
+        :param infos: Dictionnary of information from the environment.
+        '''
+        for key, hierarchical_list in self.extra_inputs_kwargs.items():
+            value = infos.get(key, self.dummies[key])
+            hdict = {}
+            pointer = hdict
+            for next_location in self.extra_inputs_kwargs[key]['target_location']:
+                if next_location not in pointer:
+                    pointer[next_location] = {}
+                pointer = pointer[next_location]
+            
+            import ipdb; ipdb.set_trace()
+
+            pointer[key] = value
+            self.agent.rnn_states.update(hdict)
+
+        self.agent.handle_experience(s, a, r, succ_s, done, goals=goals, infos=infos)
+        
+
+
+    def take_action(self, state):
+        raise NotImplementedError
+
+    def clone(self, training=None, with_replay_buffer=False):
+        return AgentWrapper(agent=self.agent.clone(training=training, with_replay_buffer=with_replay_buffer))
+
+    def save(self, with_replay_buffer=False):
+        torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)
+
+
 class DictHandlingAgentWrapper(AgentWrapper):
     def __init__(self, agent, use_achieved_goal=True):
         super(DictHandlingAgentWrapper, self).__init__(agent=agent)
