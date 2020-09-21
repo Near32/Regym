@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional, List, Any
 import torch
 import numpy as np
 from ..agent import Agent
@@ -7,8 +7,8 @@ from regym.rl_algorithms.utils import _extract_from_rnn_states, recursive_inplac
 
 class AgentWrapper(Agent):
     def __init__(self, agent):
-        super(AgentWrapper, self).__init__(name=agent.name, algorithm=agent.algorithm)
         self.agent = agent
+        super(AgentWrapper, self).__init__(name=agent.name, algorithm=agent.algorithm)
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
@@ -23,9 +23,25 @@ class AgentWrapper(Agent):
         :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
         :param infos: Dictionnary of information from the environment.
         '''
-        raise NotImplementedError
+        self.agent.handle_experience(self, s, a, r, succ_s, done, goals, infos)
+
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
+        self.agent._reset_rnn_states(algorithm, nbr_actor)
+
+    def remove_from_rnn_states(self, batch_idx:int, rnn_states_dict:Optional[Dict]=None, map_keys: Optional[List]=['hidden', 'cell']):
+        self.agent.remove_from_rnn_states(self, batch_idx, rnn_states_dict, map_keys)
+
+    def _pre_process_rnn_states(self, rnn_states_dict: Optional[Dict]=None, map_keys: Optional[List]=['hidden', 'cell']):
+        self.agent._pre_process_rnn_states(self, rnn_states_dict, map_keys)
+
+    def preprocess_environment_signals(self, state, reward, succ_state, done):
+        self.agent.preprocess_environment_signals(self, state, reward, succ_state, done)
+
+    def _post_process(self, prediction: Dict[str, Any]):
+        self.agent_post_process(self, prediction)
 
     def take_action(self, state):
+        import ipdb; ipdb.set_trace()
         self.agent.take_action(state=state)
 
     def clone(self, training=None, with_replay_buffer=False):
@@ -33,7 +49,6 @@ class AgentWrapper(Agent):
 
     def save(self, with_replay_buffer=False):
         torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)
-
 
 
 class ExtraInputsHandlingAgentWrapper(AgentWrapper):
@@ -47,12 +62,12 @@ class ExtraInputsHandlingAgentWrapper(AgentWrapper):
         super(ExtraInputsHandlingAgentWrapper, self).__init__(agent=agent)
 
     def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
-        rnn_keys, rnn_states = super()._reset_rnn_states(algorithm=algorithm, nbr_actor=nbr_actor)
+        import ipdb; ipdb.set_trace()
+        rnn_keys, rnn_states = self.agent._reset_rnn_states(algorithm=algorithm, nbr_actor=nbr_actor)
         # Resetting extra inputs:
         hdict = self._build_dict_from(fhdict={})
         
         recursive_inplace_update(rnn_states, hdict)
-        
         return rnn_keys, rnn_states
 
     def _build_dict_from(self, fhdict: Dict):

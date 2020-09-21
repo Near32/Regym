@@ -33,7 +33,7 @@ LargeLSTMCNN: &LargeLSTMCNN
             },
             'previous_action':{
                 shape: ['task.action_dim',], 
-                target_location: ['phi_body','extra_inputs']
+                target_location: ['phi_body', 'extra_inputs']
             }
         }
         # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.

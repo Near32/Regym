@@ -6,8 +6,17 @@ from functools import partial
 def is_leaf(node: Dict):
     return all([ not isinstance(node[key], dict) for key in node.keys()])
 
-# TODO
-def recursive_inplace_update(odict: Dict,)
+
+def recursive_inplace_update(in_dict: Dict,
+                             extra_dict: Union[Dict, torch.Tensor]):
+    '''
+    Taking both :param: in_dict, extra_dict as tree structures,
+    adds the nodes of extra_dict into in_dict via tree traversal
+    '''
+    for k in extra_dict.keys():
+        if k not in in_dict: in_dict[k] = extra_dict[k]
+        else: recursive_inplace_update(in_dict[k], extra_dict[k])
+
 
 def _extract_from_rnn_states(rnn_states_batched: Dict, batch_idx: Optional[int]=None, map_keys: Optional[List]=['hidden', 'cell']):
     '''
