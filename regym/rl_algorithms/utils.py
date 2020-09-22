@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, List, Callable, Union
 import torch
-from functools import partial 
+from functools import partial
 import copy
 
 
@@ -37,12 +37,12 @@ def extract_subtree(in_dict: Dict,
                 return pointer[k]
             else:
                 queue.append(pointer[k])
-        
+
     return None
 
 
-def _extract_from_rnn_states(rnn_states_batched: Dict, 
-                             batch_idx: Optional[int]=None, 
+def _extract_from_rnn_states(rnn_states_batched: Dict,
+                             batch_idx: Optional[int]=None,
                              map_keys: Optional[List]=None): #['hidden', 'cell']):
     '''
     :param map_keys: List of keys we map the operation to.
@@ -69,11 +69,11 @@ def _extract_from_rnn_states(rnn_states_batched: Dict,
     return rnn_states
 
 
-def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict, 
-                                           batch_indices: torch.Tensor, 
+def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
+                                           batch_indices: torch.Tensor,
                                            use_cuda: bool=False,
                                            map_keys: Optional[List]=['hidden', 'cell']):
-    if rnn_states_batched is None:  return None 
+    if rnn_states_batched is None:  return None
 
     rnn_states = {k: {} for k in rnn_states_batched}
     for recurrent_submodule_name in rnn_states_batched:
@@ -88,27 +88,28 @@ def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
                         rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
-                rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
-                batch_indices=batch_indices, 
-                use_cuda=use_cuda
+                rnn_states_batched=rnn_states_batched[recurrent_submodule_name],
+                batch_indices=batch_indices,
+                use_cuda=use_cuda,
+                map_keys=map_keys
             )
     return rnn_states
 
 
-def _concatenate_hdict(hd1: Union[Dict, List], 
-                       hds: List, 
-                       map_keys: List, 
+def _concatenate_hdict(hd1: Union[Dict, List],
+                       hds: List,
+                       map_keys: List,
                        concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
                        preprocess_fn: Optional[Callable] = (lambda x:x) ):
     if not(isinstance(hd1, dict)):
         return _concatenate_hdict(
-            hd1=hds.pop(0), 
-            hds=hds, 
-            map_keys=map_keys, 
+            hd1=hds.pop(0),
+            hds=hds,
+            map_keys=map_keys,
             concat_fn=concat_fn,
             preprocess_fn=preprocess_fn
         )
-    
+
     out_hd = {}
     for key in hd1:
         out_hd[key] = {}
@@ -124,9 +125,9 @@ def _concatenate_hdict(hd1: Union[Dict, List],
                     out_hd[key][map_key].append(concat_fn(concat_list))
         if map_key_not_found_at_this_level:
             out_hd[key] = _concatenate_hdict(
-                hd1=hd1[key], 
-                hds=[hd[key] for hd in hds], 
-                map_keys=map_keys, 
+                hd1=hd1[key],
+                hds=[hd[key] for hd in hds],
+                map_keys=map_keys,
                 concat_fn=concat_fn,
                 preprocess_fn=preprocess_fn,
             )
@@ -136,7 +137,7 @@ def _concatenate_list_hdict(lhds: List[Dict],
                        concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
                        preprocess_fn: Optional[Callable] = (lambda x:torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x)):
     out_hd = copy.deepcopy(lhds[0])
-    
+
     queue = [lhds]
     pointers = None
 
@@ -158,7 +159,7 @@ def _concatenate_list_hdict(lhds: List[Dict],
         else:
             for k in pointers[0]:
                 out_pointer[k] = []
-                # Since we are at a leaf then value is 
+                # Since we are at a leaf then value is
                 # either numpy or numpy.float64
                 # or list of tensors:
                 if isinstance(pointers[0][k], list):

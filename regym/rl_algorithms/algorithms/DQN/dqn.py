@@ -339,8 +339,8 @@ class DQNAlgorithm(Algorithm):
             sampled_rnn_states = None
             sampled_next_rnn_states = None
             if self.recurrent:
-                sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
-                sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_rnn_states, sampled_next_rnn_states = self.sample_from_rnn_states(
+                    rnn_states, next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
                 # (batch_size, unroll_dim, ...)
 
             sampled_goals = None
@@ -403,6 +403,11 @@ class DQNAlgorithm(Algorithm):
                 array_batch_indices=array_batch_indices,
                 minibatch_size=minibatch_size,
             )
+
+    def sample_from_rnn_states(self, rnn_states, next_rnn_states, batch_indices, use_cuda):
+        sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+        sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+        return sampled_rnn_states, sampled_next_rnn_states
 
     def _update_replay_buffer_priorities(self, 
                                          sampled_losses_per_item: List[torch.Tensor], 
