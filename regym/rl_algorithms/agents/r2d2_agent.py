@@ -1,6 +1,7 @@
 from typing import Dict
 from functools import partial
 
+import copy
 import torch
 
 from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
