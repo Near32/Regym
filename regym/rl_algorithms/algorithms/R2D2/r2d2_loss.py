@@ -6,7 +6,7 @@ import copy
 import torch
 
 from regym.rl_algorithms.algorithms import Algorithm 
-from regym.rl_algorithms.utils import is_leaf, _concatenate_list_hdict, recursive_inplace_update
+from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdict, recursive_inplace_update
 
 
 eps = 1e-4
@@ -94,11 +94,13 @@ def replace_rnn_states_at_time_indices(rnn_states_batched: Dict,
     return rnn_states
 
 
-def roll_sequences(unrolled_sequences:List[Dict[str, torch.Tensor]], batch_size:int=1):
+def roll_sequences(unrolled_sequences:List[Dict[str, torch.Tensor]], batch_size:int=1, map_keys:List[str]=None):
     '''
     Returns a dictionnary of torch tensors from the list of dictionnaries `unrolled_sequences`. 
+
+    :param map_keys: List of strings of keys to care about:
     '''
-    keys = unrolled_sequences[0].keys()
+    keys = map_keys if map_keys is not None else unrolled_sequences[0].keys()
     d = {}
     for key in keys:
         if unrolled_sequences[0][key] is None:  continue
@@ -128,7 +130,8 @@ def unrolled_inferences(model: torch.nn.Module,
                         goals: torch.Tensor=None,
                         grad_enabler: bool=False,
                         use_zero_initial_states: bool=False,
-                        extras: bool=False):
+                        extras: bool=False,
+                        map_keys:List[str]=None):
     '''
     Compute feed-forward inferences on the :param model: of the :param states: with the rnn_states used as burn_in values.
     NOTE: The function also computes the inferences using the rnn states used when gathering the states, in order to 
@@ -141,6 +144,7 @@ def unrolled_inferences(model: torch.nn.Module,
     :param goals: Dimension batch_size x goal shape: Goal of the agent.
     :param grad_enable: boolean specifying whether to compute gradient.
     :param use_zero_initial_states: boolean specifying whether the initial recurrent states are zeroed or sampled from the unrolled sequence.
+    :param map_keys: List of strings containings the keys we want to extract and concatenate in the returned predictions.
 
     :return burn_in_predictions: Dict of outputs produced by the :param model: with shape (batch_size, unroll_dim, ...),
                                     when the recurrent cell states are burned in throughout the unrolled sequence, 
@@ -191,7 +195,7 @@ def unrolled_inferences(model: torch.nn.Module,
             )
             
             if extras and unroll_id < unroll_length-1:
-                unrolled_rnn_states_inputs = copy.deepcopy(burn_in_rnn_states_inputs)
+                unrolled_rnn_states_inputs = copy_hdict(burn_in_rnn_states_inputs)
             
             ## Update burn-in rnn states:
             recursive_inplace_update(
@@ -201,9 +205,17 @@ def unrolled_inferences(model: torch.nn.Module,
 
     burned_in_rnn_states_inputs = burn_in_rnn_states_inputs
     # (batch_size, ...)  
-    burn_in_predictions = roll_sequences(burn_in_predictions, batch_size=batch_size)
+    burn_in_predictions = roll_sequences(
+        burn_in_predictions, 
+        batch_size=batch_size,
+        map_keys=map_keys
+    )
     if extras:
-        unrolled_predictions = roll_sequences(unrolled_predictions, batch_size=batch_size)
+        unrolled_predictions = roll_sequences(
+            unrolled_predictions, 
+            batch_size=batch_size,
+            map_keys=map_keys,
+        )
 
     return burn_in_predictions, unrolled_predictions, burned_in_rnn_states_inputs
 
@@ -254,6 +266,7 @@ def compute_loss(states: torch.Tensor,
     '''
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
+    map_keys=['qa', 'a', 'ent']
 
     if kwargs['burn_in']:
         burn_in_length = kwargs['sequence_replay_burn_in_length']
@@ -293,7 +306,8 @@ def compute_loss(states: torch.Tensor,
             rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
-            extras=False
+            extras=False,
+            map_keys=map_keys,
         )
 
         target_model.reset_noise()
@@ -306,7 +320,8 @@ def compute_loss(states: torch.Tensor,
             rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
-            extras=False
+            extras=False,
+            map_keys=map_keys,
         )
 
         # Replace the bruned in rnn states in the training rnn states:
@@ -341,7 +356,8 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_rnn_states,
         grad_enabler=True,
         use_zero_initial_states=False,
-        extras=True
+        extras=True,
+        map_keys=map_keys,
     )
 
     target_model.reset_noise()
@@ -353,7 +369,8 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_target_rnn_states,
         grad_enabler=False,
         use_zero_initial_states=False,
-        extras=not(kwargs['burn_in'])
+        extras=not(kwargs['burn_in']),
+        map_keys=map_keys,
     )
 
     if kwargs['burn_in']:

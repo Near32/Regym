@@ -82,7 +82,7 @@ experiment:
             {'env-id': 'PongNoFrameskip-v4',
 
              #'run-id': 'Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m2_EntropyReg0_b16_RepP2_DEBUGNSTEP+ProperGammaLoss+CurrentActionLoss+DetachedRNNStates',
-             'run-id': 'DEBUG_RNN_EXTRAINPUTS_InLossFn_Argmax_AlignedTargetActions_INM1Done_LossMasked/\
+             'run-id': 'PROF_RNN_EXTRAINPUTS_InLossFn_Argmax_AlignedTargetActions_INM1Done_LossMasked/\
 QReplayAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0\
 +ProperGammaLoss+CurrentActionLoss+Discount099+MinCap5e3/',
              # Not learning because of QOnlineActions:
