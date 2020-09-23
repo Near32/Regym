@@ -1363,8 +1363,8 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         info['previous_reward'] = copy.deepcopy(self.previous_reward)
         info['previous_action'] = copy.deepcopy(self.previous_action)
 
-        self.previous_reward = np.ones((1, 1))*reward
-        self.previous_action = np.eye(self.nbr_actions)[action].reshape(1, -1)
+        self.previous_reward = np.ones((1, 1), dtype=np.float32)*reward
+        self.previous_action = np.eye(self.nbr_actions, dtype=np.float32)[action].reshape(1, -1)
 
         return observation, reward, done, info
 

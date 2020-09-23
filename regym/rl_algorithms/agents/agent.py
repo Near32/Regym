@@ -126,7 +126,7 @@ class Agent(object):
         rnn_keys = list(rnn_states.keys())
         return rnn_keys, rnn_states
 
-    def remove_from_rnn_states(self, batch_idx:int, rnn_states_dict:Optional[Dict]=None, map_keys: Optional[List]=['hidden', 'cell']):
+    def remove_from_rnn_states(self, batch_idx:int, rnn_states_dict:Optional[Dict]=None, map_keys: Optional[List]=None):
         '''
         Remove a row(=batch) of data from the rnn_states.
         :param batch_idx: Integer index on the batch dimension that specifies which row to remove.
@@ -137,7 +137,8 @@ class Agent(object):
             if not is_leaf(rnn_states_dict[recurrent_submodule_name]):
                 self.remove_from_rnn_states(batch_idx=batch_idx, rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
             else:
-                for key in map_keys:
+                eff_map_keys = map_keys if map_keys is not None else rnn_states_dict[recurrent_submodule_name].keys()
+                for key in eff_map_keys:
                     for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
                         rnn_states_dict[recurrent_submodule_name][key][idx] = torch.cat(
                             [rnn_states_dict[recurrent_submodule_name][key][idx][:batch_idx,...],
@@ -145,7 +146,7 @@ class Agent(object):
                              dim=0
                         )
 
-    def _pre_process_rnn_states(self, rnn_states_dict: Optional[Dict]=None, map_keys: Optional[List]=['hidden', 'cell']):
+    def _pre_process_rnn_states(self, rnn_states_dict: Optional[Dict]=None, map_keys: Optional[List]=None):
         '''
         :param map_keys: List of keys we map the operation to.
         '''
@@ -159,35 +160,59 @@ class Agent(object):
                 if not is_leaf(rnn_states_dict[recurrent_submodule_name]):
                     self._pre_process_rnn_states(rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
                 else:
-                    for key in map_keys:
+                    eff_map_keys = map_keys if map_keys is not None else rnn_states_dict[recurrent_submodule_name].keys()
+                    for key in eff_map_keys:
                         if key in rnn_states_dict[recurrent_submodule_name]:
                             for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
                                 rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
                                 rnn_states_dict[recurrent_submodule_name][key][idx]   = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
 
     @staticmethod
-    def _post_process_rnn_states(next_rnn_states_dict: Dict, rnn_states_dict: Dict, map_keys: Optional[List]=['hidden', 'cell']):
+    def _post_process_and_update_rnn_states(next_rnn_states_dict: Dict, rnn_states_dict: Dict, map_keys: Optional[List]=None):
         '''
+        Update the rnn_state to the values of next_rnn_states, when present in both.
+        Otherwise, simply detach+cpu the values. 
+
+        :param next_rnn_states_dict: Dict with a hierarchical structure.
+        :param rnn_states_dict: Dict with a hierarchical structure, ends up being update when possible.
         :param map_keys: List of keys we map the operation to.
         '''
         for recurrent_submodule_name in rnn_states_dict:
             if not is_leaf(rnn_states_dict[recurrent_submodule_name]):
-                Agent._post_process_rnn_states(next_rnn_states_dict=next_rnn_states_dict[recurrent_submodule_name],
-                                              rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
+                Agent._post_process_and_update_rnn_states(
+                    next_rnn_states_dict=next_rnn_states_dict[recurrent_submodule_name],
+                    rnn_states_dict=rnn_states_dict[recurrent_submodule_name]
+                )
             else:
-                for key in map_keys:
+                eff_map_keys = map_keys if map_keys is not None else rnn_states_dict[recurrent_submodule_name].keys()
+                for key in eff_map_keys:
+                    updateable = False
+                    if key in next_rnn_states_dict[recurrent_submodule_name]:
+                        updateable = True
+                        for idx in range(len(next_rnn_states_dict[recurrent_submodule_name][key])):
+                            # Post-process:
+                            next_rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
                     if key in rnn_states_dict[recurrent_submodule_name]:
                         for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
-                            if next_rnn_states_dict[recurrent_submodule_name] is None: break
-                            # Updating rnn_states:
-                            rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                            if updateable:
+                                # Updating rnn_states:
+                                rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                            else:
+                                # only post-process:
+                                rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
                             
-                            next_rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
-
     def _post_process(self, prediction: Dict[str, Any]):
+        """
+        Post-process a prediction by detaching-cpuing the tensors.
+        Note: if there are some recurrent components, then the agent's 
+        recurrent states are being updated from the prediction's 
+        `"next_rnn_states"` entry.
+        """
         if self.recurrent:
-            Agent._post_process_rnn_states(next_rnn_states_dict=prediction['next_rnn_states'],
-                                           rnn_states_dict=self.rnn_states)
+            Agent._post_process_and_update_rnn_states(
+                next_rnn_states_dict=prediction['next_rnn_states'],
+                rnn_states_dict=self.rnn_states
+            )
 
             for k, v in prediction.items():
                 if isinstance(v, torch.Tensor):
@@ -300,7 +325,7 @@ class ExtraInputsHandlingAgent(Agent):
         concat_hdict = _concatenate_list_hdict(
             lhds=lhdict, 
             concat_fn=partial(torch.cat, dim=0),
-            preprocess_fn=(lambda x:torch.from_numpy(x) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x),
+            preprocess_fn=(lambda x:torch.from_numpy(x).float() if isinstance(x, np.ndarray) else torch.ones(1, 1).float()*x),
         )
 
         out_hdict = self._init_hdict(init=concat_hdict)

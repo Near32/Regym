@@ -14,18 +14,50 @@ def recursive_inplace_update(in_dict: Dict,
     Taking both :param: in_dict, extra_dict as tree structures,
     adds the nodes of extra_dict into in_dict via tree traversal
     '''
+    if is_leaf(extra_dict):
+        for leaf_key in extra_dict:
+            # In order to make sure that the lack of deepcopy at this point will not endanger
+            # the consistancy of the data (since we are slicing at some other parts),
+            # or, in other words, to make sure that this is yielding a copy rather than
+            # a reference, proceed with caution:
+            # WARNING: the following makes a referrence of the elements:
+            # listvalue = extra_dict[node_key][leaf_key]
+            # RATHER, to generate copies, do:
+            listvalue = [value for value in extra_dict[leaf_key]]
+            in_dict[leaf_key] = listvalue
+        return 
+
     for node_key in extra_dict:
+        if node_key not in in_dict: in_dict[node_key] = {}
         if not is_leaf(extra_dict[node_key]):
-            if node_key not in in_dict: in_dict[node_key] = {}
             recursive_inplace_update(in_dict[node_key], extra_dict[node_key])
         else:
-            in_dict[node_key] = copy.deepcopy(extra_dict[node_key])
+            for leaf_key in extra_dict[node_key]:
+                # In order to make sure that the lack of deepcopy at this point will not endanger
+                # the consistancy of the data (since we are slicing at some other parts),
+                # or, in other words, to make sure that this is yielding a copy rather than
+                # a reference, proceed with caution:
+                # WARNING: the following makes a referrence of the elements:
+                # listvalue = extra_dict[node_key][leaf_key]
+                # RATHER, to generate copies, do:
+                listvalue = [value for value in extra_dict[node_key][leaf_key]]
+                in_dict[node_key][leaf_key] = listvalue
 
+def copy_hdict(in_dict: Dict):
+    '''
+    Makes a copy of :param in_dict:.
+    '''
+    out_dict = {key: {} for key in in_dict}
+    recursive_inplace_update(
+        in_dict=out_dict,
+        extra_dict=in_dict,
+    )
+    return out_dict
 
 def extract_subtree(in_dict: Dict,
                     node_id: str):
     '''
-    Extracts subtree whose root is named :param node_id: from :param in_dict:.
+    Extracts a copy of subtree whose root is named :param node_id: from :param in_dict:.
     '''
     queue = [in_dict]
     pointer = None
@@ -34,7 +66,7 @@ def extract_subtree(in_dict: Dict,
         pointer = queue.pop(0)
         for k in pointer.keys():
             if node_id==k:
-                return pointer[k]
+                return copy_hdict(pointer[k])
             else:
                 queue.append(pointer[k])
 
@@ -133,10 +165,14 @@ def _concatenate_hdict(hd1: Union[Dict, List],
             )
     return out_hd
 
-def _concatenate_list_hdict(lhds: List[Dict],
-                       concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
-                       preprocess_fn: Optional[Callable] = (lambda x:torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x)):
-    out_hd = copy.deepcopy(lhds[0])
+def _concatenate_list_hdict(
+    lhds: List[Dict],
+    concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
+    preprocess_fn: Optional[Callable] = (lambda x:
+        torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x
+        )
+    ):
+    out_hd = {key: {} for key in lhds[0]}
 
     queue = [lhds]
     pointers = None
@@ -150,6 +186,8 @@ def _concatenate_list_hdict(lhds: List[Dict],
 
         if not is_leaf(pointers[0]):
             #out_pointer = {}
+            # previously is taken care of at 145 upon initialization,
+            # and then at 165 upon 'recurrence'.
             for k in pointers[0]:
                 queue_element = [pointer[k] for pointer in pointers]
                 queue.insert(0, queue_element)
@@ -158,6 +196,7 @@ def _concatenate_list_hdict(lhds: List[Dict],
                 out_queue.insert(0, out_pointer[k])
         else:
             for k in pointers[0]:
+                # Previously assigned as a dictionnary in 145 or 165...
                 out_pointer[k] = []
                 # Since we are at a leaf then value is
                 # either numpy or numpy.float64

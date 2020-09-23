@@ -21,7 +21,7 @@ from .agent import Agent
 from .wrappers import DictHandlingAgentWrapper
 from gym.spaces import Dict
 from ..algorithms.wrappers import HERAlgorithmWrapper
-from regym.rl_algorithms.utils import _extract_from_rnn_states
+from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
 
 
 class DQNAgent(Agent):
@@ -155,6 +155,12 @@ class DQNAgent(Agent):
             model = self.algorithm.get_models()['target_model']
 
         self.current_prediction = self.query_model(model, state, goal)
+        
+        # Post-process and update the rnn_states from the current prediction:
+        # self.rnn_states <-- self.current_prediction['next_rnn_states']
+        # WARNING: _post_process affects self.rnn_states. It is imperative to
+        # manipulate a copy of it outside of the agent's manipulation, e.g.
+        # when feeding it to the models.
         self.current_prediction = self._post_process(self.current_prediction)
 
         sample = np.random.random()
@@ -168,7 +174,15 @@ class DQNAgent(Agent):
     def query_model(self, model, state, goal):
         if self.recurrent:
             self._pre_process_rnn_states()
-            current_prediction = model(state, rnn_states=self.rnn_states, goal=goal)
+            # WARNING: it is imperative to make a copy 
+            # of the self.rnn_states, otherwise it will be 
+            # referenced in the (self.)current_prediction
+            # and any subsequent update of rnn_states will 
+            # also update the current_prediction, e.g. the call
+            # to _post_process in line 163 affects self.rnn_states
+            # and therefore might affect current_prediction's rnn_states...
+            rnn_states_input = copy_hdict(self.rnn_states)
+            current_prediction = model(state, rnn_states=rnn_states_input, goal=goal)
         else:
             current_prediction = model(state, goal=goal)
         return current_prediction
