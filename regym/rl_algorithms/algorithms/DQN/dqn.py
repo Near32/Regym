@@ -13,7 +13,6 @@ import torch.nn.functional as F
 from . import dqn_loss, ddqn_loss
 
 from ..algorithm import Algorithm
-from ...replay_buffers import ReplayBuffer, PrioritizedReplayBuffer, EXP, EXPPER
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, random_sample
 
