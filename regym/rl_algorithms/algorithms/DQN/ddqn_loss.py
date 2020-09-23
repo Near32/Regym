@@ -20,6 +20,7 @@ def compute_loss(states: torch.Tensor,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
+                 next_rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
                  kwargs:Optional[Dict]=None) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x state_size: States visited by the agent.
@@ -42,6 +43,9 @@ def compute_loss(states: torch.Tensor,
                        corresponding to the 'hidden' and 'cell' states of
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
+    :param next_rnn_states: Resulting 'hidden' and 'cell' states of the LSTM submodules after
+                            feedforwarding :param states: in :param model:. See :param rnn_states:
+                            for further details on type and shape.
     '''
     batch_size = states.shape[0]
 
