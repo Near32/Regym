@@ -21,6 +21,7 @@ from .agent import Agent
 from .wrappers import DictHandlingAgentWrapper
 from gym.spaces import Dict
 from ..algorithms.wrappers import HERAlgorithmWrapper
+from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
 
 
 class DQNAgent(Agent):
@@ -47,9 +48,6 @@ class DQNAgent(Agent):
         self.nbr_steps = 0
 
         self.saving_interval = 1e4
-
-    def get_experience_count(self):
-        return self.handled_experiences
 
     def get_update_count(self):
         return self.algorithm.get_update_count()
@@ -105,8 +103,8 @@ class DQNAgent(Agent):
 
 
             if self.recurrent:
-                exp_dict['rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
-                exp_dict['next_rnn_states'] = Agent._extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
+                exp_dict['rnn_states'] = _extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
+                exp_dict['next_rnn_states'] = _extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
 
             if self.goal_oriented:
                 exp_dict['goals'] = Agent._extract_from_hdict(goals, batch_index, goal_preprocessing_fn=self.goal_preprocessing)
@@ -157,6 +155,12 @@ class DQNAgent(Agent):
             model = self.algorithm.get_models()['target_model']
 
         self.current_prediction = self.query_model(model, state, goal)
+        
+        # Post-process and update the rnn_states from the current prediction:
+        # self.rnn_states <-- self.current_prediction['next_rnn_states']
+        # WARNING: _post_process affects self.rnn_states. It is imperative to
+        # manipulate a copy of it outside of the agent's manipulation, e.g.
+        # when feeding it to the models.
         self.current_prediction = self._post_process(self.current_prediction)
 
         sample = np.random.random()
@@ -170,7 +174,15 @@ class DQNAgent(Agent):
     def query_model(self, model, state, goal):
         if self.recurrent:
             self._pre_process_rnn_states()
-            current_prediction = model(state, rnn_states=self.rnn_states, goal=goal)
+            # WARNING: it is imperative to make a copy 
+            # of the self.rnn_states, otherwise it will be 
+            # referenced in the (self.)current_prediction
+            # and any subsequent update of rnn_states will 
+            # also update the current_prediction, e.g. the call
+            # to _post_process in line 163 affects self.rnn_states
+            # and therefore might affect current_prediction's rnn_states...
+            rnn_states_input = copy_hdict(self.rnn_states)
+            current_prediction = model(state, rnn_states=rnn_states_input, goal=goal)
         else:
             current_prediction = model(state, goal=goal)
         return current_prediction
@@ -271,13 +283,27 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
             strides = kwargs['phi_arch_strides']
             paddings = kwargs['phi_arch_paddings']
             output_dim = kwargs['phi_arch_feature_dim']  # TODO: figure out if this breaks anything else
+            
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_phi_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
+                    if 'phi_body' in tl:
+                        extra_inputs_infos_phi_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
+            
             phi_body = ConvolutionalLstmBody(input_shape=input_shape,
                                          feature_dim=output_dim,
                                          channels=channels,
                                          kernel_sizes=kernels,
                                          strides=strides,
                                          paddings=paddings,
-                                         lstm_input_dim=kwargs.get('lstm_input_dim', -1),
+                                         extra_inputs_infos=extra_inputs_infos_phi_body,
                                          hidden_units=kwargs['phi_arch_hidden_units'])
         input_dim = output_dim
 

@@ -51,7 +51,11 @@ def train_and_evaluate(agent: object,
                                                        test_nbr_episode=test_nbr_episode,
                                                        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
                                                        step_hooks=step_hooks)
-    trained_agent.save(with_replay_buffer=False)
+    save_replay_buffer = False
+    if len(sys.argv) > 2:
+      save_replay_buffer = 'save_replay_buffer' in sys.argv[2]
+
+    trained_agent.save(with_replay_buffer=save_replay_buffer)
     print(f"Agent saved at: {trained_agent.save_path}")
     
     task.env.close()
@@ -73,23 +77,29 @@ def training_process(agent_config: Dict,
     np.random.seed(seed)
     torch.manual_seed(seed)
 
-    pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
-                                size=task_config['observation_resize_dim'], 
-                                skip=task_config['nbr_frame_skipping'], 
-                                stack=task_config['nbr_frame_stacking'],
-                                grayscale=task_config['grayscale'],
-                                single_life_episode=task_config['single_life_episode'],
-                                nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                clip_reward=task_config['clip_reward'])
+    pixel_wrapping_fn = partial(
+      baseline_atari_pixelwrap,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      grayscale=task_config['grayscale'],
+      single_life_episode=task_config['single_life_episode'],
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=task_config['clip_reward'],
+      previous_reward_action=task_config.get('previous_reward_action', False)
+    )
 
-    test_pixel_wrapping_fn = partial(baseline_atari_pixelwrap,
-                                    size=task_config['observation_resize_dim'], 
-                                    skip=task_config['nbr_frame_skipping'], 
-                                    stack=task_config['nbr_frame_stacking'],
-                                    grayscale=task_config['grayscale'],
-                                    single_life_episode=False,
-                                    nbr_max_random_steps=task_config['nbr_max_random_steps'],
-                                    clip_reward=False)
+    test_pixel_wrapping_fn = partial(
+      baseline_atari_pixelwrap,
+      size=task_config['observation_resize_dim'], 
+      skip=task_config['nbr_frame_skipping'], 
+      stack=task_config['nbr_frame_stacking'],
+      grayscale=task_config['grayscale'],
+      single_life_episode=False,
+      nbr_max_random_steps=task_config['nbr_max_random_steps'],
+      clip_reward=False,
+      previous_reward_action=task_config.get('previous_reward_action', False)
+    )
     
     task = generate_task(task_config['env-id'],
                          nbr_parallel_env=task_config['nbr_actor'],

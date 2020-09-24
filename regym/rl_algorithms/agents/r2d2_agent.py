@@ -1,58 +1,63 @@
 from typing import Dict
 from functools import partial
 
+import copy
 import torch
 
-from .dqn_agent import DQNAgent, generate_model
+from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
+from regym.rl_algorithms.agents.dqn_agent import DQNAgent, generate_model
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
-from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
+from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
 
-class R2D2Agent(DQNAgent):
+class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
+    def __init__(self, name, algorithm, extra_inputs_infos):
+        # Both init will call the self's reset_rnn_states following self.mro's order, i.e. ExtraInputs's one first.
+        ExtraInputsHandlingAgent.__init__(
+            self, 
+            name=name, 
+            algorithm=algorithm,
+            extra_inputs_infos=extra_inputs_infos
+        )
+        DQNAgent.__init__(
+            self, 
+            name=name, 
+            algorithm=algorithm
+        )
 
-    def __init__(self, name, algorithm, action_space_dim):
-        super(R2D2Agent, self).__init__(name, algorithm)
+    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+        '''
+        Note: the batch size may differ from the nbr_actor as soon as some
+        actors' episodes end before the others...
 
-        self.action_space_dim = action_space_dim
-        self.previous_reward: torch.Tensor = None
-        
-    # NOTE: overriding from DQNAgent
-    def query_model(self, model, state, goal):
-        batch_size = state.shape[0]
-        if self.current_prediction:
-            # Turn previous action to one-hot
-            one_hot = torch.zeros(batch_size, self.action_space_dim)
-            for actor_i, action_i in enumerate(self.current_prediction['a']):
-                one_hot[actor_i, action_i] = 1.
-            previous_action = one_hot
-        else:
-            dummy_action = torch.zeros(batch_size, self.action_space_dim)
-            previous_action = dummy_action
-            self.previous_reward = torch.zeros(batch_size,1)
-
-        if self.recurrent:
-            self._pre_process_rnn_states()
-            current_prediction = model(state, rnn_states=self.rnn_states,
-                                       previous_action=previous_action,
-                                       previous_reward=self.previous_reward,
-                                       goal=goal)
-        else:
-            current_prediction = model(state, goal=goal)
-        return current_prediction
-
-    # NOTE: overriding from DQNAgent
-    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
-        super().handle_experience(s, a, r, succ_s, done, goals=None, infos=None)
-        _, r, _, _ = self.preprocess_environment_signals(s, r, succ_s, done)
-        self.previous_reward = r
+        :param s: numpy tensor of states of shape batch x state_shape.
+        :param a: numpy tensor of actions of shape batch x action_shape.
+        :param r: numpy tensor of rewards of shape batch x reward_shape.
+        :param succ_s: numpy tensor of successive states of shape batch x state_shape.
+        :param done: list of boolean (batch=nbr_actor) x state_shape.
+        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
+        :param infos: Dictionnary of information from the environment.
+        '''
+        DQNAgent.handle_experience(
+            self,
+            s=s,
+            a=a,
+            r=r,
+            succ_s=succ_s,
+            done=done,
+            goals=goals,
+            infos=infos
+        )
 
     def clone(self, training=None, with_replay_buffer=False):
         '''
         TODO: test
         '''
         cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
-        clone = R2D2Agent(name=self.name, algorithm=cloned_algo,
-                          action_space_dim=self.action_space_dim)
+        clone = R2D2Agent(
+            name=self.name, 
+            algorithm=cloned_algo,
+            extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos))
 
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
@@ -60,6 +65,42 @@ class R2D2Agent(DQNAgent):
         clone.nbr_steps = self.nbr_steps
         return clone
 
+
+def parse_and_check(kwargs: Dict,
+                    task: 'regym.environments.Task'):
+    
+    # Extra Inputs:
+    kwargs['task'] = task 
+
+    extra_inputs = kwargs['extra_inputs_infos']
+    for key in extra_inputs:
+        shape = extra_inputs[key]['shape']
+        for idxdim, dimvalue in enumerate(shape):
+            if isinstance(dimvalue, str):
+                path = dimvalue.split('.')
+                if len(path) > 1:
+                    pointer = kwargs
+                    for el in path:
+                        try:     
+                            if hasattr(pointer, el):
+                                pointer = getattr(pointer, el)
+                            elif el in pointer: 
+                                pointer = pointer[el]
+                            else:
+                                raise RuntimeError
+                        except:
+                            raise RuntimeError
+                else:
+                    pointer = path
+                
+                try: 
+                    pointer = int(pointer)
+                except Exception as e:
+                    print('Exception during parsing and checking:', e)
+                    raise e
+                shape[idxdim] = pointer
+
+    return kwargs    
 
 def build_R2D2_Agent(task: 'regym.environments.Task',
                      config: Dict,
@@ -93,6 +134,8 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     kwargs['lstm_input_dim'] = kwargs['phi_arch_hidden_units'][0] + (task.action_dim + 1)  # +1 represents scalar reward
     kwargs['phi_arch_hidden_units'][-1] += task.action_dim + 1
 
+    kwargs = parse_and_check(kwargs, task)
+
     model = generate_model(task, kwargs)
 
     algorithm = R2D2Algorithm(
@@ -100,7 +143,10 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         model=model,
     )
 
-    agent = R2D2Agent(name=agent_name, algorithm=algorithm,
-                      action_space_dim=task.action_dim)
-
+    agent = R2D2Agent(
+        name=agent_name, 
+        algorithm=algorithm,
+        extra_inputs_infos=kwargs['extra_inputs_infos'],
+    )
+    
     return agent

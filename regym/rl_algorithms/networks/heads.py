@@ -100,8 +100,7 @@ class CategoricalQNet(nn.Module):
     def reset_noise(self):
         self.apply(reset_noisy_layer)
 
-    def forward(self, obs, action=None, rnn_states=None, previous_action=None,
-                previous_reward=None, goal=None):
+    def forward(self, obs, action=None, rnn_states=None, goal=None):
         if not(self.goal_oriented):  assert(goal==None)
         
         if self.goal_oriented:
@@ -113,7 +112,7 @@ class CategoricalQNet(nn.Module):
             next_rnn_states = {k: None for k in rnn_states}
 
         if rnn_states is not None and 'phi_body' in rnn_states:
-            phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body'], previous_action, previous_reward) )
+            phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
         else:
             phi = self.phi_body(obs)
 

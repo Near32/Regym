@@ -11,6 +11,8 @@ from .algorithm_wrapper import AlgorithmWrapper
 from .her_wrapper import state_eq_goal_reward_fn
 
 from ...replay_buffers import PrioritizedReplayStorage, SplitReplayStorage, SplitPrioritizedReplayStorage
+from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict
+
 
 '''
 def predictor_based_goal_predicated_reward_fn(predictor, achieved_exp, desired_exp, epsilon=1e0):
@@ -317,7 +319,7 @@ class THERAlgorithmWrapper(AlgorithmWrapper):
             for key, value in zip(keys, sample):
                 value = value.tolist()
                 if isinstance(value[0], dict):   
-                    value = Algorithm._concatenate_hdict(value.pop(0), value, map_keys=['hidden', 'cell'])
+                    value = _concatenate_hdict(value.pop(0), value, map_keys=['hidden', 'cell'])
                 else:
                     value = torch.cat(value, dim=0)
                 values[key] = value 
@@ -364,7 +366,7 @@ class THERAlgorithmWrapper(AlgorithmWrapper):
 
             sampled_rnn_states = None
             if self.recurrent:
-                sampled_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
 
             sampled_importanceSamplingWeights = None
             if self.kwargs['THER_use_PER']:
@@ -455,7 +457,7 @@ class THERAlgorithmWrapper(AlgorithmWrapper):
 
             sampled_rnn_states = None
             if self.recurrent:
-                sampled_rnn_states = Algorithm._extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
 
             sampled_importanceSamplingWeights = None
             if self.kwargs['THER_use_PER']:

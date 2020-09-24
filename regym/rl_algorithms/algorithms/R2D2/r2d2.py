@@ -12,6 +12,7 @@ from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
 from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
 from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage
+from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdict, _extract_rnn_states_from_batch_indices
 
 sum_writer = None
 
@@ -109,10 +110,8 @@ class R2D2Algorithm(DQNAlgorithm):
             # (batch_size=1, unroll_dim, ...)
             if isinstance(sequence_buffer[0][key], dict):
                 values = [sequence_buffer[i][key] for i in range(len(sequence_buffer))]
-                value = Algorithm._concatenate_hdict(
-                    values.pop(0), 
-                    values, 
-                    map_keys=['hidden', 'cell'], 
+                value = _concatenate_list_hdict(
+                    lhds=values, 
                     concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
                     preprocess_fn=lambda x: x.reshape(1, 1, -1),
                 )
@@ -126,6 +125,14 @@ class R2D2Algorithm(DQNAlgorithm):
                 )
             d[key] = value
         return d 
+
+    def sample_from_rnn_states(self, rnn_states, next_rnn_states, batch_indices, use_cuda):
+        sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'],
+                                                                    map_keys=['hidden', 'cell', 'previous_action', 'previous_reward'])
+        sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'],
+                                                                    map_keys=['hidden', 'cell', 'previous_action', 'previous_reward'])
+        return sampled_rnn_states, sampled_next_rnn_states
+
 
     def _add_sequence_to_replay_storage(self, actor_index:int, override:bool=False):
         # Can we add the current sequence buffer to the replay storage?

@@ -80,7 +80,10 @@ experiment:
              #'agent-id': '1step_prioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP1_b32',
              #'agent-id': '3step_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16',
              #'agent-id': '20step_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16',
-             'agent-id': '1step_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16',
+             
+             #'agent-id': '1step_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16',
+             'agent-id': '1step_double_dqn_LargeCNN_r2e4_beta4m1_tau1m3_RepP2_b16',
+             
              #'agent-id': '5step_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16',
              #'agent-id': '20step_prioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16',
              #'agent-id': '1step_prioritized_double_dqn_LargeCNN_r1e4_beta6m1_tau1m4',
@@ -155,11 +158,11 @@ experiment:
             #  'observation_resize_dim': 84
             #  },
             ]
-    experiment_id: 'r2d2_test/dqn+current_action_loss'
+    experiment_id: 'r2d2_test/dqn'
     benchmarking_episodes: 1
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 1.0e8
-    train_observation_budget: 1.0e6 #3.0e5 #1.0e7
+    train_observation_budget: 3.0e5 #1.0e7
     seed: 1
 
 agents:    
@@ -316,6 +319,25 @@ agents:
     1step_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16:
         <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
         replay_capacity: 1e5
+        use_PER: False
+        PER_beta: 0.4
+        replay_period: 2
+        batch_size: 16
+        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+        # but bottleneck on GPU batchsize gives a better trade-off 
+        # batch-regularization-effect / speed with a batch_size=16 
+        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+        # and ~84 it/sec with updates...
+        # Whereas 32 / 4 yielded ~25 it/sec....
+        double: True
+        #dueling: True 
+        #noisy: True 
+        n_step: 1
+        tau: 1.0e-3
+
+    1step_double_dqn_LargeCNN_r2e4_beta4m1_tau1m3_RepP2_b16:
+        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+        replay_capacity: 2e4
         use_PER: False
         PER_beta: 0.4
         replay_period: 2

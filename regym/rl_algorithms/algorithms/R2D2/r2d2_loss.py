@@ -1,10 +1,13 @@
 from typing import Dict, List, Optional
 
 from functools import partial 
+import copy
 
 import torch
 
 from regym.rl_algorithms.algorithms import Algorithm 
+from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdict, recursive_inplace_update
+
 
 eps = 1e-4
 
@@ -37,22 +40,21 @@ def extract_rnn_states_from_time_indices(rnn_states_batched: Dict,
 
     rnn_states = {k: {} for k in rnn_states_batched}
     for recurrent_submodule_name in rnn_states_batched:
-        if 'hidden' in rnn_states_batched[recurrent_submodule_name]:
+        if is_leaf(rnn_states_batched[recurrent_submodule_name]):
             tis=time_indices_start
             tie=time_indices_end
-            squeeze_needed= False
+            squeeze_needed=False
             if tis==tie:    
                 tie+=1
-                squeeze_needed = True
-            rnn_states[recurrent_submodule_name] = {'hidden':[], 'cell':[]}
-            for idx in range(len(rnn_states_batched[recurrent_submodule_name]['hidden'])):
-                hidden = rnn_states_batched[recurrent_submodule_name]['hidden'][idx][:, tis:tie,...]
-                if squeeze_needed:  hidden = hidden.squeeze(1) 
-                rnn_states[recurrent_submodule_name]['hidden'].append(hidden)
-                if 'cell' in rnn_states_batched[recurrent_submodule_name]:
-                    cell = rnn_states_batched[recurrent_submodule_name]['cell'][idx][:, tis:tie,...]
-                    if squeeze_needed:  cell = cell.squeeze(1)
-                    rnn_states[recurrent_submodule_name]['cell'].append(cell)
+                squeeze_needed=True
+            rnn_states[recurrent_submodule_name] = {}
+            for key in rnn_states_batched[recurrent_submodule_name]:
+                if key not in rnn_states[recurrent_submodule_name]:
+                    rnn_states[recurrent_submodule_name][key] = []
+                for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
+                    value = rnn_states_batched[recurrent_submodule_name][key][idx][:, tis:tie,...]
+                    if squeeze_needed:  value = value.squeeze(1) 
+                    rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = extract_rnn_states_from_time_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
@@ -70,18 +72,17 @@ def replace_rnn_states_at_time_indices(rnn_states_batched: Dict,
 
     rnn_states = {k: {} for k in rnn_states_batched}
     for recurrent_submodule_name in rnn_states_batched:
-        if 'hidden' in rnn_states_batched[recurrent_submodule_name]:
-            rnn_states[recurrent_submodule_name] = {'hidden':[], 'cell':[]}
-            for idx in range(len(rnn_states_batched[recurrent_submodule_name]['hidden'])):
-                hidden = rnn_states_batched[recurrent_submodule_name]['hidden'][idx] 
-                batch_size = hidden.shape[0]
-                unroll_size = time_indices_end+1-time_indices_start 
-                hidden[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name]['hidden'][idx].reshape(batch_size, unroll_size, -1)
-                rnn_states[recurrent_submodule_name]['hidden'].append(hidden)
-                if 'cell' in rnn_states_batched[recurrent_submodule_name]:
-                    cell = rnn_states_batched[recurrent_submodule_name]['cell'][idx] 
-                    cell[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name]['cell'][idx].reshape(batch_size, unroll_size, -1)
-                    rnn_states[recurrent_submodule_name]['cell'].append(cell)
+        if is_leaf(rnn_states_batched[recurrent_submodule_name]):
+            rnn_states[recurrent_submodule_name] = {}
+            for key in rnn_states_batched[recurrent_submodule_name]:
+                if key not in rnn_states[recurrent_submodule_name]: 
+                    rnn_states[recurrent_submodule_name][key] = []
+                for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
+                    value = rnn_states_batched[recurrent_submodule_name][key][idx] 
+                    batch_size = value.shape[0]
+                    unroll_size = time_indices_end+1-time_indices_start 
+                    value[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name][key][idx].reshape(batch_size, unroll_size, -1)
+                    rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = replace_rnn_states_at_time_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
@@ -93,21 +94,20 @@ def replace_rnn_states_at_time_indices(rnn_states_batched: Dict,
     return rnn_states
 
 
-def roll_sequences(unrolled_sequences:List[Dict[str, torch.Tensor]], batch_size:int=1):
+def roll_sequences(unrolled_sequences:List[Dict[str, torch.Tensor]], batch_size:int=1, map_keys:List[str]=None):
     '''
     Returns a dictionnary of torch tensors from the list of dictionnaries `unrolled_sequences`. 
+
+    :param map_keys: List of strings of keys to care about:
     '''
-    keys = unrolled_sequences[0].keys()
+    keys = map_keys if map_keys is not None else unrolled_sequences[0].keys()
     d = {}
     for key in keys:
         if unrolled_sequences[0][key] is None:  continue
-        # (batch_size=1, unroll_dim, ...)
         if isinstance(unrolled_sequences[0][key], dict):
             values = [unrolled_sequences[i][key] for i in range(len(unrolled_sequences))]
-            value = Algorithm._concatenate_hdict(
-                values.pop(0), 
-                values, 
-                map_keys=['hidden', 'cell'], 
+            value = _concatenate_list_hdict(
+                lhds=values, 
                 concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
                 preprocess_fn=(lambda x: x.reshape(batch_size, 1, -1)), # backpropagate through time
                 #preprocess_fn=(lambda x: x.reshape(batch_size, 1, -1).detach()),   # truncated?
@@ -130,7 +130,8 @@ def unrolled_inferences(model: torch.nn.Module,
                         goals: torch.Tensor=None,
                         grad_enabler: bool=False,
                         use_zero_initial_states: bool=False,
-                        extras: bool=False):
+                        extras: bool=False,
+                        map_keys:List[str]=None):
     '''
     Compute feed-forward inferences on the :param model: of the :param states: with the rnn_states used as burn_in values.
     NOTE: The function also computes the inferences using the rnn states used when gathering the states, in order to 
@@ -143,6 +144,7 @@ def unrolled_inferences(model: torch.nn.Module,
     :param goals: Dimension batch_size x goal shape: Goal of the agent.
     :param grad_enable: boolean specifying whether to compute gradient.
     :param use_zero_initial_states: boolean specifying whether the initial recurrent states are zeroed or sampled from the unrolled sequence.
+    :param map_keys: List of strings containings the keys we want to extract and concatenate in the returned predictions.
 
     :return burn_in_predictions: Dict of outputs produced by the :param model: with shape (batch_size, unroll_dim, ...),
                                     when the recurrent cell states are burned in throughout the unrolled sequence, 
@@ -185,19 +187,35 @@ def unrolled_inferences(model: torch.nn.Module,
                 unrolled_predictions.append(unrolled_prediction)
 
             # Bookkeeping: update the rnn states:
-            burn_in_rnn_states_inputs = burn_in_prediction['next_rnn_states']
+            ## Handle next step's extra inputs:
+            burn_in_rnn_states_inputs = extract_rnn_states_from_time_indices(
+                rnn_states, 
+                time_indices_start=unroll_id+1,  #sample for next step...
+                time_indices_end=unroll_id+1,
+            )
+            
             if extras and unroll_id < unroll_length-1:
-                unrolled_rnn_states_inputs = extract_rnn_states_from_time_indices(
-                    rnn_states, 
-                    time_indices_start=unroll_id+1,  #sample for next step...
-                    time_indices_end=unroll_id+1,
-                )
+                unrolled_rnn_states_inputs = copy_hdict(burn_in_rnn_states_inputs)
+            
+            ## Update burn-in rnn states:
+            recursive_inplace_update(
+                in_dict=burn_in_rnn_states_inputs,
+                extra_dict=burn_in_prediction['next_rnn_states']
+            )
 
     burned_in_rnn_states_inputs = burn_in_rnn_states_inputs
     # (batch_size, ...)  
-    burn_in_predictions = roll_sequences(burn_in_predictions, batch_size=batch_size)
+    burn_in_predictions = roll_sequences(
+        burn_in_predictions, 
+        batch_size=batch_size,
+        map_keys=map_keys
+    )
     if extras:
-        unrolled_predictions = roll_sequences(unrolled_predictions, batch_size=batch_size)
+        unrolled_predictions = roll_sequences(
+            unrolled_predictions, 
+            batch_size=batch_size,
+            map_keys=map_keys,
+        )
 
     return burn_in_predictions, unrolled_predictions, burned_in_rnn_states_inputs
 
@@ -248,6 +266,7 @@ def compute_loss(states: torch.Tensor,
     '''
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
+    map_keys=['qa', 'a', 'ent']
 
     if kwargs['burn_in']:
         burn_in_length = kwargs['sequence_replay_burn_in_length']
@@ -287,7 +306,8 @@ def compute_loss(states: torch.Tensor,
             rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
-            extras=False
+            extras=False,
+            map_keys=map_keys,
         )
 
         target_model.reset_noise()
@@ -300,7 +320,8 @@ def compute_loss(states: torch.Tensor,
             rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
-            extras=False
+            extras=False,
+            map_keys=map_keys,
         )
 
         # Replace the bruned in rnn states in the training rnn states:
@@ -335,7 +356,8 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_rnn_states,
         grad_enabler=True,
         use_zero_initial_states=False,
-        extras=True
+        extras=True,
+        map_keys=map_keys,
     )
 
     target_model.reset_noise()
@@ -347,7 +369,8 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_target_rnn_states,
         grad_enabler=False,
         use_zero_initial_states=False,
-        extras=not(kwargs['burn_in'])
+        extras=not(kwargs['burn_in']),
+        map_keys=map_keys,
     )
 
     if kwargs['burn_in']:
