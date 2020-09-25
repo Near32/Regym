@@ -23,7 +23,6 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env):
         agent.take_action(np.expand_dims(obs, 0))
 
         succ_obs, reward, done, info = env.step('YaraYara')
-        agent.current_prediction = {}  # Need to fake a prediction
         agent.handle_experience(np.expand_dims(obs, 0),
                                 np.expand_dims(info['a'], 0),
                                 np.expand_dims(reward, 0),
@@ -103,7 +102,8 @@ if __name__ == "__main__":
     traj_names = data_pipeline.get_trajectory_names()
     data_iterator = data_pipeline.load_data(traj_names[0])
 
-    agent = None  # An agent needs to be passed. Use torch.load() with a saved agent
+    import torch
+    agent = torch.load('./test_agent.pt')
 
     # Making the env
     env = MineRLTrajectoryBasedEnv(data_iterator)
