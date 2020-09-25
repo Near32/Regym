@@ -1,7 +1,19 @@
+from typing import List, Tuple
+
 import minerl
 import numpy as np
 
-def get_key_actions(env,path):
+def get_key_actions(env: str,path: str) -> Tuple[np.ndarray, List[str]]:
+    '''
+    :param env: Name of the environment
+    :param path: Extra path in case we don't want default value
+
+    :returns:
+        - key_actions: Numpy array of actions. Actions that always happen
+                       that affect agent's inventory, as seen on demonstrations.
+                       (i.e crafting actions)
+        - Name of good trajectories
+    '''
     
     score_percent = 0.9
     agreement_percent = 0.2
