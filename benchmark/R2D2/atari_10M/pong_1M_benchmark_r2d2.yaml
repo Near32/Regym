@@ -93,7 +93,7 @@ QReplayAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoO
              #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L2_O1_B1',
              #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L10_O5_B5',
              #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L2_O1_B0',
-             'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_BURNIN_b16_L8_O4_B4',
+             'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_BURNIN_b64_L8_O4_B4',
              #'agent-id': '3step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L4_O1_B0',
              #'agent-id': '20step_prioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L80_O40_B20',
              
@@ -181,13 +181,13 @@ agents:
         sequence_replay_overlap_length: 1
         sequence_replay_burn_in_length: 0
 
-    1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_BURNIN_b16_L8_O4_B4:
+    1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_BURNIN_b64_L8_O4_B4:
         <<: *r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
         replay_capacity: 1e5
         use_PER: False
         PER_beta: 0.4
         replay_period: 2
-        batch_size: 16
+        batch_size: 64
         # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
         # but bottleneck on GPU batchsize gives a better trade-off 
         # batch-regularization-effect / speed with a batch_size=16 
