@@ -437,3 +437,5 @@ class DQNAlgorithm(Algorithm):
         self.summary_writer = sum_writer
         return cloned_algo
 
+    def async_actor(self):        
+        return self.clone(with_replay_buffer=True)

@@ -111,7 +111,8 @@ class DQNAgent(Agent):
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
-            self.handled_experiences +=1
+            with self.handled_experiences.get_lock():
+                self.handled_experiences.value +=1
 
         if len(done_actors_among_notdone):
             # Regularization of the agents' actors:
@@ -121,15 +122,23 @@ class DQNAgent(Agent):
 
 
         self.replay_period_count += 1
-        period_check = self.replay_period
-        period_count_check = self.replay_period_count
         if self.nbr_episode_per_cycle is not None:
             if len(done_actors_among_notdone):
                 self.nbr_episode_per_cycle_count += len(done_actors_among_notdone)
+        
+        if not(self.async_actor):
+            self.train()
+
+    def train(self):
+        period_check = self.replay_period
+        period_count_check = self.replay_period_count
+        if self.nbr_episode_per_cycle is not None:
             period_check = self.nbr_episode_per_cycle
             period_count_check = self.nbr_episode_per_cycle_count
 
-        if self.training and self.handled_experiences > self.kwargs['min_capacity'] and period_count_check % period_check == 0:
+        if self.training \
+        and self.handled_experiences.value > self.kwargs['min_capacity'] \
+        and (period_count_check % period_check == 0 or not(self.async_actor)):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
                 minibatch_size *= self.replay_period
@@ -137,7 +146,11 @@ class DQNAgent(Agent):
                 self.nbr_episode_per_cycle_count = 1
             for train_it in range(self.nbr_training_iteration_per_cycle):
                 self.algorithm.train(minibatch_size=minibatch_size)
-            if self.save_path is not None and self.handled_experiences % self.saving_interval == 0:
+
+            # WARNING: if asynchronous, then the agent is never save:
+            if not(self.async_learner) \
+            and self.save_path is not None \
+            and self.handled_experiences.value % self.saving_interval == 0:
                 self.save()
 
     def take_action(self, state):
@@ -190,6 +203,21 @@ class DQNAgent(Agent):
     def clone(self, training=None, with_replay_buffer=False):
         cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
+
+        clone.handled_experiences = self.handled_experiences
+        clone.episode_count = self.episode_count
+        if training is not None:    clone.training = training
+        clone.nbr_steps = self.nbr_steps
+        return clone
+
+    def get_async_actor(self, training=None, with_replay_buffer=False):
+        self.async_learner = True
+        self.async_actor = False 
+
+        cloned_algo = self.algorithm.async_actor()
+        clone = DQNAgent(name=self.name, algorithm=cloned_algo)
+        clone.async_learner = False 
+        clone.async_actor = True 
 
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count

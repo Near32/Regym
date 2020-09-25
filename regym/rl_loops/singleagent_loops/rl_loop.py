@@ -5,6 +5,25 @@ from tqdm import tqdm
 import numpy as np
 from regym.util import save_traj_with_graph
 
+from torch.multiprocessing import Process 
+
+
+import sys
+import gc
+import pdb
+class ForkedPdb(pdb.Pdb):
+    """A Pdb subclass that may be used
+    from a forked multiprocessing child
+    """
+    def interaction(self, *args, **kwargs):
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open('/dev/stdin')
+            pdb.Pdb.interaction(self, *args, **kwargs)
+        finally:
+            sys.stdin = _stdin
+#forkedPdb = ForkedPdb()
+
 
 def run_episode(env, agent, training, max_episode_length=math.inf):
     '''
@@ -177,6 +196,58 @@ def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_sa
             print(f'{actor_idx+1} / {nbr_save_traj} :: Time: {eta} sec.')
 
 
+def async_gather_experience_parallel(
+    task,
+    agent,
+    training,
+    max_obs_count=1e7,
+    test_obs_interval=1e4,
+    test_nbr_episode=10,
+    env_configs=None,
+    sum_writer=None,
+    base_path='./',
+    benchmarking_record_episode_interval=None,
+    step_hooks=[]):
+    '''
+    Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
+    The observations vector is of length n, where n is the number of agents.
+    observations[i] corresponds to the oberservation of agent i.
+    :param env: ParallelEnv wrapper around an OpenAI gym environment
+    :param agent: Agent policy used to take actionsin the environment and to process simulated experiences
+    :param training: (boolean) Whether the agents will learn from the experience they recieve
+    :param max_obs_count: Maximum number of observations to gather data for.
+    :param test_obs_interval: Integer, interval between two testing of the agent in the test environment.
+    :param test_nbr_episode: Integer, nbr of episode to test the agent with.
+    :param env_configs: configuration dictionnary to use when resetting the environments.
+    :param sum_writer: SummaryWriter.
+    :param base_path: Path where to save gifs.
+    :param benchmarking_record_episode_interval: None if not gif ought to be made, otherwise Integer.
+    :returns:
+    '''
+
+    gathering_proc = Process(
+        target=gather_experience_parallel,
+        args=(
+            task,
+            agent.get_async_actor(),
+            training,
+            max_obs_count,
+            test_obs_interval,
+            test_nbr_episode,
+            env_configs,
+            sum_writer,
+            base_path,
+            benchmarking_record_episode_interval,
+            step_hooks),
+    )
+    gathering_proc.start()
+
+    while gathering_proc.is_alive():
+        agent.train()
+
+    return agent 
+
+
 def gather_experience_parallel(task,
                                 agent,
                                 training,
@@ -227,6 +298,7 @@ def gather_experience_parallel(task,
     pbar = tqdm(total=max_obs_count)
 
     while True:
+        ForkedPdb().set_trace()
         action = agent.take_action(observations)
         succ_observations, reward, done, info = env.step(action)
 
