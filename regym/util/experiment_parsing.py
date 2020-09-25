@@ -9,9 +9,13 @@ from regym.training_schemes import PSRONashResponse
 from regym.training_schemes import DeltaDistributionalSelfPlay
 
 from regym.rl_algorithms import build_DQN_Agent
+from regym.rl_algorithms import build_THER_Agent
 from regym.rl_algorithms import build_TabularQ_Agent
 from regym.rl_algorithms import build_PPO_Agent
 from regym.rl_algorithms import build_A2C_Agent
+from regym.rl_algorithms import build_DDPG_Agent
+from regym.rl_algorithms import build_TD3_Agent
+from regym.rl_algorithms import build_SAC_Agent
 from regym.rl_algorithms import rockAgent, paperAgent, scissorsAgent, randomAgent
 
 
@@ -55,11 +59,15 @@ def initialize_agents(task, agent_configurations):
     :returns: array of agents built according to their corresponding configuration dictionaries
     '''
     def partial_match_build_function(agent_name, task, config):
-        if agent_name.startswith('tabularqlearning'): return build_TabularQ_Agent(task, config, agent_name)
-        if agent_name.startswith('deepqlearning'): return build_DQN_Agent(task, config, agent_name)
-        if agent_name.startswith('ppo'): return build_PPO_Agent(task, config, agent_name)
-        if agent_name.startswith('a2c'): return build_A2C_Agent(task, config, agent_name)
-        else: raise ValueError('Unkown agent name: {agent_name}'.format(agent_name))
+        if 'tabularqlearning' in agent_name.lower(): return build_TabularQ_Agent(task, config, agent_name)
+        if 'dqn' in agent_name.lower(): return build_DQN_Agent(task, config, agent_name)
+        if 'ther' in agent_name.lower(): return build_THER_Agent(task, config, agent_name)
+        if 'ppo' in agent_name.lower(): return build_PPO_Agent(task, config, agent_name)
+        if 'a2c' in agent_name.lower(): return build_A2C_Agent(task, config, agent_name)
+        if 'ddpg' in agent_name.lower(): return build_DDPG_Agent(task, config, agent_name)
+        if 'td3' in agent_name.lower(): return build_TD3_Agent(task, config, agent_name)
+        if 'sac' in agent_name.lower(): return build_SAC_Agent(task, config, agent_name)
+        else: raise ValueError(f'Unkown agent name: {agent_name}')
     return [partial_match_build_function(agent, task, config) for agent, config in agent_configurations.items()]
 
 

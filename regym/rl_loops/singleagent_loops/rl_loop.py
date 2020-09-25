@@ -67,7 +67,8 @@ def run_episode_parallel(env,
                                     action, 
                                     reward, 
                                     succ_observations, 
-                                    done)
+                                    done,
+                                    infos=info)
         
         batch_index = -1
         batch_idx_done_actors_among_not_done = []
@@ -77,7 +78,11 @@ def run_episode_parallel(env,
             batch_index +=1
             
             # Bookkeeping of the actors whose episode just ended:
-            if done[actor_index] and not(previous_done[actor_index]):
+            d = done[actor_index]
+            if ('real_done' in info[actor_index]):
+                d = info[actor_index]['real_done']
+            
+            if d and not(previous_done[actor_index]):
                 batch_idx_done_actors_among_not_done.append(batch_index)
                 
             pa_obs = observations[batch_index]
@@ -86,7 +91,7 @@ def run_episode_parallel(env,
             pa_succ_obs = succ_observations[batch_index]
             pa_done = done[actor_index]
             pa_int_r = 0.0
-            if agent.algorithm.use_rnd:
+            if getattr(agent.algorithm, "use_rnd", False):
                 get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
                 if callable(get_intrinsic_reward):
                     pa_int_r = agent.get_intrinsic_reward(actor_index)
@@ -101,7 +106,15 @@ def run_episode_parallel(env,
 
         previous_done = copy.deepcopy(done)
 
-        if all(done): break
+        alldone = all(done)
+        allrealdone = False
+        for idx in reversed(range(len(info))):
+            if info[idx] is None:   del info[idx]
+
+        if len(info):
+            allrealdone =  all([i['real_done'] if 'real_done' in i else False for i in info])
+        if alldone or allrealdone: 
+            break
 
     return per_actor_trajectories
 
@@ -222,7 +235,8 @@ def gather_experience_parallel(task,
                                     action, 
                                     reward, 
                                     succ_observations, 
-                                    done)
+                                    done,
+                                    infos=info)
 
         for actor_index in range(nbr_actors):
             obs_count += 1
@@ -296,7 +310,7 @@ def gather_experience_parallel(task,
             pa_done = done[actor_index]
             pa_int_r = 0.0
             
-            if agent.algorithm.use_rnd:
+            if getattr(agent.algorithm, "use_rnd", False):
                 get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
                 if callable(get_intrinsic_reward):
                     pa_int_r = agent.get_intrinsic_reward(actor_index)
@@ -304,13 +318,16 @@ def gather_experience_parallel(task,
 
 
             if test_nbr_episode != 0 and obs_count % test_obs_interval == 0:
+                save_traj = False
+                if (benchmarking_record_episode_interval is not None and benchmarking_record_episode_interval>0):
+                    save_traj = (obs_count%benchmarking_record_episode_interval==0)
                 test_agent(env=test_env, 
                             agent=agent.clone(training=False), 
                             nbr_episode=test_nbr_episode, 
                             sum_writer=sum_writer, 
                             iteration=obs_count,
                             base_path=base_path,
-                            save_traj=(obs_count%benchmarking_record_episode_interval==0) if benchmarking_record_episode_interval>0 else False)
+                            save_traj=save_traj)
 
         observations = copy.deepcopy(succ_observations)
         

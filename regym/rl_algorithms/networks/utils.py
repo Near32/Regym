@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import torch.autograd
 import torchvision.transforms as T
 import torch.nn.functional as F
@@ -6,13 +7,95 @@ import numpy as np
 import cv2 
 
 
+def hard_update(fromm, to):
+    for fp, tp in zip(fromm.parameters(), to.parameters()):
+        fp.data.copy_(tp.data)
+
+
+def soft_update(fromm, to, tau):
+    for fp, tp in zip(fromm.parameters(), to.parameters()):
+        fp.data.copy_((1.0-tau)*fp.data + tau*tp.data)
+
+
+'''
+def layer_init(layer, w_scale=1.0):
+    nn.init.orthogonal_(layer.weight.data)
+    layer.weight.data.mul_(w_scale)
+    nn.init.constant_(layer.bias.data, 0)
+    return layer
+'''
+
+def layer_init(layer, w_scale=1.0):
+    for name, param in layer._parameters.items():
+        if param is None or param.data is None: continue
+        if 'bias' in name:
+            #layer._parameters[name].data.fill_(0.1)
+            #layer._parameters[name].data.uniform_(-0.08,0.08)
+            nn.init.constant_(layer._parameters[name].data, 0)
+        else:
+            '''
+            nn.init.orthogonal_(layer._parameters[name].data)
+            layer._parameters[name].data.mul_(w_scale)
+            '''
+            
+            # Xavier Normal init:
+            #nn.init.xavier_normal_(layer._parameters[name].data, gain=w_scale)
+            
+            # Xavier Uniform init:
+            nn.init.xavier_uniform_(layer._parameters[name].data)#, gain=nn.init.calculate_gain("relu"))
+            
+            '''
+            
+            # Uniform init:
+            layer._parameters[name].data.uniform_(-0.1,0.1)
+            layer._parameters[name].data.mul_(w_scale)
+            '''
+            
+            # uniform fan_in:
+            #nn.init.kaiming_uniform_(layer._parameters[name], mode="fan_in", nonlinearity='relu')
+
+            '''
+            if len(layer._parameters[name].size()) > 1:
+                #nn.init.kaiming_normal_(layer._parameters[name], mode="fan_out", nonlinearity='leaky_relu')
+                nn.init.orthogonal_(layer._parameters[name].data)
+                layer._parameters[name].data.mul_(w_scale)
+            '''
+    return layer
+
+def layer_init_lstm(layer, w_scale=1.0):
+    nn.init.orthogonal_(layer.weight_ih.data)
+    nn.init.orthogonal_(layer.weight_hh.data)
+    layer.weight_ih.data.mul_(w_scale)
+    layer.weight_hh.data.mul_(w_scale)
+    nn.init.constant_(layer.bias_ih.data, 0)
+    nn.init.constant_(layer.bias_hh.data, 0)
+    return layer
+
+def layer_init_gru(layer, w_scale=1.0):
+    nn.init.orthogonal_(layer.weight_ih.data)
+    nn.init.orthogonal_(layer.weight_hh.data)
+    layer.weight_ih.data.mul_(w_scale)
+    layer.weight_hh.data.mul_(w_scale)
+    nn.init.constant_(layer.bias_ih.data, 0)
+    nn.init.constant_(layer.bias_hh.data, 0)
+    return layer
+
+def huber(x, k=1.0):
+    return torch.where(x.abs() < k, 0.5 * x.pow(2), k * (x.abs() - 0.5 * k))
+
+def sync_grad(target_network, src_network):
+    for param, src_param in zip(target_network.parameters(), src_network.parameters()):
+        param._grad = src_param.grad.clone()
+
 def PreprocessFunctionConcatenate(x, use_cuda=False):
     x = np.concatenate(x, axis=None)
     if use_cuda:
         return torch.from_numpy(x).unsqueeze(0).type(torch.cuda.FloatTensor)
     return torch.from_numpy(x).unsqueeze(0).type(torch.FloatTensor)
 
-def PreprocessFunction(x, use_cuda=False):
+def PreprocessFunction(x, use_cuda=False, normalization=True):
+    if normalization:
+        x = x/255.0
     if use_cuda:
         return torch.from_numpy(x).type(torch.cuda.FloatTensor)
     else:

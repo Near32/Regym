@@ -1,11 +1,13 @@
-import numpy as np
-import gym
-import cv2 
-
-from collections import deque, OrderedDict
+import os
 import copy
-
 from functools import partial 
+from collections import deque, OrderedDict
+
+import cv2 
+import numpy as np
+
+import gym
+from gym.wrappers import TimeLimit
 
 import logging
 import coloredlogs
@@ -456,19 +458,24 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(env, size, skip=4, stack=4, grayscale=True,  single_life_episode=True, nbr_max_random_steps=30, clip_reward=True):
+def baseline_atari_pixelwrap(env, size=None, skip=4, stack=4, grayscale=True,  single_life_episode=True, nbr_max_random_steps=30, clip_reward=True):
     if grayscale:
         env = GrayScaleObservation(env=env) 
     
     if nbr_max_random_steps > 0:
         env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
-    env = MaxAndSkipEnv(env, skip=skip)
     
-    env = FrameResizeWrapper(env, size=size) 
+    if skip > 0:
+        env = MaxAndSkipEnv(env, skip=skip)
+    
+    if size is not None and isinstance(size, int):
+        env = FrameResizeWrapper(env, size=size) 
     
     if single_life_episode:
         env = EpisodicLifeEnv(env)
-    env = FrameStack(env, stack=stack)
+    
+    if stack > 1:
+        env = FrameStack(env, stack=stack)
     
     if clip_reward:
         env = ClipRewardEnv(env)
@@ -1314,6 +1321,35 @@ class ContinuingTimeLimit(gym.Wrapper):
         return self.env.reset()
 
 
+
+class FailureEndingTimeLimit(gym.Wrapper):
+    """TimeLimit wrapper for failure-ending environments.
+
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+
+    def __init__(self, env):
+        super(FailureEndingTimeLimit, self).__init__(env)
+        self._elapsed_steps = None
+
+    def step(self, action):
+        assert self._elapsed_steps is not None,\
+            "Cannot call env.step() before calling reset()."
+        observation, reward, done, info = self.env.step(action)
+        self._elapsed_steps += 1
+
+        if self._elapsed_steps >= self.env._max_episode_steps:
+            done = False
+            self.reset()
+
+        return observation, reward, done, info
+
+    def reset(self):
+        self._elapsed_steps = 0
+        return self.env.reset()
+
+
 '''
 Adapted from:
 https://github.com/minerllabs/baselines/blob/master/general/chainerrl/baselines/env_wrappers.py
@@ -1425,4 +1461,187 @@ def minerl_wrap_env(env,
     elif action_wrapper == 'SerialDiscreteInterface':
         env = wrap_env_serial_discrete_interface(env=env)
     
+    return env
+
+
+
+class TextualGoal2IdxWrapper(gym.ObservationWrapper):
+    """
+    """
+    def __init__(self, 
+                 env, 
+                 max_sentence_length=32, 
+                 vocabulary=None, 
+                 observation_keys_mapping={'mission':'desired_goal'}):
+        gym.ObservationWrapper.__init__(self, env)
+        self.max_sentence_length = max_sentence_length
+        self.observation_keys_mapping = observation_keys_mapping
+
+        if vocabulary is None:
+            vocabulary = set('key ball red green blue purple \
+            yellow grey verydark dark neutral light verylight \
+            tiny small medium large giant get go fetch go get \
+            a fetch a you must fetch a'.split(' '))
+        self.vocabulary = set([w.lower() for w in vocabulary])
+
+        # Make padding_idx=0:
+        self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
+
+        self.w2idx = {}
+        self.idx2w = {}
+        for idx, w in enumerate(self.vocabulary):
+            self.w2idx[w] = idx
+            self.idx2w[idx] = w 
+        
+        self.observation_space = env.observation_space
+        
+        for obs_key, map_key in self.observation_keys_mapping.items():
+            self.observation_space.spaces[map_key] = gym.spaces.MultiDiscrete([len(self.vocabulary)]*self.max_sentence_length)
+        
+    def observation(self, observation):
+        for obs_key, map_key in self.observation_keys_mapping.items():
+            t_goal = [w.lower() for w in observation[obs_key].split(' ')]
+            for w in t_goal:
+                if w not in self.vocabulary:
+                    raise NotImplementedError
+                    self.vocabulary.append(w)
+                    self.w2idx[w] = len(self.vocabulary)-1
+                    self.idx2w[len(self.vocabulary)-1] = w 
+            
+            idx_goal = self.w2idx['PAD']*np.ones(shape=(self.max_sentence_length), dtype=np.long)
+            final_idx = min(self.max_sentence_length, len(t_goal))
+            for idx in range(final_idx):
+                idx_goal[idx] = self.w2idx[t_goal[idx]]
+            # Add 'EoS' token:
+            idx_goal[final_idx] = self.w2idx['EoS']
+            #padded_idx_goal = nn.utils.rnn.pad_sequence(idx_goal, padding_value=self.w2idx["PAD"])
+            #observation[map_key] = padded_idx_goal
+            
+            observation[map_key] = idx_goal
+            
+        return observation
+
+class DictObservationSpaceReMapping(gym.ObservationWrapper):
+    def __init__(self, env, remapping={'image':'observation'}):
+        gym.ObservationWrapper.__init__(self, env)
+        self.remapping = remapping
+
+        for obs_key, map_key in self.remapping.items():
+            self.observation_space.spaces[map_key] = self.observation_space.spaces[obs_key]
+            del self.observation_space.spaces[obs_key]
+
+    def observation(self, observation):
+        for obs_key, map_key in self.remapping.items():
+            observation[map_key] = observation[obs_key]
+            del observation[obs_key]
+        return observation
+
+
+class DictFrameStack(gym.Wrapper):
+    def __init__(self, env, stack=4, keys=[]):
+        gym.Wrapper.__init__(self,env)
+        self.stack = stack if stack is not None else 1
+        
+        self.keys = keys
+        self.observations = {}
+        for k in self.keys:
+            self.observations[k] = deque([], maxlen=self.stack)
+            assert(isinstance(self.env.observation_space.spaces[k], gym.spaces.Box))
+        
+            low_obs_space = np.repeat(self.env.observation_space.spaces[k].low, self.stack, axis=-1)
+            high_obs_space = np.repeat(self.env.observation_space.spaces[k].high, self.stack, axis=-1)
+            self.observation_space.spaces[k] = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.spaces[k].dtype)
+
+    def _get_obs(self, observation):
+        for k in self.keys:
+            observation[k] = LazyFrames(list(self.observations[k]))
+        return observation
+    
+    def reset(self, **args):
+        obs = self.env.reset()
+        for k in self.keys:
+            for _ in range(self.stack):
+                self.observations[k].append(obs[k])
+        return self._get_obs(obs)
+    
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        for k in self.keys:
+            self.observations[k].append(obs[k])        
+        return self._get_obs(obs), reward, done, info
+
+class PeriodicVideoRecorderWrapper(gym.Wrapper):
+    def __init__(self, env, base_dirpath, video_recording_episode_period=1):
+        gym.Wrapper.__init__(self, env)
+
+        self.episode_idx = 0
+        self.base_dirpath = base_dirpath
+        os.makedirs(self.base_dirpath, exist_ok=True)
+        self.video_recording_episode_period = video_recording_episode_period
+        
+        self.is_video_enabled = True
+        self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
+
+    def _init_video_recorder(self, env, path):
+        self.video_recorder = gym.wrappers.monitoring.video_recorder.VideoRecorder(env=env, path=path, enabled=True)
+
+    def reset(self, **args):
+        self.episode_idx += 1
+
+        if self.episode_idx % self.video_recording_episode_period == 0:
+            path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
+            self._init_video_recorder(env=self.env, path=path) 
+            self.is_video_enabled = True
+        else:
+            if self.is_video_enabled:
+                self.video_recorder.close()
+                del self.video_recorder
+                self.is_video_enabled = False
+
+        return super(PeriodicVideoRecorderWrapper, self).reset()
+
+    def step(self, action):
+        if self.is_video_enabled:
+            self.video_recorder.capture_frame()
+
+        return super(PeriodicVideoRecorderWrapper, self).step(action)
+
+
+def baseline_ther_wrapper(env, 
+                          size=None, 
+                          skip=0, 
+                          stack=4, 
+                          single_life_episode=False, 
+                          nbr_max_random_steps=0, 
+                          clip_reward=False,
+                          max_sentence_length=32,
+                          vocabulary=None,
+                          time_limit=40):
+    
+    env = TimeLimit(env, max_episode_steps=time_limit)
+
+    if nbr_max_random_steps > 0:
+        env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
+    
+    if skip > 0:
+        env = MaxAndSkipEnv(env, skip=skip)
+    
+    if size is not None and 'None' not in size:
+        env = FrameResizeWrapper(env, size=size) 
+    
+    if single_life_episode:
+        env = EpisodicLifeEnv(env)
+    
+    if stack > 1:
+        env = DictFrameStack(env, stack=stack, keys=['image'])
+    
+    if clip_reward:
+        env = ClipRewardEnv(env)
+
+    env = TextualGoal2IdxWrapper(env=env,
+                                 max_sentence_length=max_sentence_length,
+                                 vocabulary=vocabulary)
+
+    env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
+
     return env
