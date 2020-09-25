@@ -6,9 +6,16 @@ import gym
 
 def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env):
     '''
-    Feeds agent the experiences coming from the :param: minerl_trajectory_env.
-    No actions are requested from the agent, as all observations, rewards and
-    actions are stored in the trajectory underlying :param: minerl_trajectory_env
+    Feeds :param: agent a sequence of experiences coming from
+    :param: minerl_trajectory_env.
+
+    The agent is requested to take actions, but these are ignored by
+    the underlying environment. This is because as all observations,
+    rewards and actions are stored in the trajectory
+    underlying :param: minerl_trajectory_env.
+
+    :param agent: Ideally R2D2 agent. Off-policy agent.
+    :param minerl_trajectory_env: Environment that's going to be fed to agent
     '''
     original_nbr_actor = agent.nbr_actor
     agent.nbr_actor = 1  # During this fake trajectory, we only want 1 actor
@@ -19,10 +26,11 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env):
         # With r2d2, we explicitly need to have 'extra_inputs' in frame (rnn) state
         agent.rnn_states['phi_body']['extra_inputs'] = {}
 
-        # Taking an action is mandatory to propagate rnn_states
-        agent.take_action(np.expand_dims(obs, 0))
+        # Taking an action is mandatory to propagate rnn_states, even if
+        # action is ignored
+        _ = agent.take_action(np.expand_dims(obs, 0))
 
-        succ_obs, reward, done, info = env.step('YaraYara')
+        succ_obs, reward, done, info = env.step(action=None)
         agent.handle_experience(np.expand_dims(obs, 0),
                                 np.expand_dims(info['a'], 0),
                                 np.expand_dims(reward, 0),
