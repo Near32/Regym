@@ -1725,7 +1725,6 @@ class MineRLObservationSplitFrameSkipWrapper(gym.Wrapper):
         return obs['pov']
     
     def step(self,action):
-        print("Wrapper : {}".format(action))
         total_reward = 0.0
         for _ in range(self.skip):
             obs, reward, done, info = self.env.step(action)

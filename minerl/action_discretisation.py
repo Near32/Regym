@@ -1,77 +1,115 @@
-from typing import List, Tuple
-
 import minerl
 import numpy as np
 
-def get_key_actions(env: str,path: str) -> Tuple[np.ndarray, List[str]]:
+def get_good_demo_names(env:str,path:str,score_percent:float) -> np.ndarray:
     '''
     :param env: Name of the environment
     :param path: Extra path in case we don't want default value
+    :param score_percent: Percent of max score required to be considered a good demo
 
     :returns:
-        - key_actions: Numpy array of actions. Actions that always happen
-                       that affect agent's inventory, as seen on demonstrations.
-                       (i.e crafting actions)
-        - Name of good trajectories
+        - good_demos: Numpy array of trajectories names that get reward requirement 
     '''
-    
-    score_percent = 0.9
-    agreement_percent = 0.2
     
     data = minerl.data.make(env,path)
     
     traj_names = np.array(data.get_trajectory_names())
-    data_dict = {}
+    
     demo_rewards = []
     
     for i in range(len(traj_names)):
-        reward = 0.0
-        tmp_actions = []
-        tmp_s = []
-        tmp_ns = []
-        for s,a,r,ns,d in data.load_data(traj_names[i]):
-            reward = reward + r
-            tmp_actions.append(a['vector'])
-            tmp_s.append(s['vector'])
-            tmp_ns.append(ns['vector'])
-        actions = []
-        _,indexs = np.unique(np.array(tmp_actions),return_index=True,axis=0)
-        for t in range(len(tmp_actions)):
-            if not(np.all(tmp_s[t] == tmp_ns[t])) and t in indexs:
-                actions.append(tmp_actions[t])
-        demo_rewards.append(reward)
-        data_dict[traj_names[i]] = actions
-        
+        total_reward = 0.0
+        for _,_,r,_,_ in data.load_data(traj_names[i]):
+            total_reward = total_reward + r
+        demo_rewards.append(total_reward)
+    
     demo_rewards = np.array(demo_rewards)
-    
     min_score = score_percent * np.max(demo_rewards)
-    
     good_demos = traj_names[demo_rewards > min_score]
-    traj_num = len(good_demos)
-    
-    actions = data_dict[good_demos[0]]
-    
-    for i in range(1,len(good_demos)):
-        actions = np.concatenate((actions,data_dict[good_demos[i]]),axis=0)
-    
-    unique_actions,counts = np.unique(actions,axis=0,return_counts=True)
-    
-    min_agreement = agreement_percent * traj_num
-    
-    key_actions = unique_actions[counts > min_agreement]
-    
-    return key_actions,good_demos
 
-def get_good_demo_kmeans_clustering(env,path,demo_names,n_clusters):
+    return good_demos
+
+def get_inventory_actions(env:str,path:str,trajectory_names:np.ndarray,agreement_percent:float) -> np.ndarray:
+    '''
+    :param env: Name of the environment
+    :param path: Extra path in case we don't want default value
+    :param trajectory_names: Numpy array of trajectories names to use
+    :param agreement_percent: Percent of trajectories that need to contain an action for it to be considered key
+
+    :returns:
+        - key_inventory_actions: Numpy array of actions that affect the inventory and occur across X% of trajectories 
+    '''
+    
+    data = minerl.data.make(env,path)
+    
+    inventory_actions = []
+    
+    for j in range(len(trajectory_names)):
+        tmp_actions = []
+        inventory_change = []
+        for s,a,_,ns,_ in data.load_data(trajectory_names[j]):
+            tmp_actions.append(a['vector'])
+            inventory_change.append(not(np.all(s['vector'] == ns['vector'])))
+        _,indexs = np.unique(np.array(tmp_actions),return_index=True,axis=0)
+        for i in range(len(tmp_actions)):
+            if inventory_change[i] and i in indexs:
+                inventory_actions.append(tmp_actions[i])
+
+    min_agreement = agreement_percent * len(trajectory_names)
+    inventory_actions = np.array(inventory_actions)
+    
+    unique_inventory_actions,counts = np.unique(inventory_actions,axis=0,return_counts=True)
+    
+    key_inventory_actions = unique_inventory_actions[counts > min_agreement]
+    
+    return key_inventory_actions
+
+def get_kmeans_actions(env:str,path:str,trajectory_names:np.ndarray,n_clusters:int) -> np.ndarray:
+    '''
+    :param env: Name of the environment
+    :param path: Extra path in case we don't want default value
+    :param trajectory_names: Numpy array of trajectories names to use
+    :param n_clusters: Number of clusters/actions to find
+
+    :returns:
+        - kmeans_actions: Numpy array of actions found by kmeans
+    '''
+    
     data = minerl.data.make(env,path)
     actions = []
-    for i in range(len(demo_names)):
-        for _,act,_,_,_ in data.load_data(demo_names[i]):
-            actions.append(act['vector'])
+    for i in range(len(trajectory_names)):
+        for _,a,_,_,_ in data.load_data(trajectory_names[i]):
+            actions.append(a['vector'])
     
     actions = np.array(actions)
     kmeans = KMeans(n_clusters=n_clusters, random_state=0).fit(actions)
-    return kmeans.cluster_centers_
+    kmeans_actions = kmeans.cluster_centers_
+    
+    return kmeans_actions
+    
+def get_action_set(env:str,path:str,n_clusters:int,score_percent:float=0.9,agreement_percent:float=0.2) -> np.ndarray:
+    '''
+    :param env: Name of the environment
+    :param path: Extra path in case we don't want default value
+    :param n_clusters: Number of clusters/actions to find
+    :param score_percent: Percent of max score required to be considered a good demo
+    :param agreement_percent: Percent of trajectories that need to contain an action for it to be considered key
+    
+
+    :returns:
+        - actions_set: Numpy array of actions found by kmeans and inventory actions
+    '''
+
+    good_demos = get_good_demo_names(env,path,score_percent)
+    inventory_actions = get_inventory_actions(env,path,good_demos,agreement_percent)
+    kmeans_actions = get_kmeans_actions(env,path,good_demos,n_clusters)
+    
+    if len(inventory_actions) > 0:
+        action_set = np.concatenate((kmeans_actions,inventory_actions),axis=0)
+    else:
+        action_set = kmeans_actions
+    
+    return action_set
 
 def generate_action_parser(action_set):
     
