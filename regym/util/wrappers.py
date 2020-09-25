@@ -1692,3 +1692,60 @@ def baseline_ther_wrapper(env,
     env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
 
     return env
+
+class DiscreteActionWrapper(gym.ActionWrapper):
+    '''
+    Given an actions set
+    Convert continuous action to nearest discrete action
+    '''
+    def __init__(self,env,action_set,key_name=None):
+        super().__init__(env)
+        self.action_set = action_set
+        self.key_name = key_name
+        self.action_space = gym.spaces.Discrete(len(action_set))
+        
+    def action(self,action):
+        if self.key_name == None:
+            return self.action_set[action]
+        else:
+            return {self.key_name: self.action_set[action]}
+
+class MineRLObservationSplitFrameSkipWrapper(gym.Wrapper):
+    """
+    Split state dictionary into pov and inventory
+    Repeat action for n steps
+    """
+    def __init__(self,env,skip=4):
+        gym.Wrapper.__init__(self,env)
+        self.observation_space = gym.spaces.Box(low=0.0, high=255.0, shape=(64,64,3), dtype=np.float32)
+        self.skip = skip
+    
+    def reset(self,**args):
+        obs = self.env.reset()
+        return obs['pov']
+    
+    def step(self,action):
+        print("Wrapper : {}".format(action))
+        total_reward = 0.0
+        for _ in range(self.skip):
+            obs, reward, done, info = self.env.step(action)
+            total_reward += reward
+            if done:break
+        info['inventory'] = obs['vector']
+        return obs['pov'],total_reward,done,info
+
+def minerl2020_wrap_env(env,action_set,skip=None):
+    '''
+    Add all wrappers need for minerl 2020
+    '''
+    if isinstance(env,gym.wrappers.TimeLimit):
+        env = env.env
+        max_episode_steps = env.spec.max_episode_steps
+        env = ContinuingTimeLimit(env,max_episode_steps=max_episode_steps)
+    
+    if skip is not None:
+        env = MineRLObservationSplitFrameSkipWrapper(env=env,skip=skip)
+        
+    env = DiscreteActionWrapper(env,action_set,'vector')
+    
+    return env
