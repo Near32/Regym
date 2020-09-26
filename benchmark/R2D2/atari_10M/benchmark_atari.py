@@ -3,6 +3,8 @@ import yaml
 import os
 import sys
 from typing import Dict
+
+import torch.multiprocessing
 from tensorboardX import GlobalSummaryWriter
 from tqdm import tqdm
 from functools import partial
@@ -134,7 +136,7 @@ def training_process(agent_config: Dict,
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
-    sum_writer = GlobalSummaryWriter(base_path)
+    sum_writer = None # GlobalSummaryWriter(base_path)
     save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     agent, offset_episode_count = check_path_for_agent(save_path)
     if agent is None: 
@@ -195,9 +197,14 @@ def main():
 
 if __name__ == '__main__':
   async = False 
+  __spec__ = None
   if len(sys.argv) > 2:
       async = any(['async' in arg for arg in sys.argv])
   if async:
       torch.multiprocessing.freeze_support()
-      torch.multiprocessing.set_start_method("spawn", force=True)
+      torch.multiprocessing.set_start_method("forkserver", force=True)
+
+      from torch.multiprocessing import Manager
+      regym.RegymManager = Manager()
+
   main()

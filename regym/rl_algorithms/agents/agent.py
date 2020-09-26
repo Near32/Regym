@@ -3,11 +3,8 @@ import torch
 import numpy as np
 
 from functools import partial
+import regym
 from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
-
-from torch.multiprocessing import Manager 
-
-AgentManager = Manager()
 
 
 def named_children(cm):
@@ -34,7 +31,7 @@ class Agent(object):
         self.async_actor = False
         self.async_learner = False 
 
-        self.handled_experiences = AgentManager.Value(int, 0)
+        self.handled_experiences = regym.RegymManager.Value(int, 0)
         self.save_path = None
         self.episode_count = 0
 

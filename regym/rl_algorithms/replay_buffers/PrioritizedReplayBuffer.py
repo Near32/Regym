@@ -1,9 +1,7 @@
 import numpy as np
 from .experience import EXP
 from .ReplayBuffer import ReplayStorage
-
-from torch.multiprocessing import Manager
-PrioritizedReplayBufferManager = Manager()
+import regym
 
 
 class PrioritizedReplayBuffer:
@@ -343,7 +341,7 @@ class PrioritizedReplayStorage(ReplayStorage):
             circular_offsets=circular_offsets
         )
 
-        self.length = 0
+        self.length = regym.RegymManager.Value(int, 0)
         self.alpha = alpha
         self.beta_start = beta
         self.beta_increase_interval = beta_increase_interval
@@ -357,19 +355,19 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.tree = np.zeros(2 * int(self.capacity) - 1)
         self.max_priority = np.ones(1, dtype=np.float32)
         """
-        self.tree = PrioritizedReplayBufferManager.list(range(2 * int(self.capacity) - 1))
-        self.max_priority = PrioritizedReplayBufferManager.Value(float, 1.0)
+        self.tree = regym.RegymManager.list([ 0 for _ in range(2 * int(self.capacity) - 1)])
+        self.max_priority = regym.RegymManager.Value(float, 1.0)
         self.sumPi_alpha = 0.0
         
     def _update_beta(self, iteration=None):
-        if iteration is None:   iteration = self.length
+        if iteration is None:   iteration = self.length.value
         self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
 
     def total(self):
         return self.tree[0]
 
     def __len__(self):
-        return self.length
+        return self.length.value
 
     def priority(self, error) :
         return (error+self.epsilon)**self.alpha
@@ -384,8 +382,7 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def update(self, idx, priority):
         if np.isnan(priority).any() or np.isinf(priority).any():
-            with self.max_priority.get_lock():
-                priority = self.max_priority.value
+            priority = self.max_priority.value
 
         change = priority - self.tree[idx]
 
@@ -395,8 +392,7 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.sumPi_alpha += priority
         self.tree[idx] = priority
 
-        with self.max_priority.get_lock():
-            self.max_priority.value = max(priority, self.max_priority.value)
+        self.max_priority.value = max(priority, self.max_priority.value)
 
         self._propagate(idx,change)
 
@@ -410,15 +406,13 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def add(self, exp, priority):
         if priority is None:
-            with self.max_priority.get_lock():
-                priority = self.max_priority.value
+            priority = self.max_priority.value
 
         super(PrioritizedReplayStorage, self).add(data=exp)
-        self.length = min(self.length+1, self.capacity)
+        self.length.value = min(self.length.value+1, self.capacity)
 
         if np.isnan(priority).any() or np.isinf(priority).any() :
-            with self.max_priority.get_lock():
-                priority = self.max_priority.value
+            priority = self.max_priority.value
 
         self.sumPi_alpha += priority
 

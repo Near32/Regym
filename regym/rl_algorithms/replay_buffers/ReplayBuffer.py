@@ -1,8 +1,7 @@
 import numpy as np
 import random
-from torch.multiprocessing import Manager 
+import regym
 
-ReplayBufferManager = Manager()
 
 class ReplayBuffer():
     def __init__(self, capacity):
@@ -52,9 +51,9 @@ class ReplayStorage():
         self.position = dict()
         self.current_size = dict()
         """
-        self.position = ReplayBufferManager.dict()
-        self.current_size = ReplayBufferManager.dict()
-        
+        self.position = regym.RegymManager.dict()
+        self.current_size = regym.RegymManager.dict()
+
         self.reset()
 
     def add_key(self, key):

@@ -111,8 +111,8 @@ class DQNAgent(Agent):
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
-            with self.handled_experiences.get_lock():
-                self.handled_experiences.value +=1
+            #with self.handled_experiences.get_lock():
+            self.handled_experiences.value +=1
 
         if len(done_actors_among_notdone):
             # Regularization of the agents' actors:

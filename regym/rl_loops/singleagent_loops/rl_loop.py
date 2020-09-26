@@ -157,33 +157,35 @@ def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_sa
 
     update_count = agent.get_update_count()
 
-    for idx, (ext_ret, int_ret) in enumerate(zip(total_return, total_int_return)):
-        sum_writer.add_scalar('PerObservation/Testing/TotalReturn', ext_ret, iteration*len(trajectory)+idx)
-        sum_writer.add_scalar('PerObservation/Testing/TotalIntReturn', int_ret, iteration*len(trajectory)+idx)
-        sum_writer.add_scalar('PerUpdate/Testing/TotalReturn', ext_ret, update_count)
-        sum_writer.add_scalar('PerUpdate/Testing/TotalIntReturn', int_ret, update_count)
+    if sum_writer is not None:
+        for idx, (ext_ret, int_ret) in enumerate(zip(total_return, total_int_return)):
+            sum_writer.add_scalar('PerObservation/Testing/TotalReturn', ext_ret, iteration*len(trajectory)+idx)
+            sum_writer.add_scalar('PerObservation/Testing/TotalIntReturn', int_ret, iteration*len(trajectory)+idx)
+            sum_writer.add_scalar('PerUpdate/Testing/TotalReturn', ext_ret, update_count)
+            sum_writer.add_scalar('PerUpdate/Testing/TotalIntReturn', int_ret, update_count)
 
-    sum_writer.add_scalar('PerObservation/Testing/StdIntReturn', std_int_return, iteration)
-    sum_writer.add_scalar('PerObservation/Testing/StdExtReturn', std_ext_return, iteration)
+        sum_writer.add_scalar('PerObservation/Testing/StdIntReturn', std_int_return, iteration)
+        sum_writer.add_scalar('PerObservation/Testing/StdExtReturn', std_ext_return, iteration)
 
-    sum_writer.add_scalar('PerUpdate/Testing/StdIntReturn', std_int_return, update_count)
-    sum_writer.add_scalar('PerUpdate/Testing/StdExtReturn', std_ext_return, update_count)
+        sum_writer.add_scalar('PerUpdate/Testing/StdIntReturn', std_int_return, update_count)
+        sum_writer.add_scalar('PerUpdate/Testing/StdExtReturn', std_ext_return, update_count)
 
     episode_lengths = [ len(t) for t in trajectory]
     mean_episode_length = sum( episode_lengths) / len(trajectory)
     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in episode_lengths]) / len(trajectory) )
 
-    sum_writer.add_scalar('PerObservation/Testing/MeanTotalReturn', mean_total_return, iteration)
-    sum_writer.add_scalar('PerObservation/Testing/MeanTotalIntReturn', mean_total_int_return, iteration)
+    if sum_writer is not None:
+        sum_writer.add_scalar('PerObservation/Testing/MeanTotalReturn', mean_total_return, iteration)
+        sum_writer.add_scalar('PerObservation/Testing/MeanTotalIntReturn', mean_total_int_return, iteration)
 
-    sum_writer.add_scalar('PerUpdate/Testing/MeanTotalReturn', mean_total_return, update_count)
-    sum_writer.add_scalar('PerUpdate/Testing/MeanTotalIntReturn', mean_total_int_return, update_count)
+        sum_writer.add_scalar('PerUpdate/Testing/MeanTotalReturn', mean_total_return, update_count)
+        sum_writer.add_scalar('PerUpdate/Testing/MeanTotalIntReturn', mean_total_int_return, update_count)
 
-    sum_writer.add_scalar('PerObservation/Testing/MeanEpisodeLength', mean_episode_length, iteration)
-    sum_writer.add_scalar('PerObservation/Testing/StdEpisodeLength', std_episode_length, iteration)
+        sum_writer.add_scalar('PerObservation/Testing/MeanEpisodeLength', mean_episode_length, iteration)
+        sum_writer.add_scalar('PerObservation/Testing/StdEpisodeLength', std_episode_length, iteration)
 
-    sum_writer.add_scalar('PerUpdate/Testing/MeanEpisodeLength', mean_episode_length, update_count)
-    sum_writer.add_scalar('PerUpdate/Testing/StdEpisodeLength', std_episode_length, update_count)
+        sum_writer.add_scalar('PerUpdate/Testing/MeanEpisodeLength', mean_episode_length, update_count)
+        sum_writer.add_scalar('PerUpdate/Testing/StdEpisodeLength', std_episode_length, update_count)
 
     if save_traj:
         for actor_idx in range(nbr_save_traj):
@@ -298,7 +300,6 @@ def gather_experience_parallel(task,
     pbar = tqdm(total=max_obs_count)
 
     while True:
-        ForkedPdb().set_trace()
         action = agent.take_action(observations)
         succ_observations, reward, done, info = env.step(action)
 
@@ -313,7 +314,7 @@ def gather_experience_parallel(task,
         for actor_index in range(nbr_actors):
             obs_count += 1
             pbar.update(1)
-
+            
             for hook in step_hooks:
                 hook(env, agent, obs_count)
 
@@ -334,15 +335,16 @@ def gather_experience_parallel(task,
                 total_int_returns.append(sum([ exp[3] for exp in trajectories[-1]]))
                 episode_lengths.append(len(trajectories[-1]))
 
-                sum_writer.add_scalar('Training/TotalReturn', total_returns[-1], episode_count)
-                sum_writer.add_scalar('PerObservation/TotalReturn', total_returns[-1], obs_count)
-                sum_writer.add_scalar('PerUpdate/TotalReturn', total_returns[-1], update_count)
-                if actor_index == 0:
-                    sample_episode_count += 1
-                    sum_writer.add_scalar('data/reward', total_returns[-1], sample_episode_count)
-                    sum_writer.add_scalar('PerObservation/Actor0Reward', total_returns[-1], obs_count)
-                    sum_writer.add_scalar('PerUpdate/Actor0Reward', total_returns[-1], update_count)
-                sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
+                if sum_writer is not None:
+                    sum_writer.add_scalar('Training/TotalReturn', total_returns[-1], episode_count)
+                    sum_writer.add_scalar('PerObservation/TotalReturn', total_returns[-1], obs_count)
+                    sum_writer.add_scalar('PerUpdate/TotalReturn', total_returns[-1], update_count)
+                    if actor_index == 0:
+                        sample_episode_count += 1
+                        sum_writer.add_scalar('data/reward', total_returns[-1], sample_episode_count)
+                        sum_writer.add_scalar('PerObservation/Actor0Reward', total_returns[-1], obs_count)
+                        sum_writer.add_scalar('PerUpdate/Actor0Reward', total_returns[-1], update_count)
+                    sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
 
                 if len(trajectories) >= nbr_actors:
                     mean_total_return = sum( total_returns) / len(trajectories)
@@ -352,20 +354,21 @@ def gather_experience_parallel(task,
                     mean_episode_length = sum( episode_lengths) / len(trajectories)
                     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in episode_lengths]) / len(episode_lengths) )
 
-                    sum_writer.add_scalar('Training/StdIntReturn', std_int_return, episode_count // nbr_actors)
-                    sum_writer.add_scalar('Training/StdExtReturn', std_ext_return, episode_count // nbr_actors)
+                    if sum_writer is not None:
+                        sum_writer.add_scalar('Training/StdIntReturn', std_int_return, episode_count // nbr_actors)
+                        sum_writer.add_scalar('Training/StdExtReturn', std_ext_return, episode_count // nbr_actors)
 
-                    sum_writer.add_scalar('Training/MeanTotalReturn', mean_total_return, episode_count // nbr_actors)
-                    sum_writer.add_scalar('PerObservation/MeanTotalReturn', mean_total_return, obs_count)
-                    sum_writer.add_scalar('PerUpdate/MeanTotalReturn', mean_total_return, update_count)
-                    sum_writer.add_scalar('Training/MeanTotalIntReturn', mean_total_int_return, episode_count // nbr_actors)
+                        sum_writer.add_scalar('Training/MeanTotalReturn', mean_total_return, episode_count // nbr_actors)
+                        sum_writer.add_scalar('PerObservation/MeanTotalReturn', mean_total_return, obs_count)
+                        sum_writer.add_scalar('PerUpdate/MeanTotalReturn', mean_total_return, update_count)
+                        sum_writer.add_scalar('Training/MeanTotalIntReturn', mean_total_int_return, episode_count // nbr_actors)
 
-                    sum_writer.add_scalar('Training/MeanEpisodeLength', mean_episode_length, episode_count // nbr_actors)
-                    sum_writer.add_scalar('PerObservation/MeanEpisodeLength', mean_episode_length, obs_count)
-                    sum_writer.add_scalar('PerUpdate/MeanEpisodeLength', mean_episode_length, update_count)
-                    sum_writer.add_scalar('Training/StdEpisodeLength', std_episode_length, episode_count // nbr_actors)
-                    sum_writer.add_scalar('PerObservation/StdEpisodeLength', std_episode_length, obs_count)
-                    sum_writer.add_scalar('PerUpdate/StdEpisodeLength', std_episode_length, update_count)
+                        sum_writer.add_scalar('Training/MeanEpisodeLength', mean_episode_length, episode_count // nbr_actors)
+                        sum_writer.add_scalar('PerObservation/MeanEpisodeLength', mean_episode_length, obs_count)
+                        sum_writer.add_scalar('PerUpdate/MeanEpisodeLength', mean_episode_length, update_count)
+                        sum_writer.add_scalar('Training/StdEpisodeLength', std_episode_length, episode_count // nbr_actors)
+                        sum_writer.add_scalar('PerObservation/StdEpisodeLength', std_episode_length, obs_count)
+                        sum_writer.add_scalar('PerUpdate/StdEpisodeLength', std_episode_length, update_count)
 
                     # reset :
                     trajectories = list()

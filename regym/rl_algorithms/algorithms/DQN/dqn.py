@@ -300,6 +300,7 @@ class DQNAlgorithm(Algorithm):
                 else:
                     value = torch.cat(value, dim=0)
             else:
+                import ipdb; ipdb.set_trace()
                 value = value[0]
 
             fulls[key] = value
@@ -438,4 +439,18 @@ class DQNAlgorithm(Algorithm):
         return cloned_algo
 
     def async_actor(self):        
-        return self.clone(with_replay_buffer=True)
+        storages = self.storages
+        self.storages = None
+        
+        sum_writer = self.summary_writer
+        self.summary_writer = None
+        
+        cloned_algo = copy.deepcopy(self)
+        
+        self.storages = storages
+        cloned_algo.storages = storages
+
+        self.summary_writer = sum_writer
+        cloned_algo.summary_writer = sum_writer
+        
+        return cloned_algo
