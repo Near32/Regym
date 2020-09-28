@@ -1,0 +1,166 @@
+extra_hyperparameters: &extra_hyperparameters
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda_actor: 0.0 # 1e-6
+    weights_decay_lambda_critic: 0.0 # 1e-6
+    use_target_to_gather_data:    False
+    goal_oriented: False 
+    goal_state_shared_arch:  False
+    goal_state_flattening: False    #True
+    nbr_training_iteration_per_cycle: 1 # HER: 40 # R2D2 == replay_period
+    #nbr_episode_per_cycle:  16  # HER: 16 DQN needs removal.
+    HER_use_latent: False   #True
+    HER_target_clamping: False 
+
+LargeCNN: &LargeCNN 
+        #-------------------------------------------------------------------
+        # Actor Model:
+        #-------------------------------------------------------------------
+        actor_phi_arch: 'CNN'
+        actor_goal_phi_arch: 'None'
+        actor_head_arch: 'MLP'
+        
+        # Phi Body:
+        ## CNN:
+        actor_phi_arch_channels: [32, 64, 64]
+        actor_phi_arch_kernels: [8, 4, 3]
+        actor_phi_arch_strides: [4, 2, 1]
+        actor_phi_arch_paddings: [1, 1, 1]
+        actor_phi_arch_feature_dim: 512
+        actor_phi_arch_hidden_units: [512,]
+        
+        ## MLP:
+        #actor_phi_arch_hidden_units: []
+
+        # Actor head:
+        actor_head_arch_hidden_units: [256, 256,]
+        
+        #-------------------------------------------------------------------
+        # Critic Model :
+        #-------------------------------------------------------------------
+        
+        critic_phi_arch: 'CNN'
+        critic_action_phi_arch: 'None'
+        critic_goal_phi_arch: 'None'
+        critic_head_arch: 'MLP'
+        
+
+        # Phi Body:
+        ## CNN:
+        critic_phi_arch_channels: [32, 64, 64]
+        critic_phi_arch_kernels: [8, 4, 3]
+        critic_phi_arch_strides: [4, 2, 1]
+        critic_phi_arch_paddings: [1, 1, 1]
+        critic_phi_arch_feature_dim: 512
+        critic_phi_arch_hidden_units: [512,]
+        
+        ## MLP:
+        #critic_phi_arch_hidden_units: []
+
+        # Action Phi Body:
+        #MLP:
+        critic_action_phi_arch_hidden_units: []
+
+        # Critic head:
+        critic_head_arch_hidden_units: [256, 256,]
+        
+# LargeGRUCNN: &LargeGRUCNN
+#         phi_arch: 'CNN-GRU-RNN'
+#         actor_arch: 'None'
+#         critic_arch: 'None'
+        
+#         # Phi Body:
+#         phi_arch_channels: [32, 64, 64]
+#         phi_arch_kernels: [8, 4, 3]
+#         phi_arch_strides: [4, 2, 1]
+#         phi_arch_paddings: [1, 1, 1]
+#         phi_arch_feature_dim: 512
+#         phi_arch_hidden_units: [512,]
+
+#         # Actor architecture:
+#         actor_arch_hidden_units: []
+#         # Critic architecture:
+#         critic_arch_hidden_units: []
+
+
+R2D2_LargeCNN: &R2D2_LargeCNN
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        replay_period: 1 # must be similar to nbr_training_iteration_per_cycle
+
+        use_HER:    False
+        HER_strategy:   'final-1' #'future-4' #
+
+        min_capacity: 1e4
+        actor_start_delay: 1e4
+
+        # Unlike TD3, no update delay...
+        actor_update_delay: 1
+        ensemble_qnet_nbr_models: 2
+        entropy_regularization_coefficient_alpha: 0.2
+        alpha_tuning: True
+
+        observation_resize_dim: None
+        goal_resize_dim: None
+        
+        discount: 0.99
+        use_cuda: True
+        gradient_clip: 0.0 #1.0
+        batch_size: 256 #64 #32
+        tau: 5e-3
+        critic_learning_rate: 3.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
+        actor_learning_rate: 3.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
+        adam_eps: 1.0e-8
+        
+        <<: *LargeCNN
+        <<: *extra_hyperparameters
+
+
+experiment:
+    tasks: [{'env-id': 'MineRLTreechopVectorObf-v0',
+             
+             'run-id': 'Seed10_venv_sac_1actors_Sk4_St4_Obs32_Grayscale_NoScaling_Replay1p6Min1p4_ReplayPeriod1_RewardSchemeNone',
+             
+             'agent-id': '1step_PER_R2D2_LargeCNN_b64_tau1m3',
+             
+             'nbr_actor': 1,
+             'nbr_frame_skipping': 4,
+             'nbr_frame_stacking': 4,
+             'grayscale': True,
+             'scaling': False,
+             'observation_resize_dim': 32, #84,
+             'reward_scheme': 'None', #'penalizing_progressive1e4' #'penalizing_single_reward_episode'
+             },
+            ]
+    experiment_id: 'MineRL_training'
+    benchmarking_episodes: 0
+    benchmarking_interval: 1.0e4
+    benchmarking_record_episode_interval: 0
+    train_observation_budget: 8.0e6
+    pre_train_on_demonstrations: False
+    seed: 10
+
+agents:    
+    1step_PER_R2D2_LargeCNN_b64_tau1m3:
+        <<: *R2D2_LargeCNN
+        #noisy: True 
+        n_step: 1
+        use_PER: True
+        PER_alpha: 0.7
+        PER_beta: 0.4
+        #replay_period: 2    
+        batch_size: 64
+        tau: 1e-3
+        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+        # but bottleneck on GPU batchsize gives a better trade-off 
+        # batch-regularization-effect / speed with a batch_size=16 
+        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+        # and ~84 it/sec with updates...
+        # Whereas 32 / 4 yielded ~25 it/sec....
+        #nbr_training_iteration_per_cycle: 40 # HER: 40
+        #nbr_episode_per_cycle:  16  # HER: 16

@@ -287,6 +287,13 @@ def check_path_for_agent(filepath, restore=True):
   return agent, offset_episode_count
 
 
+def load_demonstrations_into_replay_buffer(agent, task_config: Dict):
+    action_set = get_action_set(task_config['env-id'],
+                               path=None,
+                               n_clusters=task_config['n_clusters'])
+    pass
+
+
 def train_and_evaluate(agent: object, 
                        task: object, 
                        sum_writer: object, 
@@ -343,18 +350,6 @@ def training_process(agent_config: Dict,
     reward_scheme=task_config['reward_scheme']
   )
 
-  '''
-  test_pixel_wrapping_fn = partial(minerl_wrap_env,
-    size=task_config['observation_resize_dim'], 
-    skip=task_config['nbr_frame_skipping'], 
-    stack=task_config['nbr_frame_stacking'],
-    scaling=task_config['scaling'],
-    observation_wrapper=task_config['observation_wrapper'],
-    action_wrapper=task_config['action_wrapper'],
-    grayscale=task_config['grayscale'],
-    reward_scheme='None'
-  )
-  '''
   test_pixel_wrapping_fn = pixel_wrapping_fn
 
   task = generate_task(
@@ -394,6 +389,11 @@ def training_process(agent_config: Dict,
     step_hooks.append(clip_hook)
     print(f"PPO Clip Ratio Decay Hooked: {clip_hook}")
   '''
+
+  agent = load_demonstrations_into_replay_buffer(agent)
+
+  if task_config['pre_train_on_demonstrations']:
+      raise NotImplementedError
 
   trained_agent = train_and_evaluate(
     agent=agent,
@@ -456,10 +456,11 @@ def training():
   return trained_agents, tasks
 
 def main():
-  os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
-  os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
-  os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
-  os.environ["CUDA_VISIBLE_DEVICES"] = "0"  
+  # Uncomment to run this on CSPGU
+  #os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+  #os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
+  #os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
+  #os.environ["CUDA_VISIBLE_DEVICES"] = "0"  
   return training()
 
 if __name__ == '__main__':
