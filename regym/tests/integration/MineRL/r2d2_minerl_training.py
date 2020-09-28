@@ -566,11 +566,15 @@ def training(config_file_path):
   return trained_agents, tasks
 
 def main(config_file_path: str):
-  # Uncomment to run this on CSPGU
-  #os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
-  #os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
-  #os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
-  #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+  on_csgpu = False 
+  if len(sys.argv) > 2:
+      on_csgpu = any(['csgpu' in arg for arg in sys.argv])
+  if on_csgpu:
+    os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+    os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
+    os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+  
   return training(config_file_path)
 
 if __name__ == '__main__':
