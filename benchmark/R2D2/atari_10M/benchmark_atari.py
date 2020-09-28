@@ -136,15 +136,19 @@ def training_process(agent_config: Dict,
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
-    sum_writer = None # GlobalSummaryWriter(base_path)
+    
+    regym.RegymSummaryWriterPath = base_path #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
+    sum_writer =  base_path
+    
     save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     agent, offset_episode_count = check_path_for_agent(save_path)
     if agent is None: 
         agent = initialize_agents(task=task,
                                   agent_configurations={task_config['agent-id']: agent_config})[0]
     agent.save_path = save_path
-    regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
-    regym.rl_algorithms.algorithms.R2D2.r2d2.summary_writer = sum_writer
+    
+    #regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
+    #regym.rl_algorithms.algorithms.R2D2.r2d2.summary_writer = sum_writer
     
     trained_agent = train_and_evaluate(agent=agent,
                        task=task,

@@ -8,3 +8,5 @@ from . import logging_server
 
 from torch.multiprocessing import Manager
 RegymManager = None
+
+RegymSummaryWriterPath = None

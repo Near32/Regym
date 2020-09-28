@@ -1,8 +1,12 @@
+import os
 import math
 import copy
 import time
 from tqdm import tqdm
 import numpy as np
+
+import regym
+from tensorboardX import SummaryWriter
 from regym.util import save_traj_with_graph
 
 from torch.multiprocessing import Process 
@@ -230,26 +234,34 @@ def async_gather_experience_parallel(
     async_actor = agent.get_async_actor()
     gathering_proc = Process(
         target=gather_experience_parallel,
-        args=(
-            task,
-            async_actor,
-            training,
-            max_obs_count,
-            test_obs_interval,
-            test_nbr_episode,
-            env_configs,
-            sum_writer,
-            base_path,
-            benchmarking_record_episode_interval,
-            step_hooks),
+        kwargs={
+            "task":task,
+            "agent":async_actor,
+            "training":training,
+            "max_obs_count":max_obs_count,
+            "test_obs_interval":test_obs_interval,
+            "test_nbr_episode":test_nbr_episode,
+            "env_configs":env_configs,
+            "sum_writer":sum_writer,
+            "base_path":base_path,
+            "benchmarking_record_episode_interval":benchmarking_record_episode_interval,
+            "step_hooks":step_hooks
+        },
     )
     gathering_proc.start()
+
+    if isinstance(sum_writer, str):
+        sum_writer_path = os.path.join(sum_writer, 'learner.log')
+        sum_writer = SummaryWriter(sum_writer_path)
+        agent.sum_writer = sum_writer
 
     pbar = tqdm(total=max_update_count, position=1)
     while gathering_proc.is_alive():
         nbr_updates = agent.train()
         if nbr_updates is None: nbr_updates = 1
         pbar.update(nbr_updates)
+
+    sum_writer.flush()
 
     return agent 
 
@@ -303,6 +315,11 @@ def gather_experience_parallel(task,
 
     pbar = tqdm(total=max_obs_count, position=0)
 
+    if isinstance(sum_writer, str):
+        sum_writer_path = os.path.join(sum_writer, 'actor.log')
+        sum_writer = SummaryWriter(sum_writer_path)
+        agent.sum_writer = sum_writer
+
     while True:
         action = agent.take_action(observations)
         succ_observations, reward, done, info = env.step(action)
@@ -349,6 +366,7 @@ def gather_experience_parallel(task,
                         sum_writer.add_scalar('PerObservation/Actor0Reward', total_returns[-1], obs_count)
                         sum_writer.add_scalar('PerUpdate/Actor0Reward', total_returns[-1], update_count)
                     sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
+                    sum_writer.flush()
 
                 if len(trajectories) >= nbr_actors:
                     mean_total_return = sum( total_returns) / len(trajectories)
@@ -373,6 +391,7 @@ def gather_experience_parallel(task,
                         sum_writer.add_scalar('Training/StdEpisodeLength', std_episode_length, episode_count // nbr_actors)
                         sum_writer.add_scalar('PerObservation/StdEpisodeLength', std_episode_length, obs_count)
                         sum_writer.add_scalar('PerUpdate/StdEpisodeLength', std_episode_length, update_count)
+                        sum_writer.flush()
 
                     # reset :
                     trajectories = list()
@@ -412,6 +431,10 @@ def gather_experience_parallel(task,
 
         if obs_count >= max_obs_count:  break
 
+
+    if sum_writer is not None:
+        sum_writer.flush()
+    
     env.close()
     test_env.close()
 
