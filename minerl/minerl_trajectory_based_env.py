@@ -1,10 +1,16 @@
 from typing import Generator, Callable
+import pickle
 
+import torch
 import numpy as np
 import gym
+import minerl
+
+from action_discretisation import get_action_set, generate_action_parser
 
 
-def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env):
+def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
+                             action_parser: Callable):
     '''
     Feeds :param: agent a sequence of experiences coming from
     :param: minerl_trajectory_env.
@@ -32,7 +38,7 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env):
 
         succ_obs, reward, done, info = env.step(action=None)
         agent.handle_experience(np.expand_dims(obs, 0),
-                                np.expand_dims(info['a'], 0),
+                                np.expand_dims(action_parser(info['a']), 0),
                                 np.expand_dims(reward, 0),
                                 np.expand_dims(succ_obs, 0),
                                 np.expand_dims(done, 0),
@@ -104,15 +110,23 @@ class MineRLTrajectoryBasedEnv(gym.Env):
 
 
 if __name__ == "__main__":
-    import minerl
-    # Preliminaries
+
+    # Env: preliminaries
     data_pipeline = minerl.data.make('MineRLTreechopVectorObf-v0')
     traj_names = data_pipeline.get_trajectory_names()
     data_iterator = data_pipeline.load_data(traj_names[0])
 
-    import torch
-    agent = torch.load('./test_agent.pt')
+    # Action set
+    action_set = pickle.load(open('treechop_action_set.pickle', 'rb'))
+    continuous_to_discrete_action_parser = generate_action_parser(action_set)
 
     # Making the env
     env = MineRLTrajectoryBasedEnv(data_iterator)
-    trajectory_based_rl_loop(agent, env)
+
+    # Agent
+    agent = torch.load('./test_agent.pt')
+    agent.algorithm.min_capacity = 10
+    agent.kwargs['min_capacity'] = 10
+
+    trajectory_based_rl_loop(agent, env,
+                             action_parser=continuous_to_discrete_action_parser)

@@ -1,6 +1,10 @@
-from typing import Callable, List, Dict
-import minerl
+from typing import Callable, List, Dict, Union
+
+from sklearn.cluster import KMeans
+from sklearn.metrics import pairwise_distances
 import numpy as np
+
+import minerl
 
 
 def get_good_demo_names(env:str,path:str,score_percent:float) -> np.ndarray:
@@ -118,8 +122,9 @@ def get_action_set(env:str,path:str,n_clusters:int,score_percent:float=0.9,agree
 
 
 def generate_action_parser(action_set) -> Callable[[Dict[str, np.ndarray]], int]:
-    def action_parser(action):
-        dis = pairwise_distances(action_set,action['vector'].reshape(1, -1))
+    def action_parser(action: Union[Dict, np.ndarray]):
+        true_action = action['vector'] if isinstance(action, dict) else action
+        dis = pairwise_distances(action_set, true_action.reshape(1, -1))
         discrete_action = np.argmin(dis)
         return discrete_action
     return action_parser
