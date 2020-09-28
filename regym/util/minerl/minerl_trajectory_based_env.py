@@ -24,6 +24,8 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
     :param agent: Ideally R2D2 agent. Off-policy agent.
     :param minerl_trajectory_env: Environment that's going to be fed to agent
     '''
+    agent.reset_actors()
+    
     obs = minerl_trajectory_env.reset()
     done = [False] * agent.nbr_actor
     while not all(done):
@@ -38,6 +40,8 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
         succ_obs, reward, done, infos = minerl_trajectory_env.step(
             action_vector=[None] * agent.nbr_actor
         )
+
+        import ipdb; ipdb.set_trace()
 
         agent.handle_experience(obs,
                                 np.array([action_parser(info_i['a']) for info_i in infos]),

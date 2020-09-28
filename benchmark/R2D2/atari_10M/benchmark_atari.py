@@ -208,7 +208,7 @@ if __name__ == '__main__':
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
 
-      from torch.multiprocessing import Manager
-      regym.RegymManager = Manager()
+  from torch.multiprocessing import Manager
+  regym.RegymManager = Manager()
 
   main()
