@@ -6,7 +6,7 @@ extra_hyperparameters: &extra_hyperparameters
     goal_oriented: False 
     goal_state_shared_arch:  False
     goal_state_flattening: False    #True
-    nbr_training_iteration_per_cycle: 1 # HER: 40 # SAC: == replay_period
+    nbr_training_iteration_per_cycle: 1 # HER: 40 # R2D2 == replay_period
     #nbr_episode_per_cycle:  16  # HER: 16 DQN needs removal.
     HER_use_latent: False   #True
     HER_target_clamping: False 
@@ -82,7 +82,7 @@ LargeCNN: &LargeCNN
 #         critic_arch_hidden_units: []
 
 
-SAC_LargeCNN: &SAC_LargeCNN
+R2D2_LargeCNN: &R2D2_LargeCNN
         noisy: False 
         n_step: 1
 
@@ -126,7 +126,7 @@ experiment:
              
              'run-id': 'Seed10_venv_sac_1actors_Sk4_St4_Obs32_Grayscale_NoScaling_Replay1p6Min1p4_ReplayPeriod1_RewardSchemeNone',
              
-             'agent-id': '1step_PER_SAC_LargeCNN_b64_tau1m3',
+             'agent-id': '1step_PER_R2D2_LargeCNN_b64_tau1m3',
              
              'nbr_actor': 1,
              'nbr_frame_skipping': 4,
@@ -142,11 +142,12 @@ experiment:
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 0
     train_observation_budget: 8.0e6
+    pre_train_on_demonstrations: False
     seed: 10
 
 agents:    
-    1step_PER_SAC_LargeCNN_b64_tau1m3:
-        <<: *SAC_LargeCNN
+    1step_PER_R2D2_LargeCNN_b64_tau1m3:
+        <<: *R2D2_LargeCNN
         #noisy: True 
         n_step: 1
         use_PER: True
