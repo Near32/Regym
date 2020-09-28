@@ -124,7 +124,8 @@ class DQNAlgorithm(Algorithm):
 
     def get_epsilon(self, nbr_steps, strategy='exponential'):
         global summary_writer
-        self.summary_writer = summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
         
         if 'exponential' in strategy:
             self.eps = self.epsend + (self.epsstart-self.epsend) * np.exp(-1.0 * nbr_steps / self.epsdecay)
@@ -307,7 +308,8 @@ class DQNAlgorithm(Algorithm):
 
     def optimize_model(self, minibatch_size: int, samples: Dict):
         global summary_writer
-        self.summary_writer = summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
 
         beta = self.storages[0].beta if self.use_PER else 1.0
         
@@ -377,7 +379,7 @@ class DQNAlgorithm(Algorithm):
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
                                           HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
                                           iteration_count=self.param_update_counter.value,
-                                          summary_writer=summary_writer,
+                                          summary_writer=self.summary_writer,
                                           kwargs=self.kwargs)
             
             loss.backward(retain_graph=False)
@@ -427,6 +429,7 @@ class DQNAlgorithm(Algorithm):
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None
+            
         sum_writer = self.summary_writer
         self.summary_writer = None
         

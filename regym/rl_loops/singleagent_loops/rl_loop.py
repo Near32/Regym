@@ -253,7 +253,7 @@ def async_gather_experience_parallel(
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'learner.log')
         sum_writer = SummaryWriter(sum_writer_path)
-        agent.sum_writer = sum_writer
+        agent.algorithm.summary_writer = sum_writer
 
     pbar = tqdm(total=max_update_count, position=1)
     while gathering_proc.is_alive():
@@ -318,7 +318,7 @@ def gather_experience_parallel(task,
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'actor.log')
         sum_writer = SummaryWriter(sum_writer_path)
-        agent.sum_writer = sum_writer
+        agent.algorithm.summary_writer = sum_writer
 
     while True:
         action = agent.take_action(observations)

@@ -147,6 +147,7 @@ class DQNAgent(Agent):
                 minibatch_size *= self.replay_period
             else:
                 self.nbr_episode_per_cycle_count = 1
+                
             for train_it in range(self.nbr_training_iteration_per_cycle):
                 self.algorithm.train(minibatch_size=minibatch_size)
             nbr_updates = self.nbr_training_iteration_per_cycle
