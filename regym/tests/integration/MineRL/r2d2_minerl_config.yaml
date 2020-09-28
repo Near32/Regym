@@ -27,14 +27,14 @@ LargeLSTMCNN: &LargeLSTMCNN
         phi_arch_hidden_units: [512,]
 
         extra_inputs_infos: {
-            #    'previous_reward':{
-            #        shape: [1,], 
-            #        target_location: ['phi_body', 'extra_inputs']
-            #    },
-            #    'previous_action':{
-            #        shape: ['task.action_dim',], 
-            #        target_location: ['phi_body', 'extra_inputs']
-            #    }
+                'previous_reward':{
+                    shape: [1,], 
+                    target_location: ['phi_body', 'extra_inputs']
+                },
+                'previous_action':{
+                    shape: ['task.action_dim',], 
+                    target_location: ['phi_body', 'extra_inputs']
+                }
         }
         # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
         # Value is a tuple where the first element is the expected shape of the extra input,

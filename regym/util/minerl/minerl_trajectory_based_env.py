@@ -29,21 +29,22 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
     while not all(done):
         # With r2d2, we explicitly need to have 'extra_inputs' in frame (rnn) state
         # TODO: we should add info['inventory']
-        agent.rnn_states['phi_body']['extra_inputs'] = {}
+        #agent.rnn_states['phi_body']['extra_inputs'] = {}
 
         # Taking an action is mandatory to propagate rnn_states, even if
         # action is ignored
         _ = agent.take_action(obs)
 
-        succ_obs, reward, done, info = minerl_trajectory_env.step(
+        succ_obs, reward, done, infos = minerl_trajectory_env.step(
             action_vector=[None] * agent.nbr_actor
         )
+
         agent.handle_experience(obs,
-                                action_parser(info['a']),
+                                np.array([action_parser(info_i['a']) for info_i in infos]),
                                 reward,
                                 succ_obs,
                                 done,
-                                infos=[info])
+                                infos=infos)
         obs = succ_obs
 
 
