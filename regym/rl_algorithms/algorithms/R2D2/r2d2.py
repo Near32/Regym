@@ -66,12 +66,15 @@ class R2D2Algorithm(DQNAlgorithm):
         if self.recurrent:  keys += ['rnn_states']
         if self.goal_oriented:    keys += ['g']
         
+        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         circular_keys={'succ_s':'s'}
         # On the contrary to DQNAlgorithm,
         # since we are dealing with batches of unrolled experiences,
         # succ_s ought to be the sequence of unrolled experiences that comes
         # directly after the current unrolled sequence s:
         circular_offsets={'succ_s':1}
+        
+        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         if self.recurrent:
             circular_keys.update({'next_rnn_states':'rnn_states'})
             circular_offsets.update({'next_rnn_states':1})

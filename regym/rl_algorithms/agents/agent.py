@@ -30,8 +30,13 @@ class Agent(object):
         self.algorithm = algorithm
         self.async_actor = False
         self.async_learner = False 
+        self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
+        self.actor_models_update_optimization_interval = 100
+        if "actor_models_update_optimization_interval" in self.algorithm.kwargs:
+            self.actor_models_update_optimization_interval = self.algorithm.kwargs["actor_models_update_optimization_interval"]
+        self.previous_actor_models_update_quotient = -1
 
-        self.handled_experiences = regym.RegymManager.Value(int, 0)
+        self.handled_experiences = regym.RegymManager.Value(int, 0, lock=False)
         self.save_path = None
         self.episode_count = 0
 
@@ -290,9 +295,11 @@ class Agent(object):
         """
         Returns an asynchronous actor agent (i.e. attribute async_actor
         of the return agent must be set to True).
+        RegymManager's value must be reference back from original to clone!
         """
         self.async_learner = True 
         self.async_actor = False 
+
 
         return 
 

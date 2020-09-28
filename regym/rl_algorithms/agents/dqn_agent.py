@@ -48,6 +48,7 @@ class DQNAgent(Agent):
         self.nbr_steps = 0
 
         self.saving_interval = 1e4
+        self.previous_save_quotient = -1
 
     def get_update_count(self):
         return self.algorithm.get_update_count()
@@ -130,6 +131,8 @@ class DQNAgent(Agent):
             self.train()
 
     def train(self):
+        nbr_updates = 0
+
         period_check = self.replay_period
         period_count_check = self.replay_period_count
         if self.nbr_episode_per_cycle is not None:
@@ -146,14 +149,32 @@ class DQNAgent(Agent):
                 self.nbr_episode_per_cycle_count = 1
             for train_it in range(self.nbr_training_iteration_per_cycle):
                 self.algorithm.train(minibatch_size=minibatch_size)
-
-            # WARNING: if asynchronous, then the agent is never save:
-            if not(self.async_learner) \
-            and self.save_path is not None \
-            and self.handled_experiences.value % self.saving_interval == 0:
+            nbr_updates = self.nbr_training_iteration_per_cycle
+            # Update actor's models:
+            if self.async_learner\
+            and (self.algorithm.get_update_count() // self.actor_models_update_optimization_interval) != \
+            self.previous_actor_models_update_quotient:
+                self.previous_actor_models_update_quotient = self.algorithm.get_update_count() // self.actor_models_update_optimization_interval
+                self.actor_learner_shared_dict["models"] = self.algorithm.get_models()
+                self.actor_learner_shared_dict["models_update_required"] = True
+            
+            if self.save_path is not None \
+            and (self.handled_experiences.value // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = self.handled_experiences.value // self.saving_interval
                 self.save()
 
+        return nbr_updates
+
     def take_action(self, state):
+        if self.async_actor:
+            # Update the algorithm's model if needs be:
+            if self.actor_learner_shared_dict["models_update_required"]:
+                self.actor_learner_shared_dict["models_update_required"] = False
+                if "models" in self.actor_learner_shared_dict.keys():
+                    self.algorithm.set_models(self.actor_learner_shared_dict["models"])
+                else:
+                    raise NotImplementedError 
+
         if self.training:
             self.nbr_steps += state.shape[0]
         self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
@@ -204,6 +225,7 @@ class DQNAgent(Agent):
         cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
 
+        clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
@@ -219,6 +241,7 @@ class DQNAgent(Agent):
         clone.async_learner = False 
         clone.async_actor = True 
 
+        clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training

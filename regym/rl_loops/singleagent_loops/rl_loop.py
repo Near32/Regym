@@ -203,6 +203,7 @@ def async_gather_experience_parallel(
     agent,
     training,
     max_obs_count=1e7,
+    max_update_count=1e7,
     test_obs_interval=1e4,
     test_nbr_episode=10,
     env_configs=None,
@@ -226,12 +227,12 @@ def async_gather_experience_parallel(
     :param benchmarking_record_episode_interval: None if not gif ought to be made, otherwise Integer.
     :returns:
     '''
-
+    async_actor = agent.get_async_actor()
     gathering_proc = Process(
         target=gather_experience_parallel,
         args=(
             task,
-            agent.get_async_actor(),
+            async_actor,
             training,
             max_obs_count,
             test_obs_interval,
@@ -244,8 +245,11 @@ def async_gather_experience_parallel(
     )
     gathering_proc.start()
 
+    pbar = tqdm(total=max_update_count, position=1)
     while gathering_proc.is_alive():
-        agent.train()
+        nbr_updates = agent.train()
+        if nbr_updates is None: nbr_updates = 1
+        pbar.update(nbr_updates)
 
     return agent 
 
@@ -297,7 +301,7 @@ def gather_experience_parallel(task,
     episode_count = 0
     sample_episode_count = 0
 
-    pbar = tqdm(total=max_obs_count)
+    pbar = tqdm(total=max_obs_count, position=0)
 
     while True:
         action = agent.take_action(observations)
@@ -314,7 +318,7 @@ def gather_experience_parallel(task,
         for actor_index in range(nbr_actors):
             obs_count += 1
             pbar.update(1)
-            
+
             for hook in step_hooks:
                 hook(env, agent, obs_count)
 
@@ -407,5 +411,8 @@ def gather_experience_parallel(task,
         observations = copy.deepcopy(succ_observations)
 
         if obs_count >= max_obs_count:  break
+
+    env.close()
+    test_env.close()
 
     return agent

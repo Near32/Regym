@@ -59,6 +59,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             algorithm=cloned_algo,
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos))
 
+        clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
@@ -82,6 +83,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         clone.async_learner = False
         clone.async_actor = True
 
+        clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training

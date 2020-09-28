@@ -341,7 +341,7 @@ class PrioritizedReplayStorage(ReplayStorage):
             circular_offsets=circular_offsets
         )
 
-        self.length = regym.RegymManager.Value(int, 0)
+        self.length = regym.RegymManager.Value(int, 0, lock=False)
         self.alpha = alpha
         self.beta_start = beta
         self.beta_increase_interval = beta_increase_interval
@@ -355,8 +355,10 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.tree = np.zeros(2 * int(self.capacity) - 1)
         self.max_priority = np.ones(1, dtype=np.float32)
         """
-        self.tree = regym.RegymManager.list([ 0 for _ in range(2 * int(self.capacity) - 1)])
-        self.max_priority = regym.RegymManager.Value(float, 1.0)
+        #self.tree = regym.RegymManager.list([ 0 for _ in range(2 * int(self.capacity) - 1)], lock=False)
+        self.tree = regym.RegymManager.dict({idx:0 for idx in range(2 * int(self.capacity) - 1)}, lock=False)
+        
+        self.max_priority = regym.RegymManager.Value(float, 1.0, lock=False)
         self.sumPi_alpha = 0.0
         
     def _update_beta(self, iteration=None):

@@ -7,4 +7,4 @@ from . import rl_algorithms
 from . import logging_server
 
 from torch.multiprocessing import Manager
-regym.RegymManager = None
+RegymManager = None
