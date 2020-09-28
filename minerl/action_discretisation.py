@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, List, Dict
 import minerl
 import numpy as np
 
@@ -117,7 +117,7 @@ def get_action_set(env:str,path:str,n_clusters:int,score_percent:float=0.9,agree
     return action_set
 
 
-def generate_action_parser(action_set) -> Callable[Dict[str, np.ndarray], int]:
+def generate_action_parser(action_set) -> Callable[[Dict[str, np.ndarray]], int]:
     def action_parser(action):
         dis = pairwise_distances(action_set,action['vector'].reshape(1, -1))
         discrete_action = np.argmin(dis)
