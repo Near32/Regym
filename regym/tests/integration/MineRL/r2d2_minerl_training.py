@@ -323,6 +323,7 @@ def load_demonstrations_into_replay_buffer(agent, task_name: str, seed: int, n_c
         action_set = get_action_set(task_name,
                                     path=None,
                                     n_clusters=n_clusters)
+        pickle.dump(action_set, open('action_set.pickle', "wb"))
 
     if os.path.exists('good_demo_names.pickle'):
         good_demo_names = pickle.load(open('good_demo_names.pickle', 'rb'))
@@ -330,8 +331,10 @@ def load_demonstrations_into_replay_buffer(agent, task_name: str, seed: int, n_c
         good_demo_names = get_good_demo_names(
             task_name,
             path=None,
-            score_percent=0.9
+            score_percent=0.45
         )
+        pickle.dump(good_demo_names, open('good_demo_names.pickle', "wb"))
+
 
 
     # Action set
@@ -583,6 +586,6 @@ if __name__ == '__main__':
 
   from torch.multiprocessing import Manager
   regym.RegymManager = Manager()
-      
+
   main(config_file_path)
 
