@@ -10,6 +10,8 @@ from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdi
 
 
 eps = 1e-4
+extras = False 
+
 
 def value_function_rescaling(x):
     '''
@@ -356,7 +358,7 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_rnn_states,
         grad_enabler=True,
         use_zero_initial_states=False,
-        extras=True,
+        extras=extras,
         map_keys=map_keys,
     )
 
@@ -478,20 +480,21 @@ def compute_loss(states: torch.Tensor,
     loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
 
     if summary_writer is not None:
-        denominator = eps+torch.abs(training_burned_in_predictions['qa'].reshape(batch_size, -1).max(dim=-1)[0])
-        # (batch_size, )
-        initial_diff = training_burned_in_predictions['qa'][:,0,...]-training_unrolled_predictions['qa'][:,0,...]
-        # (batch_size, num_actions)
-        final_diff = training_burned_in_predictions['qa'][:,-1,...]-training_unrolled_predictions['qa'][:,-1,...]
-        # (batch_size, num_actions)
-        initial_discrepancy_qa = initial_diff.pow(2).sum(-1).sqrt() / denominator
-        # (batch_size,)
-        final_discrepancy_qa = final_diff.pow(2).sum(-1).sqrt() / denominator
-        # (batch_size, )
-        
-        summary_writer.add_scalar('Training/DiscrepancyQAValues/Initial', initial_discrepancy_qa.cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/DiscrepancyQAValues/Final', final_discrepancy_qa.cpu().mean().item(), iteration_count)
-        
+        if extras:
+            denominator = eps+torch.abs(training_burned_in_predictions['qa'].reshape(batch_size, -1).max(dim=-1)[0])
+            # (batch_size, )
+            initial_diff = training_burned_in_predictions['qa'][:,0,...]-training_unrolled_predictions['qa'][:,0,...]
+            # (batch_size, num_actions)
+            final_diff = training_burned_in_predictions['qa'][:,-1,...]-training_unrolled_predictions['qa'][:,-1,...]
+            # (batch_size, num_actions)
+            initial_discrepancy_qa = initial_diff.pow(2).sum(-1).sqrt() / denominator
+            # (batch_size,)
+            final_discrepancy_qa = final_diff.pow(2).sum(-1).sqrt() / denominator
+            # (batch_size, )
+            
+            summary_writer.add_scalar('Training/DiscrepancyQAValues/Initial', initial_discrepancy_qa.cpu().mean().item(), iteration_count)
+            summary_writer.add_scalar('Training/DiscrepancyQAValues/Final', final_discrepancy_qa.cpu().mean().item(), iteration_count)
+            
         summary_writer.add_scalar('Training/MeanBellmanTarget', bellman_target_Sipn_Aipn.cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/MinBellmanTarget', bellman_target_Sipn_Aipn.cpu().min().item(), iteration_count)
         summary_writer.add_scalar('Training/MaxBellmanTarget', bellman_target_Sipn_Aipn.cpu().max().item(), iteration_count)

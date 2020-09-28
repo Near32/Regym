@@ -3,6 +3,7 @@ import torch
 import numpy as np
 
 from functools import partial
+import regym
 from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
 
 
@@ -27,8 +28,15 @@ class Agent(object):
     def __init__(self, name, algorithm):
         self.name = name
         self.algorithm = algorithm
+        self.async_actor = False
+        self.async_learner = False 
+        self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
+        self.actor_models_update_optimization_interval = 100
+        if "actor_models_update_optimization_interval" in self.algorithm.kwargs:
+            self.actor_models_update_optimization_interval = self.algorithm.kwargs["actor_models_update_optimization_interval"]
+        self.previous_actor_models_update_quotient = -1
 
-        self.handled_experiences = 0
+        self.handled_experiences = regym.RegymManager.Value(int, 0, lock=False)
         self.save_path = None
         self.episode_count = 0
 
@@ -54,7 +62,7 @@ class Agent(object):
             self.recurrent = True
 
     def get_experience_count(self):
-        return self.handled_experiences
+        return self.handled_experiences.value
 
     def get_update_count(self):
         raise NotImplementedError
@@ -274,11 +282,26 @@ class Agent(object):
         '''
         raise NotImplementedError
 
+    def train(self):
+        raise NotImplementedError
+
     def take_action(self, state):
         raise NotImplementedError
 
     def clone(self, training=None, with_replay_buffer=False):
         raise NotImplementedError
+
+    def get_async_actor(self, training=None, with_replay_buffer=False):
+        """
+        Returns an asynchronous actor agent (i.e. attribute async_actor
+        of the return agent must be set to True).
+        RegymManager's value must be reference back from original to clone!
+        """
+        self.async_learner = True 
+        self.async_actor = False 
+
+
+        return 
 
     def save(self, with_replay_buffer=False):
         assert(self.save_path is not None)

@@ -12,6 +12,7 @@ import torch.nn.functional as F
 
 from . import dqn_loss, ddqn_loss
 
+import regym
 from ..algorithm import Algorithm
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, random_sample
@@ -103,20 +104,27 @@ class DQNAlgorithm(Algorithm):
         global summary_writer
         if sum_writer is not None: summary_writer = sum_writer
         self.summary_writer = summary_writer
-        self.param_update_counter = 0
+        self.param_update_counter = regym.RegymManager.Value(int, 0, lock=False)
     
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
 
+    def set_models(self, models_dict):
+        if "model" in models_dict:
+            hard_update(self.model, models_dict["model"])
+        if "target_model" in models_dict:
+            hard_update(self.target_model, models_dict["target_model"])
+    
     def get_nbr_actor(self):
         return self.nbr_actor
 
     def get_update_count(self):
-        return self.param_update_counter
+        return self.param_update_counter.value
 
     def get_epsilon(self, nbr_steps, strategy='exponential'):
         global summary_writer
-        self.summary_writer = summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
         
         if 'exponential' in strategy:
             self.eps = self.epsend + (self.epsstart-self.epsend) * np.exp(-1.0 * nbr_steps / self.epsdecay)
@@ -264,15 +272,6 @@ class DQNAlgorithm(Algorithm):
                         concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
                         preprocess_fn=(lambda x:x),
                     )
-                    """  
-                    value = _concatenate_hdict(
-                        value.pop(0), 
-                        value, 
-                        map_keys=['hidden', 'cell'], 
-                        concat_fn=partial(torch.cat, dim=0),
-                        preprocess_fn=(lambda x:x),
-                    )
-                    """
                 else:
                     value = torch.cat(value, dim=0)
                 values[key] = value 
@@ -299,6 +298,7 @@ class DQNAlgorithm(Algorithm):
                 else:
                     value = torch.cat(value, dim=0)
             else:
+                import ipdb; ipdb.set_trace()
                 value = value[0]
 
             fulls[key] = value
@@ -307,7 +307,8 @@ class DQNAlgorithm(Algorithm):
 
     def optimize_model(self, minibatch_size: int, samples: Dict):
         global summary_writer
-        self.summary_writer = summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
 
         beta = self.storages[0].beta if self.use_PER else 1.0
         
@@ -376,8 +377,8 @@ class DQNAlgorithm(Algorithm):
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
                                           HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
-                                          iteration_count=self.param_update_counter,
-                                          summary_writer=summary_writer,
+                                          iteration_count=self.param_update_counter.value,
+                                          summary_writer=self.summary_writer,
                                           kwargs=self.kwargs)
             
             loss.backward(retain_graph=False)
@@ -388,8 +389,7 @@ class DQNAlgorithm(Algorithm):
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
 
-            if summary_writer is not None:
-                self.param_update_counter += 1 
+            self.param_update_counter.value += 1 
 
         if self.use_PER :
             sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
@@ -428,11 +428,44 @@ class DQNAlgorithm(Algorithm):
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None
+            
         sum_writer = self.summary_writer
         self.summary_writer = None
+        
+        param_update_counter = self.param_update_counter
+        self.param_update_counter = None 
+
         cloned_algo = copy.deepcopy(self)
+        
         if not(with_replay_buffer): 
             self.storages = storages
+        
         self.summary_writer = sum_writer
+        
+        self.param_update_counter = param_update_counter
+        cloned_algo.param_update_counter = param_update_counter
+        
         return cloned_algo
 
+    def async_actor(self):        
+        storages = self.storages
+        self.storages = None
+        
+        sum_writer = self.summary_writer
+        self.summary_writer = None
+        
+        param_update_counter = self.param_update_counter
+        self.param_update_counter = None 
+
+        cloned_algo = copy.deepcopy(self)
+        
+        self.storages = storages
+        cloned_algo.storages = storages
+
+        self.summary_writer = sum_writer
+        cloned_algo.summary_writer = sum_writer
+
+        self.param_update_counter = param_update_counter
+        cloned_algo.param_update_counter = param_update_counter
+
+        return cloned_algo

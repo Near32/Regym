@@ -66,12 +66,15 @@ class R2D2Algorithm(DQNAlgorithm):
         if self.recurrent:  keys += ['rnn_states']
         if self.goal_oriented:    keys += ['g']
         
+        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         circular_keys={'succ_s':'s'}
         # On the contrary to DQNAlgorithm,
         # since we are dealing with batches of unrolled experiences,
         # succ_s ought to be the sequence of unrolled experiences that comes
         # directly after the current unrolled sequence s:
         circular_offsets={'succ_s':1}
+        
+        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         if self.recurrent:
             circular_keys.update({'next_rnn_states':'rnn_states'})
             circular_offsets.update({'next_rnn_states':1})
@@ -219,14 +222,13 @@ class R2D2Algorithm(DQNAlgorithm):
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)
+        unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
         for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
             storage_idx = arr_bidx//minibatch_size
             el_idx_in_batch = arr_bidx%minibatch_size
             el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
             
             # (unroll_dim,)
-            import ipdb; ipdb.set_trace()
-            new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(self.sequence_replay_unroll_length,))
-            
+            new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
             self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 

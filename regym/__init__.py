@@ -5,3 +5,8 @@ from . import training_schemes
 from . import rl_loops
 from . import rl_algorithms
 from . import logging_server
+
+from torch.multiprocessing import Manager
+RegymManager = None
+
+RegymSummaryWriterPath = None

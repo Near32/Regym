@@ -3,7 +3,9 @@ import yaml
 import os
 import sys
 from typing import Dict
-from tensorboardX import SummaryWriter
+
+import torch.multiprocessing
+from tensorboardX import GlobalSummaryWriter
 from tqdm import tqdm
 from functools import partial
 
@@ -40,20 +42,43 @@ def train_and_evaluate(agent: object,
                        test_nbr_episode: int = 10,
                        benchmarking_record_episode_interval: int = None,
                        step_hooks=[]):
-    trained_agent = rl_loop.gather_experience_parallel(task,
-                                                       agent,
-                                                       training=True,
-                                                       max_obs_count=nbr_max_observations,
-                                                       env_configs=None,
-                                                       sum_writer=sum_writer,
-                                                       base_path=base_path,
-                                                       test_obs_interval=test_obs_interval,
-                                                       test_nbr_episode=test_nbr_episode,
-                                                       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
-                                                       step_hooks=step_hooks)
+    
+    async = False
+    if len(sys.argv) > 2:
+      async = any(['async' in arg for arg in sys.argv])
+
+    if async:
+      trained_agent = rl_loop.async_gather_experience_parallel(
+        task,
+        agent,
+        training=True,
+        max_obs_count=nbr_max_observations,
+        env_configs=None,
+        sum_writer=sum_writer,
+        base_path=base_path,
+        test_obs_interval=test_obs_interval,
+        test_nbr_episode=test_nbr_episode,
+        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+        step_hooks=step_hooks
+      )
+    else: 
+      trained_agent = rl_loop.gather_experience_parallel(
+        task,
+        agent,
+        training=True,
+        max_obs_count=nbr_max_observations,
+        env_configs=None,
+        sum_writer=sum_writer,
+        base_path=base_path,
+        test_obs_interval=test_obs_interval,
+        test_nbr_episode=test_nbr_episode,
+        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+        step_hooks=step_hooks
+      )
+
     save_replay_buffer = False
     if len(sys.argv) > 2:
-      save_replay_buffer = 'save_replay_buffer' in sys.argv[2]
+      save_replay_buffer = any(['save_replay_buffer' in arg for arg in sys.argv])
 
     trained_agent.save(with_replay_buffer=save_replay_buffer)
     print(f"Agent saved at: {trained_agent.save_path}")
@@ -111,15 +136,19 @@ def training_process(agent_config: Dict,
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
-    sum_writer = SummaryWriter(base_path)
+    
+    regym.RegymSummaryWriterPath = base_path #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
+    sum_writer =  base_path
+    
     save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     agent, offset_episode_count = check_path_for_agent(save_path)
     if agent is None: 
         agent = initialize_agents(task=task,
                                   agent_configurations={task_config['agent-id']: agent_config})[0]
     agent.save_path = save_path
-    regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
-    regym.rl_algorithms.algorithms.R2D2.r2d2.summary_writer = sum_writer
+    
+    #regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
+    #regym.rl_algorithms.algorithms.R2D2.r2d2.summary_writer = sum_writer
     
     trained_agent = train_and_evaluate(agent=agent,
                        task=task,
@@ -145,7 +174,7 @@ def load_configs(config_file_path: str):
     return experiment_config, agents_config, envs_config
 
 
-def test():
+def main():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger('Atari 10 Millions Frames Benchmark')
 
@@ -171,4 +200,15 @@ def test():
                          seed=experiment_config['seed'])
 
 if __name__ == '__main__':
-    test()
+  async = False 
+  __spec__ = None
+  if len(sys.argv) > 2:
+      async = any(['async' in arg for arg in sys.argv])
+  if async:
+      torch.multiprocessing.freeze_support()
+      torch.multiprocessing.set_start_method("forkserver", force=True)
+
+      from torch.multiprocessing import Manager
+      regym.RegymManager = Manager()
+
+  main()

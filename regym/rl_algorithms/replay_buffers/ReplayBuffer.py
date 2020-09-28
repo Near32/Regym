@@ -1,5 +1,7 @@
 import numpy as np
 import random
+import regym
+
 
 class ReplayBuffer():
     def __init__(self, capacity):
@@ -45,13 +47,20 @@ class ReplayStorage():
         self.circular_keys = circular_keys
         self.circular_offsets = circular_offsets
         self.capacity = capacity
+        """
         self.position = dict()
         self.current_size = dict()
+        """
+        self.position = regym.RegymManager.dict(lock=False)
+        self.current_size = regym.RegymManager.dict(lock=False)
+
         self.reset()
 
     def add_key(self, key):
         self.keys += [key]
-        setattr(self, key, np.zeros(self.capacity+1, dtype=object))
+        #setattr(self, key, np.zeros(self.capacity+1, dtype=object))
+        #setattr(self, key, regym.RegymManager.list([np.zeros(self.capacity+1, dtype=object)]))
+        setattr(self, key, regym.RegymManager.dict({0:np.zeros(self.capacity+1, dtype=object)}, lock=False))
         self.position[key] = 0
         self.current_size[key] = 0
 
@@ -59,7 +68,14 @@ class ReplayStorage():
         for k, v in data.items():
             if not(k in self.keys or k in self.circular_keys):  continue
             if k in self.circular_keys: continue
-            getattr(self, k)[self.position[k]] = v
+            # As  we are dealing with a proxy,
+            # it is important to reassign the element of the ListProxy
+            # in order to trigger an update from the proxy manager:
+            proxy = getattr(self, k)
+            container = proxy[0]
+            container[self.position[k]] = v
+            # reassigning:
+            proxy[0] = container
             self.position[k] = int((self.position[k]+1) % self.capacity)
             self.current_size[k] = min(self.capacity, self.current_size[k]+1)
 
@@ -79,13 +95,15 @@ class ReplayStorage():
             next_position_write = self.position[fetch_k] 
             position_complete_read_possible = (next_position_write-1)-max_offset
             k_read_position = position_complete_read_possible+offset 
-            data[k] = getattr(self, fetch_k)[k_read_position]
+            data[k] = getattr(self, fetch_k)[k_read_position][0]
         return data 
 
     def reset(self):
         for k in self.keys:
             if k in self.circular_keys: continue
-            setattr(self, k, np.zeros(int(self.capacity) + 1, dtype=object))
+            #setattr(self, k, np.zeros(int(self.capacity) + 1, dtype=object))
+            #setattr(self, k, regym.RegymManager.list([np.zeros(int(self.capacity) + 1, dtype=object)]))
+            setattr(self, k, regym.RegymManager.dict({0:np.zeros(int(self.capacity) + 1, dtype=object)}, lock=False))
             self.position[k] = 0
             self.current_size[k] = 0
 
@@ -98,7 +116,7 @@ class ReplayStorage():
             if k in self.circular_keys: 
                 cidx=self.circular_offsets[k]
                 k = self.circular_keys[k]
-            v = getattr(self, k)
+            v = getattr(self, k)[0]
             if indices_ is None: indices_ = np.arange(self.current_size[k]-1-cidx)
             else:
                 # Check that all indices are in range:
