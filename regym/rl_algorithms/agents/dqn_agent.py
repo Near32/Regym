@@ -411,7 +411,8 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                                          paddings=paddings)
 
 
-    assert(task.action_type == 'Discrete')
+    # TODO: remove this! We needed to relax this condition for MineRL
+    # assert(task.action_type == 'Discrete')
     obs_shape = list(task.observation_shape)
     if 'preprocessed_observation_shape' in kwargs: obs_shape = kwargs['preprocessed_observation_shape']
     goal_shape = list(task.goal_shape)

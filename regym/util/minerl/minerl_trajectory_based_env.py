@@ -1,4 +1,5 @@
 from typing import Generator, Callable
+from copy import deepcopy
 import pickle
 
 import torch
@@ -6,7 +7,7 @@ import numpy as np
 import gym
 import minerl
 
-from action_discretisation import get_action_set, generate_action_parser
+from .action_discretisation import get_action_set, generate_action_parser
 
 
 def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
@@ -23,29 +24,27 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
     :param agent: Ideally R2D2 agent. Off-policy agent.
     :param minerl_trajectory_env: Environment that's going to be fed to agent
     '''
-    original_nbr_actor = agent.nbr_actor
-    agent.nbr_actor = 1  # During this fake trajectory, we only want 1 actor
-
     obs = minerl_trajectory_env.reset()
-    done = False
-    while not done:
+    done = [False] * agent.nbr_actor
+    while not all(done):
         # With r2d2, we explicitly need to have 'extra_inputs' in frame (rnn) state
+        # TODO: we should add info['inventory']
         agent.rnn_states['phi_body']['extra_inputs'] = {}
 
         # Taking an action is mandatory to propagate rnn_states, even if
         # action is ignored
-        _ = agent.take_action(np.expand_dims(obs, 0))
+        _ = agent.take_action(obs)
 
-        succ_obs, reward, done, info = env.step(action=None)
-        agent.handle_experience(np.expand_dims(obs, 0),
-                                np.expand_dims(action_parser(info['a']), 0),
-                                np.expand_dims(reward, 0),
-                                np.expand_dims(succ_obs, 0),
-                                np.expand_dims(done, 0),
+        succ_obs, reward, done, info = minerl_trajectory_env.step(
+            action_vector=[None] * agent.nbr_actor
+        )
+        agent.handle_experience(obs,
+                                action_parser(info['a']),
+                                reward,
+                                succ_obs,
+                                done,
                                 infos=[info])
         obs = succ_obs
-    # Upon trajectory termination, we reset number of actors
-    agent.nbr_actor = original_nbr_actor
 
 
 class MineRLTrajectoryBasedEnv(gym.Env):
@@ -68,6 +67,21 @@ class MineRLTrajectoryBasedEnv(gym.Env):
         # Format: (observation, action, reward, succ_observation, done)
         self.current_experience: Tuple = None
 
+        self.observation_space = minerl.herobraine.hero.spaces.Dict(
+            pov=gym.spaces.Box(
+                low=0, high=255, shape=(64, 64, 3)
+            ),
+            vector=gym.spaces.Box(
+                low=-1.2, high=1.2, shape=(64,)
+            )
+        )
+
+        self.action_space = minerl.herobraine.hero.spaces.Dict(
+            vector=gym.spaces.Box(
+                low=-1.049999, high=1.049999, shape=(64,)
+            )
+        )
+
         # Generator cannot be resetted, so we need to ensure that reset is only
         # called once.
         self.has_reset_been_called = False
@@ -80,8 +94,7 @@ class MineRLTrajectoryBasedEnv(gym.Env):
 
         (o, a, r, succ_o, d) = next(self.trajectory_generator)
         self.current_experience = (o, a, r, succ_o, d)
-        # NOTE: shape should be (channels, height, width)
-        return o['pov']
+        return o
 
     def step(self, action):
         '''
@@ -103,7 +116,7 @@ class MineRLTrajectoryBasedEnv(gym.Env):
         if not self.is_trajectory_done:
             self.current_experience = next(self.trajectory_generator)
 
-        return succ_o['pov'], r, d, info
+        return succ_o, r, d, info
 
     def render(self):
         raise NotImplementedError('Not supported')

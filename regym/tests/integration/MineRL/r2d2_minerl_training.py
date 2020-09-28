@@ -1,25 +1,31 @@
+from typing import Dict, List, Callable
+from copy import deepcopy
+import pickle
 import yaml
 import os
 import sys
-from typing import Dict
-from tensorboardX import SummaryWriter
-from tqdm import tqdm
+import time
 from functools import partial
 
 import torch
+from tqdm import tqdm
 import numpy as np
+import gym
+import minerl
+from tensorboardX import SummaryWriter
 
 import regym
+
+from regym.util.minerl import get_action_set, generate_action_parser, MineRLTrajectoryBasedEnv, trajectory_based_rl_loop, get_good_demo_names
+
 from regym.environments import generate_task
+from regym.environments.vec_env import VecEnv
 from regym.rl_loops.singleagent_loops import rl_loop
 from regym.util.experiment_parsing import initialize_agents
 
 from regym.util.wrappers import LazyFrames, FrameSkipStack, ContinuingTimeLimit
 
-import time
 #import aicrowd_helper
-import gym
-import minerl
 
 #from utility.parser import Parser
 #import logging
@@ -174,11 +180,11 @@ class _ContinuingTimeLimit(gym.Wrapper):
     return self.env.reset()
 
 
-def wrap_env(env, 
-       skip=None, 
-       stack=None, 
-       scaling=True, 
-       #region_size=8, 
+def wrap_env(env,
+       skip=None,
+       stack=None,
+       scaling=True,
+       #region_size=8,
        ):
   if isinstance(env, gym.wrappers.TimeLimit):
     #logger.info('Detected `gym.wrappers.TimeLimit`! Unwrap it and re-wrap our own time limit.')
@@ -195,12 +201,12 @@ def wrap_env(env,
   return wrapped_env
 
 
-def minerl_wrap_env(env, 
+def minerl_wrap_env(env,
                     size=84,
-                    skip=None, 
-                    stack=None, 
-                    scaling=True, 
-                    #region_size=8, 
+                    skip=None,
+                    stack=None,
+                    scaling=True,
+                    #region_size=8,
                     grayscale=False,
                     reward_scheme='None'):
   if isinstance(env, gym.wrappers.TimeLimit):
@@ -210,7 +216,7 @@ def minerl_wrap_env(env,
     #max_episode_steps = env.env.spec.max_episode_steps
     assert( max_episode_steps == 8e3)
     env = ContinuingTimeLimit(env, max_episode_steps=max_episode_steps)
-      
+
   # Observations:
   env = POVObservationWrapper(env=env, scaling=scaling)
 
@@ -227,8 +233,8 @@ def minerl_wrap_env(env,
       print(f"Reward Scheme :: Progressive :: nbr_episode = {nbr_episode}")
     except Exception as e:
       print(f'Reward Scheme :: number of episode not understood... ({reward_scheme})')
-    env = ProgressivelyMultiRewardWrapper(env=env, penalizing=penalizing, nbr_episode=nbr_episode) 
-  
+    env = ProgressivelyMultiRewardWrapper(env=env, penalizing=penalizing, nbr_episode=nbr_episode)
+
   if skip is not None or stack is not None:
     env = FrameSkipStack(env=env, skip=skip, stack=stack)
   # Actions:
@@ -287,18 +293,83 @@ def check_path_for_agent(filepath, restore=True):
   return agent, offset_episode_count
 
 
-def load_demonstrations_into_replay_buffer(agent, task_config: Dict):
-    action_set = get_action_set(task_config['env-id'],
-                               path=None,
-                               n_clusters=task_config['n_clusters'])
-    pass
+class MineRLTrajectoryEnvironmentCreator():
+    def __init__(self, task_name, trajectory_names: List[str], wrapping_fn=None):
+        self.trajectory_names = trajectory_names
+        self.wrapping_fn = wrapping_fn
+
+        self.next_env_pointer = 0  # Next environment index to create
+
+        self.envs = []
+        for trajectory_name in self.trajectory_names:
+            data_pipeline = minerl.data.make(task_name)
+            data_iterator = data_pipeline.load_data(trajectory_name)
+            self.envs.append(MineRLTrajectoryBasedEnv(data_iterator))
+
+    def __call__(self, worker_id=None, seed=0):
+        env = self.envs[self.next_env_pointer]
+        self.next_env_pointer = (self.next_env_pointer + 1) % len(self.trajectory_names)
+
+        env.seed(seed)
+        if self.wrapping_fn is not None: env = self.wrapping_fn(env=env)
+        return env
 
 
-def train_and_evaluate(agent: object, 
-                       task: object, 
-                       sum_writer: object, 
-                       base_path: str, 
-                       offset_episode_count: int = 0, 
+def load_demonstrations_into_replay_buffer(agent, task_name: str, seed: int, n_clusters: int,
+                                           wrapping_fn: Callable):
+    if os.path.exists('action_set.pickle'):
+        action_set = pickle.load(open('action_set.pickle', 'rb'))
+    else:
+        action_set = get_action_set(task_name,
+                                    path=None,
+                                    n_clusters=n_clusters)
+
+    if os.path.exists('good_demo_names.pickle'):
+        good_demo_names = pickle.load(open('good_demo_names.pickle', 'rb'))
+    else:
+        good_demo_names = get_good_demo_names(
+            task_name,
+            path=None,
+            score_percent=0.9
+        )
+
+
+    # Action set
+    continuous_to_discrete_action_parser = generate_action_parser(action_set)
+
+    next_batch_trajectory_names = []
+    for i, demo_name in enumerate(good_demo_names):
+        next_batch_trajectory_names += [demo_name]
+
+        if (len(next_batch_trajectory_names) == agent.nbr_actor) or ((i + 1) == len(good_demo_names)):
+            env_creator = MineRLTrajectoryEnvironmentCreator(
+                task_name=task_name,
+                trajectory_names=deepcopy(next_batch_trajectory_names),
+                wrapping_fn=wrapping_fn
+            )
+            next_batch_trajectory_names = []
+
+            vec_env = VecEnv(
+                env_creator=env_creator,
+                nbr_parallel_env=agent.nbr_actor,
+                seed=seed,
+                gathering=True,
+                video_recording_episode_period=None,
+                video_recording_dirpath=None,
+            )
+
+            # Load demoonstrations to agent's replay buffer
+            trajectory_based_rl_loop(
+                agent=agent,
+                minerl_trajectory_env=vec_env,
+                action_parser=continuous_to_discrete_action_parser
+            )
+
+def train_and_evaluate(agent: object,
+                       task: object,
+                       sum_writer: object,
+                       base_path: str,
+                       offset_episode_count: int = 0,
                        nbr_max_observations: int = 1e7,
                        test_obs_interval: int = 1e4,
                        test_nbr_episode: int = 10,
@@ -323,10 +394,10 @@ def train_and_evaluate(agent: object,
   return trained_agent
 
 
-def training_process(agent_config: Dict, 
+def training_process(agent_config: Dict,
                      task_config: Dict,
                      benchmarking_interval: int = 1e4,
-                     benchmarking_episodes: int = 10, 
+                     benchmarking_episodes: int = 10,
                      benchmarking_record_episode_interval: int = None,
                      train_observation_budget: int = 1e7,
                      base_path: str = './',
@@ -337,13 +408,13 @@ def training_process(agent_config: Dict,
 
   np.random.seed(seed)
   torch.manual_seed(seed)
-  
+
   torch.backends.cudnn.deterministic = True
   torch.backends.cudnn.benchmark = False
 
   pixel_wrapping_fn = partial(minerl_wrap_env,
-    size=task_config['observation_resize_dim'], 
-    skip=task_config['nbr_frame_skipping'], 
+    size=task_config['observation_resize_dim'],
+    skip=task_config['nbr_frame_skipping'],
     stack=task_config['nbr_frame_stacking'],
     scaling=task_config['scaling'],
     grayscale=task_config['grayscale'],
@@ -366,17 +437,18 @@ def training_process(agent_config: Dict,
     gathering=True
   )
 
+
   agent_config['nbr_actor'] = task_config['nbr_actor']
 
   sum_writer = SummaryWriter(base_path)
   save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
   agent, offset_episode_count = check_path_for_agent(save_path, restore=False)
-  if agent is None: 
+  if agent is None:
     agent = initialize_agents(task=task,
                               agent_configurations={task_config['agent-id']: agent_config})[0]
-  
+
   agent.save_path = save_path
-  regym.rl_algorithms.algorithms.SAC.sac.summary_writer = sum_writer 
+  regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
 
   step_hooks = []
   '''
@@ -390,7 +462,12 @@ def training_process(agent_config: Dict,
     print(f"PPO Clip Ratio Decay Hooked: {clip_hook}")
   '''
 
-  agent = load_demonstrations_into_replay_buffer(agent)
+  agent = load_demonstrations_into_replay_buffer(
+      agent,
+      task_config['env-id'],
+      seed,
+      task_config['n_clusters'],
+      wrapping_fn=pixel_wrapping_fn)
 
   if task_config['pre_train_on_demonstrations']:
       raise NotImplementedError
@@ -420,12 +497,10 @@ def load_configs(config_file_path: str):
   return experiment_config, agents_config, envs_config
 
 
-def training():
+def training(config_file_path):
   #logging.basicConfig(level=logging.INFO)
   #logger = logging.getLogger('MineRL Training.')
 
-  #config_file_path = "./minerl_config.yaml"
-  config_file_path = "./sac_minerl_config.yaml"
   experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
 
   # Generate path for experiment
@@ -441,7 +516,7 @@ def training():
     path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
     print(f"Path: -- {path} --")
     trained_agent, task = training_process(
-      agents_config[task_config['agent-id']], 
+      agents_config[task_config['agent-id']],
       task_config,
       benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
       benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),
@@ -455,14 +530,15 @@ def training():
 
   return trained_agents, tasks
 
-def main():
+def main(config_file_path: str):
   # Uncomment to run this on CSPGU
   #os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
   #os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
   #os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
-  #os.environ["CUDA_VISIBLE_DEVICES"] = "0"  
-  return training()
+  #os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+  return training(config_file_path)
 
 if __name__ == '__main__':
-  main()
+  config_file_path = sys.argv[1]
+  main(config_file_path)
 
