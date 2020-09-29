@@ -105,8 +105,16 @@ class DQNAgent(Agent):
 
 
             if self.recurrent:
-                exp_dict['rnn_states'] = _extract_from_rnn_states(self.current_prediction['rnn_states'],batch_index)
-                exp_dict['next_rnn_states'] = _extract_from_rnn_states(self.current_prediction['next_rnn_states'],batch_index)
+                exp_dict['rnn_states'] = _extract_from_rnn_states(
+                    self.current_prediction['rnn_states'],
+                    batch_index,
+                    post_process_fn=(lambda x: x.detach().cpu())
+                )
+                exp_dict['next_rnn_states'] = _extract_from_rnn_states(
+                    self.current_prediction['next_rnn_states'],
+                    batch_index,
+                    post_process_fn=(lambda x: x.detach().cpu())
+                )
 
             if self.goal_oriented:
                 exp_dict['goals'] = Agent._extract_from_hdict(goals, batch_index, goal_preprocessing_fn=self.goal_preprocessing)

@@ -28,6 +28,7 @@ class Agent(object):
     def __init__(self, name, algorithm):
         self.name = name
         self.algorithm = algorithm
+        
         self.async_actor = False
         self.async_learner = False 
         self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
@@ -299,7 +300,6 @@ class Agent(object):
         """
         self.async_learner = True 
         self.async_actor = False 
-
 
         return 
 

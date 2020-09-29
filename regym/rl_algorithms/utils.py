@@ -75,7 +75,8 @@ def extract_subtree(in_dict: Dict,
 
 def _extract_from_rnn_states(rnn_states_batched: Dict,
                              batch_idx: Optional[int]=None,
-                             map_keys: Optional[List]=None): #['hidden', 'cell']):
+                             map_keys: Optional[List]=None,
+                             post_process_fn:Callable=(lambda x:x)): #['hidden', 'cell']):
     '''
     :param map_keys: List of keys we map the operation to.
     '''
@@ -95,9 +96,13 @@ def _extract_from_rnn_states(rnn_states_batched: Dict,
                         value = rnn_states_batched[recurrent_submodule_name][key][idx]
                         if batch_idx is not None:
                             value = value[batch_idx,...].unsqueeze(0)
-                        rnn_states[recurrent_submodule_name][key].append(value)
+                        rnn_states[recurrent_submodule_name][key].append(post_process_fn(value))
         else:
-            rnn_states[recurrent_submodule_name] = _extract_from_rnn_states(rnn_states_batched=rnn_states_batched[recurrent_submodule_name], batch_idx=batch_idx)
+            rnn_states[recurrent_submodule_name] = _extract_from_rnn_states(
+                rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
+                batch_idx=batch_idx,
+                post_process_fn=post_process_fn
+            )
     return rnn_states
 
 
@@ -117,7 +122,7 @@ def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
                     rnn_states[recurrent_submodule_name][key] = []
                     for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
                         value = rnn_states_batched[recurrent_submodule_name][key][idx][batch_indices,...]
-                        if use_cuda: hidden = value.cuda()
+                        if use_cuda: value = value.cuda()
                         rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
