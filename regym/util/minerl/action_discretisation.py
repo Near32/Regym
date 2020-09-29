@@ -126,5 +126,6 @@ def generate_action_parser(action_set) -> Callable[[Dict[str, np.ndarray]], int]
         true_action = action['vector'] if isinstance(action, dict) else action
         dis = pairwise_distances(action_set, true_action.reshape(1, -1))
         discrete_action = np.argmin(dis)
+        import ipdb; ipdb.set_trace()
         return discrete_action
     return action_parser

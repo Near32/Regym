@@ -23,7 +23,7 @@ from regym.environments.vec_env import VecEnv
 from regym.rl_loops.singleagent_loops import rl_loop
 from regym.util.experiment_parsing import initialize_agents
 
-from regym.util.wrappers import LazyFrames, FrameSkipStack, ContinuingTimeLimit
+from regym.util.wrappers import LazyFrames, FrameSkipStack, ContinuingTimeLimit, minerl2020_wrap_env
 
 #import aicrowd_helper
 
@@ -200,7 +200,6 @@ def wrap_env(env,
   wrapped_env = DictActionWrapper(env=wrapped_env)
   return wrapped_env
 
-
 def minerl_wrap_env(env,
                     size=84,
                     skip=None,
@@ -241,7 +240,6 @@ def minerl_wrap_env(env,
   env = DictActionWrapper(env=env)
 
   return env
-
 
 
 VERBOSE = False
@@ -294,7 +292,7 @@ def check_path_for_agent(filepath, restore=True):
 
 
 class MineRLTrajectoryEnvironmentCreator():
-    def __init__(self, task_name, trajectory_names: List[str], wrapping_fn=None):
+    def __init__(self, task_name, trajectory_names: List[str], wrapping_fn=None, action_parser: Callable=lambda x:x):
         self.trajectory_names = trajectory_names
         self.wrapping_fn = wrapping_fn
 
@@ -304,7 +302,7 @@ class MineRLTrajectoryEnvironmentCreator():
         for trajectory_name in self.trajectory_names:
             data_pipeline = minerl.data.make(task_name)
             data_iterator = data_pipeline.load_data(trajectory_name)
-            self.envs.append(MineRLTrajectoryBasedEnv(data_iterator))
+            self.envs.append(MineRLTrajectoryBasedEnv(data_iterator, action_parser=action_parser))
 
     def __call__(self, worker_id=None, seed=0):
         env = self.envs[self.next_env_pointer]
@@ -315,16 +313,21 @@ class MineRLTrajectoryEnvironmentCreator():
         return env
 
 
-def load_demonstrations_into_replay_buffer(agent, task_name: str, seed: int, n_clusters: int,
-                                           wrapping_fn: Callable):
-    if os.path.exists('action_set.pickle'):
-        action_set = pickle.load(open('action_set.pickle', 'rb'))
-    else:
-        action_set = get_action_set(task_name,
-                                    path=None,
-                                    n_clusters=n_clusters)
-        pickle.dump(action_set, open('action_set.pickle', "wb"))
+from sklearn.metrics import pairwise_distances
 
+def action_parser(action, action_set):
+  true_action = action['vector'] if isinstance(action, dict) else action
+  dis = pairwise_distances(action_set, true_action.reshape(1, -1))
+  discrete_action = np.argmin(dis, axis=0)
+  # (1,)
+  return discrete_action
+
+def load_demonstrations_into_replay_buffer(
+      agent, 
+      action_set,
+      task_name: str, 
+      seed: int, 
+      wrapping_fn: Callable):
     if os.path.exists('good_demo_names.pickle'):
         good_demo_names = pickle.load(open('good_demo_names.pickle', 'rb'))
     else:
@@ -335,10 +338,11 @@ def load_demonstrations_into_replay_buffer(agent, task_name: str, seed: int, n_c
         )
         pickle.dump(good_demo_names, open('good_demo_names.pickle', "wb"))
 
-
-
     # Action set
-    continuous_to_discrete_action_parser = generate_action_parser(action_set)
+    #continuous_to_discrete_action_parser = generate_action_parser(action_set)
+    continuous_to_discrete_action_parser = partial(action_parser,
+      action_set=action_set
+    )
 
     next_batch_trajectory_names = []
     for i, demo_name in enumerate(good_demo_names):
@@ -348,7 +352,8 @@ def load_demonstrations_into_replay_buffer(agent, task_name: str, seed: int, n_c
             env_creator = MineRLTrajectoryEnvironmentCreator(
                 task_name=task_name,
                 trajectory_names=deepcopy(next_batch_trajectory_names),
-                wrapping_fn=wrapping_fn
+                wrapping_fn=wrapping_fn,
+                action_parser=continuous_to_discrete_action_parser
             )
             next_batch_trajectory_names = []
 
@@ -356,7 +361,7 @@ def load_demonstrations_into_replay_buffer(agent, task_name: str, seed: int, n_c
                 env_creator=env_creator,
                 nbr_parallel_env=agent.nbr_actor,
                 seed=seed,
-                gathering=True,
+                gathering=False, #True,
                 video_recording_episode_period=None,
                 video_recording_dirpath=None,
             )
@@ -443,6 +448,7 @@ def training_process(agent_config: Dict,
   #torch.backends.cudnn.deterministic = True
   #torch.backends.cudnn.benchmark = False
 
+  """
   pixel_wrapping_fn = partial(minerl_wrap_env,
     size=task_config['observation_resize_dim'],
     skip=task_config['nbr_frame_skipping'],
@@ -451,8 +457,36 @@ def training_process(agent_config: Dict,
     grayscale=task_config['grayscale'],
     reward_scheme=task_config['reward_scheme']
   )
+  """
+
+  if os.path.exists('action_set.pickle'):
+    action_set = pickle.load(open('action_set.pickle', 'rb'))
+  else:
+    action_set = get_action_set(
+      task_name=task_config['env-id'],
+      path=None,
+      n_clusters=task_config['n_clusters'],
+    )
+    pickle.dump(action_set, open('action_set.pickle', "wb"))
+
+
+  pixel_wrapping_fn = partial(minerl2020_wrap_env,
+    action_set=action_set,
+    skip=task_config['nbr_frame_skipping'],
+    stack=task_config['nbr_frame_stacking'],
+    previous_reward_action=True,
+    trajectory_wrapping=False
+  )
 
   test_pixel_wrapping_fn = pixel_wrapping_fn
+
+  preloading_wrapping_fn = partial(minerl2020_wrap_env,
+    action_set=action_set,
+    skip=task_config['nbr_frame_skipping'],
+    stack=task_config['nbr_frame_stacking'],
+    previous_reward_action=True,
+    trajectory_wrapping=True
+  )
 
   task = generate_task(
     task_config['env-id'],
@@ -499,10 +533,10 @@ def training_process(agent_config: Dict,
 
   agent = load_demonstrations_into_replay_buffer(
       agent,
-      task_config['env-id'],
-      seed,
-      task_config['n_clusters'],
-      wrapping_fn=pixel_wrapping_fn)
+      action_set,
+      task_name=task_config['env-id'],
+      seed=seed,
+      wrapping_fn=preloading_wrapping_fn)
 
   if task_config['pre_train_on_demonstrations']:
       raise NotImplementedError

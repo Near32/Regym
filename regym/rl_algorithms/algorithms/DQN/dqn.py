@@ -340,7 +340,11 @@ class DQNAlgorithm(Algorithm):
             sampled_next_rnn_states = None
             if self.recurrent:
                 sampled_rnn_states, sampled_next_rnn_states = self.sample_from_rnn_states(
-                    rnn_states, next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                    rnn_states, 
+                    next_rnn_states, 
+                    batch_indices, 
+                    use_cuda=self.kwargs['use_cuda']
+                )
                 # (batch_size, unroll_dim, ...)
 
             sampled_goals = None

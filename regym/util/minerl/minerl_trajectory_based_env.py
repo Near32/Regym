@@ -25,26 +25,28 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
     :param minerl_trajectory_env: Environment that's going to be fed to agent
     '''
     agent.reset_actors()
-    
+
     obs = minerl_trajectory_env.reset()
     done = [False] * agent.nbr_actor
     while not all(done):
-        # With r2d2, we explicitly need to have 'extra_inputs' in frame (rnn) state
-        # TODO: we should add info['inventory']
-        #agent.rnn_states['phi_body']['extra_inputs'] = {}
-
         # Taking an action is mandatory to propagate rnn_states, even if
         # action is ignored
-        _ = agent.take_action(obs)
+        dummy_action = agent.take_action(obs)
 
         succ_obs, reward, done, infos = minerl_trajectory_env.step(
-            action_vector=[None] * agent.nbr_actor
+            action_vector=dummy_action #[None] * agent.nbr_actor
         )
 
-        import ipdb; ipdb.set_trace()
+        action = np.array(
+            [
+                info_i['current_action'] # (1,) 
+                for info_i in infos
+            ]
+        )
+        # (nbr_actor, 1)
 
         agent.handle_experience(obs,
-                                np.array([action_parser(info_i['a']) for info_i in infos]),
+                                action,
                                 reward,
                                 succ_obs,
                                 done,
@@ -53,7 +55,6 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
 
 
 class MineRLTrajectoryBasedEnv(gym.Env):
-
     def __init__(self, trajectory_generator: Generator,
                  action_parser: Callable = lambda x: x):
         '''
@@ -99,6 +100,7 @@ class MineRLTrajectoryBasedEnv(gym.Env):
 
         (o, a, r, succ_o, d) = next(self.trajectory_generator)
         self.current_experience = (o, a, r, succ_o, d)
+        self.previous_action = np.array([0])
         return o
 
     def step(self, action):
@@ -112,14 +114,17 @@ class MineRLTrajectoryBasedEnv(gym.Env):
         # Decide what we return
         (o, a, r, succ_o, d) = self.current_experience
 
-        info = {'a': self.action_parser(a['vector']),
- 'inventory_vector': o['vector']
-               }
+        info = {
+            'current_action': self.action_parser(a['vector']), #(1,)
+            'previous_action': self.previous_action, #(1,)
+            'inventory': np.expand_dims(o['vector'], axis=0) # (1, 64)
+        }
 
         # Update current experience
         self.is_trajectory_done = d
         if not self.is_trajectory_done:
             self.current_experience = next(self.trajectory_generator)
+            self.previous_action = info['current_action']
 
         return succ_o, r, d, info
 

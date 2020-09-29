@@ -1348,9 +1348,10 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         env (gym.Env): Env to wrap.
     """
 
-    def __init__(self, env):
+    def __init__(self, env, trajectory_wrapping=False):
         super(PreviousRewardActionInfoWrapper, self).__init__(env)
         self.nbr_actions = env.action_space.n
+        self.trajectory_wrapping = trajectory_wrapping
 
     def reset(self):
         self.previous_reward = np.zeros((1, 1))
@@ -1361,10 +1362,19 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         observation, reward, done, info = self.env.step(action)
         
         info['previous_reward'] = copy.deepcopy(self.previous_reward)
-        info['previous_action'] = copy.deepcopy(self.previous_action)
+        if self.trajectory_wrapping:
+            # Only perform discrete-to-ohe transformation:
+            # No need to fetch the previous value, it is already given.
+            info['previous_action'] = np.eye(self.nbr_actions, dtype=np.float32)[info['previous_action'][0]].reshape(1, -1)
+        else:
+            # Fetch the previous value:
+            info['previous_action'] = copy.deepcopy(self.previous_action)
 
         self.previous_reward = np.ones((1, 1), dtype=np.float32)*reward
-        self.previous_action = np.eye(self.nbr_actions, dtype=np.float32)[action].reshape(1, -1)
+        if not(self.trajectory_wrapping):
+            # Perform the discrete-to-ohe transformation:
+            # And the value will be used at the next step.
+            self.previous_action = np.eye(self.nbr_actions, dtype=np.float32)[action].reshape(1, -1)
 
         return observation, reward, done, info
 
@@ -1417,10 +1427,11 @@ class FrameSkipStack(gym.Wrapper):
     - the observation space of the environment to be frames solely.
     - the frames are concatenated on the last axis, i.e. the channel axis.
     """
-    def __init__(self, env, skip=8, stack=4):
+    def __init__(self, env, skip=8, stack=4, trajectory_wrapping=False):
         gym.Wrapper.__init__(self,env)
         self.skip = skip if skip is not None else 0
         self.stack = stack if stack is not None else 1
+        self.trajectory_wrapping = trajectory_wrapping
         
         self.observations = deque([], maxlen=self.stack)
         
@@ -1442,11 +1453,23 @@ class FrameSkipStack(gym.Wrapper):
     
     def step(self, action):
         total_reward = 0.0
+        infos = []
         for _ in range(self.skip):
             obs, reward, done, info = self.env.step(action)
+            infos.append(info)
             total_reward += reward
             if done:break
         self.observations.append(obs)
+        
+        # When wrapping  trajectory env,
+        # the actual previous action is in the initial info:
+        if self.trajectory_wrapping:
+            # It could be worth considering sampling from the list of infos
+            # for the previous_action the most representative of the current
+            # set of actions by weighting proportionaly...
+            info['previous_action'] = infos[0]['previous_action']
+            info['current_action'] = infos[0]['current_action']
+
         return self._get_obs(), total_reward, done, info
 
 
@@ -1499,7 +1522,11 @@ def minerl_wrap_env(env,
         env = ProgressivelyMultiRewardWrapper(env=env, penalizing=penalizing, nbr_episode=nbr_episode) 
     
     if skip is not None or stack is not None:
-        env = FrameSkipStack(env=env, skip=skip, stack=stack)
+        env = FrameSkipStack(
+            env=env, 
+            skip=skip, 
+            stack=stack
+        )
     # Actions:
     if action_wrapper == 'SerialDiscrete':
         env = wrap_env_serial_discrete(env=env)
@@ -1698,7 +1725,7 @@ class DiscreteActionWrapper(gym.ActionWrapper):
     Given an actions set
     Convert continuous action to nearest discrete action
     '''
-    def __init__(self,env,action_set,key_name=None):
+    def __init__(self, env, action_set, key_name=None):
         super().__init__(env)
         self.action_set = action_set
         self.key_name = key_name
@@ -1733,7 +1760,31 @@ class MineRLObservationSplitFrameSkipWrapper(gym.Wrapper):
         info['inventory'] = obs['vector']
         return obs['pov'],total_reward,done,info
 
-def minerl2020_wrap_env(env,action_set,skip=None):
+class MineRLObservationSplitWrapper(gym.Wrapper):
+    """
+    Split state dictionary into pov and inventory
+    """
+    def __init__(self, env, trajectory_wrapping=False):
+        gym.Wrapper.__init__(self, env)
+        self.trajectory_wrapping = trajectory_wrapping
+        self.observation_space = gym.spaces.Box(low=0.0, high=255.0, shape=(64,64,3), dtype=np.float32)
+        
+    def reset(self,**args):
+        obs = self.env.reset()
+        return obs['pov']
+    
+    def step(self,action):
+        obs, reward, done, info = self.env.step(action)
+        if not(self.trajectory_wrapping):
+            info['inventory'] = np.expand_dims(obs['vector'], axis=0)
+        return obs['pov'], reward, done, info
+
+def minerl2020_wrap_env(env,
+                        action_set,
+                        skip=None,
+                        stack=None,
+                        previous_reward_action=True,
+                        trajectory_wrapping=False):
     '''
     Add all wrappers need for minerl 2020
     '''
@@ -1742,9 +1793,32 @@ def minerl2020_wrap_env(env,action_set,skip=None):
         max_episode_steps = env.spec.max_episode_steps
         env = ContinuingTimeLimit(env,max_episode_steps=max_episode_steps)
     
-    if skip is not None:
-        env = MineRLObservationSplitFrameSkipWrapper(env=env,skip=skip)
-        
-    env = DiscreteActionWrapper(env,action_set,'vector')
+    # {POV, vector}, continuous action
+    env = MineRLObservationSplitWrapper(env=env, trajectory_wrapping=trajectory_wrapping)
+    # state=POV, continuous action, 
+    # infos={inventory (if traj_wrap: , previous_action(d), current_action(d))}
+    env = DiscreteActionWrapper(env, action_set, 'vector')
+    # state=POV, input action is discrete, propagated action is continuous, 
+    # infos={inventory (if traj_wrap: , previous_action(d), current_action(d))}
+    
+    if skip is not None or stack is not None:
+        env = FrameSkipStack(
+            env=env, 
+            skip=skip, 
+            stack=stack,
+            trajectory_wrapping=trajectory_wrapping
+        )
+        # state=POV, input action is discrete, propagated action is continuous, 
+        # infos={inventory (if traj_wrap: , previous_action(d), current_action(d))}
+    
+    # The agent deals with discrete actions so we want this wrapper to be the last one:
+    if previous_reward_action:
+        env = PreviousRewardActionInfoWrapper(
+            env=env,
+            trajectory_wrapping=trajectory_wrapping
+        )
+        # state=POV, 
+        # input action is discrete, propagated action is continuous, 
+        # infos={inventory, previous_reward, previous_action(ohe) (if traj_wrap: current_action(d))}
     
     return env

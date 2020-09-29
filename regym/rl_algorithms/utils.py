@@ -104,14 +104,15 @@ def _extract_from_rnn_states(rnn_states_batched: Dict,
 def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
                                            batch_indices: torch.Tensor,
                                            use_cuda: bool=False,
-                                           map_keys: Optional[List]=['hidden', 'cell']):
+                                           map_keys: Optional[List]=None): #['hidden', 'cell']):
     if rnn_states_batched is None:  return None
 
     rnn_states = {k: {} for k in rnn_states_batched}
     for recurrent_submodule_name in rnn_states_batched:
         if is_leaf(rnn_states_batched[recurrent_submodule_name]):
             rnn_states[recurrent_submodule_name] = {}
-            for key in map_keys:
+            eff_map_keys = map_keys if map_keys is not None else rnn_states_batched[recurrent_submodule_name].keys()
+            for key in eff_map_keys:
                 if key in rnn_states_batched[recurrent_submodule_name]:
                     rnn_states[recurrent_submodule_name][key] = []
                     for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):

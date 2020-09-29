@@ -152,13 +152,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
     if not isinstance(kwargs['observation_resize_dim'], int):  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
     #if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
-
-    # Clarify a lil'
-    # We need to add extra features to LSTM input, explained in R2D2 appendix
-    # (i.e appending one-hot encoded of previous action and previous reward)
-    kwargs['lstm_input_dim'] = kwargs['phi_arch_hidden_units'][0] + (task.action_dim + 1)  # +1 represents scalar reward
-    kwargs['phi_arch_hidden_units'][-1] += task.action_dim + 1
-
+    
     kwargs = parse_and_check(kwargs, task)
 
     model = generate_model(task, kwargs)
