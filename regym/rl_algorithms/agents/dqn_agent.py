@@ -231,8 +231,11 @@ class DQNAgent(Agent):
             current_prediction = model(state, goal=goal)
         return current_prediction
 
-    def clone(self, training=None, with_replay_buffer=False):
-        cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
+    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False):
+        cloned_algo = self.algorithm.clone(
+            with_replay_buffer=with_replay_buffer,
+            clone_proxies=clone_proxies
+        )
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
 
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
@@ -240,6 +243,18 @@ class DQNAgent(Agent):
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
         clone.nbr_steps = self.nbr_steps
+
+        # Goes through all variables 'Proxy' (dealing with multiprocessing)
+        # contained in this class and removes them from clone
+        if not(clone_proxies):
+            proxy_key_values = [
+                (key, value) 
+                for key, value in clone.__dict__.items() 
+                if ('Proxy' in str(type(value)))
+            ]
+            for key, value in proxy_key_values:
+                setattr(clone, key, None)
+
         return clone
 
     def get_async_actor(self, training=None, with_replay_buffer=False):

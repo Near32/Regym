@@ -444,9 +444,13 @@ class DQNAlgorithm(Algorithm):
         # Goes through all variables 'Proxy' (dealing with multiprocessing)
         # contained in this class and removes them from clone
         if not(clone_proxies):
-            proxy_key_values = [(key, value) for key, value in cloned_algo.__dict__.items() if ('Proxy' in str(type(value)))]
-            for key, value:
-                setattr(key, None)
+            proxy_key_values = [
+                (key, value) 
+                for key, value in cloned_algo.__dict__.items() 
+                if ('Proxy' in str(type(value)))
+            ]
+            for key, value in proxy_key_values:
+                setattr(cloned_algo, key, None)
 
         return cloned_algo
 

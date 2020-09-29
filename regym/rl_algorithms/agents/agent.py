@@ -289,7 +289,7 @@ class Agent(object):
     def take_action(self, state):
         raise NotImplementedError
 
-    def clone(self, training=None, with_replay_buffer=False):
+    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False):
         raise NotImplementedError
 
     def get_async_actor(self, training=None, with_replay_buffer=False):
@@ -305,7 +305,10 @@ class Agent(object):
 
     def save(self, with_replay_buffer=False):
         assert(self.save_path is not None)
-        torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)
+        torch.save(
+            self.clone(with_replay_buffer=with_replay_buffer, clone_proxies=False), 
+            self.save_path
+        )
 
 
 

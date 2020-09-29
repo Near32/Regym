@@ -61,13 +61,26 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         clone = R2D2Agent(
             name=self.name,
             algorithm=cloned_algo,
-            extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos))
+            extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos)
+        )
 
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone.handled_experiences = self.handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
         clone.nbr_steps = self.nbr_steps
+
+        # Goes through all variables 'Proxy' (dealing with multiprocessing)
+        # contained in this class and removes them from clone
+        if not(clone_proxies):
+            proxy_key_values = [
+                (key, value) 
+                for key, value in clone.__dict__.items() 
+                if ('Proxy' in str(type(value)))
+            ]
+            for key, value in proxy_key_values:
+                setattr(clone, key, None)
+
         return clone
 
 
