@@ -122,7 +122,7 @@ def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
                     rnn_states[recurrent_submodule_name][key] = []
                     for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
                         value = rnn_states_batched[recurrent_submodule_name][key][idx][batch_indices,...]
-                        if use_cuda: hidden = value.cuda()
+                        if use_cuda: value = value.cuda()
                         rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
