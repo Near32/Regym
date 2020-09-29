@@ -617,6 +617,7 @@ if __name__ == '__main__':
   on_csgpu = False
   debug_mode = False
   use_async_agent = False
+  debug_mode = False
   __spec__ = None
   
   if len(sys.argv) > 2:

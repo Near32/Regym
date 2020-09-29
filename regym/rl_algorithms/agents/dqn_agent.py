@@ -47,8 +47,7 @@ class DQNAgent(Agent):
         # Number of training steps:
         self.nbr_steps = 0
 
-        self.saving_interval = self.kwargs['saving_interval'] if 'saving_interval' in self.kwargs else 1e4
-        import ipdb; ipdb.set_trace()
+        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 1e4
         
         self.previous_save_quotient = -1
 

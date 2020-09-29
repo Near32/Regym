@@ -428,7 +428,7 @@ class DQNAlgorithm(Algorithm):
             new_priority = self.storages[storage_idx].priority(sloss)
             self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 
-    def clone(self, with_replay_buffer: bool=False):        
+    def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False):        
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None
@@ -448,7 +448,10 @@ class DQNAlgorithm(Algorithm):
         
         self.param_update_counter = param_update_counter
         cloned_algo.param_update_counter = param_update_counter
-        
+
+        if not(clone_proxies):
+            proxy_key_values = [(key, value) for key, value in cloned_algo.__dict__.items() if ('Proxy' in str(type(value)))]
+
         return cloned_algo
 
     def async_actor(self):        
