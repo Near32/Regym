@@ -610,25 +610,27 @@ def training(config_file_path: str, debug_mode: bool):
   return trained_agents, tasks
 
 def main(config_file_path: str, debug_mode: bool):
+  return training(config_file_path, debug_mode)
+
+if __name__ == '__main__':
+  config_file_path = sys.argv[1]
+    
   on_csgpu = False
+  debug_mode = False
+  use_async_agent = False
+  __spec__ = None
+  
   if len(sys.argv) > 2:
       on_csgpu = any(['csgpu' in arg for arg in sys.argv])
+      use_async_agent = any(['async' in arg for arg in sys.argv])
+      debug_mode = any(['debug' in arg for arg in sys.argv])
+  
   if on_csgpu:
     os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
     os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
     os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-  return training(config_file_path, debug_mode)
-
-if __name__ == '__main__':
-  config_file_path = sys.argv[1]
-
-  use_async_agent = False
-  __spec__ = None
-  if len(sys.argv) > 2:
-      use_async_agent = any(['async' in arg for arg in sys.argv])
-      debug_mode = any(['debug' in arg for arg in sys.argv])
   if use_async_agent:
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
