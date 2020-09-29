@@ -323,13 +323,14 @@ def action_parser(action, action_set):
   return discrete_action
 
 def load_demonstrations_into_replay_buffer(
-      agent, 
+      agent,
       action_set,
-      task_name: str, 
-      seed: int, 
+      task_name: str,
+      seed: int,
       wrapping_fn: Callable,
-      demo_budget=None):
-    if os.path.exists('good_demo_names.pickle'):
+      demo_budget=None,
+      debug_mode: bool = False):
+    if debug_mode and os.path.exists('good_demo_names.pickle'):
         good_demo_names = pickle.load(open('good_demo_names.pickle', 'rb'))
     else:
         good_demo_names = get_good_demo_names(
@@ -388,12 +389,11 @@ def train_and_evaluate(agent: object,
                        test_nbr_episode: int = 10,
                        benchmarking_record_episode_interval: int = None,
                        step_hooks = None):
-  
-  async = False
+  use_async_agent = False
   if len(sys.argv) > 2:
-    async = any(['async' in arg for arg in sys.argv])
+    use_async_agent = any(['async' in arg for arg in sys.argv])
 
-  if async:
+  if use_async_agent:
     trained_agent = rl_loop.async_gather_experience_parallel(
       task,
       agent,
@@ -407,7 +407,7 @@ def train_and_evaluate(agent: object,
       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
       step_hooks=step_hooks
     )
-  else:    
+  else:
     trained_agent = rl_loop.gather_experience_parallel(
       task,
       agent,
@@ -428,7 +428,7 @@ def train_and_evaluate(agent: object,
 
   trained_agent.save(with_replay_buffer=save_replay_buffer)
   print(f"Agent saved at: {trained_agent.save_path}")
-  
+
   task.env.close()
   task.test_env.close()
 
@@ -444,7 +444,8 @@ def training_process(agent_config: Dict,
                      base_path: str = './',
                      video_recording_episode_period_training: int = None,
                      video_recording_episode_period_benchmarking: int = None,
-                     seed: int = 0):
+                     seed: int = 0,
+                     debug_mode: bool=False):
   if not os.path.exists(base_path): os.makedirs(base_path)
 
   np.random.seed(seed)
@@ -464,11 +465,11 @@ def training_process(agent_config: Dict,
   )
   """
 
-  if os.path.exists('action_set.pickle'):
+  if debug_mode and os.path.exists('action_set.pickle'):
     action_set = pickle.load(open('action_set.pickle', 'rb'))
   else:
     action_set = get_action_set(
-      task_name=task_config['env-id'],
+      env=task_config['env-id'],
       path=None,
       n_clusters=task_config['n_clusters'],
     )
@@ -513,7 +514,7 @@ def training_process(agent_config: Dict,
   #sum_writer = SummaryWriter(base_path)
   regym.RegymSummaryWriterPath = base_path #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
   sum_writer =  base_path
-    
+
   save_path = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
   agent, offset_episode_count = check_path_for_agent(save_path, restore=False)
   if agent is None:
@@ -542,7 +543,8 @@ def training_process(agent_config: Dict,
     task_name=task_config['env-id'],
     seed=seed,
     wrapping_fn=preloading_wrapping_fn,
-    demo_budget=task_config['demo_budget']
+    demo_budget=task_config['demo_budget'],
+    debug_mode=debug_mode
   )
 
   if task_config['pre_train_on_demonstrations']:
@@ -573,7 +575,7 @@ def load_configs(config_file_path: str):
   return experiment_config, agents_config, envs_config
 
 
-def training(config_file_path):
+def training(config_file_path: str, debug_mode: bool):
   #logging.basicConfig(level=logging.INFO)
   #logger = logging.getLogger('MineRL Training.')
 
@@ -599,15 +601,16 @@ def training(config_file_path):
       benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])),
       train_observation_budget=int(float(experiment_config['train_observation_budget'])),
       base_path=path,
-      seed=experiment_config['seed']
+      seed=experiment_config['seed'],
+      debug_mode=debug_mode
     )
     trained_agents.append(trained_agent)
     tasks.append(task)
 
   return trained_agents, tasks
 
-def main(config_file_path: str):
-  on_csgpu = False 
+def main(config_file_path: str, debug_mode: bool):
+  on_csgpu = False
   if len(sys.argv) > 2:
       on_csgpu = any(['csgpu' in arg for arg in sys.argv])
   if on_csgpu:
@@ -615,22 +618,23 @@ def main(config_file_path: str):
     os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
     os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-  
-  return training(config_file_path)
+
+  return training(config_file_path, debug_mode)
 
 if __name__ == '__main__':
   config_file_path = sys.argv[1]
 
-  async = False 
+  use_async_agent = False
   __spec__ = None
   if len(sys.argv) > 2:
-      async = any(['async' in arg for arg in sys.argv])
-  if async:
+      use_async_agent = any(['async' in arg for arg in sys.argv])
+      debug_mode = any(['debug' in arg for arg in sys.argv])
+  if use_async_agent:
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
 
   from torch.multiprocessing import Manager
   regym.RegymManager = Manager()
 
-  main(config_file_path)
+  main(config_file_path, debug_mode)
 
