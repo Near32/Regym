@@ -65,6 +65,9 @@ def get_inventory_actions(env:str,path:str,trajectory_names:np.ndarray,agreement
     min_agreement = agreement_percent * len(trajectory_names)
     inventory_actions = np.array(inventory_actions)
 
+    if len(inventory_actions) == 0:
+        return []
+
     unique_inventory_actions,counts = np.unique(inventory_actions,axis=0,return_counts=True)
 
     key_inventory_actions = unique_inventory_actions[counts > min_agreement]
