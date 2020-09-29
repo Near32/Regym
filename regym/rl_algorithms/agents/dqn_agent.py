@@ -168,9 +168,10 @@ class DQNAgent(Agent):
                 self.actor_learner_shared_dict["models"] = self.algorithm.get_models()
                 self.actor_learner_shared_dict["models_update_required"] = True
             
-            if self.save_path is not None \
-            and (self.handled_experiences.value // self.saving_interval) != self.previous_save_quotient:
-                self.previous_save_quotient = self.handled_experiences.value // self.saving_interval
+            if self.async_learner\
+            and self.save_path is not None \
+            and (self.algorithm.get_update_count() // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = self.algorithm.get_update_count() // self.saving_interval
                 self.save()
 
         return nbr_updates

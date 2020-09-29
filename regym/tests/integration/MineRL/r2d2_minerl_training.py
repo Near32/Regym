@@ -522,9 +522,6 @@ def training_process(agent_config: Dict,
 
   agent.save_path = save_path
 
-  import ipdb; ipdb.set_trace()
-  agent.save()
-  
   #regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
 
   step_hooks = []
