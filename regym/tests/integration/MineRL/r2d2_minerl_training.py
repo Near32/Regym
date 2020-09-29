@@ -351,6 +351,9 @@ def load_demonstrations_into_replay_buffer(
         next_batch_trajectory_names += [demo_name]
 
         if (len(next_batch_trajectory_names) == agent.nbr_actor) or ((i + 1) == len(good_demo_names)):
+            if demo_budget is not None and (i+1) >= demo_budget:
+              break
+
             env_creator = MineRLTrajectoryEnvironmentCreator(
                 task_name=task_name,
                 trajectory_names=deepcopy(next_batch_trajectory_names),
@@ -374,10 +377,6 @@ def load_demonstrations_into_replay_buffer(
                 minerl_trajectory_env=vec_env,
                 action_parser=continuous_to_discrete_action_parser
             )
-
-            if demo_budget is not None and (i+1) >= demo_budget:
-              break
-
 
 def train_and_evaluate(agent: object,
                        task: object,
@@ -614,7 +613,7 @@ def main(config_file_path: str, debug_mode: bool):
 
 if __name__ == '__main__':
   config_file_path = sys.argv[1]
-    
+
   on_csgpu = False
   debug_mode = False
   use_async_agent = False
