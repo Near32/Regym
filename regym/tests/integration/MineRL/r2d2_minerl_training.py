@@ -327,7 +327,8 @@ def load_demonstrations_into_replay_buffer(
       action_set,
       task_name: str, 
       seed: int, 
-      wrapping_fn: Callable):
+      wrapping_fn: Callable,
+      demo_budget=None):
     if os.path.exists('good_demo_names.pickle'):
         good_demo_names = pickle.load(open('good_demo_names.pickle', 'rb'))
     else:
@@ -372,6 +373,10 @@ def load_demonstrations_into_replay_buffer(
                 minerl_trajectory_env=vec_env,
                 action_parser=continuous_to_discrete_action_parser
             )
+
+            if demo_budget is not None and (i+1) >= demo_budget:
+              break
+
 
 def train_and_evaluate(agent: object,
                        task: object,
@@ -532,14 +537,13 @@ def training_process(agent_config: Dict,
   '''
   async_actor_agent = agent.get_async_actor()
   async_actor_agent = load_demonstrations_into_replay_buffer(
-      async_actor_agent,
-      action_set,
-      task_name=task_config['env-id'],
-      seed=seed,
-      wrapping_fn=preloading_wrapping_fn)
-
-  import ipdb; ipdb.set_trace()
-  # Verify that agent's storages contains data
+    async_actor_agent,
+    action_set,
+    task_name=task_config['env-id'],
+    seed=seed,
+    wrapping_fn=preloading_wrapping_fn,
+    demo_budget=task_config['demo_budget']
+  )
 
   if task_config['pre_train_on_demonstrations']:
       raise NotImplementedError

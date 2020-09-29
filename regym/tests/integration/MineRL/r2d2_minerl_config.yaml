@@ -84,7 +84,7 @@ r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLST
 experiment:
     tasks: [{'env-id': 'MineRLTreechopVectorObf-v0',
              
-             'run-id': 'Seed10_venv4_r2d2_Sk4_St4_Obs64_NoGrayscale_NoScaling_Replay1p6Min1p3_RewardSchemeNone',
+             'run-id': 'Seed10_venv4_r2d2_Sk4_St4_Obs64_NoGrayscale_NoScaling_Replay1p6Min1p3_Demos4',
              
              'agent-id': '1step_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e6Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_BURNIN_b16_L20_O10_B10',
              
@@ -97,7 +97,8 @@ experiment:
              'reward_scheme': 'None', #'penalizing_progressive1e4' #'penalizing_single_reward_episode'
              # MineRL specific parameters
              'pre_train_on_demonstrations': False,
-             'n_clusters': 20
+             'n_clusters': 20,
+             'demo_budget': 4,
              },
             ]
     experiment_id: 'MineRL_training'
