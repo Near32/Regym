@@ -266,6 +266,86 @@ def async_gather_experience_parallel(
     return agent 
 
 
+def async_gather_experience_parallel1(
+    task,
+    agent,
+    training,
+    max_obs_count=1e7,
+    max_update_count=1e7,
+    test_obs_interval=1e4,
+    test_nbr_episode=10,
+    env_configs=None,
+    sum_writer=None,
+    base_path='./',
+    benchmarking_record_episode_interval=None,
+    step_hooks=[]):
+    '''
+    Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
+    The observations vector is of length n, where n is the number of agents.
+    observations[i] corresponds to the oberservation of agent i.
+    :param env: ParallelEnv wrapper around an OpenAI gym environment
+    :param agent: Agent policy used to take actionsin the environment and to process simulated experiences
+    :param training: (boolean) Whether the agents will learn from the experience they recieve
+    :param max_obs_count: Maximum number of observations to gather data for.
+    :param test_obs_interval: Integer, interval between two testing of the agent in the test environment.
+    :param test_nbr_episode: Integer, nbr of episode to test the agent with.
+    :param env_configs: configuration dictionnary to use when resetting the environments.
+    :param sum_writer: SummaryWriter.
+    :param base_path: Path where to save gifs.
+    :param benchmarking_record_episode_interval: None if not gif ought to be made, otherwise Integer.
+    :returns:
+    '''
+    async_actor = agent.get_async_actor()
+    
+    learner_proc = Process(
+        target=learner_loop,
+        kwargs={
+            "sum_writer":sum_writer,
+            "agent":agent,
+            "max_update_count":max_update_count
+        }
+    )
+    learner_proc.start()
+
+    kwargs={
+        "task":task,
+        "agent":async_actor,
+        "training":training,
+        "max_obs_count":max_obs_count,
+        "test_obs_interval":test_obs_interval,
+        "test_nbr_episode":test_nbr_episode,
+        "env_configs":env_configs,
+        "sum_writer":sum_writer,
+        "base_path":base_path,
+        "benchmarking_record_episode_interval":benchmarking_record_episode_interval,
+        "step_hooks":step_hooks
+    }
+    gather_experience_parallel(**kwargs)
+    
+    return agent 
+
+
+def learner_loop(
+        sum_writer,
+        agent,
+        max_update_count):
+    if isinstance(sum_writer, str):
+        sum_writer_path = os.path.join(sum_writer, 'learner.log')
+        sum_writer = SummaryWriter(sum_writer_path)
+        agent.algorithm.summary_writer = sum_writer
+
+    pbar = tqdm(total=max_update_count, position=1)
+    total_nbr_updates = 0
+    while total_nbr_updates < max_update_count:
+        nbr_updates = agent.train()
+        if nbr_updates is None: nbr_updates = 1
+        pbar.update(nbr_updates)
+        total_nbr_updates += nbr_updates
+
+    sum_writer.flush()
+
+    return agent
+
 def gather_experience_parallel(task,
                                 agent,
                                 training,

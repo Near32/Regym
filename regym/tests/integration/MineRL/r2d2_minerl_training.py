@@ -393,7 +393,7 @@ def train_and_evaluate(agent: object,
     use_async_agent = any(['async' in arg for arg in sys.argv])
 
   if use_async_agent:
-    trained_agent = rl_loop.async_gather_experience_parallel(
+    trained_agent = rl_loop.async_gather_experience_parallel1(
       task,
       agent,
       training=True,
