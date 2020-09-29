@@ -14,14 +14,14 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
     def __init__(self, name, algorithm, extra_inputs_infos):
         # Both init will call the self's reset_rnn_states following self.mro's order, i.e. ExtraInputs's one first.
         ExtraInputsHandlingAgent.__init__(
-            self, 
-            name=name, 
+            self,
+            name=name,
             algorithm=algorithm,
             extra_inputs_infos=extra_inputs_infos
         )
         DQNAgent.__init__(
-            self, 
-            name=name, 
+            self,
+            name=name,
             algorithm=algorithm
         )
 
@@ -49,13 +49,17 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             infos=infos
         )
 
-    def clone(self, training=None, with_replay_buffer=False):
+    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False):
         '''
         TODO: test
         '''
-        cloned_algo = self.algorithm.clone(with_replay_buffer=with_replay_buffer)
+        cloned_algo = self.algorithm.clone(
+            with_replay_buffer=with_replay_buffer,
+            clone_proxies=clone_proxies
+        )
+
         clone = R2D2Agent(
-            name=self.name, 
+            name=self.name,
             algorithm=cloned_algo,
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos))
 
@@ -76,7 +80,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
 
         cloned_algo = self.algorithm.async_actor()
         clone = R2D2Agent(
-            name=self.name, 
+            name=self.name,
             algorithm=cloned_algo,
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos)
         )
@@ -93,9 +97,9 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
 
 def parse_and_check(kwargs: Dict,
                     task: 'regym.environments.Task'):
-    
+
     # Extra Inputs:
-    kwargs['task'] = task 
+    kwargs['task'] = task
 
     extra_inputs = kwargs['extra_inputs_infos']
     for key in extra_inputs:
@@ -106,10 +110,10 @@ def parse_and_check(kwargs: Dict,
                 if len(path) > 1:
                     pointer = kwargs
                     for el in path:
-                        try:     
+                        try:
                             if hasattr(pointer, el):
                                 pointer = getattr(pointer, el)
-                            elif el in pointer: 
+                            elif el in pointer:
                                 pointer = pointer[el]
                             else:
                                 raise RuntimeError
@@ -117,15 +121,15 @@ def parse_and_check(kwargs: Dict,
                             raise RuntimeError
                 else:
                     pointer = path
-                
-                try: 
+
+                try:
                     pointer = int(pointer)
                 except Exception as e:
                     print('Exception during parsing and checking:', e)
                     raise e
                 shape[idxdim] = pointer
 
-    return kwargs    
+    return kwargs
 
 def build_R2D2_Agent(task: 'regym.environments.Task',
                      config: Dict,
@@ -152,7 +156,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
     if not isinstance(kwargs['observation_resize_dim'], int):  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
     #if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
-    
+
     kwargs = parse_and_check(kwargs, task)
 
     model = generate_model(task, kwargs)
@@ -163,9 +167,9 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     )
 
     agent = R2D2Agent(
-        name=agent_name, 
+        name=agent_name,
         algorithm=algorithm,
         extra_inputs_infos=kwargs['extra_inputs_infos'],
     )
-    
+
     return agent

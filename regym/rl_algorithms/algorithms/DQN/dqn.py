@@ -441,8 +441,12 @@ class DQNAlgorithm(Algorithm):
         self.param_update_counter = param_update_counter
         cloned_algo.param_update_counter = param_update_counter
 
+        # Goes through all variables 'Proxy' (dealing with multiprocessing)
+        # contained in this class and removes them from clone
         if not(clone_proxies):
             proxy_key_values = [(key, value) for key, value in cloned_algo.__dict__.items() if ('Proxy' in str(type(value)))]
+            for key, value:
+                setattr(key, None)
 
         return cloned_algo
 
