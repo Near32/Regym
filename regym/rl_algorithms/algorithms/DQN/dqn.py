@@ -287,14 +287,6 @@ class DQNAlgorithm(Algorithm):
                         concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
                         preprocess_fn=(lambda x:x),
                     )
-                    """
-                    value = _concatenate_hdict(
-                        value.pop(0), 
-                        value, 
-                        map_keys=['hidden', 'cell'], 
-                        concat_fn=partial(torch.cat, dim=0)
-                    )
-                    """
                 else:
                     value = torch.cat(value, dim=0)
             else:
