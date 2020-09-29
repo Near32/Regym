@@ -103,7 +103,7 @@ experiment:
             ]
     experiment_id: 'MineRL_training'
     benchmarking_episodes: 0
-    benchmarking_interval: 1.0e4
+    benchmarking_interval: 1.0e8
     benchmarking_record_episode_interval: 0
     train_observation_budget: 8.0e6
     seed: 10
