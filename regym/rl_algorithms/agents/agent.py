@@ -371,7 +371,8 @@ class ExtraInputsHandlingAgent(Agent):
         :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
         :param infos: List of Dictionnaries of information from the environment.
         '''
-        hdict = self._build_dict_from(lhdict=infos)
+        agent_infos = [info for info in infos if info is not None]
+        hdict = self._build_dict_from(lhdict=agent_infos)
         
         recursive_inplace_update(self.rnn_states, hdict)
         

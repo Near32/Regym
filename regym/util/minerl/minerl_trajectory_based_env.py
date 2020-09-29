@@ -24,10 +24,13 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
     :param agent: Ideally R2D2 agent. Off-policy agent.
     :param minerl_trajectory_env: Environment that's going to be fed to agent
     '''
+    nbr_actors = minerl_trajectory_env.get_nbr_envs()
     agent.reset_actors()
 
     obs = minerl_trajectory_env.reset()
     done = [False] * agent.nbr_actor
+    previous_done = deepcopy(done)
+
     while not all(done):
         # Taking an action is mandatory to propagate rnn_states, even if
         # action is ignored
@@ -40,7 +43,7 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
         action = np.array(
             [
                 info_i['current_action'] # (1,) 
-                for info_i in infos
+                for info_i in infos if info_i is not None
             ]
         )
         # (nbr_actor, 1)
@@ -51,7 +54,33 @@ def trajectory_based_rl_loop(agent, minerl_trajectory_env: gym.Env,
                                 succ_obs,
                                 done,
                                 infos=infos)
-        obs = succ_obs
+        
+        # Since we are not 'gathering' experiences,
+        # we need to account for environments finishing
+        # before the other ones:
+        batch_index = -1
+        batch_idx_done_actors_among_not_done = []
+        for actor_index in range(nbr_actors):
+            if previous_done[actor_index]:
+                continue
+            batch_index +=1
+
+            # Bookkeeping of the actors whose episode just ended:
+            d = done[actor_index]
+            if ('real_done' in infos[actor_index]):
+                d = infos[actor_index]['real_done']
+
+            if d and not(previous_done[actor_index]):
+                batch_idx_done_actors_among_not_done.append(batch_index)
+
+        obs = deepcopy(succ_obs)
+        if len(batch_idx_done_actors_among_not_done):
+            # Regularization of the agents' next observations:
+            batch_idx_done_actors_among_not_done.sort(reverse=True)
+            for batch_idx in batch_idx_done_actors_among_not_done:
+                obs = np.concatenate( [obs[:batch_idx,...], obs[batch_idx+1:,...]], axis=0)
+
+        previous_done = deepcopy(done)
 
 
 class MineRLTrajectoryBasedEnv(gym.Env):

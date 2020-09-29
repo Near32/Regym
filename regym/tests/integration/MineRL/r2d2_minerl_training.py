@@ -530,13 +530,16 @@ def training_process(agent_config: Dict,
     step_hooks.append(clip_hook)
     print(f"PPO Clip Ratio Decay Hooked: {clip_hook}")
   '''
-
-  agent = load_demonstrations_into_replay_buffer(
-      agent,
+  async_actor_agent = agent.get_async_actor()
+  async_actor_agent = load_demonstrations_into_replay_buffer(
+      async_actor_agent,
       action_set,
       task_name=task_config['env-id'],
       seed=seed,
       wrapping_fn=preloading_wrapping_fn)
+
+  import ipdb; ipdb.set_trace()
+  # Verify that agent's storages contains data
 
   if task_config['pre_train_on_demonstrations']:
       raise NotImplementedError
