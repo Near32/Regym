@@ -498,6 +498,7 @@ def training_process(agent_config: Dict,
     skip=task_config['nbr_frame_skipping'],
     stack=task_config['nbr_frame_stacking'],
     previous_reward_action=True,
+    competition_testing=True,
     trajectory_wrapping=False
   )
 
@@ -508,6 +509,7 @@ def training_process(agent_config: Dict,
     skip=task_config['nbr_frame_skipping'],
     stack=task_config['nbr_frame_stacking'],
     previous_reward_action=True,
+    competition_testing=True,
     trajectory_wrapping=True
   )
 
@@ -649,7 +651,7 @@ if __name__ == '__main__':
     os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
     os.environ["JRE_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64/jre"
     os.environ["PATH"] = os.environ["JAVA_HOME"] + "/bin:" + os.environ["PATH"]
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
   if use_async_agent:
       torch.multiprocessing.freeze_support()

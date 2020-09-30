@@ -1794,7 +1794,7 @@ def minerl2020_wrap_env(env,
         env = env.env
         max_episode_steps = env.spec.max_episode_steps
         if not(competition_testing):
-            max_episode_steps = 2000
+            max_episode_steps = 5000
         env = ContinuingTimeLimit(env,max_episode_steps=max_episode_steps)
     
     # {POV, vector}, continuous action
