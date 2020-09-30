@@ -1,3 +1,4 @@
+from functools import partial
 import json
 import select
 import time
@@ -19,6 +20,11 @@ coloredlogs.install(logging.DEBUG)
 
 import pickle
 import torch
+
+import regym
+from regym.environments.utils import EnvironmentCreator
+from regym.environments.vec_env import VecEnv
+from regym.util.wrappers import minerl2020_wrap_env
 
 # All the evaluations will be evaluated on MineRLObtainDiamondVectorObf-v0 environment
 MINERL_GYM_ENV = os.getenv('MINERL_GYM_ENV', 'MineRLObtainDiamondVectorObf-v0')
@@ -97,19 +103,68 @@ class MineRLAgentBase(abc.ABC):
         """
         raise NotImplementedError()
 
+
+class MockEnvironmentCreator():
+    def __init__(self, env: gym.Env, wrapping_fn):
+        self.env = env
+        self.wrapping_fn = wrapping_fn
+
+    def __call__(self, worker_id, seed):
+        ''' Need to have params even if they are ignored '''
+        wrapped_env = self.wrapping_fn(env=self.env)
+        return wrapped_env
+
+
 class MineRLRegymAgent(MineRLAgentBase):
     def load_agent(self):
-        filepath = '/home/mark/Documents/Imitation/MineRL/AI_Crowd/agent.pt'
-        self.agent = torch.load(filepath)
+        self.action_set_path = './MineRLObtainDiamondVectorObf-v0_action_set.pickle'
+        self.agent_path = './mark_debug_agent.pt'
+
+        self.action_set = pickle.load(open(self.action_set_path, 'rb'))
+        if not torch.cuda.is_available():
+            self.agent = torch.load(self.agent_path, map_location=torch.device('cpu'))
+            self.agent.use_cuda = False
+            self.agent.algorithm.kwargs['use_cuda'] = False
+        else:
+            self.agent = torch.load(self.agent_path)
+
+        self.agent.training = False
+        self.agent.set_nbr_actor(nbr_actor=1)
 
     def run_agent_on_episode(self, single_episode_env : Episode):
+
+        # Wrapping environment with everything we need
+        wrapping_fn = partial(minerl2020_wrap_env,
+            env=single_episode_env.env,
+            action_set=self.action_set,
+            skip=4,
+            stack=4,
+            previous_reward_action=True,
+            trajectory_wrapping=False,
+            competition_testing=True
+        )
+
+        env_creator = MockEnvironmentCreator(
+            single_episode_env.env,
+            wrapping_fn=wrapping_fn
+        )
+
+        single_episode_env.env = VecEnv(
+            env_creator=env_creator,
+            nbr_parallel_env= self.agent.nbr_actor,
+            seed=0,  #  AICrowd people, this doesn't actually set the seed
+            gathering=False, #True,
+            video_recording_episode_period=None,
+            video_recording_dirpath=None,
+        )
+
         obs = single_episode_env.reset()
-        done = False
-        self.agent.set_nbr_actor(nbr_actor=1)
-        
+        done, info = False, None
+
         while not done:
-            act = self.agent.take_action(obs)
-            single_episode_env.step(act)
+            action = self.agent.take_action(obs, info)
+            succ_obs, reward, done, info = single_episode_env.step(action)
+            obs = succ_obs
 
 #####################################################################
 # IMPORTANT: SET THIS VARIABLE WITH THE AGENT CLASS YOU ARE USING   # 
