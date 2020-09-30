@@ -1790,15 +1790,11 @@ def minerl2020_wrap_env(env,
     '''
     Add all wrappers need for minerl 2020
     '''
-
-    if competition_testing:
-        '''
-        TODO for Mark
-        '''
-        pass
     if isinstance(env,gym.wrappers.TimeLimit):
         env = env.env
         max_episode_steps = env.spec.max_episode_steps
+        if not(competition_testing):
+            max_episode_steps = 2000
         env = ContinuingTimeLimit(env,max_episode_steps=max_episode_steps)
     
     # {POV, vector}, continuous action
