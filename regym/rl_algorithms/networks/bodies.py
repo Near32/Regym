@@ -129,7 +129,9 @@ class ConvolutionalBody(nn.Module):
     def forward(self, x, non_lin_output=True):
         feat_map = self._compute_feat_map(x)
 
-        features = feat_map.view(feat_map.size(0), -1)
+        # View -> Reshape
+        #features = feat_map.view(feat_map.size(0), -1)
+        features = feat_map.reshape(feat_map.size(0), -1)
         for idx, fc in enumerate(self.fcs):
             features = fc(features)
             if idx != len(self.fcs)-1 or non_lin_output:
@@ -863,7 +865,7 @@ class ConvolutionalLstmBody(nn.Module):
             node_id='extra_inputs',
         )
         
-        extra_inputs = [v[0].to(features.dtype) for v in extra_inputs.values()]
+        extra_inputs = [v[0].to(features.dtype).to(features.device) for v in extra_inputs.values()]
         if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
 
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))

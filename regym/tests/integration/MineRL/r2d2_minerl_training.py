@@ -519,9 +519,11 @@ def training_process(agent_config: Dict,
   if agent is None:
     agent = initialize_agents(task=task,
                               agent_configurations={task_config['agent-id']: agent_config})[0]
-
+  
   agent.save_path = save_path
 
+  agent.save()
+  
   #regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
 
   step_hooks = []
