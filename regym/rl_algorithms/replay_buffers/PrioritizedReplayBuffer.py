@@ -420,6 +420,8 @@ class PrioritizedReplayStorage(ReplayStorage):
     def update(self, idx, priority):
         if np.isnan(priority).any() or np.isinf(priority).any():
             priority = self.max_priority
+        
+        priority = np.ones(1, dtype=np.float32)*priority
 
         change = priority - self.tree[idx]
 
