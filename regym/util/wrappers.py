@@ -1785,10 +1785,17 @@ def minerl2020_wrap_env(env,
                         skip=None,
                         stack=None,
                         previous_reward_action=True,
-                        trajectory_wrapping=False):
+                        trajectory_wrapping=False,
+                        competition_testing: bool = False):
     '''
     Add all wrappers need for minerl 2020
     '''
+
+    if competition_testing:
+        '''
+        TODO for Mark
+        '''
+        pass
     if isinstance(env,gym.wrappers.TimeLimit):
         env = env.env
         max_episode_steps = env.spec.max_episode_steps
