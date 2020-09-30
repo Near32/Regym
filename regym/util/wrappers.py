@@ -1329,11 +1329,10 @@ class ContinuingTimeLimit(gym.Wrapper):
             "Cannot call env.step() before calling reset()"
         observation, reward, done, info = self.env.step(action)
         self._elapsed_steps += 1
-
+        
+        info['real_done'] = done
         if self._max_episode_steps <= self._elapsed_steps:
             info['real_done'] = True
-        else:
-            info['real_done'] = False
 
         return observation, reward, done, info
 
@@ -1786,13 +1785,16 @@ def minerl2020_wrap_env(env,
                         skip=None,
                         stack=None,
                         previous_reward_action=True,
-                        trajectory_wrapping=False):
+                        trajectory_wrapping=False,
+                        competition_testing: bool = False):
     '''
     Add all wrappers need for minerl 2020
     '''
     if isinstance(env,gym.wrappers.TimeLimit):
         env = env.env
         max_episode_steps = env.spec.max_episode_steps
+        if not(competition_testing):
+            max_episode_steps = 2000
         env = ContinuingTimeLimit(env,max_episode_steps=max_episode_steps)
     
     # {POV, vector}, continuous action
