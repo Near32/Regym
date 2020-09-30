@@ -384,14 +384,14 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     @property
     def max_priority(self):
-        if isinstance(self._max_priority, np.float64):
+        if isinstance(self._max_priority, np.ndarray):
             return self._max_priority
         else:
             return self._max_priority.value
 
     @max_priority.setter
     def max_priority(self, val):
-        if isinstance(self._max_priority, np.float64):
+        if isinstance(self._max_priority, np.ndarray):
             self._max_priority = val
         else:
             self._max_priority.value = val 
