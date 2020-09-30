@@ -136,7 +136,7 @@ class DQNAlgorithm(Algorithm):
         return self.nbr_actor
 
     def get_update_count(self):
-        return self.param_update_counter.value
+        return self.param_update_counter
 
     def get_epsilon(self, nbr_steps, strategy='exponential'):
         global summary_writer
