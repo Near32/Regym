@@ -121,8 +121,7 @@ class DQNAgent(Agent):
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
-            #with self.handled_experiences.get_lock():
-            self.handled_experiences.value +=1
+            self.handled_experiences +=1
 
         if len(done_actors_among_notdone):
             # Regularization of the agents' actors:
@@ -149,7 +148,7 @@ class DQNAgent(Agent):
             period_count_check = self.nbr_episode_per_cycle_count
 
         if self.training \
-        and self.handled_experiences.value > self.kwargs['min_capacity'] \
+        and self.handled_experiences > self.kwargs['min_capacity'] \
         and (period_count_check % period_check == 0 or not(self.async_actor)):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
@@ -240,7 +239,7 @@ class DQNAgent(Agent):
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
 
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
-        clone.handled_experiences = self.handled_experiences
+        clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
         clone.nbr_steps = self.nbr_steps
@@ -268,7 +267,7 @@ class DQNAgent(Agent):
         clone.async_actor = True 
 
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
-        clone.handled_experiences = self.handled_experiences
+        clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
         clone.nbr_steps = self.nbr_steps

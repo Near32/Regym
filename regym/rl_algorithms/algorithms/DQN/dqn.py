@@ -104,7 +104,24 @@ class DQNAlgorithm(Algorithm):
         global summary_writer
         if sum_writer is not None: summary_writer = sum_writer
         self.summary_writer = summary_writer
-        self.param_update_counter = regym.RegymManager.Value(int, 0, lock=False)
+        if regym.RegymManager is not None:
+            self._param_update_counter = regym.RegymManager.Value(int, 0, lock=False)
+        else:
+            self._param_update_counter =0 
+
+    @property
+    def param_update_counter(self):
+        if isinstance(self._param_update_counter, int):
+            return self._param_update_counter
+        else:
+            return self._param_update_counter.value    
+
+    @param_update_counter.setter
+    def param_update_counter(self, val):
+        if isinstance(self._param_update_counter, int):
+            self._param_update_counter = val
+        else:
+            self._param_update_counter.value = val 
     
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
@@ -372,7 +389,7 @@ class DQNAlgorithm(Algorithm):
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
                                           HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
-                                          iteration_count=self.param_update_counter.value,
+                                          iteration_count=self.param_update_counter,
                                           summary_writer=self.summary_writer,
                                           kwargs=self.kwargs)
             
@@ -384,7 +401,7 @@ class DQNAlgorithm(Algorithm):
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
 
-            self.param_update_counter.value += 1 
+            self.param_update_counter += 1 
 
         if self.use_PER :
             sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
@@ -427,8 +444,8 @@ class DQNAlgorithm(Algorithm):
         sum_writer = self.summary_writer
         self.summary_writer = None
         
-        param_update_counter = self.param_update_counter
-        self.param_update_counter = None 
+        param_update_counter = self._param_update_counter
+        self._param_update_counter = None 
 
         cloned_algo = copy.deepcopy(self)
         
@@ -437,8 +454,8 @@ class DQNAlgorithm(Algorithm):
         
         self.summary_writer = sum_writer
         
-        self.param_update_counter = param_update_counter
-        cloned_algo.param_update_counter = param_update_counter
+        self._param_update_counter = param_update_counter
+        cloned_algo._param_update_counter = param_update_counter
 
         # Goes through all variables 'Proxy' (dealing with multiprocessing)
         # contained in this class and removes them from clone
@@ -460,8 +477,8 @@ class DQNAlgorithm(Algorithm):
         sum_writer = self.summary_writer
         self.summary_writer = None
         
-        param_update_counter = self.param_update_counter
-        self.param_update_counter = None 
+        param_update_counter = self._param_update_counter
+        self._param_update_counter = None 
 
         cloned_algo = copy.deepcopy(self)
         
@@ -471,7 +488,7 @@ class DQNAlgorithm(Algorithm):
         self.summary_writer = sum_writer
         cloned_algo.summary_writer = sum_writer
 
-        self.param_update_counter = param_update_counter
-        cloned_algo.param_update_counter = param_update_counter
+        self._param_update_counter = param_update_counter
+        cloned_algo._param_update_counter = param_update_counter
 
         return cloned_algo

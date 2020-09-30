@@ -341,7 +341,10 @@ class PrioritizedReplayStorage(ReplayStorage):
             circular_offsets=circular_offsets
         )
 
-        self.length = regym.RegymManager.Value(int, 0, lock=False)
+        if regym.RegymManager is not None:
+            self._length = regym.RegymManager.Value(int, 0, lock=False)
+        else:
+            self._length = 0
         self.alpha = alpha
         self.beta_start = beta
         self.beta_increase_interval = beta_increase_interval
@@ -356,20 +359,52 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.max_priority = np.ones(1, dtype=np.float32)
         """
         #self.tree = regym.RegymManager.list([ 0 for _ in range(2 * int(self.capacity) - 1)], lock=False)
-        self.tree = regym.RegymManager.dict({idx:0 for idx in range(2 * int(self.capacity) - 1)}, lock=False)
+        if regym.RegymManager is not None:
+            self.tree = regym.RegymManager.dict({idx:0 for idx in range(2 * int(self.capacity) - 1)}, lock=False)
+            self._max_priority = regym.RegymManager.Value(float, 1.0, lock=False)
+        else:
+            self.tree = np.zeros(2 * int(self.capacity) - 1)
+            self._max_priority = np.ones(1, dtype=np.float32)
         
-        self.max_priority = regym.RegymManager.Value(float, 1.0, lock=False)
         self.sumPi_alpha = 0.0
-        
+    
+    @property
+    def length(self):
+        if isinstance(self._length, int):
+            return self._length
+        else:
+            return self._length.value
+
+    @length.setter
+    def length(self, val):
+        if isinstance(self._length, int):
+            self._length = val
+        else:
+            self._length.value = val
+
+    @property
+    def max_priority(self):
+        if isinstance(self._max_priority, np.ndarray):
+            return self._max_priority
+        else:
+            return self._max_priority.value
+
+    @max_priority.setter
+    def max_priority(self, val):
+        if isinstance(self._max_priority, np.ndarray):
+            self._max_priority = val
+        else:
+            self._max_priority.value = val 
+
     def _update_beta(self, iteration=None):
-        if iteration is None:   iteration = self.length.value
+        if iteration is None:   iteration = self.length
         self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
 
     def total(self):
         return self.tree[0]
 
     def __len__(self):
-        return self.length.value
+        return self.length
 
     def priority(self, error) :
         return (error+self.epsilon)**self.alpha
@@ -384,7 +419,7 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def update(self, idx, priority):
         if np.isnan(priority).any() or np.isinf(priority).any():
-            priority = self.max_priority.value
+            priority = self.max_priority
 
         change = priority - self.tree[idx]
 
@@ -394,7 +429,7 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.sumPi_alpha += priority
         self.tree[idx] = priority
 
-        self.max_priority.value = max(priority, self.max_priority.value)
+        self.max_priority = max(priority, self.max_priority)
 
         self._propagate(idx,change)
 
@@ -408,13 +443,13 @@ class PrioritizedReplayStorage(ReplayStorage):
 
     def add(self, exp, priority):
         if priority is None:
-            priority = self.max_priority.value
+            priority = self.max_priority
 
         super(PrioritizedReplayStorage, self).add(data=exp)
-        self.length.value = min(self.length.value+1, self.capacity)
+        self.length = min(self.length+1, self.capacity)
 
         if np.isnan(priority).any() or np.isinf(priority).any() :
-            priority = self.max_priority.value
+            priority = self.max_priority
 
         self.sumPi_alpha += priority
 

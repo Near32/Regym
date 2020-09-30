@@ -51,16 +51,23 @@ class ReplayStorage():
         self.position = dict()
         self.current_size = dict()
         """
-        self.position = regym.RegymManager.dict(lock=False)
-        self.current_size = regym.RegymManager.dict(lock=False)
-
+        if regym.RegymManager is not None:
+            self.position = regym.RegymManager.dict(lock=False)
+            self.current_size = regym.RegymManager.dict(lock=False)
+        else:
+            self.position = dict()
+            self.current_size = dict()
+            
         self.reset()
 
     def add_key(self, key):
         self.keys += [key]
         #setattr(self, key, np.zeros(self.capacity+1, dtype=object))
         #setattr(self, key, regym.RegymManager.list([np.zeros(self.capacity+1, dtype=object)]))
-        setattr(self, key, regym.RegymManager.dict({0:np.zeros(self.capacity+1, dtype=object)}, lock=False))
+        if regym.RegymManager is not None:
+            setattr(self, key, regym.RegymManager.dict({0:np.zeros(self.capacity+1, dtype=object)}, lock=False))
+        else:
+            setattr(self, key, {0:np.zeros(self.capacity+1, dtype=object)})    
         self.position[key] = 0
         self.current_size[key] = 0
 
@@ -103,7 +110,10 @@ class ReplayStorage():
             if k in self.circular_keys: continue
             #setattr(self, k, np.zeros(int(self.capacity) + 1, dtype=object))
             #setattr(self, k, regym.RegymManager.list([np.zeros(int(self.capacity) + 1, dtype=object)]))
-            setattr(self, k, regym.RegymManager.dict({0:np.zeros(int(self.capacity) + 1, dtype=object)}, lock=False))
+            if regym.RegymManager is not None:
+                setattr(self, k, regym.RegymManager.dict({0:np.zeros(int(self.capacity) + 1, dtype=object)}, lock=False))
+            else:
+                setattr(self, k, {0:np.zeros(int(self.capacity) + 1, dtype=object)})
             self.position[k] = 0
             self.current_size[k] = 0
 

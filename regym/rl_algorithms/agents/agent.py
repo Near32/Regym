@@ -31,13 +31,20 @@ class Agent(object):
         
         self.async_actor = False
         self.async_learner = False 
-        self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
+        if regym.RegymManager is not None:
+            self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
+        else:
+            self.actor_learner_shared_dict = {"models_update_required":False, "models": None}
+
         self.actor_models_update_optimization_interval = 100
         if "actor_models_update_optimization_interval" in self.algorithm.kwargs:
             self.actor_models_update_optimization_interval = self.algorithm.kwargs["actor_models_update_optimization_interval"]
         self.previous_actor_models_update_quotient = -1
 
-        self.handled_experiences = regym.RegymManager.Value(int, 0, lock=False)
+        if regym.RegymManager is not None:
+            self._handled_experiences = regym.RegymManager.Value(int, 0, lock=False)
+        else:
+            self._handled_experiences = 0
         self.save_path = None
         self.episode_count = 0
 
@@ -62,8 +69,22 @@ class Agent(object):
         if len(self.rnn_keys):
             self.recurrent = True
 
+    @property
+    def handled_experiences(self):
+        if isinstance(self._handled_experiences, int):
+            return self._handled_experiences
+        else:
+            return self._handled_experiences.value
+
+    @handled_experiences.setter
+    def handled_experiences(self, val):
+        if isinstance(self._handled_experiences, int):
+            self._handled_experiences = val 
+        else:
+            self._handled_experiences.value = val
+
     def get_experience_count(self):
-        return self.handled_experiences.value
+        return self.handled_experiences
 
     def get_update_count(self):
         raise NotImplementedError

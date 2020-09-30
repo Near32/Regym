@@ -394,6 +394,7 @@ def gather_experience_parallel(task,
     sample_episode_count = 0
 
     pbar = tqdm(total=max_obs_count, position=0)
+    pbar.update(obs_count)
 
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'actor.log')

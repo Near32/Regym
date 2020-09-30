@@ -638,7 +638,6 @@ if __name__ == '__main__':
   on_csgpu = False
   debug_mode = False
   use_async_agent = False
-  debug_mode = False
   __spec__ = None
   
   if len(sys.argv) > 2:
@@ -656,8 +655,8 @@ if __name__ == '__main__':
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
 
-  from torch.multiprocessing import Manager
-  regym.RegymManager = Manager()
+      from torch.multiprocessing import Manager
+      regym.RegymManager = Manager()
 
   main(config_file_path, debug_mode)
 

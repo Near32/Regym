@@ -65,7 +65,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         )
 
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
-        clone.handled_experiences = self.handled_experiences
+        clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
         clone.nbr_steps = self.nbr_steps
@@ -101,7 +101,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         clone.async_actor = True
 
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
-        clone.handled_experiences = self.handled_experiences
+        clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count
         if training is not None:    clone.training = training
         clone.nbr_steps = self.nbr_steps
