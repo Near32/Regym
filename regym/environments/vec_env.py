@@ -14,7 +14,8 @@ class VecEnv():
                  seed=0, 
                  gathering=True,
                  video_recording_episode_period=None,
-                 video_recording_dirpath='./tmp/regym/video_recording/'):
+                 video_recording_dirpath='./tmp/regym/video_recording/',
+                 initial_env=None):
         
         self.video_recording_episode_period = video_recording_episode_period
         self.video_recording_dirpath = video_recording_dirpath
@@ -24,6 +25,8 @@ class VecEnv():
         self.nbr_parallel_env = nbr_parallel_env
         self.single_agent = single_agent
 
+        self.initial_env = initial_env
+        
         self.env_queues = [None]*self.nbr_parallel_env
         self.env_configs = [None]*self.nbr_parallel_env
         self.env_processes = [None]*self.nbr_parallel_env
@@ -67,7 +70,11 @@ class VecEnv():
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
         seed = self.seed+idx+1
-        self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
+        if idx==0 and self.initial_env is not None:
+            self.env_processes[idx] = self.initial_env
+            self.initial_env = None
+        else:
+            self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
         if idx==0 and self.video_recording_episode_period is not None:
             self.env_processes[idx] = PeriodicVideoRecorderWrapper(
                 env=self.env_processes[idx], 

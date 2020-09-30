@@ -145,6 +145,8 @@ def parse_and_check(kwargs: Dict,
                     raise e
                 shape[idxdim] = pointer
 
+    kwargs['task'] = None
+    
     return kwargs
 
 def build_R2D2_Agent(task: 'regym.environments.Task',
