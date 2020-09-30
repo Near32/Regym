@@ -41,6 +41,8 @@ setup(
                       'torchvision',
                       'cvxopt',
                       'scipy',
+                      'minerl',
+                      'sklearn',
                       'seaborn'] + test_requirements,
 
     python_requires=">=3.6",
