@@ -336,9 +336,9 @@ def load_demonstrations_into_replay_buffer(
     if len(sys.argv) > 2:
       absolute_path = any(['absolute_path' in arg for arg in sys.argv])
     if absolute_path:
-      path = os.path.join(base_path, 'good_demo_names.pickle')
+      path = os.path.join(base_path, f'{task_name}_good_demo_names.pickle')
     else:
-      path = 'good_demo_names.pickle'
+      path = f'{task_name}_good_demo_names.pickle'
 
     if debug_mode and os.path.exists(path):
         good_demo_names = pickle.load(open(path, 'rb'))
@@ -478,10 +478,10 @@ def training_process(agent_config: Dict,
   if len(sys.argv) > 2:
     absolute_path = any(['absolute_path' in arg for arg in sys.argv])
   if absolute_path:
-    action_set_path = os.path.join(base_path, 'action_set.pickle')
+    action_set_path = os.path.join(base_path, f"{task_config['env-id']}_action_set.pickle")
   else:
-    action_set_path = 'action_set.pickle'
-  
+    action_set_path = f"{task_config['env-id']}_action_set.pickle"
+
   if debug_mode and os.path.exists(action_set_path):
     action_set = pickle.load(open(action_set_path, 'rb'))
   else:
