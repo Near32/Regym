@@ -393,7 +393,7 @@ def train_and_evaluate(agent: object,
     use_async_agent = any(['async' in arg for arg in sys.argv])
 
   if use_async_agent:
-    trained_agent = rl_loop.async_gather_experience_parallel1(
+    trained_agent = rl_loop.async_gather_experience_parallel(
       task,
       agent,
       training=True,
@@ -519,9 +519,11 @@ def training_process(agent_config: Dict,
   if agent is None:
     agent = initialize_agents(task=task,
                               agent_configurations={task_config['agent-id']: agent_config})[0]
-
+  
   agent.save_path = save_path
 
+  agent.save()
+  
   #regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
 
   step_hooks = []

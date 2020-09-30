@@ -90,7 +90,7 @@ experiment:
              
              'agent-id': '1step_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e6Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_BURNIN_b16_L20_O10_B10',
              
-             'nbr_actor': 2,
+             'nbr_actor': 1,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': False,
@@ -104,9 +104,12 @@ experiment:
              },
             ]
     experiment_id: 'MineRL_training'
+    ##benchmarking_episodes: 0
     benchmarking_episodes: 0
+    ##benchmarking_interval: 1.0e8
     benchmarking_interval: 1.0e8
     benchmarking_record_episode_interval: 0
+    ##train_observation_budget: 8.0e6
     train_observation_budget: 8.0e6
     seed: 10
 
@@ -117,7 +120,7 @@ agents:
         discount: 0.997
         gradient_clip: 0.0
         replay_capacity: 1e6
-        min_capacity: 1e3
+        min_capacity: 1e2
         use_PER: True
         PER_alpha: 0.9
         PER_beta: 0.4
@@ -131,9 +134,10 @@ agents:
         # Whereas 32 / 4 yielded ~25 it/sec....
         double: True
         dueling: True 
-        #noisy: True 
+        noisy: True 
         n_step: 1
-        tau: 2.5e-3
+        ##tau: 2.5e-3
+        tau: 5.0e-3
         burn_in: True
         sequence_replay_unroll_length: 20
         sequence_replay_overlap_length: 10
