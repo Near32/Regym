@@ -379,6 +379,16 @@ class ExtraInputsHandlingAgent(Agent):
 
         return out_hdict
 
+    def take_action(self, state, infos=None):
+        if infos and not self.training:
+            agent_infos = [info for info in infos if info is not None]
+            hdict = self._build_dict_from(lhdict=agent_infos)
+            recursive_inplace_update(self.rnn_states, hdict)
+        return self._take_action(state)
+
+    def _take_action(self, state):
+        raise NotImplementedError
+
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
         Wrapper around the actual function now living in _handle_experience.

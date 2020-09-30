@@ -25,6 +25,9 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             algorithm=algorithm
         )
 
+    def _take_action(self, state):
+        return DQNAgent.take_action(self, state)
+
     def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
