@@ -195,7 +195,7 @@ def _concatenate_list_hdict(
             # previously is taken care of at 145 upon initialization,
             # and then at 165 upon 'recurrence'.
             for k in pointers[0]:
-                queue_element = [pointer[k] for pointer in pointers]
+                queue_element = [pointer[k] for pointer in pointers if k in pointer]
                 queue.insert(0, queue_element)
 
                 out_pointer[k] = {}
@@ -211,7 +211,7 @@ def _concatenate_list_hdict(
                     for idx in range(len(pointers[0][k])):
                         concat_list = [
                             preprocess_fn(pointer[k][idx])
-                            for pointer in pointers
+                            for pointer in pointers if k in pointer
                         ]
                         out_pointer[k].append(
                             concat_fn(concat_list)
@@ -219,7 +219,7 @@ def _concatenate_list_hdict(
                 else:
                     concat_list = [
                         preprocess_fn(pointer[k])
-                        for pointer in pointers
+                        for pointer in pointers if k in pointer
                     ]
                     out_pointer[k] = concat_fn(concat_list)
     return out_hd

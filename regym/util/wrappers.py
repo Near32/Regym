@@ -1332,6 +1332,8 @@ class ContinuingTimeLimit(gym.Wrapper):
 
         if self._max_episode_steps <= self._elapsed_steps:
             info['real_done'] = True
+        else:
+            info['real_done'] = False
 
         return observation, reward, done, info
 
