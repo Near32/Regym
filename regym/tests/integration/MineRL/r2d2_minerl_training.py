@@ -329,16 +329,19 @@ def load_demonstrations_into_replay_buffer(
       seed: int,
       wrapping_fn: Callable,
       demo_budget=None,
-      debug_mode: bool = False):
-    if debug_mode and os.path.exists('good_demo_names.pickle'):
-        good_demo_names = pickle.load(open('good_demo_names.pickle', 'rb'))
+      debug_mode: bool = False,
+      base_path:str='./'):
+    
+    path = os.path.join(base_path, 'good_demo_names.pickle')
+    if debug_mode and os.path.exists(path):
+        good_demo_names = pickle.load(open(path, 'rb'))
     else:
         good_demo_names = get_good_demo_names(
             task_name,
             path=None,
             score_percent=0.45
         )
-        pickle.dump(good_demo_names, open('good_demo_names.pickle', "wb"))
+        pickle.dump(good_demo_names, open(path, "wb"))
 
     # Action set
     #continuous_to_discrete_action_parser = generate_action_parser(action_set)
@@ -464,15 +467,16 @@ def training_process(agent_config: Dict,
   )
   """
 
-  if debug_mode and os.path.exists('action_set.pickle'):
-    action_set = pickle.load(open('action_set.pickle', 'rb'))
+  action_set_path = os.path.join(base_path, 'action_set.pickle')
+  if debug_mode and os.path.exists(action_set_path):
+    action_set = pickle.load(open(action_set_path, 'rb'))
   else:
     action_set = get_action_set(
       env=task_config['env-id'],
       path=None,
       n_clusters=task_config['n_clusters'],
     )
-    pickle.dump(action_set, open('action_set.pickle', "wb"))
+    pickle.dump(action_set, open(action_set_path, "wb"))
 
 
   pixel_wrapping_fn = partial(minerl2020_wrap_env,
@@ -545,7 +549,8 @@ def training_process(agent_config: Dict,
     seed=seed,
     wrapping_fn=preloading_wrapping_fn,
     demo_budget=task_config['demo_budget'],
-    debug_mode=debug_mode
+    debug_mode=debug_mode,
+    base_path=base_path
   )
 
   if task_config['pre_train_on_demonstrations']:
