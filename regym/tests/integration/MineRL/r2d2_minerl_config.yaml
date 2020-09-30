@@ -84,11 +84,11 @@ r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLST
 
 
 experiment:
-    tasks: [{'env-id': 'MineRLTreechopVectorObf-v0',
+    tasks: [{'env-id': 'MineRLObtainDiamondVectorObf-v0', #'MineRLTreechopVectorObf-v0',
              
              'run-id': 'Seed10_venv2_r2d2_Sk4_St4_Obs64_NoGrayscale_NoScaling_Replay1p6Min1p3_Demos4',
              
-             'agent-id': '1step_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e6Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_BURNIN_b16_L20_O10_B10',
+             'agent-id': '1step_noisy_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e6Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_BURNIN_b16_L20_O10_B10',
              
              'nbr_actor': 2,
              'nbr_frame_skipping': 4,
@@ -99,20 +99,20 @@ experiment:
              'reward_scheme': 'None', #'penalizing_progressive1e4' #'penalizing_single_reward_episode'
              # MineRL specific parameters
              'pre_train_on_demonstrations': False,
-             'n_clusters': 20,
-             'demo_budget': 0,
+             'n_clusters': 40,
+             'demo_budget': 10,
              },
             ]
     experiment_id: 'MineRL_training'
     benchmarking_episodes: 0
     benchmarking_interval: 1.0e8
     benchmarking_record_episode_interval: 0
-    train_observation_budget: 8.0e6
+    train_observation_budget: 30000
     seed: 10
 
 
 agents:    
-    1step_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e6Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_BURNIN_b16_L20_O10_B10:
+    1step_noisy_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e6Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_BURNIN_b16_L20_O10_B10:
         <<: *r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
         discount: 0.997
         gradient_clip: 0.0
@@ -131,9 +131,9 @@ agents:
         # Whereas 32 / 4 yielded ~25 it/sec....
         double: True
         dueling: True 
-        #noisy: True 
+        noisy: True 
         n_step: 1
-        tau: 2.5e-3
+        tau: 5e-2
         burn_in: True
         sequence_replay_unroll_length: 20
         sequence_replay_overlap_length: 10

@@ -290,7 +290,6 @@ class DQNAlgorithm(Algorithm):
                 else:
                     value = torch.cat(value, dim=0)
             else:
-                import ipdb; ipdb.set_trace()
                 value = value[0]
 
             fulls[key] = value
