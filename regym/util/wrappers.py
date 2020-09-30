@@ -1329,11 +1329,10 @@ class ContinuingTimeLimit(gym.Wrapper):
             "Cannot call env.step() before calling reset()"
         observation, reward, done, info = self.env.step(action)
         self._elapsed_steps += 1
-
+        
+        info['real_done'] = done
         if self._max_episode_steps <= self._elapsed_steps:
             info['real_done'] = True
-        else:
-            info['real_done'] = False
 
         return observation, reward, done, info
 
