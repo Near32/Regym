@@ -10,7 +10,7 @@ from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdi
 
 
 eps = 1e-4
-extras = False 
+study_qa_values_discrepancy = True
 
 
 def value_function_rescaling(x):
@@ -358,7 +358,7 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_rnn_states,
         grad_enabler=True,
         use_zero_initial_states=False,
-        extras=extras,
+        extras=not(kwargs['burn_in']) or study_qa_values_discrepancy,
         map_keys=map_keys,
     )
 
@@ -480,7 +480,7 @@ def compute_loss(states: torch.Tensor,
     loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
 
     if summary_writer is not None:
-        if extras:
+        if study_qa_values_discrepancy:
             denominator = eps+torch.abs(training_burned_in_predictions['qa'].reshape(batch_size, -1).max(dim=-1)[0])
             # (batch_size, )
             initial_diff = training_burned_in_predictions['qa'][:,0,...]-training_unrolled_predictions['qa'][:,0,...]

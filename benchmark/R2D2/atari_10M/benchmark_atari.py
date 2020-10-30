@@ -11,6 +11,7 @@ from functools import partial
 
 import torch
 import numpy as np
+import random
 
 import regym
 from regym.environments import generate_task
@@ -101,6 +102,10 @@ def training_process(agent_config: Dict,
 
     np.random.seed(seed)
     torch.manual_seed(seed)
+    random.seed(seed)
+    if hasattr(torch.backends, "cudnn"):
+      torch.backends.cudnn.deterministic = True
+      torch.backends.cudnn.benchmark = False
 
     pixel_wrapping_fn = partial(
       baseline_atari_pixelwrap,
