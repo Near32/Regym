@@ -174,6 +174,8 @@ class DQNAlgorithm(Algorithm):
             circular_keys.update({'next_rnn_states':'rnn_states'})
             circular_offsets.update({'next_rnn_states':1})
 
+        beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  if 'PER_beta_increase_interval' in self.kwargs else 1e4
+        
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
                 self.storages.append(
@@ -181,6 +183,7 @@ class DQNAlgorithm(Algorithm):
                         capacity=self.kwargs['replay_capacity']//self.nbr_actor,
                         alpha=self.kwargs['PER_alpha'],
                         beta=self.kwargs['PER_beta'],
+                        beta_increase_interval=beta_increase_interval,
                         keys=keys,
                         circular_keys=circular_keys,                 
                         circular_offsets=circular_offsets
@@ -400,6 +403,10 @@ class DQNAlgorithm(Algorithm):
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
+                if self.summary_writer is not None:
+                    self.summary_writer.add_scalar('PerUpdate/ImportanceSamplingMean', sampled_importanceSamplingWeights.cpu().mean().item(), self.param_update_counter)
+                    self.summary_writer.add_scalar('PerUpdate/ImportanceSamplingStd', sampled_importanceSamplingWeights.cpu().std().item(), self.param_update_counter)
+                    self.summary_writer.add_scalar('PerUpdate/PER_Beta', beta, self.param_update_counter)
 
             self.param_update_counter += 1 
 
@@ -414,6 +421,7 @@ class DQNAlgorithm(Algorithm):
                 array_batch_indices=array_batch_indices,
                 minibatch_size=minibatch_size,
             )
+
 
     def sample_from_rnn_states(self, rnn_states, next_rnn_states, batch_indices, use_cuda):
         sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])

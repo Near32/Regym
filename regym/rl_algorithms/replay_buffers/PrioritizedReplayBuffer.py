@@ -341,6 +341,7 @@ class PrioritizedReplayStorage(ReplayStorage):
             circular_offsets=circular_offsets
         )
 
+        self.iteration = 0 
         if regym.RegymManager is not None:
             self._length = regym.RegymManager.Value(int, 0, lock=False)
         else:
@@ -397,7 +398,8 @@ class PrioritizedReplayStorage(ReplayStorage):
             self._max_priority.value = val 
 
     def _update_beta(self, iteration=None):
-        if iteration is None:   iteration = self.length
+        #if iteration is None:   iteration = self.length
+        if iteration is None:   iteration = self.iteration
         self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
 
     def total(self):
@@ -415,7 +417,8 @@ class PrioritizedReplayStorage(ReplayStorage):
         '''
         max_error = sequence_errors.max()
         mean_error = sequence_errors.mean()
-        return self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
+        error = self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
+        return self.priority(error)
 
     def update(self, idx, priority):
         if np.isnan(priority).any() or np.isinf(priority).any():
@@ -449,6 +452,7 @@ class PrioritizedReplayStorage(ReplayStorage):
 
         super(PrioritizedReplayStorage, self).add(data=exp)
         self.length = min(self.length+1, self.capacity)
+        self.iteration += 1 
 
         if np.isnan(priority).any() or np.isinf(priority).any() :
             priority = self.max_priority
@@ -484,14 +488,21 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
         priorities = [self.tree[tidx] for tidx in self.tree_indices]
 
-        #Check that priorities are valid:
+        #Check that priorities are valid: 
+        # if they are not, it is probably because the sample is not valid,
+        # therefore we resample it with a randexp value that should not lead the retrieve function ot go overboard:
         valid = False
         while not valid:
             valid = True
             for idx in range(len(priorities)):
                 if priorities[idx] == 0:
                     valid = False
-                    newrandexp = randexp[idx]-np.random.uniform(low=0.0, high=step, size=(1))
+                    # Make sure that the retrieve function will not fetch a sample in the part that is not initialised yet:
+                    newrandexp = randexp[idx]-np.random.uniform(
+                        low=0.0, 
+                        high= randexp[idx]-step,#step, 
+                        size=(1)
+                    )
                     self.tree_indices[idx] = self._retrieve(0,newrandexp)
                     priorities[idx] = self.tree[self.tree_indices[idx]]
                     break

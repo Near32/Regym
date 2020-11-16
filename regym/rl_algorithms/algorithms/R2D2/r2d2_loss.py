@@ -465,10 +465,14 @@ def compute_loss(states: torch.Tensor,
     #state_action_values_g = state_action_values_g[:,:-1,...]
 
     state_action_values_g = state_action_values_g.reshape(scaled_bellman_target_Sipn_Aipn.shape)
-
-    td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
+    unscaled_state_action_values_g = inverse_value_function_rescaling(state_action_values_g)
+    
+    #td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
+    td_error = torch.abs(bellman_target_Sipn_Aipn.detach() - unscaled_state_action_values_g)
+    scaled_td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
+    # TODO: renaming...
     loss_per_item = td_error
-    diff_squared = td_error.pow(2.0)
+    diff_squared = scaled_td_error.pow(2.0)
 
     if use_PER:
       diff_squared = importanceSamplingWeights * diff_squared

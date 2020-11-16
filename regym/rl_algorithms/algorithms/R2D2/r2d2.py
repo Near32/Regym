@@ -79,6 +79,8 @@ class R2D2Algorithm(DQNAlgorithm):
             circular_keys.update({'next_rnn_states':'rnn_states'})
             circular_offsets.update({'next_rnn_states':1})
 
+        beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  if 'PER_beta_increase_interval' in self.kwargs else 1e4
+        
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
                 self.storages.append(
@@ -86,6 +88,7 @@ class R2D2Algorithm(DQNAlgorithm):
                         capacity=self.replay_buffer_capacity//self.nbr_actor,
                         alpha=self.kwargs['PER_alpha'],
                         beta=self.kwargs['PER_beta'],
+                        beta_increase_interval=beta_increase_interval,
                         eta=self.kwargs['sequence_replay_PER_eta'],
                         keys=keys,
                         circular_keys=circular_keys,                 
@@ -190,11 +193,14 @@ class R2D2Algorithm(DQNAlgorithm):
             # Maybe add to replay storage?
             self._add_sequence_to_replay_storage(
                 actor_index=actor_index, 
-                override=(exp_it==nbr_experience_to_handle-1) and reached_end_of_episode
+                override=False, #(exp_it==nbr_experience_to_handle-1) and reached_end_of_episode
+                # Only add if experience count handled, 
+                # no longer cares about crossing the episode barrier as the loss handles it.
             )
 
         # Make sure the sequence buffer do not cross the episode barrier:
-        if reached_end_of_episode:
+        # UPDATE: no longer care about this since the loss takes care of the episode barriers...
+        if False: #reached_end_of_episode:
             self.sequence_replay_buffers[actor_index].clear()
             # Re-initialise the buffer count since the buffer is cleared out.
             # Otherwise some stored sequences could have length different than
