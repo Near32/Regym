@@ -1,7 +1,7 @@
 from typing import Dict, Any
 import torch
 import numpy as np
-import copy
+from copy import deepcopy
 import random
 from collections.abc import Iterable
 
@@ -164,7 +164,8 @@ class DQNAgent(Agent):
             and (self.algorithm.get_update_count() // self.actor_models_update_optimization_interval) != \
             self.previous_actor_models_update_quotient:
                 self.previous_actor_models_update_quotient = self.algorithm.get_update_count() // self.actor_models_update_optimization_interval
-                self.actor_learner_shared_dict["models"] = self.algorithm.get_models()
+                new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.get_models().items()}
+                self.actor_learner_shared_dict["models"] = new_models_cpu
                 self.actor_learner_shared_dict["models_update_required"] = True
             
             if self.async_learner\
@@ -181,7 +182,8 @@ class DQNAgent(Agent):
             if self.actor_learner_shared_dict["models_update_required"]:
                 self.actor_learner_shared_dict["models_update_required"] = False
                 if "models" in self.actor_learner_shared_dict.keys():
-                    self.algorithm.set_models(self.actor_learner_shared_dict["models"])
+                    new_models = self.actor_learner_shared_dict["models"]
+                    self.algorithm.set_models(new_models)
                 else:
                     raise NotImplementedError 
 
@@ -231,10 +233,11 @@ class DQNAgent(Agent):
             current_prediction = model(state, goal=goal)
         return current_prediction
 
-    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False):
+    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
         cloned_algo = self.algorithm.clone(
             with_replay_buffer=with_replay_buffer,
-            clone_proxies=clone_proxies
+            clone_proxies=clone_proxies,
+            minimal=minimal
         )
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
 

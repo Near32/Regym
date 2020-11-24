@@ -91,7 +91,7 @@ experiment:
              #'run-id': 'DEBUGGING/ActorUpdateInt4/QReplayAction/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997/',
              
              #'run-id': 'DEBUGGING/CrossingEpisodeBarriers/ProperTDs4Priori/PrioritizationAlphaFixed/ActorUpdateInt4/NonZeroInitialStateRNNOptim/QReplayAction/ScalingFN/Seed100_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997/',
-             'run-id': 'DEBUGGING/ActorUpdateInt4/NonZeroInitialStateRNNOptim/ScalingFN/Seed100_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997/',
+             'run-id': 'DEBUGGING_ASYNC/ActorUpdateInt4/NonZeroInitialStateRNNOptim/ScalingFN/Seed100_venv32_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997/',
              
              # Not learning because of QOnlineActions:
              # 'run-id': 'DEBUG6_Argmax_AlignedTargetActions_INM1Done_LossMasked/QOnlineAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
@@ -149,7 +149,7 @@ experiment:
              
              #'agent-id': '20step_prioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L80_O40_B20',
              
-             'nbr_actor': 1, #4,
+             'nbr_actor': 32,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
              'grayscale': True,
