@@ -52,13 +52,14 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             infos=infos
         )
 
-    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False):
+    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
         '''
         TODO: test
         '''
         cloned_algo = self.algorithm.clone(
             with_replay_buffer=with_replay_buffer,
-            clone_proxies=clone_proxies
+            clone_proxies=clone_proxies,
+            minimal=minimal
         )
 
         clone = R2D2Agent(

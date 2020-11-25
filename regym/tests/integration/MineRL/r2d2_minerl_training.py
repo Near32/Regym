@@ -539,8 +539,8 @@ def training_process(agent_config: Dict,
                               agent_configurations={task_config['agent-id']: agent_config})[0]
   
   agent.save_path = save_path
-
-  agent.save()
+  
+  agent.save(minimal=True)
   
   #regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
 

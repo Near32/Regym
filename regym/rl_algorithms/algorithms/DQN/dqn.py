@@ -444,7 +444,7 @@ class DQNAlgorithm(Algorithm):
             new_priority = self.storages[storage_idx].priority(sloss)
             self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 
-    def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False):        
+    def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None
@@ -457,6 +457,9 @@ class DQNAlgorithm(Algorithm):
 
         cloned_algo = copy.deepcopy(self)
         
+        if minimal:
+            cloned_algo.target_model = None
+
         if not(with_replay_buffer): 
             self.storages = storages
         

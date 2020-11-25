@@ -341,19 +341,22 @@ class PrioritizedReplayStorage(ReplayStorage):
             circular_offsets=circular_offsets
         )
 
-        self.iteration = 0 
-        if regym.RegymManager is not None:
-            self._length = regym.RegymManager.Value(int, 0, lock=False)
-        else:
-            self._length = 0
         self.alpha = alpha
         self.beta_start = beta
         self.beta_increase_interval = beta_increase_interval
-        #assert self.beta_increase_interval <= self.capacity
-        self.beta = self.beta_start
-
+        
         self.eta = eta
         self.epsilon = 1e-4
+
+        
+        if regym.RegymManager is not None:
+            self._length = regym.RegymManager.Value(int, 0, lock=False)
+            self._iteration= regym.RegymManager.Value(int, 1, lock=False)
+            self._beta = regym.RegymManager.Value(float, self.beta_start, lock=False)
+        else:
+            self._length = 0
+            self._iteration = 0 
+            self._beta = self.beta_start
 
         """
         self.tree = np.zeros(2 * int(self.capacity) - 1)
@@ -382,6 +385,34 @@ class PrioritizedReplayStorage(ReplayStorage):
             self._length = val
         else:
             self._length.value = val
+
+    @property
+    def iteration(self):
+        if isinstance(self._iteration, int):
+            return self._iteration
+        else:
+            return self._iteration.value
+
+    @iteration.setter
+    def iteration(self, val):
+        if isinstance(self._iteration, int):
+            self._iteration = val
+        else:
+            self._iteration.value = val
+
+    @property
+    def beta(self):
+        if isinstance(self._beta, float):
+            return self._beta
+        else:
+            return self._beta.value
+
+    @beta.setter
+    def beta(self, val):
+        if isinstance(self._beta, float):
+            self._beta = val
+        else:
+            self._beta.value = val
 
     @property
     def max_priority(self):
@@ -508,7 +539,7 @@ class PrioritizedReplayStorage(ReplayStorage):
                     break
 
         # Importance Sampling Weighting:
-        priorities = np.array(priorities, dtype=np.float32)
+        priorities = np.array(priorities, dtype=np.float32).reshape(-1)
         self.importanceSamplingWeights = np.power( len(self) * priorities , -self.beta)
 
         data_indices = np.array([tidx-self.capacity+1 for tidx in self.tree_indices])

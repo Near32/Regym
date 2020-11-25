@@ -151,7 +151,7 @@ class Agent(object):
         kwargs = {'cuda': algorithm.kwargs['use_cuda'], 'repeat':nbr_actor}
         #look_for_keys_and_apply(algorithm.get_models()['model'], keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
         for name, model in algorithm.get_models().items():
-            if "model" in name:
+            if "model" in name and model is not None:
                 look_for_keys_and_apply( model, keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
         rnn_keys = list(rnn_states.keys())
         return rnn_keys, rnn_states
@@ -310,7 +310,7 @@ class Agent(object):
     def take_action(self, state):
         raise NotImplementedError
 
-    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False):
+    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
         raise NotImplementedError
 
     def get_async_actor(self, training=None, with_replay_buffer=False):
@@ -324,10 +324,13 @@ class Agent(object):
 
         return 
 
-    def save(self, with_replay_buffer=False):
+    def save(self, with_replay_buffer=False, minimal=False):
         assert(self.save_path is not None)
         torch.save(
-            self.clone(with_replay_buffer=with_replay_buffer, clone_proxies=False), 
+            self.clone(
+                with_replay_buffer=with_replay_buffer, 
+                clone_proxies=False,
+                minimal=minimal), 
             self.save_path
         )
 

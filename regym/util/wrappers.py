@@ -269,15 +269,30 @@ def atari_pixelwrap(env,
     #    env = SingleLifeWrapper(env=env)
     return env
 
+import sys
+import gc
+import pdb
+class ForkedPdb(pdb.Pdb):
+    """A Pdb subclass that may be used
+    from a forked multiprocessing child
+    """
+    def interaction(self, *args, **kwargs):
+        _stdin = sys.stdin
+        try:
+            sys.stdin = open('/dev/stdin')
+            pdb.Pdb.interaction(self, *args, **kwargs)
+        finally:
+            sys.stdin = _stdin
+#forkedPdb = ForkedPdb()
 
 class GrayScaleObservation(gym.ObservationWrapper):
     r"""Convert the image observation from RGB to gray scale. """
     def __init__(self, env, keep_dim=True):
-        _env = env
+        self._env = env
         if isinstance(env, gym.wrappers.time_limit.TimeLimit):
-            _env = env.env
-        _env._get_image = _env.ale.getScreenGrayscale
-        _env._get_obs = _env.ale.getScreenGrayscale
+            self._env = env.env
+        self._env._get_image = self._env.ale.getScreenGrayscale
+        self._env._get_obs = self._env.ale.getScreenGrayscale
 
         super(GrayScaleObservation, self).__init__(env)
         
@@ -286,6 +301,10 @@ class GrayScaleObservation(gym.ObservationWrapper):
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(obs_shape[0], obs_shape[1], 1), dtype=np.uint8)
         
     def observation(self, observation):
+        if self._env._get_image != self._env.ale.getScreenGrayscale:
+            self._env._get_image = self._env.ale.getScreenGrayscale
+        if self._env._get_obs != self._env.ale.getScreenGrayscale:
+            self._env._get_obs = self._env.ale.getScreenGrayscale
         return observation
 
 class GrayScaleObservationCV(gym.ObservationWrapper):
@@ -477,6 +496,7 @@ def baseline_atari_pixelwrap(env,
                              previous_reward_action=False):
     if grayscale:
         env = GrayScaleObservation(env=env) 
+        #env = GrayScaleObservationCV(env=env) 
     
     if nbr_max_random_steps > 0:
         env = NoopResetEnv(env, noop_max=nbr_max_random_steps)

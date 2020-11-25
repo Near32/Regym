@@ -141,7 +141,7 @@ def run_episode_parallel(env,
 
     return per_actor_trajectories
 
-def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1, save_traj=False):
+def test_agent(env, agent, update_count, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1, save_traj=False):
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
 
@@ -159,7 +159,7 @@ def test_agent(env, agent, nbr_episode, sum_writer, iteration, base_path, nbr_sa
     mean_total_int_return = sum( total_int_return) / len(trajectory)
     std_int_return = math.sqrt( sum( [math.pow( r-mean_total_int_return ,2) for r in total_int_return]) / len(total_int_return) )
 
-    update_count = agent.get_update_count()
+    #update_count = agent.get_update_count()
 
     if sum_writer is not None:
         for idx, (ext_ret, int_ret) in enumerate(zip(total_return, total_int_return)):
@@ -500,8 +500,11 @@ def gather_experience_parallel(task,
                 save_traj = False
                 if (benchmarking_record_episode_interval is not None and benchmarking_record_episode_interval>0):
                     save_traj = (obs_count%benchmarking_record_episode_interval==0)
+                # TECHNICAL DEBT: clone_agent.get_update_count is failing because the update count param is None
+                # haven't figured out why is the cloning function making it None...
                 test_agent(env=test_env,
                             agent=agent.clone(training=False),
+                            update_count=agent.get_update_count(),
                             nbr_episode=test_nbr_episode,
                             sum_writer=sum_writer,
                             iteration=obs_count,
