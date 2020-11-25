@@ -188,7 +188,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 # If we need to dump the whole buffer into the sequence,
                 # then here we make sure the next iteration of the loop will handle
                 # the next element of the n_step buffer until it is empty. 
-                self.n_step_buffers[actor_index].pop()
+                self.n_step_buffers[actor_index].popleft()
 
             # Maybe add to replay storage?
             self._add_sequence_to_replay_storage(

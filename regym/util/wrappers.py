@@ -1430,7 +1430,7 @@ class FrameSkipStack(gym.Wrapper):
     """
     def __init__(self, env, skip=8, stack=4, trajectory_wrapping=False):
         gym.Wrapper.__init__(self,env)
-        self.skip = skip if skip is not None and not(trajectory_wrapping) else 1
+        self.skip = skip if skip is not None else 1
         self.stack = stack if stack is not None else 1
         self.trajectory_wrapping = trajectory_wrapping
         
