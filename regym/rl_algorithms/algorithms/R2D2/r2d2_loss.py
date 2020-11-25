@@ -473,7 +473,7 @@ def compute_loss(states: torch.Tensor,
     # TODO: renaming...
     loss_per_item = td_error
     diff_squared = scaled_td_error.pow(2.0)
-    
+
     if use_PER:
       diff_squared = importanceSamplingWeights * diff_squared
 
