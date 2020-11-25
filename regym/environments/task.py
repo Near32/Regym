@@ -2,7 +2,6 @@ from enum import Enum
 from typing import Callable, Any, List
 import gym
 
-from regym.rl_algorithms.agents import build_Deterministic_Agent
 
 class EnvType(Enum):
     SINGLE_AGENT = 'single-agent'
@@ -117,6 +116,7 @@ class Task:
         if self.env_type == EnvType.SINGLE_AGENT:
             env = self.env.env_creator(seed=seed)
             from regym.rl_loops.singleagent_loops import rl_loop
+            from regym.rl_algorithms.agents import build_Deterministic_Agent
             agent = build_Deterministic_Agent(self,
                                               {'action_sequence': action_sequence},
                                               'DemonstratorAgent')
