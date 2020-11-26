@@ -188,7 +188,6 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
     model = generate_model(task, kwargs)
     
     if kwargs['minerl']:
-
         # Action set
         action_set = pickle.load(open('{}_action_set.pickle'.format(task.name), 'rb'))
         # Assume rgb frames
@@ -211,9 +210,12 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
         expert_buffer = dummy_r2d2_agent.algorithm.storages[0]
 
     else:
-        expert_agent = torch.load(kwargs['expert_buffer_path'])
-        expert_buffer = expert_agent.algorithm.storages[0]
-
+        if kwargs["expert_buffer_path"] != "":
+            expert_agent = torch.load(kwargs['expert_buffer_path'])
+            expert_buffer = expert_agent.algorithm.storages[0]
+        else:
+            expert_buffer = None 
+            
     algorithm = R2D3Algorithm(
             kwargs=kwargs, 
             model=model,

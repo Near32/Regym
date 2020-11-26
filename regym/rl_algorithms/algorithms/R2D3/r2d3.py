@@ -6,6 +6,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import regym
+from ...networks import hard_update, random_sample
+
 from regym.rl_algorithms.algorithms.DQN import dqn_loss, ddqn_loss
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm, r2d2_loss
 from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
@@ -75,11 +78,7 @@ class R2D3Algorithm(R2D2Algorithm):
         We sample from both replay buffers (expert_buffer and agent
         collected experiences) according to property self.demo_ratio
         '''
-        sample_buffers = np.random.choice([1,0],size=minibatch_size,p=[self.demo_ratio,(1-self.demo_ratio)])
-        num_demonstrations_samples = np.sum(sample_buffers)
-        num_replay_buffer_samples = minibatch_size - num_demonstrations_samples
-
-        self.sample_split = num_replay_buffer_samples
+        num_demonstration_samples = (minibatch_size*len(self.storages)) * self.demo_ratio / (1 - self.demo_ratio)  
 
         '''
         Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
@@ -106,11 +105,14 @@ class R2D3Algorithm(R2D2Algorithm):
         '''
         Sample from experience buffers
         '''
-        for storage in self.storages:
+        for storage_idx, storage in enumerate(self.storages+[self.expert_buffer]):
+            nbr_sampling_values = minibatch_size
+            if storage_idx == len(self.storages):
+                nbr_sampling_values = num_demonstration_samples
             # Check that there is something in the storage 
-            if len(storage) <= 1: continue
+            if storage is None or len(storage) <= 1: continue
             if self.use_PER:
-                sample, importanceSamplingWeights = storage.sample(batch_size=num_replay_buffer_samples, keys=keys)
+                sample, importanceSamplingWeights = storage.sample(batch_size=nbr_sampling_values, keys=keys)
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
             else:
@@ -132,34 +134,6 @@ class R2D3Algorithm(R2D2Algorithm):
             for key, value in values.items():
                 fulls[key].append(value)
         
-            '''
-            Sample from expert buffer
-            '''
-            if num_demonstrations_samples > 0:
-            
-                if self.use_PER:
-                    sample, importanceSamplingWeights = self.expert_buffer.sample(batch_size=num_demonstrations_samples, keys=keys)
-                    importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
-                    fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
-                else:
-                    sample = self.expert_buffer.sample(batch_size=num_demonstrations_samples, keys=keys)
-                    
-                values = {}
-                for key, value in zip(keys, sample):
-                    value = value.tolist()
-                    if isinstance(value[0], dict): 
-                        value = _concatenate_list_hdict(
-                            lhds=value, 
-                            concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
-                            preprocess_fn=(lambda x:x),
-                        )
-                    else:
-                        value = torch.cat(value, dim=0)
-                    values[key] = value 
-
-                for key, value in values.items():
-                    fulls[key].append(value)
-        
         for key, value in fulls.items():
             if len(value) >1:
                 if isinstance(value[0], dict):
@@ -176,7 +150,115 @@ class R2D3Algorithm(R2D2Algorithm):
             fulls[key] = value
         
         return fulls
+    
+    def optimize_model(self, minibatch_size: int, samples: Dict):
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+
+        beta = self.storages[0].beta if self.use_PER else 1.0
         
+        states = samples['s']
+        actions = samples['a']
+        next_states = samples['succ_s']
+        rewards = samples['r']
+        non_terminals = samples['non_terminal']
+
+        rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
+        next_rnn_states = samples['next_rnn_states'] if 'next_rnn_states' in samples else None
+        goals = samples['g'] if 'g' in samples else None
+
+        importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
+
+        # For each actor, there is one mini_batch update:
+        sampler = random_sample(np.arange(states.size(0)), minibatch_size)
+        list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
+                                for storage_idx, storage in enumerate(self.storages)]
+        if self.expert_buffer is not None:
+            list_batch_indices += [len(self.storages)*minibatch_size+np.arange(states.size(0)-minibatch_size*len(self.storages))]
+        array_batch_indices = np.concatenate(list_batch_indices, axis=0)
+        sampled_batch_indices = []
+        sampled_losses_per_item = []
+
+        for batch_indices in sampler:
+            batch_indices = torch.from_numpy(batch_indices).long()
+            sampled_batch_indices.append(batch_indices)
+
+            sampled_rnn_states = None
+            sampled_next_rnn_states = None
+            if self.recurrent:
+                sampled_rnn_states, sampled_next_rnn_states = self.sample_from_rnn_states(
+                    rnn_states, 
+                    next_rnn_states, 
+                    batch_indices, 
+                    use_cuda=self.kwargs['use_cuda']
+                )
+                # (batch_size, unroll_dim, ...)
+
+            sampled_goals = None
+            if self.goal_oriented:
+                sampled_goals = goals[batch_indices].cuda() if self.kwargs['use_cuda'] else goals[batch_indices]
+
+            sampled_importanceSamplingWeights = None
+            if self.use_PER:
+                sampled_importanceSamplingWeights = importanceSamplingWeights[batch_indices].cuda() if self.kwargs['use_cuda'] else importanceSamplingWeights[batch_indices]
+            
+            sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
+            sampled_actions = actions[batch_indices].cuda() if self.kwargs['use_cuda'] else actions[batch_indices]
+            sampled_next_states = next_states[batch_indices].cuda() if self.kwargs['use_cuda'] else next_states[batch_indices]
+            sampled_rewards = rewards[batch_indices].cuda() if self.kwargs['use_cuda'] else rewards[batch_indices]
+            sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
+            # (batch_size, unroll_dim, ...)
+
+            self.optimizer.zero_grad()
+            
+            loss, loss_per_item = self.loss_fn(sampled_states, 
+                                          sampled_actions, 
+                                          sampled_next_states,
+                                          sampled_rewards,
+                                          sampled_non_terminals,
+                                          rnn_states=sampled_rnn_states,
+                                          next_rnn_states=sampled_next_rnn_states,
+                                          goals=sampled_goals,
+                                          gamma=self.GAMMA,
+                                          model=self.model,
+                                          target_model=self.target_model,
+                                          weights_decay_lambda=self.weights_decay_lambda,
+                                          weights_entropy_lambda=self.weights_entropy_lambda,
+                                          use_PER=self.use_PER,
+                                          PER_beta=beta,
+                                          importanceSamplingWeights=sampled_importanceSamplingWeights,
+                                          HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
+                                          iteration_count=self.param_update_counter,
+                                          summary_writer=self.summary_writer,
+                                          kwargs=self.kwargs)
+            
+            loss.backward(retain_graph=False)
+            if self.kwargs['gradient_clip'] > 1e-3:
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+            self.optimizer.step()
+
+            if self.use_PER:
+                sampled_losses_per_item.append(loss_per_item)
+                if self.summary_writer is not None:
+                    self.summary_writer.add_scalar('PerUpdate/ImportanceSamplingMean', sampled_importanceSamplingWeights.cpu().mean().item(), self.param_update_counter)
+                    self.summary_writer.add_scalar('PerUpdate/ImportanceSamplingStd', sampled_importanceSamplingWeights.cpu().std().item(), self.param_update_counter)
+                    self.summary_writer.add_scalar('PerUpdate/PER_Beta', beta, self.param_update_counter)
+
+            self.param_update_counter += 1 
+
+        if self.use_PER :
+            sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
+            # let us align the batch indices with the losses:
+            array_batch_indices = array_batch_indices[sampled_batch_indices]
+            # Now we can iterate through the losses and retrieve what 
+            # storage and what batch index they were associated with:
+            self._update_replay_buffer_priorities(
+                sampled_losses_per_item=sampled_losses_per_item, 
+                array_batch_indices=array_batch_indices,
+                minibatch_size=minibatch_size,
+            )
+
     
     # NOTE: we are overriding this function from R2D2Algorithm
     def _update_replay_buffer_priorities(self, 
@@ -186,24 +268,24 @@ class R2D3Algorithm(R2D2Algorithm):
         '''
         Updates the priorities of each sampled elements from their respective storages.
         '''
+        nbr_policy_sample = minibatch_size*len(self.storages)
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)
         unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
         for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
             storage_idx = arr_bidx//minibatch_size
-            el_idx_in_batch = arr_bidx%minibatch_size
             
             # Ids less than self.sample_split come from replay buffer
-            if el_idx_in_batch < self.sample_split:
+            if storage_idx < len(self.storages):
+                el_idx_in_batch = arr_bidx%minibatch_size
                 el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
-                
                 # (unroll_dim,)
                 new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
                 self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
             else:
-                el_idx_in_storage = self.expert_buffer.tree_indices[el_idx_in_batch - self.sample_split + (storage_idx * (minibatch_size - self.sample_split))]
-                
+                el_idx_in_batch = arr_bidx - nbr_policy_sample
+                el_idx_in_storage = self.expert_buffer.tree_indices[el_idx_in_batch]
                 # (unroll_dim,)
                 new_priority = self.expert_buffer.sequence_priority(sloss.reshape(unroll_length,))
                 self.expert_buffer.update(idx=el_idx_in_storage, priority=new_priority)

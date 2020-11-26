@@ -11,7 +11,7 @@ from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdi
 
 eps = 1e-4
 study_qa_values_discrepancy = True
-
+soft = False
 
 def value_function_rescaling(x):
     '''
@@ -393,7 +393,10 @@ def compute_loss(states: torch.Tensor,
     state_action_values_g = state_action_values.gather(dim=-1, index=training_actions.reshape(batch_size, training_length,-1)).reshape(batch_size, training_length, -1)
     # (batch_size, unroll_dim, 1)
     
-    targetQ_Si_Ai_values = inverse_value_function_rescaling(training_target_predictions['qa'])
+    if soft:
+        targetQ_Si_Ai_values = inverse_value_function_rescaling(training_target_predictions['qa']+training_target_predictions['ent'])
+    else:
+        targetQ_Si_Ai_values = inverse_value_function_rescaling(training_target_predictions['qa'])
     # (batch_size, training_length, num_actions)
     argmaxA_Q_Si_A_values = state_action_values.max(dim=-1)[1].unsqueeze(-1)
     # (batch_size, training_length, 1)
@@ -466,11 +469,16 @@ def compute_loss(states: torch.Tensor,
 
     state_action_values_g = state_action_values_g.reshape(scaled_bellman_target_Sipn_Aipn.shape)
     unscaled_state_action_values_g = inverse_value_function_rescaling(state_action_values_g)
-    
+
     #td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
-    td_error = torch.abs(bellman_target_Sipn_Aipn.detach() - unscaled_state_action_values_g)
-    scaled_td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
-    # TODO: renaming...
+    if soft:
+        td_error = torch.clamp(bellman_target_Sipn_Aipn.detach() - unscaled_state_action_values_g, min=0.0)
+        scaled_td_error = torch.clamp(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g, min=0.0)
+        # TODO: renaming...
+    else:
+        td_error = torch.abs(bellman_target_Sipn_Aipn.detach() - unscaled_state_action_values_g)
+        scaled_td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
+    
     loss_per_item = td_error
     diff_squared = scaled_td_error.pow(2.0)
 
