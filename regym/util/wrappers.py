@@ -1835,6 +1835,9 @@ def minerl2020_wrap_env(env,
         # state=POV, input action is discrete, propagated action is continuous, 
         # infos={inventory (if traj_wrap: , previous_action(d), current_action(d))}
     
+    # Clip reward to (-1,0,+1)
+    env = ClipRewardEnv(env)
+    
     # The agent deals with discrete actions so we want this wrapper to be the last one:
     if previous_reward_action:
         env = PreviousRewardActionInfoWrapper(

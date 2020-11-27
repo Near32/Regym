@@ -22,18 +22,26 @@ def get_good_demo_names(env:str,path:str,score_percent:float) -> np.ndarray:
     traj_names = np.array(data.get_trajectory_names())
 
     demo_rewards = []
+    demo_lengths = []
 
     for i in range(len(traj_names)):
         total_reward = 0.0
+        s = 0
         for _,_,r,_,_ in data.load_data(traj_names[i]):
             total_reward = total_reward + r
+            s = s + 1
         demo_rewards.append(total_reward)
+        demo_lengths.append(s)
 
     demo_rewards = np.array(demo_rewards)
+    demo_lengths = np.array(demo_lengths)
     min_score = score_percent * np.max(demo_rewards)
     good_demos = traj_names[demo_rewards > min_score]
+    good_demo_lengths = demo_lengths[demo_rewards > min_score]
+    
+    sorted_good_demos =  [d for l,d in sorted(zip(good_demo_lengths,good_demos))]
 
-    return good_demos
+    return sorted_good_demos
 
 
 def get_inventory_actions(env:str,path:str,trajectory_names:np.ndarray,agreement_percent:float) -> np.ndarray:
@@ -129,6 +137,5 @@ def generate_action_parser(action_set) -> Callable[[Dict[str, np.ndarray]], int]
         true_action = action['vector'] if isinstance(action, dict) else action
         dis = pairwise_distances(action_set, true_action.reshape(1, -1))
         discrete_action = np.argmin(dis)
-        import ipdb; ipdb.set_trace()
         return discrete_action
     return action_parser
