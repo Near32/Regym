@@ -108,7 +108,7 @@ class R2D3Algorithm(R2D2Algorithm):
         for storage_idx, storage in enumerate(self.storages+[self.expert_buffer]):
             nbr_sampling_values = minibatch_size
             if storage_idx == len(self.storages):
-                nbr_sampling_values = num_demonstration_samples
+                nbr_sampling_values = int(num_demonstration_samples)
             # Check that there is something in the storage 
             if storage is None or len(storage) <= 1: continue
             if self.use_PER:

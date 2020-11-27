@@ -202,17 +202,17 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
         debug_mode = False
         if len(sys.argv) > 2:
             debug_mode = any(['debug' in arg for arg in sys.argv])
-        
+            
         dummy_r2d2_agent = build_R2D2_Agent(task,config,'Dummy_Agent')
         
         load_demonstrations_into_replay_buffer(dummy_r2d2_agent,action_set,task_name=task.name,seed=task.env.seed,wrapping_fn=preloading_wrapping_fn,demo_budget=int(kwargs['demo_budget']),debug_mode=debug_mode)
         
-        expert_buffer = dummy_r2d2_agent.algorithm.storages[0]
+        expert_buffer = copy.deepcopy(dummy_r2d2_agent.algorithm.storages[0])
 
     else:
         if kwargs["expert_buffer_path"] != "":
             expert_agent = torch.load(kwargs['expert_buffer_path'])
-            expert_buffer = expert_agent.algorithm.storages[0]
+            expert_buffer = copy.deepcopy(expert_agent.algorithm.storages[0])
         else:
             expert_buffer = None 
             

@@ -88,7 +88,7 @@ experiment:
              
              'run-id': 'Seed10_venv1_r2d3_Sk4_St4_Obs64_NoGrayscale_NoScaling',
              
-             'agent-id': '1step_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B20_R0',
+             'agent-id': '1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B20_R5m1',
              
              'nbr_actor': 1,
              'nbr_frame_skipping': 4,
@@ -143,7 +143,7 @@ agents:
         sequence_replay_overlap_length: 4
         sequence_replay_burn_in_length: 4
 
-    1step_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B20_R0:
+    1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B20_R5m1:
         <<: *r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
         discount: 0.997
         gradient_clip: 40.0
@@ -156,15 +156,15 @@ agents:
         batch_size: 8
         double: True
         dueling: True 
-        noisy: False
+        noisy: True
         n_step: 1
         tau: 1.0e-3
         burn_in: True
         sequence_replay_unroll_length: 8
         sequence_replay_overlap_length: 4
         sequence_replay_burn_in_length: 4
-        demo_ratio: 0.0
-        minerl: False
+        demo_ratio: 0.5
+        minerl: True
         demo_skip: 4
         demo_stack: 4
         # only useful for MineRL:
