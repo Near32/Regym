@@ -151,6 +151,7 @@ class DQNAgent(Agent):
 
         if self.training \
         and self.handled_experiences > self.kwargs['min_capacity'] \
+        and self.algorithm.stored_experiences() > self.kwargs['min_capacity'] \
         and (period_count_check % period_check == 0 or not(self.async_actor)):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:

@@ -169,7 +169,12 @@ class R2D2Algorithm(DQNAlgorithm):
             if self.use_PER:
                 init_sampling_priority = None 
                 #self.storages[actor_index].add(current_sequence_exp_dict, priority=init_sampling_priority)
-                self.storages[actor_index].add.remote(current_sequence_exp_dict, priority=init_sampling_priority)
+                ray.get(
+                    self.storages[actor_index].add.remote(
+                        current_sequence_exp_dict, 
+                        priority=init_sampling_priority
+                    )
+                )
             else:
                 self.storages[actor_index].add(current_sequence_exp_dict)
 
