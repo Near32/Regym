@@ -217,9 +217,10 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
             expert_buffer = None 
             
     algorithm = R2D3Algorithm(
-            kwargs=kwargs, 
-            model=model,
-            expert_buffer=expert_buffer
+        kwargs=kwargs, 
+        model=model,
+        expert_buffer=expert_buffer,
+        name=f"{agent_name}_algo",
     )
 
     agent = R2D3Agent(

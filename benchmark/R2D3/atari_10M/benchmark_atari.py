@@ -5,7 +5,7 @@ import sys
 from typing import Dict
 
 import torch.multiprocessing
-from tensorboardX import GlobalSummaryWriter
+from tensorboardX import SummaryWriter #GlobalSummaryWriter
 from tqdm import tqdm
 from functools import partial
 
@@ -19,6 +19,7 @@ from regym.rl_loops.singleagent_loops import rl_loop
 from regym.util.experiment_parsing import initialize_agents
 from regym.util.wrappers import baseline_atari_pixelwrap
 
+import ray
 
 def check_path_for_agent(filepath):
     #filepath = os.path.join(path,filename)
@@ -49,7 +50,7 @@ def train_and_evaluate(agent: object,
       async = any(['async' in arg for arg in sys.argv])
 
     if async:
-      trained_agent = rl_loop.async_gather_experience_parallel(
+      trained_agent = rl_loop.async_gather_experience_parallel1(
         task,
         agent,
         training=True,
@@ -209,8 +210,34 @@ if __name__ == '__main__':
   if async:
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
+      #torch.multiprocessing.set_start_method("spawn", force=True)
+      ray.init()
+      
+      from regym import CustomManager as Manager
+      from multiprocessing.managers import SyncManager, MakeProxyType, public_methods
+      
+      # from regym.rl_algorithms.replay_buffers import SharedPrioritizedReplayStorage
+      # #SharedPrioritizedReplayStorageProxy = MakeProxyType("SharedPrioritizedReplayStorage", public_methods(SharedPrioritizedReplayStorage))
+      # Manager.register("SharedPrioritizedReplayStorage", 
+      #   SharedPrioritizedReplayStorage,# SharedPrioritizedReplayStorageProxy) 
+      #   exposed=[
+      #       "get_beta",
+      #       "get_tree_indices",
+      #       "cat",
+      #       "reset",
+      #       "add_key",
+      #       "total",
+      #       "__len__",
+      #       "priority",
+      #       "sequence_priority",
+      #       "update",
+      #       "add",
+      #       "sample",
+      #       ]
+      # )
+      # print("WARNING: SharedPrioritizedReplayStorage class has been registered with the RegymManager.")
 
-      from torch.multiprocessing import Manager
       regym.RegymManager = Manager()
+      regym.RegymManager.start()
 
   main()

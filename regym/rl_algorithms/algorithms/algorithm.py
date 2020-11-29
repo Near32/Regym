@@ -8,6 +8,9 @@ import copy
 from regym.rl_algorithms.utils import is_leaf
 
 class Algorithm(object):
+    def __init__(self, name="algo"):
+        self.name = name
+
     def get_models(self):
         raise NotImplementedError
 

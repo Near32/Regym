@@ -12,6 +12,8 @@ from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
 from ..networks import NoisyLinear
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
+import ray
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
@@ -155,18 +157,23 @@ class DQNAgent(Agent):
                 minibatch_size *= self.replay_period
             else:
                 self.nbr_episode_per_cycle_count = 1
-                
+
             for train_it in range(self.nbr_training_iteration_per_cycle):
                 self.algorithm.train(minibatch_size=minibatch_size)
+            
             nbr_updates = self.nbr_training_iteration_per_cycle
+
             # Update actor's models:
             if self.async_learner\
             and (self.algorithm.get_update_count() // self.actor_models_update_optimization_interval) != \
             self.previous_actor_models_update_quotient:
                 self.previous_actor_models_update_quotient = self.algorithm.get_update_count() // self.actor_models_update_optimization_interval
                 new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.get_models().items()}
-                self.actor_learner_shared_dict["models"] = new_models_cpu
-                self.actor_learner_shared_dict["models_update_required"] = True
+                
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+                actor_learner_shared_dict["models"] = new_models_cpu
+                actor_learner_shared_dict["models_update_required"] = True
+                self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
             
             if self.async_learner\
             and self.save_path is not None \
@@ -179,10 +186,12 @@ class DQNAgent(Agent):
     def take_action(self, state):
         if self.async_actor:
             # Update the algorithm's model if needs be:
-            if self.actor_learner_shared_dict["models_update_required"]:
-                self.actor_learner_shared_dict["models_update_required"] = False
-                if "models" in self.actor_learner_shared_dict.keys():
-                    new_models = self.actor_learner_shared_dict["models"]
+            actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            if actor_learner_shared_dict["models_update_required"]:
+                actor_learner_shared_dict["models_update_required"] = False
+                self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                if "models" in actor_learner_shared_dict.keys():
+                    new_models = actor_learner_shared_dict["models"]
                     self.algorithm.set_models(new_models)
                 else:
                     raise NotImplementedError 

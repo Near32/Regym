@@ -1,8 +1,8 @@
 import numpy as np
 from .experience import EXP
-from .ReplayBuffer import ReplayStorage
+from .ReplayBuffer import ReplayStorage, SharedReplayStorage
 import regym
-
+import ray
 
 class PrioritizedReplayBuffer:
     def __init__(self, capacity, alpha=0.2, beta=1.0) :
@@ -324,6 +324,280 @@ class PrioritizedReplayStorage_:
         return data
 
 
+
+@ray.remote
+class SharedPrioritizedReplayStorage(SharedReplayStorage):
+    def __init__(self,
+                 capacity,
+                 alpha=0.2,
+                 beta=1.0,
+                 beta_increase_interval=1e4,
+                 eta=0.9,
+                 keys=None,
+                 circular_keys={'succ_s':'s'},
+                 circular_offsets={'succ_s':1}):
+        # super(SharedPrioritizedReplayStorage, self).__init__(
+        #     capacity=capacity,
+        #     keys=keys,
+        #     circular_keys=circular_keys,
+        #     circular_offsets=circular_offsets
+        # )
+        self._init(
+            capacity=capacity,
+            keys=keys,
+            circular_keys=circular_keys,
+            circular_offsets=circular_offsets
+        )
+
+        self.exp_queue = list()
+
+        self.alpha = alpha
+        self.beta_start = beta
+        self.beta_increase_interval = beta_increase_interval
+        
+        self.eta = eta
+        self.epsilon = 1e-4
+
+        
+        self._length = 0
+        self._iteration = 0 
+        self._beta = self.beta_start
+
+        self.tree = np.zeros(2 * int(self.capacity) - 1)
+        self._max_priority = np.ones(1, dtype=np.float32)
+        
+        self.sumPi_alpha = 0.0
+    
+    def _init(self, capacity, keys=None, circular_keys={'succ_s':'s'}, circular_offsets={'succ_s':1}):
+        '''
+        Use a different circular offset['succ_s']=n to implement truncated n-step return...
+        '''
+        if keys is None:    keys = ['s', 'a', 'r', 'non_terminal', 'rnn_state']
+        # keys = keys + ['s', 'a', 'r', 'succ_s', 'non_terminal',
+        #                'v', 'q', 'pi', 'log_pi', 'ent',
+        #                'adv', 'ret', 'qa', 'log_pi_a',
+        #                'mean', 'action_logits', 'rnn_state']
+        self.keys = keys
+        self.circular_keys = circular_keys
+        self.circular_offsets = circular_offsets
+        self.capacity = capacity
+        """
+        self.position = dict()
+        self.current_size = dict()
+        """
+        self.position = dict()
+        self.current_size = dict()
+            
+        self.reset()
+    
+    def get_beta(self):
+        return self.beta 
+
+    def get_tree_indices(self):
+        return self.tree_indices 
+
+    @property
+    def length(self):
+        if isinstance(self._length, int):
+            return self._length
+        else:
+            return self._length.value
+
+    @length.setter
+    def length(self, val):
+        if isinstance(self._length, int):
+            self._length = val
+        else:
+            self._length.value = val
+
+    @property
+    def iteration(self):
+        if isinstance(self._iteration, int):
+            return self._iteration
+        else:
+            return self._iteration.value
+
+    @iteration.setter
+    def iteration(self, val):
+        if isinstance(self._iteration, int):
+            self._iteration = val
+        else:
+            self._iteration.value = val
+
+    @property
+    def beta(self):
+        if isinstance(self._beta, float):
+            return self._beta
+        else:
+            return self._beta.value
+
+    @beta.setter
+    def beta(self, val):
+        if isinstance(self._beta, float):
+            self._beta = val
+        else:
+            self._beta.value = val
+
+    @property
+    def max_priority(self):
+        if isinstance(self._max_priority, np.ndarray):
+            return self._max_priority
+        else:
+            return self._max_priority.value
+
+    @max_priority.setter
+    def max_priority(self, val):
+        if isinstance(self._max_priority, np.ndarray):
+            self._max_priority = val
+        else:
+            self._max_priority.value = val 
+
+    def _update_beta(self, iteration=None):
+        #if iteration is None:   iteration = self.length
+        if iteration is None:   iteration = self.iteration
+        self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
+
+    def total(self):
+        return self.tree[0]
+
+    def __len__(self):
+        return self.length
+
+    def priority(self, error) :
+        return (error+self.epsilon)**self.alpha
+
+    def sequence_priority(self, sequence_errors) :
+        '''
+        :param sequence_errors: torch.Tensor of shape (unroll_dim,)
+        '''
+        max_error = sequence_errors.max()
+        mean_error = sequence_errors.mean()
+        error = self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
+        return self.priority(error)
+
+    def update(self, idx, priority):
+        if np.isnan(priority).any() or np.isinf(priority).any():
+            priority = self.max_priority
+        
+        priority = np.ones(1, dtype=np.float32)*priority
+
+        change = priority - self.tree[idx]
+
+        previous_priority = self.tree[idx]
+        self.sumPi_alpha -= previous_priority
+
+        self.sumPi_alpha += priority
+        self.tree[idx] = priority
+
+        self.max_priority = max(priority, self.max_priority)
+
+        self._propagate(idx,change)
+
+    def _propagate(self, idx, change):
+        parentidx = (idx - 1) // 2
+
+        self.tree[parentidx] += change
+
+        if parentidx != 0 :
+            self._propagate(parentidx, change)
+
+    # def add(self, exp, priority):
+    #     self.exp_queue.append((exp,priority))
+
+    #     if len(self.exp_queue) > 32:
+    #         for e, p in self.exp_queue:
+    #             self._add(exp=e, priority=p)
+
+    #         self.exp_queue = list()
+
+
+    def add(self, exp, priority):
+        if priority is None:
+            priority = self.max_priority
+
+        #super(SharedPrioritizedReplayStorage, self).add(data=exp)
+        self._add(data=exp)
+        self.length = min(self.length+1, self.capacity)
+        self.iteration += 1 
+
+        if np.isnan(priority).any() or np.isinf(priority).any() :
+            priority = self.max_priority
+
+        self.sumPi_alpha += priority
+
+        idx = self.position['s'] + self.capacity -1
+        self.update(idx,priority)
+
+        self._update_beta()
+
+    def _add(self, data):
+        for k, v in data.items():
+            if not(k in self.keys or k in self.circular_keys):  continue
+            if k in self.circular_keys: continue
+            # As  we are dealing with a proxy,
+            # it is important to reassign the element of the ListProxy
+            # in order to trigger an update from the proxy manager:
+            proxy = getattr(self, k)
+            container = proxy[0]
+            container[self.position[k]] = v
+            # reassigning:
+            proxy[0] = container
+            self.position[k] = int((self.position[k]+1) % self.capacity)
+            self.current_size[k] = min(self.capacity, self.current_size[k]+1)
+
+    def _retrieve(self,idx,s):
+         leftidx = 2*idx+1
+         rightidx = leftidx+1
+
+         if leftidx >= len(self.tree):
+            return idx
+
+         if s <= self.tree[leftidx] :
+            return self._retrieve(leftidx, s)
+         else :
+            return self._retrieve(rightidx, s-self.tree[leftidx])
+
+    def sample(self, batch_size, keys=None):
+        if keys is None:    keys = self.keys + self.circular_keys.keys()
+
+        # Random Experience Sampling with priority
+        prioritysum = self.total()
+        low = 0.0
+        step = (prioritysum-low) / batch_size
+        randexp = np.arange(low,prioritysum,step)[:batch_size,...]+np.random.uniform(low=0.0,high=step,size=(batch_size))
+
+        self.tree_indices = [self._retrieve(0,rexp) for rexp in randexp]
+        priorities = [self.tree[tidx] for tidx in self.tree_indices]
+
+        #Check that priorities are valid: 
+        # if they are not, it is probably because the sample is not valid,
+        # therefore we resample it with a randexp value that should not lead the retrieve function ot go overboard:
+        valid = False
+        while not valid:
+            valid = True
+            for idx in range(len(priorities)):
+                if priorities[idx] == 0:
+                    valid = False
+                    # Make sure that the retrieve function will not fetch a sample in the part that is not initialised yet:
+                    newrandexp = randexp[idx]-np.random.uniform(
+                        low=0.0, 
+                        high= randexp[idx]-step,#step, 
+                        size=(1)
+                    )
+                    self.tree_indices[idx] = self._retrieve(0,newrandexp)
+                    priorities[idx] = self.tree[self.tree_indices[idx]]
+                    break
+
+        # Importance Sampling Weighting:
+        priorities = np.array(priorities, dtype=np.float32).reshape(-1)
+        self.importanceSamplingWeights = np.power( len(self) * priorities , -self.beta)
+
+        data_indices = np.array([tidx-self.capacity+1 for tidx in self.tree_indices])
+        data = self.cat(keys=keys, indices=data_indices)
+
+        return data, self.importanceSamplingWeights
+
+
 class PrioritizedReplayStorage(ReplayStorage):
     def __init__(self,
                  capacity,
@@ -340,6 +614,8 @@ class PrioritizedReplayStorage(ReplayStorage):
             circular_keys=circular_keys,
             circular_offsets=circular_offsets
         )
+
+        self.exp_queue = list()
 
         self.alpha = alpha
         self.beta_start = beta
@@ -372,6 +648,12 @@ class PrioritizedReplayStorage(ReplayStorage):
         
         self.sumPi_alpha = 0.0
     
+    def get_beta(self):
+        return self.beta 
+
+    def get_tree_indices(self):
+        return self.tree_indices 
+
     @property
     def length(self):
         if isinstance(self._length, int):
@@ -478,6 +760,16 @@ class PrioritizedReplayStorage(ReplayStorage):
             self._propagate(parentidx, change)
 
     def add(self, exp, priority):
+        self.exp_queue.append((exp,priority))
+
+        if len(self.exp_queue) > 32:
+            for e, p in self.exp_queue:
+                self._add(exp=e, priority=p)
+
+            self.exp_queue = list()
+
+
+    def _add(self, exp, priority):
         if priority is None:
             priority = self.max_priority
 

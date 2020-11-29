@@ -4,7 +4,8 @@ from functools import partial
 from collections.abc import Iterable
 from collections import deque, OrderedDict
 
-import cv2 
+import cv2
+cv2.setNumThreads(0)
 import numpy as np
 
 import gym

@@ -10,6 +10,7 @@ from tensorboardX import SummaryWriter
 from regym.util import save_traj_with_graph
 
 from torch.multiprocessing import Process 
+import ray 
 
 
 import sys
@@ -232,23 +233,37 @@ def async_gather_experience_parallel(
     :returns:
     '''
     async_actor = agent.get_async_actor()
-    gathering_proc = Process(
-        target=gather_experience_parallel,
-        kwargs={
-            "task":task,
-            "agent":async_actor,
-            "training":training,
-            "max_obs_count":max_obs_count,
-            "test_obs_interval":test_obs_interval,
-            "test_nbr_episode":test_nbr_episode,
-            "env_configs":env_configs,
-            "sum_writer":sum_writer,
-            "base_path":base_path,
-            "benchmarking_record_episode_interval":benchmarking_record_episode_interval,
-            "step_hooks":step_hooks
-        },
+    # gathering_proc = Process(
+    #     target=gather_experience_parallel,
+    #     kwargs={
+    #         "task":task,
+    #         "agent":async_actor,
+    #         "training":training,
+    #         "max_obs_count":max_obs_count,
+    #         "test_obs_interval":test_obs_interval,
+    #         "test_nbr_episode":test_nbr_episode,
+    #         "env_configs":env_configs,
+    #         "sum_writer":sum_writer,
+    #         "base_path":base_path,
+    #         "benchmarking_record_episode_interval":benchmarking_record_episode_interval,
+    #         "step_hooks":step_hooks
+    #     },
+    # )
+    # gathering_proc.start()
+
+    gathering_proc_id = gather_experience_parallel.remote(
+        task=task,
+        agent=async_actor,
+        training=training,
+        max_obs_count=max_obs_count,
+        test_obs_interval=test_obs_interval,
+        test_nbr_episode=test_nbr_episode,
+        env_configs=env_configs,
+        sum_writer=sum_writer,
+        base_path=base_path,
+        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+        step_hooks=step_hooks
     )
-    gathering_proc.start()
 
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'learner.log')
@@ -256,7 +271,9 @@ def async_gather_experience_parallel(
         agent.algorithm.summary_writer = sum_writer
 
     pbar = tqdm(total=max_update_count, position=1)
-    while gathering_proc.is_alive():
+    nbr_updates = 0
+    #while gathering_proc.is_alive():
+    while nbr_updates <= max_update_count:
         nbr_updates = agent.train()
         if nbr_updates is None: nbr_updates = 1
         pbar.update(nbr_updates)
@@ -297,16 +314,21 @@ def async_gather_experience_parallel1(
     '''
     async_actor = agent.get_async_actor()
     
-    learner_proc = Process(
-        target=learner_loop,
-        kwargs={
-            "sum_writer":sum_writer,
-            "agent":agent,
-            "max_update_count":max_update_count
-        }
+    # learner_proc = Process(
+    #     target=learner_loop,
+    #     kwargs={
+    #         "sum_writer":sum_writer,
+    #         "agent":agent,
+    #         "max_update_count":max_update_count
+    #     }
+    # )
+    # learner_proc.start()
+    learner_proc = learner_loop.remote(
+        sum_writer=sum_writer,
+        agent=agent,
+        max_update_count=max_update_count
     )
-    learner_proc.start()
-
+    
     kwargs={
         "task":task,
         "agent":async_actor,
@@ -324,7 +346,7 @@ def async_gather_experience_parallel1(
     
     return agent 
 
-
+@ray.remote(num_gpus=0.5)
 def learner_loop(
         sum_writer,
         agent,
@@ -334,18 +356,19 @@ def learner_loop(
         sum_writer = SummaryWriter(sum_writer_path)
         agent.algorithm.summary_writer = sum_writer
 
-    pbar = tqdm(total=max_update_count, position=1)
+    #pbar = tqdm(total=max_update_count, position=1)
     total_nbr_updates = 0
     while total_nbr_updates < max_update_count:
         nbr_updates = agent.train()
         if nbr_updates is None: nbr_updates = 1
-        pbar.update(nbr_updates)
+        #pbar.update(nbr_updates)
         total_nbr_updates += nbr_updates
 
     sum_writer.flush()
 
     return agent
 
+#@ray.remote(num_gpus=0.5)
 def gather_experience_parallel(task,
                                 agent,
                                 training,

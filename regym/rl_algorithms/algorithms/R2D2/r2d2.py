@@ -8,10 +8,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import regym
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
 from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
-from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage
+from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage, SharedPrioritizedReplayStorage
 from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdict
 
 sum_writer = None
@@ -23,8 +24,11 @@ class R2D2Algorithm(DQNAlgorithm):
                  target_model: Optional[nn.Module] = None,
                  optimizer=None,
                  loss_fn: Callable = r2d2_loss.compute_loss,
-                 sum_writer=None):
+                 sum_writer=None,
+                 name='r2d2_algo'):
         
+        Algorithm.__init__(self=self, name=name)
+
         self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
         self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
         self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
@@ -44,6 +48,9 @@ class R2D2Algorithm(DQNAlgorithm):
             sum_writer=sum_writer
         )
         
+        self.storage_buffer_refresh_period = 32
+        self.storage_buffers = [list() for _ in range(self.nbr_actor)]
+
         self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
 
@@ -83,8 +90,18 @@ class R2D2Algorithm(DQNAlgorithm):
         
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
-                self.storages.append(
-                    PrioritizedReplayStorage(
+                if regym.RegymManager is not None:
+                    # storage = regym.RegymManager.SharedPrioritizedReplayStorage(
+                    #         capacity=self.replay_buffer_capacity//self.nbr_actor,
+                    #         alpha=self.kwargs['PER_alpha'],
+                    #         beta=self.kwargs['PER_beta'],
+                    #         beta_increase_interval=beta_increase_interval,
+                    #         eta=self.kwargs['sequence_replay_PER_eta'],
+                    #         keys=keys,
+                    #         circular_keys=circular_keys,                 
+                    #         circular_offsets=circular_offsets
+                    #     )
+                    storage = SharedPrioritizedReplayStorage.remote(
                         capacity=self.replay_buffer_capacity//self.nbr_actor,
                         alpha=self.kwargs['PER_alpha'],
                         beta=self.kwargs['PER_beta'],
@@ -94,7 +111,18 @@ class R2D2Algorithm(DQNAlgorithm):
                         circular_keys=circular_keys,                 
                         circular_offsets=circular_offsets
                     )
-                )
+                else:
+                    storage = PrioritizedReplayStorage(
+                            capacity=self.replay_buffer_capacity//self.nbr_actor,
+                            alpha=self.kwargs['PER_alpha'],
+                            beta=self.kwargs['PER_beta'],
+                            beta_increase_interval=beta_increase_interval,
+                            eta=self.kwargs['sequence_replay_PER_eta'],
+                            keys=keys,
+                            circular_keys=circular_keys,                 
+                            circular_offsets=circular_offsets
+                        )
+                self.storages.append(storage)
             else:
                 self.storages.append(
                     ReplayStorage(
@@ -140,7 +168,8 @@ class R2D2Algorithm(DQNAlgorithm):
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
             if self.use_PER:
                 init_sampling_priority = None 
-                self.storages[actor_index].add(current_sequence_exp_dict, priority=init_sampling_priority)
+                #self.storages[actor_index].add(current_sequence_exp_dict, priority=init_sampling_priority)
+                self.storages[actor_index].add.remote(current_sequence_exp_dict, priority=init_sampling_priority)
             else:
                 self.storages[actor_index].add(current_sequence_exp_dict)
 
@@ -216,6 +245,8 @@ class R2D2Algorithm(DQNAlgorithm):
                                          minibatch_size: int):
         '''
         Updates the priorities of each sampled elements from their respective storages.
+
+        #TODO: update to use Ray and get_tree_indices...
         '''
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()

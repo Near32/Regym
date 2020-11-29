@@ -5,6 +5,8 @@ from functools import partial
 import numpy as np
 import torch
 import torch.nn as nn
+import ray 
+import time 
 
 import regym
 from ...networks import hard_update, random_sample
@@ -26,14 +28,16 @@ class R2D3Algorithm(R2D2Algorithm):
                  expert_buffer: ReplayStorage = None,
                  optimizer=None,
                  loss_fn: Callable = r2d2_loss.compute_loss,
-                 sum_writer=None):
+                 sum_writer=None,
+                 name='r2d3_algo'):
         super().__init__(
             kwargs=kwargs, 
             model=model, 
             target_model=target_model, 
             optimizer=optimizer, 
             loss_fn=loss_fn, 
-            sum_writer=sum_writer
+            sum_writer=sum_writer,
+            name=name
         )
         
         self.demo_ratio = kwargs['demo_ratio']  # Should be small (around: 1 / 256)
@@ -109,10 +113,13 @@ class R2D3Algorithm(R2D2Algorithm):
             nbr_sampling_values = minibatch_size
             if storage_idx == len(self.storages):
                 nbr_sampling_values = num_demonstration_samples
-            # Check that there is something in the storage 
-            if storage is None or len(storage) <= 1: continue
+            # Check that there is something in the storage
+            storage_size = 0
+            if storage is not None:
+                storage_size = ray.get(storage.__len__.remote()) 
+            if storage is None or storage_size <= 1: continue
             if self.use_PER:
-                sample, importanceSamplingWeights = storage.sample(batch_size=nbr_sampling_values, keys=keys)
+                sample, importanceSamplingWeights = ray.get(storage.sample.remote(batch_size=nbr_sampling_values, keys=keys))
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
             else:
@@ -156,8 +163,14 @@ class R2D3Algorithm(R2D2Algorithm):
         if self.summary_writer is None:
             self.summary_writer = summary_writer
 
-        beta = self.storages[0].beta if self.use_PER else 1.0
-        
+        start = time.time()
+
+        #beta = self.storages[0].get_beta() if self.use_PER else 1.0
+        beta = 1.0
+        if self.use_PER:
+            beta_id = self.storages[0].get_beta.remote()
+            beta = ray.get(beta_id)
+
         states = samples['s']
         actions = samples['a']
         next_states = samples['succ_s']
@@ -173,7 +186,7 @@ class R2D3Algorithm(R2D2Algorithm):
         # For each actor, there is one mini_batch update:
         sampler = random_sample(np.arange(states.size(0)), minibatch_size)
         list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
-                                for storage_idx, storage in enumerate(self.storages)]
+                                for storage_idx, _ in enumerate(self.storages)]
         if self.expert_buffer is not None:
             list_batch_indices += [len(self.storages)*minibatch_size+np.arange(states.size(0)-minibatch_size*len(self.storages))]
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
@@ -259,6 +272,10 @@ class R2D3Algorithm(R2D2Algorithm):
                 minibatch_size=minibatch_size,
             )
 
+        end = time.time()
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizationLoss', end-start, self.param_update_counter)
+
     
     # NOTE: we are overriding this function from R2D2Algorithm
     def _update_replay_buffer_priorities(self, 
@@ -273,16 +290,20 @@ class R2D3Algorithm(R2D2Algorithm):
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)
         unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
+        ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) for storage in self.storages]
+        # TODO: deal with expert tree indices...
+
         for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
             storage_idx = arr_bidx//minibatch_size
             
             # Ids less than self.sample_split come from replay buffer
             if storage_idx < len(self.storages):
                 el_idx_in_batch = arr_bidx%minibatch_size
-                el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
+                #el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
+                el_idx_in_storage = ps_tree_indices[storage_idx][el_idx_in_batch]
                 # (unroll_dim,)
-                new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
-                self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
+                new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
+                self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority)
             else:
                 el_idx_in_batch = arr_bidx - nbr_policy_sample
                 el_idx_in_storage = self.expert_buffer.tree_indices[el_idx_in_batch]

@@ -51,7 +51,8 @@ def generate_task(env_name: str,
     elif is_gym_environment: 
         env = gym.make(env_name)
         env.seed(seed)
-        if wrapping_fn is not None: env = wrapping_fn(env=env)
+        if wrapping_fn is not None: 
+            env = wrapping_fn(env=env)
         task = parse_gym_environment(env, env_type)
     elif is_unity_environment: task = parse_unity_environment(env_name, env_type)
     else: raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')

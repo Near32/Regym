@@ -6,6 +6,7 @@ from functools import partial
 import regym
 from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
 
+import ray
 
 def named_children(cm):
     for name, m in cm._modules.items():
@@ -32,17 +33,34 @@ class Agent(object):
         self.async_actor = False
         self.async_learner = False 
         if regym.RegymManager is not None:
-            self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
+            #self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
+            from regym import SharedVariable
+            actor_learner_shared_dict = {"models_update_required":False, "models": None}
+            try:
+                self.actor_learner_shared_dict = ray.get_actor(f"{self.name}.actor_learner_shared_dict")
+            except ValueError:  # Name is not taken.
+                self.actor_learner_shared_dict = SharedVariable.options(name=f"{self.name}.actor_learner_shared_dict").remote(actor_learner_shared_dict)
+            
         else:
             self.actor_learner_shared_dict = {"models_update_required":False, "models": None}
 
-        self.actor_models_update_optimization_interval = 100
+        self.actor_models_update_optimization_interval = 1
         if "actor_models_update_optimization_interval" in self.algorithm.kwargs:
             self.actor_models_update_optimization_interval = self.algorithm.kwargs["actor_models_update_optimization_interval"]
         self.previous_actor_models_update_quotient = -1
 
         if regym.RegymManager is not None:
-            self._handled_experiences = regym.RegymManager.Value(int, 0, lock=False)
+            #self._handled_experiences = regym.RegymManager.Value(int, 0, lock=False)
+            from regym import SharedVariable
+            try:
+                self._handled_experiences = ray.get_actor(f"{self.name}.handled_experiences")
+            except ValueError:  # Name is not taken.
+                self._handled_experiences = SharedVariable.options(name=f"{self.name}.handled_experiences").remote(0)
+            #print(ray.get(counter.get.remote()))  # get the latest count
+
+            # # in your envs
+            # counter = ray.get_actor("global_counter")
+            # counter.inc.remote(1)  # async call to increment the global count
         else:
             self._handled_experiences = 0
         self.save_path = None
@@ -74,14 +92,16 @@ class Agent(object):
         if isinstance(self._handled_experiences, int):
             return self._handled_experiences
         else:
-            return self._handled_experiences.value
+            return ray.get(self._handled_experiences.get.remote())
+            #return self._handled_experiences.value
 
     @handled_experiences.setter
     def handled_experiences(self, val):
         if isinstance(self._handled_experiences, int):
             self._handled_experiences = val 
         else:
-            self._handled_experiences.value = val
+            self._handled_experiences.set.remote(val)
+            #self._handled_experiences.value = val
 
     def get_experience_count(self):
         return self.handled_experiences

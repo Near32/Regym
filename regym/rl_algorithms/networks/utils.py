@@ -4,7 +4,8 @@ import torch.autograd
 import torchvision.transforms as T
 import torch.nn.functional as F
 import numpy as np
-import cv2 
+import cv2
+cv2.setNumThreads(0)
 
 
 def hard_update(fromm, to):

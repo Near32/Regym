@@ -4,6 +4,8 @@ import copy
 from collections import deque 
 from functools import partial 
 
+import ray
+# TODO : change every storage to use remote ray storages
 import numpy as np
 import torch
 import torch.nn as nn
@@ -24,9 +26,13 @@ summary_writer = None
 
 
 class DQNAlgorithm(Algorithm):
-    def __init__(self, kwargs, model, target_model=None, optimizer=None, loss_fn=dqn_loss.compute_loss, sum_writer=None):
+    def __init__(self, kwargs, model, target_model=None, optimizer=None, loss_fn=dqn_loss.compute_loss, sum_writer=None, name='dqn_algo'):
         '''
         '''
+        super(DQNAlgorithm, self).__init__(name=name)
+
+        self.train_request_count = 0 
+
         self.kwargs = copy.deepcopy(kwargs)        
         self.use_cuda = kwargs["use_cuda"]
         self.nbr_actor = self.kwargs['nbr_actor']
@@ -105,7 +111,13 @@ class DQNAlgorithm(Algorithm):
         if sum_writer is not None: summary_writer = sum_writer
         self.summary_writer = summary_writer
         if regym.RegymManager is not None:
-            self._param_update_counter = regym.RegymManager.Value(int, 0, lock=False)
+            #self._param_update_counter = regym.RegymManager.Value(int, 0, lock=False)
+            from regym import SharedVariable
+            try:
+                self._param_update_counter = ray.get_actor(f"{self.name}.param_update_counter")
+            except ValueError:  # Name is not taken.
+                self._param_update_counter = SharedVariable.options(name=f"{self.name}.param_update_counter").remote(0)
+
         else:
             self._param_update_counter =0 
 
@@ -114,14 +126,14 @@ class DQNAlgorithm(Algorithm):
         if isinstance(self._param_update_counter, int):
             return self._param_update_counter
         else:
-            return self._param_update_counter.value    
+            return ray.get(self._param_update_counter.get.remote())    
 
     @param_update_counter.setter
     def param_update_counter(self, val):
         if isinstance(self._param_update_counter, int):
             self._param_update_counter = val
         else:
-            self._param_update_counter.value = val 
+            self._param_update_counter.set.remote(val) 
     
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
@@ -198,7 +210,18 @@ class DQNAlgorithm(Algorithm):
                         circular_offsets=circular_offsets
                     )
                 )
-            
+
+    def stored_experiences(self):
+        self.train_request_count += 1
+        nbr_stored_experiences = sum([ray.get(storage.__len__.remote()) for storage in self.storages])
+        
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
+        return nbr_stored_experiences
+
     def _compute_truncated_n_step_return(self, actor_index=0):
         '''
         Compute n-step return for the first element of `self.n_step_buffer` deque.
@@ -236,12 +259,22 @@ class DQNAlgorithm(Algorithm):
             self.storages[actor_index].add(current_exp_dict)
 
     def train(self, minibatch_size:int=None):
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+
         if minibatch_size is None:  minibatch_size = self.batch_size
 
         self.target_update_count += self.nbr_actor
 
+        start = time.time()
         samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
-        
+        end = time.time()
+
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/RetrieveValuesFn', end-start, self.param_update_counter)
+
+
         if self.noisy:  
             self.model.reset_noise()
             self.target_model.reset_noise()
@@ -320,9 +353,13 @@ class DQNAlgorithm(Algorithm):
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
-
-        beta = self.storages[0].beta if self.use_PER else 1.0
         
+        #beta = self.storages[0].get_beta() if self.use_PER else 1.0
+        beta = 1.0
+        if self.use_PER:
+            beta_id = self.storages[0].get_beta.remote()
+            beta = ray.get(beta_id)
+
         states = samples['s']
         actions = samples['a']
         next_states = samples['succ_s']
@@ -338,7 +375,7 @@ class DQNAlgorithm(Algorithm):
         # For each actor, there is one mini_batch update:
         sampler = random_sample(np.arange(states.size(0)), minibatch_size)
         list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
-                                for storage_idx, storage in enumerate(self.storages)]
+                                for storage_idx, _ in enumerate(self.storages)]
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
@@ -434,6 +471,8 @@ class DQNAlgorithm(Algorithm):
                                          minibatch_size: int):
         '''
         Updates the priorities of each sampled elements from their respective storages.
+
+        TODO: update to useing Ray and get_tree_indices
         '''
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()

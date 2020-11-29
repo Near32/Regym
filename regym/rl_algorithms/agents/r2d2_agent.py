@@ -3,6 +3,7 @@ from functools import partial
 
 import copy
 import torch
+import ray
 
 from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
 from regym.rl_algorithms.agents.dqn_agent import DQNAgent, generate_model
@@ -183,6 +184,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     algorithm = R2D2Algorithm(
         kwargs=kwargs,
         model=model,
+        name=f"{agent_name}_algo",
     )
 
     agent = R2D2Agent(
