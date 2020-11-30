@@ -216,8 +216,11 @@ class DQNAlgorithm(Algorithm):
 
     def stored_experiences(self):
         self.train_request_count += 1
-        nbr_stored_experiences = sum([ray.get(storage.__len__.remote()) for storage in self.storages])
-        
+        if hasattr(self.storages[0], "remote"):
+            nbr_stored_experiences = sum([ray.get(storage.__len__.remote()) for storage in self.storages])
+        else:
+            nbr_stored_experiences = sum([len(storage) for storage in self.storages])
+
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
@@ -310,15 +313,24 @@ class DQNAlgorithm(Algorithm):
         
         for key in keys:    fulls[key] = []
 
+        using_ray = True
         for storage in self.storages:
             # Check that there is something in the storage 
-            storage_size = ray.get(storage.__len__.remote())
+            if hasattr(storage, "remote"):
+                storage_size = ray.get(storage.__len__.remote())
+            else:
+                storage_size = len(storage)
+                using_ray = False
+
             if storage_size <= 1: continue
             #if len(storage) <= 1: continue
             if self.use_PER:
-                sample, importanceSamplingWeights = ray.get(
-                    storage.sample.remote(batch_size=minibatch_size, keys=keys)
-                )
+                if using_ray:
+                    sample, importanceSamplingWeights = ray.get(
+                        storage.sample.remote(batch_size=minibatch_size, keys=keys)
+                    )
+                else:
+                    sample, importanceSamplingWeights = storage.sample(batch_size=minibatch_size, keys=keys)
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
             else:
@@ -367,8 +379,11 @@ class DQNAlgorithm(Algorithm):
         #beta = self.storages[0].get_beta() if self.use_PER else 1.0
         beta = 1.0
         if self.use_PER:
-            beta_id = self.storages[0].get_beta.remote()
-            beta = ray.get(beta_id)
+            if hasattr(self.storages[0].get_beta, "remote"):
+                beta_id = self.storages[0].get_beta.remote()
+                beta = ray.get(beta_id)
+            else:
+                beta = self.storages[0].get_beta()
 
         states = samples['s']
         actions = samples['a']
