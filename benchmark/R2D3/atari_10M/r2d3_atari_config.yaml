@@ -86,10 +86,11 @@ r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLST
 experiment:
     tasks: [{'env-id': "PongNoFrameskip-v4", # MineRLTreechopVectorObf-v0', #'MineRLTreechopVectorObf-v0','MineRLObtainDiamondVectorObf-v0'
              
-             'run-id': 'DEBUG1/NewRayLearnerReplay/Timed/UpdateModelP1/Seed100_venv4_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997',
+             'run-id': 'DEBUG2/ApeX/PrioriActorNamed/ScaledTDPrio/NewRayLearnerReplay/Timed/UpdateModelP1/Seed100_venv4_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997',
              #'Seed10_venv1_r2d2_Sk4_St4_Obs64_NoGrayscale_NoScaling_Replay1p6Min1p3_Demos1',
              
-             'agent-id': '1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau2m1_RepP4_BURNIN_b1_L8_O4_B4_demoR0',
+             #'agent-id': '1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau2m1_RepP4_BURNIN_b1_L8_O4_B4_demoR0',
+             'agent-id': '1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_eps1m7_r1e4Min1e3_lr625m7_alpha7m1_beta4m1_tau4m4_RepP1_BURNIN_b32_L8_O4_B4_demoR0',
              #'agent-id': '1step_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau2m1_RepP4_BURNIN_b4_L8_O4_B4_demoR0',
              
              'nbr_actor': 4,
@@ -166,6 +167,37 @@ agents:
         noisy: True
         n_step: 1
         tau: 1.0e-3
+        burn_in: True
+        sequence_replay_unroll_length: 8
+        sequence_replay_overlap_length: 4
+        sequence_replay_burn_in_length: 4
+        demo_ratio: 0.0
+        minerl: False
+        demo_skip: 4
+        demo_stack: 4
+        # only useful for MineRL:
+        demo_budget: 20
+        # path to the agent whose replay buffer we load in:
+        expert_buffer_path: ""
+
+    1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_eps1m7_r1e4Min1e3_lr625m7_alpha7m1_beta4m1_tau4m4_RepP1_BURNIN_b32_L8_O4_B4_demoR0:
+        <<: *r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        learning_rate: 6.25e-5
+        adam_eps: 1.0e-7
+        discount: 0.997
+        gradient_clip: 40.0
+        replay_capacity: 1e4
+        min_capacity: 1e3
+        use_PER: True
+        PER_alpha: 0.7
+        PER_beta: 0.4
+        replay_period: 1
+        batch_size: 32
+        double: True
+        dueling: True 
+        noisy: True
+        n_step: 1
+        tau: 4.0e-4
         burn_in: True
         sequence_replay_unroll_length: 8
         sequence_replay_overlap_length: 4

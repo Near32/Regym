@@ -4,6 +4,7 @@ import copy
 from collections import deque 
 from functools import partial 
 
+import ray
 import numpy as np
 import torch
 import torch.nn as nn
@@ -90,7 +91,7 @@ class R2D2Algorithm(DQNAlgorithm):
         
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
-                if regym.RegymManager is not None:
+                if True: #regym.RegymManager is not None:
                     # storage = regym.RegymManager.SharedPrioritizedReplayStorage(
                     #         capacity=self.replay_buffer_capacity//self.nbr_actor,
                     #         alpha=self.kwargs['PER_alpha'],
@@ -101,7 +102,12 @@ class R2D2Algorithm(DQNAlgorithm):
                     #         circular_keys=circular_keys,                 
                     #         circular_offsets=circular_offsets
                     #     )
-                    storage = SharedPrioritizedReplayStorage.remote(
+                    try:
+                        storage = ray.get_actor(f"{self.name}.storage_{i}")
+                    except ValueError:  # Name is not taken.
+                        storage = SharedPrioritizedReplayStorage.options(
+                            name=f"{self.name}.storage_{i}"
+                        ).remote(
                         capacity=self.replay_buffer_capacity//self.nbr_actor,
                         alpha=self.kwargs['PER_alpha'],
                         beta=self.kwargs['PER_beta'],
@@ -257,12 +263,19 @@ class R2D2Algorithm(DQNAlgorithm):
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)
         unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
+
+        ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) for storage in self.storages]
+        
         for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
             storage_idx = arr_bidx//minibatch_size
             el_idx_in_batch = arr_bidx%minibatch_size
-            el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
+
+            el_idx_in_storage = ps_tree_indices[storage_idx][el_idx_in_batch]
+            #el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
             
             # (unroll_dim,)
-            new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
-            self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
+            new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
+            #new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
+            ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
+            #self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 

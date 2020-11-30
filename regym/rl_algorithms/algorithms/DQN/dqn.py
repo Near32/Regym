@@ -7,6 +7,8 @@ from functools import partial
 
 import ray
 # TODO : change every storage to use remote ray storages
+import time 
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -221,6 +223,7 @@ class DQNAlgorithm(Algorithm):
             self.summary_writer = summary_writer
         if self.summary_writer is not None:
             self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
+        #print(f"Train request: {self.train_request_count} // nbr_exp stored: {nbr_stored_experiences}")
         return nbr_stored_experiences
 
     def _compute_truncated_n_step_return(self, actor_index=0):
@@ -309,9 +312,13 @@ class DQNAlgorithm(Algorithm):
 
         for storage in self.storages:
             # Check that there is something in the storage 
-            if len(storage) <= 1: continue
+            storage_size = ray.get(storage.__len__.remote())
+            if storage_size <= 1: continue
+            #if len(storage) <= 1: continue
             if self.use_PER:
-                sample, importanceSamplingWeights = storage.sample(batch_size=minibatch_size, keys=keys)
+                sample, importanceSamplingWeights = ray.get(
+                    storage.sample.remote(batch_size=minibatch_size, keys=keys)
+                )
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
             else:
@@ -355,6 +362,8 @@ class DQNAlgorithm(Algorithm):
         if self.summary_writer is None:
             self.summary_writer = summary_writer
         
+        start = time.time()
+
         #beta = self.storages[0].get_beta() if self.use_PER else 1.0
         beta = 1.0
         if self.use_PER:
@@ -459,6 +468,11 @@ class DQNAlgorithm(Algorithm):
                 array_batch_indices=array_batch_indices,
                 minibatch_size=minibatch_size,
             )
+
+        end = time.time()
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizationLoss', end-start, self.param_update_counter)
+            self.summary_writer.flush()
 
 
     def sample_from_rnn_states(self, rnn_states, next_rnn_states, batch_indices, use_cuda):

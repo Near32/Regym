@@ -275,7 +275,7 @@ class R2D3Algorithm(R2D2Algorithm):
         end = time.time()
         if self.summary_writer is not None:
             self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizationLoss', end-start, self.param_update_counter)
-
+            self.summary_writer.flush()
     
     # NOTE: we are overriding this function from R2D2Algorithm
     def _update_replay_buffer_priorities(self, 
@@ -303,7 +303,7 @@ class R2D3Algorithm(R2D2Algorithm):
                 el_idx_in_storage = ps_tree_indices[storage_idx][el_idx_in_batch]
                 # (unroll_dim,)
                 new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
-                self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority)
+                ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
             else:
                 el_idx_in_batch = arr_bidx - nbr_policy_sample
                 el_idx_in_storage = self.expert_buffer.tree_indices[el_idx_in_batch]

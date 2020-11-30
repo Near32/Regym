@@ -11,7 +11,7 @@ from regym.rl_algorithms.algorithms import Algorithm
 from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdict, recursive_inplace_update
 
 
-eps = 1e-4
+eps = 1e-3
 study_qa_values_discrepancy = True
 soft = False
 
@@ -304,6 +304,9 @@ def compute_loss(states: torch.Tensor,
             dim=1
         )
 
+        # SEED RL does put a stop_gradient:
+        # https://github.com/google-research/seed_rl/blob/5f07ba2a072c7a562070b5a0b3574b86cd72980f/agents/r2d2/learner.py#L368
+        # No BPTT on the subsequent rnn_states:
         burned_in_predictions, \
         unrolled_predictions, \
         burned_in_rnn_states_inputs = unrolled_inferences(
@@ -483,7 +486,9 @@ def compute_loss(states: torch.Tensor,
         td_error = torch.abs(bellman_target_Sipn_Aipn.detach() - unscaled_state_action_values_g)
         scaled_td_error = torch.abs(scaled_bellman_target_Sipn_Aipn.detach() - state_action_values_g)
     
-    loss_per_item = td_error
+    #loss_per_item = td_error
+    # SEED RL repo uses the scaled td error for priorities:
+    loss_per_item = scaled_td_error
     diff_squared = scaled_td_error.pow(2.0)
 
     if use_PER:

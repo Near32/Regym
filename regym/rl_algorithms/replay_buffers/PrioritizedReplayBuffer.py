@@ -336,20 +336,13 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
                  keys=None,
                  circular_keys={'succ_s':'s'},
                  circular_offsets={'succ_s':1}):
-        # super(SharedPrioritizedReplayStorage, self).__init__(
-        #     capacity=capacity,
-        #     keys=keys,
-        #     circular_keys=circular_keys,
-        #     circular_offsets=circular_offsets
-        # )
-        self._init(
+        SharedReplayStorage.__init__(
+            self=self,
             capacity=capacity,
             keys=keys,
             circular_keys=circular_keys,
             circular_offsets=circular_offsets
         )
-
-        self.exp_queue = list()
 
         self.alpha = alpha
         self.beta_start = beta
@@ -367,28 +360,6 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
         self._max_priority = np.ones(1, dtype=np.float32)
         
         self.sumPi_alpha = 0.0
-    
-    def _init(self, capacity, keys=None, circular_keys={'succ_s':'s'}, circular_offsets={'succ_s':1}):
-        '''
-        Use a different circular offset['succ_s']=n to implement truncated n-step return...
-        '''
-        if keys is None:    keys = ['s', 'a', 'r', 'non_terminal', 'rnn_state']
-        # keys = keys + ['s', 'a', 'r', 'succ_s', 'non_terminal',
-        #                'v', 'q', 'pi', 'log_pi', 'ent',
-        #                'adv', 'ret', 'qa', 'log_pi_a',
-        #                'mean', 'action_logits', 'rnn_state']
-        self.keys = keys
-        self.circular_keys = circular_keys
-        self.circular_offsets = circular_offsets
-        self.capacity = capacity
-        """
-        self.position = dict()
-        self.current_size = dict()
-        """
-        self.position = dict()
-        self.current_size = dict()
-            
-        self.reset()
     
     def get_beta(self):
         return self.beta 
@@ -501,22 +472,11 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
         if parentidx != 0 :
             self._propagate(parentidx, change)
 
-    # def add(self, exp, priority):
-    #     self.exp_queue.append((exp,priority))
-
-    #     if len(self.exp_queue) > 32:
-    #         for e, p in self.exp_queue:
-    #             self._add(exp=e, priority=p)
-
-    #         self.exp_queue = list()
-
-
     def add(self, exp, priority):
         if priority is None:
             priority = self.max_priority
 
-        #super(SharedPrioritizedReplayStorage, self).add(data=exp)
-        self._add(data=exp)
+        SharedReplayStorage.add(self=self, data=exp)
         self.length = min(self.length+1, self.capacity)
         self.iteration += 1 
 
@@ -529,22 +489,7 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
         self.update(idx,priority)
 
         self._update_beta()
-
-    def _add(self, data):
-        for k, v in data.items():
-            if not(k in self.keys or k in self.circular_keys):  continue
-            if k in self.circular_keys: continue
-            # As  we are dealing with a proxy,
-            # it is important to reassign the element of the ListProxy
-            # in order to trigger an update from the proxy manager:
-            proxy = getattr(self, k)
-            container = proxy[0]
-            container[self.position[k]] = v
-            # reassigning:
-            proxy[0] = container
-            self.position[k] = int((self.position[k]+1) % self.capacity)
-            self.current_size[k] = min(self.capacity, self.current_size[k]+1)
-
+        
     def _retrieve(self,idx,s):
          leftidx = 2*idx+1
          rightidx = leftidx+1
@@ -614,8 +559,6 @@ class PrioritizedReplayStorage(ReplayStorage):
             circular_keys=circular_keys,
             circular_offsets=circular_offsets
         )
-
-        self.exp_queue = list()
 
         self.alpha = alpha
         self.beta_start = beta
@@ -760,16 +703,6 @@ class PrioritizedReplayStorage(ReplayStorage):
             self._propagate(parentidx, change)
 
     def add(self, exp, priority):
-        self.exp_queue.append((exp,priority))
-
-        if len(self.exp_queue) > 32:
-            for e, p in self.exp_queue:
-                self._add(exp=e, priority=p)
-
-            self.exp_queue = list()
-
-
-    def _add(self, exp, priority):
         if priority is None:
             priority = self.max_priority
 

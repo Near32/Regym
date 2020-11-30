@@ -5,7 +5,6 @@ import sys
 from typing import Dict
 
 import torch.multiprocessing
-from tensorboardX import SummaryWriter #GlobalSummaryWriter
 from tqdm import tqdm
 from functools import partial
 
@@ -211,7 +210,7 @@ if __name__ == '__main__':
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
       #torch.multiprocessing.set_start_method("spawn", force=True)
-      ray.init()
+      ray.init() #local_mode=True)
       
       from regym import CustomManager as Manager
       from multiprocessing.managers import SyncManager, MakeProxyType, public_methods

@@ -363,6 +363,9 @@ def learner_loop(
         if nbr_updates is None: nbr_updates = 1
         #pbar.update(nbr_updates)
         total_nbr_updates += nbr_updates
+        
+        sum_writer.flush()
+        #print(f"Training: {total_nbr_updates} / {max_update_count}")
 
     sum_writer.flush()
 
