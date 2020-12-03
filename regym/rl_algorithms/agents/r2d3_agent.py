@@ -195,6 +195,7 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
             action_set=action_set,
             skip=int(kwargs['demo_skip']),
             stack=int(kwargs['demo_stack']),
+            grayscale=kwargs['demo_grayscale'],
             previous_reward_action=True,
             trajectory_wrapping=True
         )

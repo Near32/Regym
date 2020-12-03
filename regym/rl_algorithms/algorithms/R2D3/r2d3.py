@@ -1,6 +1,7 @@
 from typing import Dict, List, Any, Optional, Callable
 
 from functools import partial
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -36,41 +37,63 @@ class R2D3Algorithm(R2D2Algorithm):
             sum_writer=sum_writer
         )
         
+        self.expert_buffer = expert_buffer
         self.demo_ratio = kwargs['demo_ratio']  # Should be small (around: 1 / 256)
         
-        self.expert_buffer = expert_buffer
-
-    def build_expert_buffer(self):
+        self.pretraining_required = 'pretrain' in kwargs
         
-        keys = ['s', 'a', 'r', 'non_terminal']
-        if self.recurrent:  keys += ['rnn_states']
-        if self.goal_oriented:    keys += ['g']
-        
-        circular_keys={'succ_s':'s'}
-        circular_offsets={'succ_s':self.n_step}
-        if self.recurrent:
-            circular_keys.update({'next_rnn_states':'rnn_states'})
-            circular_offsets.update({'next_rnn_states':1})
+        if self.pretraining_required:
+            self.pretrain_updates = int(float(kwargs['pretrain']))
 
-        beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  if 'PER_beta_increase_interval' in self.kwargs else 1e4
+    def pretrain(self, minibatch_size:int=None, pretrain_updates:int=0):
+        
+        if minibatch_size is None:  minibatch_size = self.batch_size
+        print("Pretraining")
+        pbar = tqdm(total=pretrain_updates, position=1)
+        
+        for _ in range(pretrain_updates):
+
+            self.target_update_count += self.nbr_actor
+
+            samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
             
-        if self.kwargs['use_PER']:
-            self.expert_buffer = PrioritizedReplayStorage(
-                capacity=self.kwargs['replay_capacity']//self.nbr_actor,
-                alpha=self.kwargs['PER_alpha'],
-                beta=self.kwargs['PER_beta'],
-                beta_increase_interval=beta_increase_interval,
-                keys=keys,
-                circular_keys=circular_keys,                 
-                circular_offsets=circular_offsets
-            )
-        else:
-            self.expert_buffer = ReplayStorage(
-                capacity=self.kwargs['replay_capacity']//self.nbr_actor,
-                keys=keys,
-                circular_keys=circular_keys,                 
-                circular_offsets=circular_offsets
-            )
+            if self.noisy:  
+                self.model.reset_noise()
+                self.target_model.reset_noise()
+
+            self.optimize_model(minibatch_size, samples)
+            
+            if self.target_update_count > self.target_update_interval:
+                self.target_update_count = 0
+                hard_update(self.target_model,self.model)
+            
+            pbar.update(1)
+
+    # NOTE: we are overriding this function from R2D2Algorithm
+    def train(self, minibatch_size:int=None):
+        
+        if self.pretraining_required:
+            ratio = self.demo_ratio
+            self.demo_ratio = 1.0
+            self.pretrain(pretrain_updates=self.pretrain_updates)
+            self.pretraining_required = False
+            self.demo_ratio = ratio
+            
+        if minibatch_size is None:  minibatch_size = self.batch_size
+
+        self.target_update_count += self.nbr_actor
+
+        samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
+        
+        if self.noisy:  
+            self.model.reset_noise()
+            self.target_model.reset_noise()
+
+        self.optimize_model(minibatch_size, samples)
+        
+        if self.target_update_count > self.target_update_interval:
+            self.target_update_count = 0
+            hard_update(self.target_model,self.model)
 
     # NOTE: we are overriding this function from R2D2Algorithm
     def retrieve_values_from_storages(self, minibatch_size: int):
@@ -78,7 +101,10 @@ class R2D3Algorithm(R2D2Algorithm):
         We sample from both replay buffers (expert_buffer and agent
         collected experiences) according to property self.demo_ratio
         '''
-        num_demonstration_samples = (minibatch_size*len(self.storages)) * self.demo_ratio / (1 - self.demo_ratio)  
+        if self.demo_ratio == 1.0:
+            num_demonstration_samples = minibatch_size
+        else:
+            num_demonstration_samples = (minibatch_size*len(self.storages)) * self.demo_ratio / (1 - self.demo_ratio)  
 
         '''
         Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
@@ -109,15 +135,16 @@ class R2D3Algorithm(R2D2Algorithm):
             nbr_sampling_values = minibatch_size
             if storage_idx == len(self.storages):
                 nbr_sampling_values = int(num_demonstration_samples)
+            elif self.demo_ratio == 1.0:
+                continue
             # Check that there is something in the storage 
-            if storage is None or len(storage) <= 1: continue
+            if storage is None or len(storage) <= 1 or nbr_sampling_values == 0: continue
             if self.use_PER:
                 sample, importanceSamplingWeights = storage.sample(batch_size=nbr_sampling_values, keys=keys)
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
             else:
-                sample = storage.sample(batch_size=num_replay_buffer_samples, keys=keys)
-            
+                sample = storage.sample(batch_size=nbr_sampling_values, keys=keys)
             values = {}
             for key, value in zip(keys, sample):
                 value = value.tolist()
@@ -148,7 +175,6 @@ class R2D3Algorithm(R2D2Algorithm):
                 value = value[0]
 
             fulls[key] = value
-        
         return fulls
     
     def optimize_model(self, minibatch_size: int, samples: Dict):
@@ -157,7 +183,6 @@ class R2D3Algorithm(R2D2Algorithm):
             self.summary_writer = summary_writer
 
         beta = self.storages[0].beta if self.use_PER else 1.0
-        
         states = samples['s']
         actions = samples['a']
         next_states = samples['succ_s']
@@ -172,10 +197,13 @@ class R2D3Algorithm(R2D2Algorithm):
 
         # For each actor, there is one mini_batch update:
         sampler = random_sample(np.arange(states.size(0)), minibatch_size)
-        list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
-                                for storage_idx, storage in enumerate(self.storages)]
-        if self.expert_buffer is not None:
-            list_batch_indices += [len(self.storages)*minibatch_size+np.arange(states.size(0)-minibatch_size*len(self.storages))]
+        if self.demo_ratio == 1.0:
+            list_batch_indices = [np.arange(minibatch_size)]
+        else:
+            list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
+                                    for storage_idx, storage in enumerate(self.storages)]
+            if self.expert_buffer is not None:
+                list_batch_indices += [len(self.storages)*minibatch_size+np.arange(states.size(0)-minibatch_size*len(self.storages))]
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
@@ -269,6 +297,8 @@ class R2D3Algorithm(R2D2Algorithm):
         Updates the priorities of each sampled elements from their respective storages.
         '''
         nbr_policy_sample = minibatch_size*len(self.storages)
+        if self.demo_ratio == 1.0:
+            nbr_policy_sample = 0
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)
@@ -277,7 +307,7 @@ class R2D3Algorithm(R2D2Algorithm):
             storage_idx = arr_bidx//minibatch_size
             
             # Ids less than self.sample_split come from replay buffer
-            if storage_idx < len(self.storages):
+            if storage_idx < len(self.storages) and self.demo_ratio != 1.0:
                 el_idx_in_batch = arr_bidx%minibatch_size
                 el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
                 # (unroll_dim,)
