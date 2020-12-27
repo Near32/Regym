@@ -594,6 +594,12 @@ class PrioritizedReplayStorage(ReplayStorage):
     def get_beta(self):
         return self.beta 
 
+    
+    def reset_priorities(self):
+        for idx in range(len(self)):
+            update_idx = idx + self.capacity -1
+            self.update(idx=update_idx, priority=0.1)
+
     def get_tree_indices(self):
         return self.tree_indices 
 

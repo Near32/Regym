@@ -140,7 +140,7 @@ class DQNAgent(Agent):
         if not(self.async_actor):
             self.train()
 
-    def train(self):
+    def train(self, pretraining=False):
         nbr_updates = 0
 
         period_check = self.replay_period
@@ -150,9 +150,9 @@ class DQNAgent(Agent):
             period_count_check = self.nbr_episode_per_cycle_count
 
         if self.training \
-        and self.handled_experiences > self.kwargs['min_capacity'] \
-        and self.algorithm.stored_experiences() > self.kwargs['min_capacity'] \
-        and (period_count_check % period_check == 0 or not(self.async_actor)):
+        and (pretraining or self.handled_experiences > self.kwargs['min_capacity']) \
+        and (pretraining or self.algorithm.stored_experiences() > self.kwargs['min_capacity']) \
+        and (pretraining or (period_count_check % period_check == 0 or not(self.async_actor))):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
                 minibatch_size *= self.replay_period
@@ -160,7 +160,7 @@ class DQNAgent(Agent):
                 self.nbr_episode_per_cycle_count = 1
 
             for train_it in range(self.nbr_training_iteration_per_cycle):
-                self.algorithm.train(minibatch_size=minibatch_size)
+                self.algorithm.train(minibatch_size=minibatch_size, pretraining=pretraining)
             
             nbr_updates = self.nbr_training_iteration_per_cycle
 

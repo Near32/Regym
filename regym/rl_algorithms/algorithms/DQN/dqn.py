@@ -216,7 +216,7 @@ class DQNAlgorithm(Algorithm):
 
     def stored_experiences(self):
         self.train_request_count += 1
-        if hasattr(self.storages[0], "remote"):
+        if hasattr(self.storages[0].__len__, "remote"):
             nbr_stored_experiences = sum([ray.get(storage.__len__.remote()) for storage in self.storages])
         else:
             nbr_stored_experiences = sum([len(storage) for storage in self.storages])
@@ -265,7 +265,7 @@ class DQNAlgorithm(Algorithm):
         else:
             self.storages[actor_index].add(current_exp_dict)
 
-    def train(self, minibatch_size:int=None):
+    def train(self, minibatch_size:int=32, pretraining=False):
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
@@ -275,7 +275,7 @@ class DQNAlgorithm(Algorithm):
         self.target_update_count += self.nbr_actor
 
         start = time.time()
-        samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
+        samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size, pretraining=pretraining)
         end = time.time()
 
         if self.summary_writer is not None:
@@ -313,22 +313,32 @@ class DQNAlgorithm(Algorithm):
         
         for key in keys:    fulls[key] = []
 
-        using_ray = True
-        for storage in self.storages:
-            # Check that there is something in the storage 
-            if hasattr(storage, "remote"):
-                storage_size = ray.get(storage.__len__.remote())
-            else:
-                storage_size = len(storage)
-                using_ray = False
+        using_ray = False
+        if hasattr(self.storages[0].__len__, "remote"):
+            using_ray = True
+            
+        if using_ray:
+            storage_sizes_ids = [storage.__len__.remote() for storage in self.storages]
+            storage_sizes = []
+            storage_samples_ids = []
+            for storage_idx, storage in enumerate(self.storages):
+                # Check that there is something in the storage 
+                storage_size = ray.get(storage_sizes_ids[storage_idx])
+                storage_sizes.append(storage_size)
+                if storage_size <= 1: continue
+                if self.use_PER:
+                    storage_samples_ids.append(storage.sample.remote(batch_size=minibatch_size, keys=keys))
+        else:
+            storage_sizes = [len(storage) for storage in self.storages]
 
+        for storage_idx, storage in enumerate(self.storages):
+            # Check that there is something in the storage 
+            storage_size = storage_sizes[storage_idx]
             if storage_size <= 1: continue
-            #if len(storage) <= 1: continue
+            
             if self.use_PER:
                 if using_ray:
-                    sample, importanceSamplingWeights = ray.get(
-                        storage.sample.remote(batch_size=minibatch_size, keys=keys)
-                    )
+                    sample, importanceSamplingWeights = ray.get(storage_samples_ids[storage_idx])
                 else:
                     sample, importanceSamplingWeights = storage.sample(batch_size=minibatch_size, keys=keys)
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
@@ -378,10 +388,12 @@ class DQNAlgorithm(Algorithm):
 
         #beta = self.storages[0].get_beta() if self.use_PER else 1.0
         beta = 1.0
+        using_ray = False
         if self.use_PER:
             if hasattr(self.storages[0].get_beta, "remote"):
                 beta_id = self.storages[0].get_beta.remote()
                 beta = ray.get(beta_id)
+                using_ray = True
             else:
                 beta = self.storages[0].get_beta()
 
@@ -478,11 +490,18 @@ class DQNAlgorithm(Algorithm):
             array_batch_indices = array_batch_indices[sampled_batch_indices]
             # Now we can iterate through the losses and retrieve what 
             # storage and what batch index they were associated with:
-            self._update_replay_buffer_priorities(
-                sampled_losses_per_item=sampled_losses_per_item, 
-                array_batch_indices=array_batch_indices,
-                minibatch_size=minibatch_size,
-            )
+            if using_ray:
+                self._update_replay_buffer_priorities_ray(
+                    sampled_losses_per_item=sampled_losses_per_item, 
+                    array_batch_indices=array_batch_indices,
+                    minibatch_size=minibatch_size,
+                )
+            else:
+                self._update_replay_buffer_priorities(
+                    sampled_losses_per_item=sampled_losses_per_item, 
+                    array_batch_indices=array_batch_indices,
+                    minibatch_size=minibatch_size,
+                )
 
         end = time.time()
         if self.summary_writer is not None:

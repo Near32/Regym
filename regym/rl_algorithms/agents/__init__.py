@@ -3,6 +3,7 @@ from .tabular_q_learning_agent import build_TabularQ_Agent, TabularQLearningAgen
 from .dqn_agent import build_DQN_Agent, DQNAgent
 from .r2d2_agent import build_R2D2_Agent, R2D2Agent
 from .r2d3_agent import build_R2D3_Agent, R2D3Agent
+from .r2d3_dqfd_agent import build_R2D3DQfD_Agent, R2D3DQfDAgent
 from .ther_agent import build_THER_Agent, THERAgent
 from .ppo_agent import build_PPO_Agent, PPOAgent
 from .reinforce_agent import build_Reinforce_Agent, ReinforceAgent

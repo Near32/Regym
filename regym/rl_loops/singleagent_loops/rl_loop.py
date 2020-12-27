@@ -207,6 +207,7 @@ def async_gather_experience_parallel(
     task,
     agent,
     training,
+    nbr_pretraining_steps=0,
     max_obs_count=1e7,
     max_update_count=1e7,
     test_obs_interval=1e4,
@@ -223,6 +224,7 @@ def async_gather_experience_parallel(
     :param env: ParallelEnv wrapper around an OpenAI gym environment
     :param agent: Agent policy used to take actionsin the environment and to process simulated experiences
     :param training: (boolean) Whether the agents will learn from the experience they recieve
+    :param nbr_pretraining_steps: Number of pretraining steps.
     :param max_obs_count: Maximum number of observations to gather data for.
     :param test_obs_interval: Integer, interval between two testing of the agent in the test environment.
     :param test_nbr_episode: Integer, nbr of episode to test the agent with.
@@ -232,6 +234,10 @@ def async_gather_experience_parallel(
     :param benchmarking_record_episode_interval: None if not gif ought to be made, otherwise Integer.
     :returns:
     '''
+
+    for pretrain_step in tqdm(range(nbr_pretraining_steps)):
+        agent.train(pretraining=True)
+
     async_actor = agent.get_async_actor()
     # gathering_proc = Process(
     #     target=gather_experience_parallel,
@@ -251,7 +257,7 @@ def async_gather_experience_parallel(
     # )
     # gathering_proc.start()
 
-    gathering_proc_id = gather_experience_parallel.remote(
+    gathering_proc_id = gather_experience_parallel_ray.remote(
         task=task,
         agent=async_actor,
         training=training,
@@ -287,6 +293,7 @@ def async_gather_experience_parallel1(
     task,
     agent,
     training,
+    nbr_pretraining_steps=0,
     max_obs_count=1e7,
     max_update_count=1e7,
     test_obs_interval=1e4,
@@ -303,6 +310,7 @@ def async_gather_experience_parallel1(
     :param env: ParallelEnv wrapper around an OpenAI gym environment
     :param agent: Agent policy used to take actionsin the environment and to process simulated experiences
     :param training: (boolean) Whether the agents will learn from the experience they recieve
+    :param nbr_pretraining_steps: Number of pretraining steps.
     :param max_obs_count: Maximum number of observations to gather data for.
     :param test_obs_interval: Integer, interval between two testing of the agent in the test environment.
     :param test_nbr_episode: Integer, nbr of episode to test the agent with.
@@ -312,6 +320,10 @@ def async_gather_experience_parallel1(
     :param benchmarking_record_episode_interval: None if not gif ought to be made, otherwise Integer.
     :returns:
     '''
+
+    for pretrain_step in tqdm(range(nbr_pretraining_steps)):
+        agent.train(pretraining=True)
+
     async_actor = agent.get_async_actor()
     
     # learner_proc = Process(
@@ -323,7 +335,7 @@ def async_gather_experience_parallel1(
     #     }
     # )
     # learner_proc.start()
-    learner_proc = learner_loop.remote(
+    learner_proc = learner_loop_ray.remote(
         sum_writer=sum_writer,
         agent=agent,
         max_update_count=max_update_count
@@ -346,7 +358,7 @@ def async_gather_experience_parallel1(
     
     return agent 
 
-@ray.remote(num_gpus=0.5)
+#@ray.remote(num_gpus=0.5)
 def learner_loop(
         sum_writer,
         agent,
@@ -371,18 +383,22 @@ def learner_loop(
 
     return agent
 
+learner_loop_ray = ray.remote(num_gpus=0.5)(learner_loop)
+
 #@ray.remote(num_gpus=0.5)
-def gather_experience_parallel(task,
-                                agent,
-                                training,
-                                max_obs_count=1e7,
-                                test_obs_interval=1e4,
-                                test_nbr_episode=10,
-                                env_configs=None,
-                                sum_writer=None,
-                                base_path='./',
-                                benchmarking_record_episode_interval=None,
-                                step_hooks=[]):
+def gather_experience_parallel(
+    task,
+    agent,
+    training,
+    nbr_pretraining_steps=0,
+    max_obs_count=1e7,
+    test_obs_interval=1e4,
+    test_nbr_episode=10,
+    env_configs=None,
+    sum_writer=None,
+    base_path='./',
+    benchmarking_record_episode_interval=None,
+    step_hooks=[]):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -390,6 +406,7 @@ def gather_experience_parallel(task,
     :param env: ParallelEnv wrapper around an OpenAI gym environment
     :param agent: Agent policy used to take actionsin the environment and to process simulated experiences
     :param training: (boolean) Whether the agents will learn from the experience they recieve
+    :param nbr_pretraining_steps: Number of pretraining steps.
     :param max_obs_count: Maximum number of observations to gather data for.
     :param test_obs_interval: Integer, interval between two testing of the agent in the test environment.
     :param test_nbr_episode: Integer, nbr of episode to test the agent with.
@@ -399,6 +416,14 @@ def gather_experience_parallel(task,
     :param benchmarking_record_episode_interval: None if not gif ought to be made, otherwise Integer.
     :returns:
     '''
+    if isinstance(sum_writer, str):
+        sum_writer_path = os.path.join(sum_writer, 'actor.log')
+        sum_writer = SummaryWriter(sum_writer_path)
+        agent.algorithm.summary_writer = sum_writer
+
+    for pretrain_step in tqdm(range(nbr_pretraining_steps)):
+        agent.train(pretraining=True)
+
     env = task.env
     test_env = task.test_env
 
@@ -421,11 +446,6 @@ def gather_experience_parallel(task,
 
     pbar = tqdm(total=max_obs_count, position=0)
     pbar.update(obs_count)
-
-    if isinstance(sum_writer, str):
-        sum_writer_path = os.path.join(sum_writer, 'actor.log')
-        sum_writer = SummaryWriter(sum_writer_path)
-        agent.algorithm.summary_writer = sum_writer
 
     while True:
         action = agent.take_action(observations)
@@ -549,3 +569,5 @@ def gather_experience_parallel(task,
     test_env.close()
 
     return agent
+
+gather_experience_parallel_ray = ray.remote(num_gpus=0.5)(gather_experience_parallel)

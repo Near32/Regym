@@ -40,7 +40,8 @@ class R2D2Algorithm(DQNAlgorithm):
                 "Sequence_replay_unroll_length-sequence_replay_burn_in_length needs to be set to a value greater \
                  than n_step return, in order to be able to compute the bellman target."
         
-        super().__init__(
+        DQNAlgorithm.__init__(
+            self=self,
             kwargs=kwargs, 
             model=model, 
             target_model=target_model, 
@@ -48,9 +49,6 @@ class R2D2Algorithm(DQNAlgorithm):
             loss_fn=loss_fn, 
             sum_writer=sum_writer
         )
-        
-        self.storage_buffer_refresh_period = 32
-        self.storage_buffers = [list() for _ in range(self.nbr_actor)]
 
         self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
@@ -91,7 +89,7 @@ class R2D2Algorithm(DQNAlgorithm):
         
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
-                if True: #regym.RegymManager is not None:
+                if regym.RegymManager is not None:
                     # storage = regym.RegymManager.SharedPrioritizedReplayStorage(
                     #         capacity=self.replay_buffer_capacity//self.nbr_actor,
                     #         alpha=self.kwargs['PER_alpha'],
@@ -174,13 +172,18 @@ class R2D2Algorithm(DQNAlgorithm):
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
             if self.use_PER:
                 init_sampling_priority = None 
-                #self.storages[actor_index].add(current_sequence_exp_dict, priority=init_sampling_priority)
-                ray.get(
+                if regym.RegymManager is not None:
+                    #ray.get(
                     self.storages[actor_index].add.remote(
                         current_sequence_exp_dict, 
                         priority=init_sampling_priority
                     )
-                )
+                    #)
+                else:
+                    self.storages[actor_index].add(
+                        current_sequence_exp_dict, 
+                        priority=init_sampling_priority
+                    )
             else:
                 self.storages[actor_index].add(current_sequence_exp_dict)
 
@@ -256,15 +259,14 @@ class R2D2Algorithm(DQNAlgorithm):
                                          minibatch_size: int):
         '''
         Updates the priorities of each sampled elements from their respective storages.
-
-        #TODO: update to use Ray and get_tree_indices...
         '''
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)
         unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
 
-        ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) for storage in self.storages]
+        #ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) for storage in self.storages]
+        ps_tree_indices = [storage.get_tree_indices() for storage in self.storages]
         
         for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
             storage_idx = arr_bidx//minibatch_size
@@ -274,8 +276,49 @@ class R2D2Algorithm(DQNAlgorithm):
             #el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
             
             # (unroll_dim,)
-            new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
+            #new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
+            new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
+            #ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
+            self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
+
+
+    def _update_replay_buffer_priorities_ray(self, 
+                                         sampled_losses_per_item: List[torch.Tensor], 
+                                         array_batch_indices: List,
+                                         minibatch_size: int):
+        '''
+        Updates the priorities of each sampled elements from their respective storages.
+        '''
+        # losses corresponding to sampled batch indices: 
+        sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
+        # (batch_size, unroll_dim, 1)
+        unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
+
+        ps_tree_indices_ids = [storage.get_tree_indices.remote() for storage in self.storages]
+        
+        new_priorities_pp_ids = []
+        for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
+            storage_idx = arr_bidx//minibatch_size
+            el_idx_in_batch = arr_bidx%minibatch_size
+
+            # (unroll_dim,)
+            new_priorities_pp_ids.append( 
+                [
+                    storage_idx, 
+                    el_idx_in_batch, 
+                    self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,))
+                ]
+            )
             #new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
-            ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
+        
+        ps_tree_indices = [ray.get(ps_tree_indices_id) for ps_tree_indices_id in ps_tree_indices_ids]
+        
+        #TODO: account for the need for ray.get on last remote?
+        for storage_idx, el_idx_in_batch, new_priority_id in new_priorities_pp_ids:
+            el_idx_in_storage = ps_tree_indices[storage_idx][el_idx_in_batch]
+            new_priority = ray.get(new_priority_id)
+            self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority)
+            
+            #ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
             #self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 
