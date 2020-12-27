@@ -519,7 +519,7 @@ def baseline_atari_pixelwrap(env,
 
     if previous_reward_action:
         env = PreviousRewardActionInfoWrapper(env=env)
-
+    
     return env
 
 
@@ -1805,6 +1805,7 @@ def minerl2020_wrap_env(env,
                         action_set,
                         skip=None,
                         stack=None,
+                        grayscale: bool = False,
                         previous_reward_action=True,
                         trajectory_wrapping=False,
                         competition_testing: bool = False):
@@ -1820,6 +1821,9 @@ def minerl2020_wrap_env(env,
     
     # {POV, vector}, continuous action
     env = MineRLObservationSplitWrapper(env=env, trajectory_wrapping=trajectory_wrapping)
+    
+    if grayscale:
+        env = gym.wrappers.GrayScaleObservation(env,keep_dim=True)
     # state=POV, continuous action, 
     # infos={inventory (if traj_wrap: , previous_action(d), current_action(d))}
     env = DiscreteActionWrapper(env, action_set, 'vector')
@@ -1835,6 +1839,9 @@ def minerl2020_wrap_env(env,
         )
         # state=POV, input action is discrete, propagated action is continuous, 
         # infos={inventory (if traj_wrap: , previous_action(d), current_action(d))}
+    
+    # Clip reward to (-1,0,+1)
+    env = ClipRewardEnv(env)
     
     # The agent deals with discrete actions so we want this wrapper to be the last one:
     if previous_reward_action:

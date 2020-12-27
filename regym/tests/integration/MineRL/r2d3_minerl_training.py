@@ -497,6 +497,7 @@ def training_process(agent_config: Dict,
     action_set=action_set,
     skip=task_config['nbr_frame_skipping'],
     stack=task_config['nbr_frame_stacking'],
+    grayscale=task_config['grayscale'],
     previous_reward_action=True,
     trajectory_wrapping=False
   )
@@ -507,6 +508,7 @@ def training_process(agent_config: Dict,
     action_set=action_set,
     skip=task_config['nbr_frame_skipping'],
     stack=task_config['nbr_frame_stacking'],
+    grayscale=task_config['grayscale'],
     previous_reward_action=True,
     trajectory_wrapping=True
   )

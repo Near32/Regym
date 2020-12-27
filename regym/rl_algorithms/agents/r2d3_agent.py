@@ -130,7 +130,7 @@ def load_demonstrations_into_replay_buffer(
         next_batch_trajectory_names += [demo_name]
 
         if (len(next_batch_trajectory_names) == agent.nbr_actor) or ((i + 1) == len(good_demo_names)):
-            if demo_budget is not None and (i+1) >= demo_budget:
+            if demo_budget is not None and (i+1) > demo_budget:
               break
 
             env_creator = MineRLTrajectoryEnvironmentCreator(
@@ -195,6 +195,7 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
             action_set=action_set,
             skip=int(kwargs['demo_skip']),
             stack=int(kwargs['demo_stack']),
+            grayscale=kwargs['demo_grayscale'],
             previous_reward_action=True,
             trajectory_wrapping=True
         )
@@ -203,16 +204,18 @@ def build_R2D3_Agent(task: 'regym.environments.Task',
         if len(sys.argv) > 2:
             debug_mode = any(['debug' in arg for arg in sys.argv])
         
-        dummy_r2d2_agent = build_R2D2_Agent(task,config,'Dummy_Agent')
+        dummy_config = copy.deepcopy(config)
+        dummy_config['nbr_actor'] = 1
+        dummy_r2d2_agent = build_R2D2_Agent(task,dummy_config,'Dummy_Agent')
         
         load_demonstrations_into_replay_buffer(dummy_r2d2_agent,action_set,task_name=task.name,seed=task.env.seed,wrapping_fn=preloading_wrapping_fn,demo_budget=int(kwargs['demo_budget']),debug_mode=debug_mode)
         
-        expert_buffer = dummy_r2d2_agent.algorithm.storages[0]
+        expert_buffer = copy.deepcopy(dummy_r2d2_agent.algorithm.storages[0])
 
     else:
         if kwargs["expert_buffer_path"] != "":
             expert_agent = torch.load(kwargs['expert_buffer_path'])
-            expert_buffer = expert_agent.algorithm.storages[0]
+            expert_buffer = copy.deepcopy(expert_agent.algorithm.storages[0])
         else:
             expert_buffer = None 
             

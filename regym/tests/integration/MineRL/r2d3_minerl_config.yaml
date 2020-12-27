@@ -84,16 +84,16 @@ r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLST
 
 
 experiment:
-    tasks: [{'env-id': 'MineRLTreechopVectorObf-v0', #'MineRLTreechopVectorObf-v0','MineRLObtainDiamondVectorObf-v0'
+    tasks: [{'env-id': 'MineRLObtainDiamondVectorObf-v0', #'MineRLTreechopVectorObf-v0','MineRLObtainDiamondVectorObf-v0'
              
-             'run-id': 'Seed10_venv1_r2d3_Sk4_St4_Obs64_NoGrayscale_NoScaling',
+             'run-id': 'Seed10_venv2_r2d3_Sk4_St4_Obs64_Grayscale_NoScaling',
              
-             'agent-id': '1step_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B20_R0',
+             'agent-id': '1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e5Min1e3_alpha6m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B8_R5m1_Pretrain4e5',
              
-             'nbr_actor': 1,
+             'nbr_actor': 2,
              'nbr_frame_skipping': 4,
              'nbr_frame_stacking': 4,
-             'grayscale': False,
+             'grayscale': True,
              'scaling': False,
              'observation_resize_dim': 64, #84,
              'reward_scheme': 'None', #'penalizing_progressive1e4' #'penalizing_single_reward_episode'
@@ -109,8 +109,8 @@ experiment:
     ##benchmarking_interval: 1.0e8
     benchmarking_interval: 1.0e8
     benchmarking_record_episode_interval: 0
-    train_observation_budget: 1e5
-    seed: 10
+    train_observation_budget: 6e5
+    seed: 1
 
 
 agents:
@@ -143,31 +143,33 @@ agents:
         sequence_replay_overlap_length: 4
         sequence_replay_burn_in_length: 4
 
-    1step_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B20_R0:
+    1step_noisy_dueling_PER_r2d3_gamma997_LargeLSTMCNN_GradClip4p1_r1e5Min1e3_alpha6m1_beta4m1_tau1m4_RepP4_BURNIN_b8_L8_O4_B4_demo_B8_R5m1_Pretrain4e5:
         <<: *r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
         discount: 0.997
         gradient_clip: 40.0
-        replay_capacity: 1e4
+        replay_capacity: 1e5
         min_capacity: 1e3
         use_PER: True
-        PER_alpha: 0.9
+        PER_alpha: 0.6
         PER_beta: 0.4
         replay_period: 4
         batch_size: 8
         double: True
         dueling: True 
-        noisy: False
+        noisy: True
         n_step: 1
-        tau: 1.0e-3
+        tau: 1.0e-4
         burn_in: True
         sequence_replay_unroll_length: 8
         sequence_replay_overlap_length: 4
         sequence_replay_burn_in_length: 4
-        demo_ratio: 0.0
-        minerl: False
+        demo_ratio: 0.5
+        minerl: True
         demo_skip: 4
         demo_stack: 4
+        demo_grayscale: True
         # only useful for MineRL:
-        demo_budget: 20
+        demo_budget: 8
         # path to the agent whose replay buffer we load in:
         expert_buffer_path: ""
+        pretrain: 4e5
