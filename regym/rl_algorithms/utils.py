@@ -14,6 +14,7 @@ def recursive_inplace_update(in_dict: Dict,
     Taking both :param: in_dict, extra_dict as tree structures,
     adds the nodes of extra_dict into in_dict via tree traversal
     '''
+    if in_dict is None: return None
     if is_leaf(extra_dict):
         for leaf_key in extra_dict:
             # In order to make sure that the lack of deepcopy at this point will not endanger
@@ -47,6 +48,7 @@ def copy_hdict(in_dict: Dict):
     '''
     Makes a copy of :param in_dict:.
     '''
+    if in_dict is None: return None
     out_dict = {key: {} for key in in_dict}
     recursive_inplace_update(
         in_dict=out_dict,

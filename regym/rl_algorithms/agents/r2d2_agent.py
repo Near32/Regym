@@ -181,6 +181,8 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
     model = generate_model(task, kwargs)
 
+    print(model)
+    
     algorithm = R2D2Algorithm(
         kwargs=kwargs,
         model=model,

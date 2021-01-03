@@ -154,6 +154,75 @@ class CategoricalQNet(nn.Module):
 
         return prediction
 
+    def get_torso(self):
+        def torso_forward(obs, action=None, rnn_states=None, goal=None):
+            if not(self.goal_oriented):  assert(goal==None)
+            
+            if self.goal_oriented:
+                if self.goal_state_flattening:
+                    obs = torch.cat([obs, goal], dim=1)
+
+            next_rnn_states = None 
+            if rnn_states is not None:
+                next_rnn_states = {k: None for k in rnn_states}
+
+            if rnn_states is not None and 'phi_body' in rnn_states:
+                phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
+            else:
+                phi = self.phi_body(obs)
+
+            gphi = None
+            if self.goal_oriented and not(self.goal_state_flattening):
+                if rnn_states is not None and 'goal_phi_body' in rnn_states:
+                    gphi, next_rnn_states['goal_phi_body'] = self.goal_phi_body( (goal, rnn_states['goal_phi_body']) )
+                else:
+                    gphi = self.phi_body(goal)
+
+                phi = torch.cat([phi, gphi], dim=1)
+
+            return phi, next_rnn_states
+
+        return torso_forward
+
+    def get_head(self):
+        def head_forward(phi, action=None, rnn_states=None, goal=None):
+            next_rnn_states = None 
+            if rnn_states is not None:
+                next_rnn_states = {k: None for k in rnn_states}
+
+            if rnn_states is not None and 'critic_body' in rnn_states:
+                phi_v, next_rnn_states['critic_body'] = self.critic_body( (phi, rnn_states['critic_body']) )
+            else:
+                phi_v = self.critic_body(phi)
+
+            phi_features = phi_v
+            
+            # batch x action_dim
+            qa = self.fc_critic(phi_features)     
+
+            if action is None:
+                action  = qa.max(dim=-1)[1]
+            # batch #x 1
+            
+            probs = F.softmax( qa, dim=-1 )
+            log_probs = torch.log(probs+EPS)
+            entropy = -torch.sum(probs*log_probs, dim=-1)
+            # batch #x 1
+            
+            prediction = {
+                'a': action,
+                'ent': entropy,
+                'qa': qa
+            }
+            
+            prediction.update({
+                'rnn_states': rnn_states,
+                'next_rnn_states': next_rnn_states
+            })
+
+            return prediction
+
+        return head_forward
 
 class QNet(nn.Module):
     def __init__(self,

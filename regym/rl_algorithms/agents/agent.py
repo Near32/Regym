@@ -29,6 +29,8 @@ class Agent(object):
     def __init__(self, name, algorithm):
         self.name = name
         self.algorithm = algorithm
+        self.nbr_actor = self.algorithm.get_nbr_actor()
+        self.previously_done_actors = [False]*self.nbr_actor
         
         self.async_actor = False
         self.async_learner = False 
@@ -44,9 +46,16 @@ class Agent(object):
         else:
             self.actor_learner_shared_dict = {"models_update_required":False, "models": None}
 
+        self.actor_models_update_steps_interval = 32
+        if "actor_models_update_steps_interval" in self.algorithm.kwargs:
+            self.actor_models_update_steps_interval = self.algorithm.kwargs["actor_models_update_steps_interval"]
+        """
         self.actor_models_update_optimization_interval = 1
         if "actor_models_update_optimization_interval" in self.algorithm.kwargs:
             self.actor_models_update_optimization_interval = self.algorithm.kwargs["actor_models_update_optimization_interval"]
+        """
+        # Accounting for the number of actors:
+        self.actor_models_update_steps_interval *= self.nbr_actor
         self.previous_actor_models_update_quotient = -1
 
         if regym.RegymManager is not None:
@@ -76,8 +85,6 @@ class Agent(object):
         elif self.goal_oriented:
             raise NotImplementedError
 
-        self.nbr_actor = self.algorithm.get_nbr_actor()
-        self.previously_done_actors = [False]*self.nbr_actor
         # Holds model output from last observation
         self.current_prediction: Dict[str, Any] = None
 
@@ -113,6 +120,7 @@ class Agent(object):
         if nbr_actor != self.nbr_actor:
             self.nbr_actor = nbr_actor
             self.reset_actors(init=True)
+            self.algorithm.set_nbr_actor(nbr_actor=self.nbr_actor)
             self.algorithm.reset_storages(nbr_actor=self.nbr_actor)
 
     def reset_actors(self, indices:Optional[List]=None, init:Optional[bool]=False):

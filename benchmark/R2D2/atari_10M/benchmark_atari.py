@@ -5,9 +5,10 @@ import sys
 from typing import Dict
 
 import torch.multiprocessing
-from tensorboardX import GlobalSummaryWriter
 from tqdm import tqdm
 from functools import partial
+
+#import gym_moving_dot
 
 import torch
 import numpy as np
@@ -19,6 +20,7 @@ from regym.rl_loops.singleagent_loops import rl_loop
 from regym.util.experiment_parsing import initialize_agents
 from regym.util.wrappers import baseline_atari_pixelwrap
 
+import ray
 
 def check_path_for_agent(filepath):
     #filepath = os.path.join(path,filename)
@@ -37,7 +39,8 @@ def train_and_evaluate(agent: object,
                        task: object, 
                        sum_writer: object, 
                        base_path: str, 
-                       offset_episode_count: int = 0, 
+                       offset_episode_count: int = 0,
+                       nbr_pretraining_steps: int = 0, 
                        nbr_max_observations: int = 1e7,
                        test_obs_interval: int = 1e4,
                        test_nbr_episode: int = 10,
@@ -49,10 +52,12 @@ def train_and_evaluate(agent: object,
       async = any(['async' in arg for arg in sys.argv])
 
     if async:
+      #trained_agent = rl_loop.async_gather_experience_parallel1(
       trained_agent = rl_loop.async_gather_experience_parallel(
         task,
         agent,
         training=True,
+        #nbr_pretraining_steps=nbr_pretraining_steps,
         max_obs_count=nbr_max_observations,
         env_configs=None,
         sum_writer=sum_writer,
@@ -67,6 +72,7 @@ def train_and_evaluate(agent: object,
         task,
         agent,
         training=True,
+        #nbr_pretraining_steps=nbr_pretraining_steps,
         max_obs_count=nbr_max_observations,
         env_configs=None,
         sum_writer=sum_writer,
@@ -141,7 +147,6 @@ def training_process(agent_config: Dict,
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
-    
     regym.RegymSummaryWriterPath = base_path #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
     sum_writer =  base_path
     
@@ -152,14 +157,12 @@ def training_process(agent_config: Dict,
                                   agent_configurations={task_config['agent-id']: agent_config})[0]
     agent.save_path = save_path
     
-    #regym.rl_algorithms.algorithms.DQN.dqn.summary_writer = sum_writer
-    #regym.rl_algorithms.algorithms.R2D2.r2d2.summary_writer = sum_writer
-    
     trained_agent = train_and_evaluate(agent=agent,
                        task=task,
                        sum_writer=sum_writer,
                        base_path=base_path,
                        offset_episode_count=offset_episode_count,
+                       nbr_pretraining_steps=int(float(agent_config["nbr_pretraining_steps"])) if "nbr_pretraining_steps" in agent_config else 0,
                        nbr_max_observations=train_observation_budget,
                        test_obs_interval=benchmarking_interval,
                        test_nbr_episode=benchmarking_episodes,
@@ -188,7 +191,7 @@ def main():
 
     # Generate path for experiment
     base_path = experiment_config['experiment_id']
-    if not os.path.exists(base_path): os.mkdir(base_path)
+    if not os.path.exists(base_path): os.makedirs(base_path)
 
     for task_config in tasks_configs:
         agent_name = task_config['agent-id']
@@ -212,8 +215,34 @@ if __name__ == '__main__':
   if async:
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
+      #torch.multiprocessing.set_start_method("spawn", force=True)
+      ray.init() #local_mode=True)
+      
+      from regym import CustomManager as Manager
+      from multiprocessing.managers import SyncManager, MakeProxyType, public_methods
+      
+      # from regym.rl_algorithms.replay_buffers import SharedPrioritizedReplayStorage
+      # #SharedPrioritizedReplayStorageProxy = MakeProxyType("SharedPrioritizedReplayStorage", public_methods(SharedPrioritizedReplayStorage))
+      # Manager.register("SharedPrioritizedReplayStorage", 
+      #   SharedPrioritizedReplayStorage,# SharedPrioritizedReplayStorageProxy) 
+      #   exposed=[
+      #       "get_beta",
+      #       "get_tree_indices",
+      #       "cat",
+      #       "reset",
+      #       "add_key",
+      #       "total",
+      #       "__len__",
+      #       "priority",
+      #       "sequence_priority",
+      #       "update",
+      #       "add",
+      #       "sample",
+      #       ]
+      # )
+      # print("WARNING: SharedPrioritizedReplayStorage class has been registered with the RegymManager.")
 
-      from torch.multiprocessing import Manager
       regym.RegymManager = Manager()
+      regym.RegymManager.start()
 
   main()

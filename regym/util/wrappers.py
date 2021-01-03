@@ -496,8 +496,8 @@ def baseline_atari_pixelwrap(env,
                              clip_reward=True,
                              previous_reward_action=False):
     if grayscale:
-        env = GrayScaleObservation(env=env) 
-        #env = GrayScaleObservationCV(env=env) 
+        #env = GrayScaleObservation(env=env) 
+        env = GrayScaleObservationCV(env=env) 
     
     if nbr_max_random_steps > 0:
         env = NoopResetEnv(env, noop_max=nbr_max_random_steps)

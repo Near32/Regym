@@ -138,24 +138,24 @@ class R2D3Algorithm(R2D2Algorithm):
         for storage_idx, storage in enumerate(self.storages+[self.expert_buffer]):
             nbr_sampling_values = minibatch_size
             if storage_idx == len(self.storages):
-"""
-<<<<<<< HEAD
-"""
+                """
+                <<<<<<< HEAD
+                """
                 nbr_sampling_values = num_demonstration_samples
             # Check that there is something in the storage
             storage_size = 0
             if storage is not None:
                 storage_size = ray.get(storage.__len__.remote()) 
             if storage is None or storage_size <= 1: continue
-"""
-=======
+            """
+            =======
                 nbr_sampling_values = int(num_demonstration_samples)
             elif self.demo_ratio == 1.0:
                 continue
             # Check that there is something in the storage 
             if storage is None or len(storage) <= 1 or nbr_sampling_values == 0: continue
->>>>>>> 8d16f2cd25a0efa2191baf8ae51d4448024ea7c8
-"""
+            >>>>>>> 8d16f2cd25a0efa2191baf8ae51d4448024ea7c8
+            """
             if self.use_PER:
                 sample, importanceSamplingWeights = ray.get(storage.sample.remote(batch_size=nbr_sampling_values, keys=keys))
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
@@ -220,16 +220,16 @@ class R2D3Algorithm(R2D2Algorithm):
 
         # For each actor, there is one mini_batch update:
         sampler = random_sample(np.arange(states.size(0)), minibatch_size)
-"""
-<<<<<<< HEAD
-"""
+        """
+        <<<<<<< HEAD
+        """
         list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
                                 for storage_idx, _ in enumerate(self.storages)]
         if self.expert_buffer is not None:
             list_batch_indices += [len(self.storages)*minibatch_size+np.arange(states.size(0)-minibatch_size*len(self.storages))]
-"""
-<<<<<<< HEAD
-"""        
+        """
+        <<<<<<< HEAD
+        """        
         """
         if self.demo_ratio == 1.0:
             list_batch_indices = [np.arange(minibatch_size)]

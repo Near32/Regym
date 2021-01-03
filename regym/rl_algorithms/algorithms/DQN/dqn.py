@@ -77,11 +77,11 @@ class DQNAlgorithm(Algorithm):
             parameters = self.model.parameters()
             # Tuning learning rate with respect to the number of actors:
             # Following: https://arxiv.org/abs/1705.04862
-            lr = kwargs['learning_rate'] 
+            lr = float(kwargs['learning_rate']) 
             if kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
             print(f"Learning rate: {lr}")
-            self.optimizer = optim.Adam(parameters, lr=lr, betas=(0.9,0.999), eps=kwargs['adam_eps'])
+            self.optimizer = optim.Adam(parameters, lr=lr, betas=(0.9,0.999), eps=float(kwargs['adam_eps']))
         else: self.optimizer = optimizer
 
         self.loss_fn = loss_fn
@@ -105,11 +105,20 @@ class DQNAlgorithm(Algorithm):
         self.target_update_count = 0
         self.GAMMA = float(kwargs["discount"])
         
+        """
         self.epsend = float(kwargs['epsend'])
         self.epsstart = float(kwargs['epsstart'])
         self.epsdecay = float(kwargs['epsdecay'])
         self.eps = self.epsstart
-        
+        """
+
+        # Eps-greedy approach blends in two different schemes, from two different papers:
+        # - Ape-X eps-greedy scheme,
+        # - DQN eps-greedy scheme 
+        #   (retrieved by setting eps_greedy_alpha=0.0, i.e. all actors have the same epsilon). 
+        self.eps_greedy_alpha = float(kwargs['eps_greedy_alpha']) if 'eps_greedy_alpha' in kwargs else 0.0
+        self.reset_epsilon()
+
         global summary_writer
         if sum_writer is not None: summary_writer = sum_writer
         self.summary_writer = summary_writer
@@ -150,9 +159,50 @@ class DQNAlgorithm(Algorithm):
     def get_nbr_actor(self):
         return self.nbr_actor
 
+    def set_nbr_actor(self, nbr_actor):
+        self.nbr_actor = nbr_actor
+        self.reset_epsilon()
+
     def get_update_count(self):
         return self.param_update_counter
 
+    def reset_epsilon(self):
+        self.epsend = self.kwargs['epsend']
+        self.epsstart = self.kwargs['epsstart']
+        self.epsdecay = self.kwargs['epsdecay']
+        if not isinstance(self.epsend, list): self.epsend = [float(self.epsend)]
+        if not isinstance(self.epsstart, list): self.epsstart = [float(self.epsstart)]
+        if not isinstance(self.epsdecay, list): self.epsdecay = [float(self.epsdecay)]
+        
+        # Ape-X eps-greedy scheme is used to setup the missing values:
+        # i.e. if there is only one value specified in the yaml file, 
+        # then the effective initialisation of the eps-greedy scheme 
+        # will be that of the Ape-X paper.
+        while len(self.epsend) < self.nbr_actor:   
+            self.epsend.append(
+                np.power(
+                    self.epsend[0], 
+                    1+self.eps_greedy_alpha*(len(self.epsend)/(self.nbr_actor-1))
+                )
+            )
+        while len(self.epsstart) < self.nbr_actor:   
+            self.epsstart.append(
+                np.power(
+                    self.epsstart[0], 
+                    1+self.eps_greedy_alpha*(len(self.epsstart)/(self.nbr_actor-1))
+                )
+            )
+
+        # Decaying epsilon scheme can still be applied independently of the initialisation scheme.
+        # e.g. setting epsend to your actural epsilon value, and epsdecay to 1, with any value of epsstart.
+        while len(self.epsdecay) < self.nbr_actor:   self.epsdecay.append(self.epsdecay[0])
+
+        self.epsend = np.array(self.epsend)[:self.nbr_actor]
+        self.epsstart = np.array(self.epsstart)[:self.nbr_actor]
+        self.epsdecay = np.array(self.epsdecay)[:self.nbr_actor]
+        
+        self.eps = self.epsstart
+        
     def get_epsilon(self, nbr_steps, strategy='exponential'):
         global summary_writer
         if self.summary_writer is None:
@@ -163,8 +213,9 @@ class DQNAlgorithm(Algorithm):
         else:
             self.eps = self.epsend + max(0, (self.epsstart-self.epsend)/((float(nbr_steps)/self.epsdecay)+1))
 
-        if summary_writer is not None:
-            summary_writer.add_scalar('Training/Eps', self.eps, nbr_steps)
+        if self.summary_writer is not None:
+            for actor_i in range(self.eps.shape[0]):
+                self.summary_writer.add_scalar(f'Training/Eps_Actor_{actor_i}', self.eps[actor_i], nbr_steps)
 
         return self.eps 
 
@@ -216,7 +267,7 @@ class DQNAlgorithm(Algorithm):
 
     def stored_experiences(self):
         self.train_request_count += 1
-        if hasattr(self.storages[0], "remote"):
+        if isinstance(self.storages[0], ray.actor.ActorHandle):
             nbr_stored_experiences = sum([ray.get(storage.__len__.remote()) for storage in self.storages])
         else:
             nbr_stored_experiences = sum([len(storage) for storage in self.storages])
@@ -286,7 +337,12 @@ class DQNAlgorithm(Algorithm):
             self.model.reset_noise()
             self.target_model.reset_noise()
 
+        start = time.time()
         self.optimize_model(minibatch_size, samples)
+        end = time.time()
+        
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizeModelFn', end-start, self.param_update_counter)
         
         if self.target_update_count > self.target_update_interval:
             self.target_update_count = 0
@@ -313,15 +369,14 @@ class DQNAlgorithm(Algorithm):
         
         for key in keys:    fulls[key] = []
 
-        using_ray = True
+        using_ray = isinstance(self.storages[0], ray.actor.ActorHandle)
         for storage in self.storages:
             # Check that there is something in the storage 
-            if hasattr(storage, "remote"):
+            if using_ray:
                 storage_size = ray.get(storage.__len__.remote())
             else:
                 storage_size = len(storage)
-                using_ray = False
-
+                
             if storage_size <= 1: continue
             #if len(storage) <= 1: continue
             if self.use_PER:
@@ -369,11 +424,14 @@ class DQNAlgorithm(Algorithm):
         
         return fulls
 
-    def optimize_model(self, minibatch_size: int, samples: Dict):
+    def optimize_model(self, minibatch_size: int, samples: Dict, optimisation_minibatch_size:int=None):
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
         
+        if optimisation_minibatch_size is None:
+            optimisation_minibatch_size = minibatch_size*self.nbr_actor
+
         start = time.time()
 
         #beta = self.storages[0].get_beta() if self.use_PER else 1.0
@@ -398,7 +456,7 @@ class DQNAlgorithm(Algorithm):
         importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
 
         # For each actor, there is one mini_batch update:
-        sampler = random_sample(np.arange(states.size(0)), minibatch_size)
+        sampler = random_sample(np.arange(states.size(0)), optimisation_minibatch_size)
         list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
                                 for storage_idx, _ in enumerate(self.storages)]
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)

@@ -1,4 +1,5 @@
 from typing import Dict, List, Optional
+import time
 import torch
 
 
@@ -47,6 +48,8 @@ def compute_loss(states: torch.Tensor,
                             feedforwarding :param states: in :param model:. See :param rnn_states:
                             for further details on type and shape.
     '''
+    start = time.time()
+
     batch_size = states.shape[0]
 
     prediction = model(states, action=actions, rnn_states=rnn_states, goal=goals)
@@ -58,7 +61,7 @@ def compute_loss(states: torch.Tensor,
     state_action_values_g = state_action_values.gather(dim=1, index=actions.unsqueeze(1)).squeeze(1)
     
     '''
-    # Sample actions from the current model outputs:
+    # Sample actions from the current model outputs: which is actually the training batch action 'actions' (cf bodies.py CategoricalQNet)
     current_actions = prediction["a"]
     state_action_values_g = state_action_values.gather(dim=1, index=current_actions.unsqueeze(1)).squeeze(1)
     
@@ -102,8 +105,31 @@ def compute_loss(states: torch.Tensor,
 
     loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*prediction['ent'].mean()
 
+    end = time.time()
+
     if summary_writer is not None:
+        summary_writer.add_scalar('Training/TimeComplexity', end-start, iteration_count)
+        
+        summary_writer.add_scalar('Training/MeanTrainingNStepReturn', rewards.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MinTrainingNStepReturn', rewards.cpu().min().item(), iteration_count)
+        summary_writer.add_scalar('Training/MaxTrainingNStepReturn', rewards.cpu().max().item(), iteration_count)
+        
+        summary_writer.add_scalar('Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A', targetQ_nextS_argmaxA_Q_value.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A', targetQ_nextS_argmaxA_Q_value.cpu().min().item(), iteration_count)
+        summary_writer.add_scalar('Training/MaxTargetQSipn_ArgmaxAOnlineQSipn_A', targetQ_nextS_argmaxA_Q_value.cpu().max().item(), iteration_count)
+        
+        summary_writer.add_scalar('Training/MeanTargetQsi', targetQ_nextS_A_values.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MinTargetQsi', targetQ_nextS_A_values.cpu().min().item(), iteration_count)
+        summary_writer.add_scalar('Training/MaxTargetQsi', targetQ_nextS_A_values.cpu().max().item(), iteration_count)
+        
+        summary_writer.add_scalar('Training/MeanBellmanTarget', expected_state_action_values.cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MinBellmanTarget', expected_state_action_values.cpu().min().item(), iteration_count)
+        summary_writer.add_scalar('Training/MaxBellmanTarget', expected_state_action_values.cpu().max().item(), iteration_count)
+        
         summary_writer.add_scalar('Training/MeanQAValues', prediction['qa'].cpu().mean().item(), iteration_count)
+        summary_writer.add_scalar('Training/MinQAValues', prediction['qa'].cpu().min().item(), iteration_count)
+        summary_writer.add_scalar('Training/MaxQAValues', prediction['qa'].cpu().max().item(), iteration_count)
+        
         summary_writer.add_scalar('Training/StdQAValues', prediction['qa'].cpu().std().item(), iteration_count)
         summary_writer.add_scalar('Training/QAValueLoss', loss.cpu().item(), iteration_count)
         summary_writer.add_scalar('Training/EntropyVal', prediction['ent'].mean().cpu().item(), iteration_count)

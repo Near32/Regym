@@ -70,11 +70,18 @@ class VecEnv():
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
         seed = self.seed+idx+1
+        """
         if idx==0 and self.initial_env is not None:
             self.env_processes[idx] = self.initial_env
             self.initial_env = None
         else:
             self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
+        """
+        if idx==0 and self.initial_env is not None:
+            self.initial_env = None
+        self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
+        
+        
         if idx==0 and self.video_recording_episode_period is not None:
             self.env_processes[idx] = PeriodicVideoRecorderWrapper(
                 env=self.env_processes[idx], 

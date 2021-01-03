@@ -1011,6 +1011,8 @@ class FCBody(nn.Module):
             layer = nn.Linear(in_ch, cfg, bias=not(add_bn)) 
             if layer_init_fn is not None:
                 layer = layer_init_fn(layer)#, w_scale=math.sqrt(2))
+            else:
+                layer = layer_init(layer, w_scale=math.sqrt(2))
             in_ch = cfg
             self.layers.append(layer)
             if add_bn:
@@ -1060,6 +1062,186 @@ class FCBody(nn.Module):
     def get_feature_shape(self):
         return self.feature_dim
 """
+
+class LinearLinearBody(nn.Module):
+    def __init__(
+        self, 
+        state_dim, 
+        feature_dim=256, 
+        hidden_units=(256,), 
+        non_linearities=[nn.ReLU], 
+        gate=F.relu,
+        dropout=0.0,
+        add_non_lin_final_layer=False,
+        layer_init_fn=None,
+        extra_inputs_infos: Dict={},
+        ):
+        '''
+        
+        :param state_dim: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param channels: list of number of channels for each convolutional layer,
+                with the initial value being the number of channels of the input.
+        :param kernel_sizes: list of kernel sizes for each convolutional layer.
+        :param strides: list of strides for each convolutional layer.
+        :param paddings: list of paddings for each convolutional layer.
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                after each convolutional layer.
+        '''
+        super(LinearLinearBody, self).__init__()
+        self.state_dim = state_dim
+
+        self.linear_body = FCBody(
+            state_dim=state_dim,
+            hidden_units=[feature_dim],
+            non_linearities=non_linearities,
+            gate=gate,
+            dropout=dropout,
+            add_non_lin_final_layer=add_non_lin_final_layer,
+            layer_init_fn=layer_init_fn
+        )
+
+        final_linear_input_dim = self.linear_body.get_feature_shape() # lstm_input_dim if lstm_input_dim != -1 else self.cnn_body.get_feature_shape()
+        # verify featureshape = feature_dim
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            final_linear_input_dim += shape[-1]
+
+        self.final_linear_body = FCBody( 
+            state_dim=final_linear_input_dim, 
+            hidden_units=hidden_units, 
+            gate=gate,
+            non_linearities=non_linearities,
+            dropout=dropout,
+            add_non_lin_final_layer=True,
+            layer_init_fn=layer_init_fn,
+        )
+
+        self.dummy_lstm_body = LSTMBody( state_dim=final_linear_input_dim, hidden_units=hidden_units, gate=gate)
+
+
+    def forward(self, inputs):
+        '''
+        :param inputs: input to LSTM cells. Structured as (feed_forward_input, {hidden: hidden_states, cell: cell_states}).
+        hidden_states: list of hidden_state(s) one for each self.layers.
+        cell_states: list of hidden_state(s) one for each self.layers.
+        '''
+        x, frame_states = inputs[0], inputs[1]
+        
+        recurrent_neurons = _extract_from_rnn_states(
+            rnn_states_batched=frame_states,
+            batch_idx=None,
+            map_keys=['hidden', 'cell'],
+        )
+        
+        features = self.linear_body(x)
+        
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
+        
+        extra_inputs = [v[0].to(features.dtype).to(features.device) for v in extra_inputs.values()]
+        if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
+
+        x = self.final_linear_body( features)
+        return x, recurrent_neurons
+
+    def get_reset_states(self, cuda=False, repeat=1):
+        return self.dummy_lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
+    
+    def get_input_shape(self):
+        return self.state_dim
+
+    def get_feature_shape(self):
+        return self.final_linear_body.get_feature_shape()
+
+class LinearLstmBody(nn.Module):
+    def __init__(
+        self, 
+        state_dim, 
+        feature_dim=256, 
+        hidden_units=(256,), 
+        non_linearities=[nn.ReLU], 
+        gate=F.relu,
+        dropout=0.0,
+        add_non_lin_final_layer=False,
+        layer_init_fn=None,
+        extra_inputs_infos: Dict={},
+        ):
+        '''
+        
+        :param state_dim: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param channels: list of number of channels for each convolutional layer,
+                with the initial value being the number of channels of the input.
+        :param kernel_sizes: list of kernel sizes for each convolutional layer.
+        :param strides: list of strides for each convolutional layer.
+        :param paddings: list of paddings for each convolutional layer.
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                after each convolutional layer.
+        '''
+        super(LinearLstmBody, self).__init__()
+        self.state_dim = state_dim
+
+        self.linear_body = FCBody(
+            state_dim=state_dim,
+            hidden_units=[feature_dim],
+            non_linearities=non_linearities,
+            gate=gate,
+            dropout=dropout,
+            add_non_lin_final_layer=add_non_lin_final_layer,
+            layer_init_fn=layer_init_fn
+        )
+
+        # Use lstm_input_dim instead of cnn_body output feature dimension 
+        lstm_input_dim = self.linear_body.get_feature_shape() # lstm_input_dim if lstm_input_dim != -1 else self.cnn_body.get_feature_shape()
+        # verify featureshape = feature_dim
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            lstm_input_dim += shape[-1]
+
+        self.lstm_body = LSTMBody( state_dim=lstm_input_dim, hidden_units=hidden_units, gate=gate)
+
+    def forward(self, inputs):
+        '''
+        :param inputs: input to LSTM cells. Structured as (feed_forward_input, {hidden: hidden_states, cell: cell_states}).
+        hidden_states: list of hidden_state(s) one for each self.layers.
+        cell_states: list of hidden_state(s) one for each self.layers.
+        '''
+        x, frame_states = inputs[0], inputs[1]
+        
+        features = self.linear_body(x)
+        
+        recurrent_neurons = _extract_from_rnn_states(
+            rnn_states_batched=frame_states,
+            batch_idx=None,
+            map_keys=['hidden', 'cell'],
+        )
+        
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
+        
+        extra_inputs = [v[0].to(features.dtype).to(features.device) for v in extra_inputs.values()]
+        if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
+
+        x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
+        return x, recurrent_neurons
+
+    def get_reset_states(self, cuda=False, repeat=1):
+        return self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
+    
+    def get_input_shape(self):
+        return self.state_dim
+
+    def get_feature_shape(self):
+        return self.lstm_body.get_feature_shape()
 
 class LSTMBody(nn.Module):
     def __init__(self, state_dim, hidden_units=(256), gate=F.relu):

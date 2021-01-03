@@ -267,7 +267,7 @@ def async_gather_experience_parallel(
 
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'learner.log')
-        sum_writer = SummaryWriter(sum_writer_path)
+        sum_writer = SummaryWriter(sum_writer_path, flush_secs=1)
         agent.algorithm.summary_writer = sum_writer
 
     pbar = tqdm(total=max_update_count, position=1)
@@ -277,6 +277,7 @@ def async_gather_experience_parallel(
         nbr_updates = agent.train()
         if nbr_updates is None: nbr_updates = 1
         pbar.update(nbr_updates)
+        sum_writer.flush()
 
     sum_writer.flush()
 
@@ -288,7 +289,7 @@ def async_gather_experience_parallel1(
     agent,
     training,
     max_obs_count=1e7,
-    max_update_count=1e7,
+    max_update_count=2e6,
     test_obs_interval=1e4,
     test_nbr_episode=10,
     env_configs=None,
@@ -353,7 +354,7 @@ def learner_loop(
         max_update_count):
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'learner.log')
-        sum_writer = SummaryWriter(sum_writer_path)
+        sum_writer = SummaryWriter(sum_writer_path, flush_secs=1)
         agent.algorithm.summary_writer = sum_writer
 
     #pbar = tqdm(total=max_update_count, position=1)
@@ -424,7 +425,7 @@ def gather_experience_parallel(task,
 
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'actor.log')
-        sum_writer = SummaryWriter(sum_writer_path)
+        sum_writer = SummaryWriter(sum_writer_path, flush_secs=1)
         agent.algorithm.summary_writer = sum_writer
 
     while True:
@@ -469,9 +470,9 @@ def gather_experience_parallel(task,
                     sum_writer.add_scalar('PerUpdate/TotalReturn', total_returns[-1], update_count)
                     if actor_index == 0:
                         sample_episode_count += 1
-                        sum_writer.add_scalar('data/reward', total_returns[-1], sample_episode_count)
-                        sum_writer.add_scalar('PerObservation/Actor0Reward', total_returns[-1], obs_count)
-                        sum_writer.add_scalar('PerUpdate/Actor0Reward', total_returns[-1], update_count)
+                    sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
+                    sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
+                    sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], update_count)
                     sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
                     sum_writer.flush()
 

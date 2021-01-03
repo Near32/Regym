@@ -18,6 +18,9 @@ from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdic
 
 sum_writer = None
 
+store_on_terminal = False
+
+
 class R2D2Algorithm(DQNAlgorithm):
     def __init__(self, 
                  kwargs: Dict[str, Any], 
@@ -26,9 +29,11 @@ class R2D2Algorithm(DQNAlgorithm):
                  optimizer=None,
                  loss_fn: Callable = r2d2_loss.compute_loss,
                  sum_writer=None,
-                 name='r2d2_algo'):
+                 name='r2d2_algo',
+                 single_storage=True):
         
         Algorithm.__init__(self=self, name=name)
+        self.single_storage = single_storage
 
         self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
         self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
@@ -59,16 +64,18 @@ class R2D2Algorithm(DQNAlgorithm):
     def reset_storages(self, nbr_actor: int=None):
         if nbr_actor is not None:    
             self.nbr_actor = nbr_actor
-            
+        
             if self.n_step > 1:
                 self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
 
             self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
             self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]    
             
-        if self.storages is not None:
-            for storage in self.storages: storage.reset()
-
+        nbr_storages = 1
+        if not(self.single_storage):
+            nbr_storages = self.nbr_actor
+        storage_capacity = self.replay_buffer_capacity // nbr_storages
+        
         self.storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
         if self.recurrent:  keys += ['rnn_states']
@@ -89,26 +96,16 @@ class R2D2Algorithm(DQNAlgorithm):
 
         beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  if 'PER_beta_increase_interval' in self.kwargs else 1e4
         
-        for i in range(self.nbr_actor):
+        for i in range(nbr_storages):
             if self.kwargs['use_PER']:
-                if True: #regym.RegymManager is not None:
-                    # storage = regym.RegymManager.SharedPrioritizedReplayStorage(
-                    #         capacity=self.replay_buffer_capacity//self.nbr_actor,
-                    #         alpha=self.kwargs['PER_alpha'],
-                    #         beta=self.kwargs['PER_beta'],
-                    #         beta_increase_interval=beta_increase_interval,
-                    #         eta=self.kwargs['sequence_replay_PER_eta'],
-                    #         keys=keys,
-                    #         circular_keys=circular_keys,                 
-                    #         circular_offsets=circular_offsets
-                    #     )
+                if regym.RegymManager is not None:
                     try:
                         storage = ray.get_actor(f"{self.name}.storage_{i}")
                     except ValueError:  # Name is not taken.
                         storage = SharedPrioritizedReplayStorage.options(
                             name=f"{self.name}.storage_{i}"
                         ).remote(
-                        capacity=self.replay_buffer_capacity//self.nbr_actor,
+                        capacity=storage_capacity,
                         alpha=self.kwargs['PER_alpha'],
                         beta=self.kwargs['PER_beta'],
                         beta_increase_interval=beta_increase_interval,
@@ -119,7 +116,7 @@ class R2D2Algorithm(DQNAlgorithm):
                     )
                 else:
                     storage = PrioritizedReplayStorage(
-                            capacity=self.replay_buffer_capacity//self.nbr_actor,
+                            capacity=storage_capacity,
                             alpha=self.kwargs['PER_alpha'],
                             beta=self.kwargs['PER_beta'],
                             beta_increase_interval=beta_increase_interval,
@@ -132,12 +129,29 @@ class R2D2Algorithm(DQNAlgorithm):
             else:
                 self.storages.append(
                     ReplayStorage(
-                        capacity=self.replay_buffer_capacity//self.nbr_actor,
+                        capacity=storage_capacity,
                         keys=keys,
                         circular_keys=circular_keys,                 
                         circular_offsets=circular_offsets
                     )
                 )
+
+    def stored_experiences(self):
+        self.train_request_count += 1
+        if isinstance(self.storages[0], ray.actor.ActorHandle):
+            nbr_stored_sequences = sum([ray.get(storage.__len__.remote()) for storage in self.storages])
+        else:
+            nbr_stored_sequences = sum([len(storage) for storage in self.storages])
+
+        nbr_stored_experiences = nbr_stored_sequences*(self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
+
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
+        #print(f"Train request: {self.train_request_count} // nbr_exp stored: {nbr_stored_experiences}")
+        return nbr_stored_experiences
     
     def _prepare_sequence_exp_dict(self, sequence_buffer):
         '''
@@ -167,6 +181,9 @@ class R2D2Algorithm(DQNAlgorithm):
         return d
 
     def _add_sequence_to_replay_storage(self, actor_index:int, override:bool=False):
+        storage_index = actor_index
+        if self.single_storage:
+            storage_index = 0
         # Can we add the current sequence buffer to the replay storage?
         if not override and len(self.sequence_replay_buffers[actor_index]) < self.sequence_replay_unroll_length:
             return
@@ -174,15 +191,20 @@ class R2D2Algorithm(DQNAlgorithm):
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
             if self.use_PER:
                 init_sampling_priority = None 
-                #self.storages[actor_index].add(current_sequence_exp_dict, priority=init_sampling_priority)
-                ray.get(
-                    self.storages[actor_index].add.remote(
+                if isinstance(self.storages[storage_index], ray.actor.ActorHandle):
+                    ray.get(
+                        self.storages[storage_index].add.remote(
+                            current_sequence_exp_dict, 
+                            priority=init_sampling_priority
+                        )
+                    )
+                else:
+                    self.storages[storage_index].add(
                         current_sequence_exp_dict, 
                         priority=init_sampling_priority
                     )
-                )
             else:
-                self.storages[actor_index].add(current_sequence_exp_dict)
+                self.storages[storage_index].add(current_sequence_exp_dict)
 
     # NOTE: overriding this function from DQNAlgorithm -
     def store(self, exp_dict, actor_index=0):
@@ -233,14 +255,16 @@ class R2D2Algorithm(DQNAlgorithm):
             # Maybe add to replay storage?
             self._add_sequence_to_replay_storage(
                 actor_index=actor_index, 
-                override=False, #(exp_it==nbr_experience_to_handle-1) and reached_end_of_episode
+                override=(store_on_terminal and (exp_it==nbr_experience_to_handle-1) and reached_end_of_episode),
                 # Only add if experience count handled, 
-                # no longer cares about crossing the episode barrier as the loss handles it.
+                # no longer cares about crossing the episode barrier as the loss handles it,
+                # unless store_on_terminal is true
             )
 
         # Make sure the sequence buffer do not cross the episode barrier:
         # UPDATE: no longer care about this since the loss takes care of the episode barriers...
-        if False: #reached_end_of_episode:
+        # unless store_on_terminal is true
+        if (store_on_terminal and reached_end_of_episode):
             self.sequence_replay_buffers[actor_index].clear()
             # Re-initialise the buffer count since the buffer is cleared out.
             # Otherwise some stored sequences could have length different than
@@ -264,7 +288,10 @@ class R2D2Algorithm(DQNAlgorithm):
         # (batch_size, unroll_dim, 1)
         unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
 
-        ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) for storage in self.storages]
+        if isinstance(self.storages[0], ray.actor.ActorHandle):
+            ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) for storage in self.storages]
+        else:
+            ps_tree_indices = [storage.get_tree_indices() for storage in self.storages]
         
         for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
             storage_idx = arr_bidx//minibatch_size
@@ -274,8 +301,10 @@ class R2D2Algorithm(DQNAlgorithm):
             #el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
             
             # (unroll_dim,)
-            new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
-            #new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
-            ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
-            #self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
+            if isinstance(self.storages[0], ray.actor.ActorHandle):
+                new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
+                ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
+            else:
+                new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
+                self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 

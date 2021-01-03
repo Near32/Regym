@@ -9,6 +9,7 @@ from ..algorithms.DQN import DQNAlgorithm, dqn_loss, ddqn_loss
 from ..networks import CategoricalQNet
 from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
 from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
+from ..networks import LinearLinearBody, LinearLstmBody
 from ..networks import NoisyLinear
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
@@ -166,9 +167,10 @@ class DQNAgent(Agent):
 
             # Update actor's models:
             if self.async_learner\
-            and (self.algorithm.get_update_count() // self.actor_models_update_optimization_interval) != \
-            self.previous_actor_models_update_quotient:
-                self.previous_actor_models_update_quotient = self.algorithm.get_update_count() // self.actor_models_update_optimization_interval
+            and (self.algorithm.stored_experiences() // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
+            #and (self.algorithm.get_update_count() // self.actor_models_update_optimization_interval) != self.previous_actor_models_update_quotient:
+                #self.previous_actor_models_update_quotient = self.algorithm.get_update_count() // self.actor_models_update_optimization_interval
+                self.previous_actor_models_update_quotient = self.algorithm.stored_experiences() // self.actor_models_update_steps_interval
                 new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.get_models().items()}
                 
                 actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
@@ -219,13 +221,20 @@ class DQNAgent(Agent):
         # when feeding it to the models.
         self.current_prediction = self._post_process(self.current_prediction)
 
-        sample = np.random.random()
-        if self.noisy or sample > self.eps:
-            return self.current_prediction['a'].numpy()
-        else:
-            random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
-            random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
-            return random_actions
+        greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
+        if self.noisy or not(self.training):
+            return greedy_action
+
+        sample = np.random.random(size=self.eps.shape)
+        greedy = (sample > self.eps)
+        greedy = np.reshape(greedy[:state.shape[0]], (state.shape[0],1))
+
+        random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
+        random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
+        
+        actions = greedy*greedy_action + (1-greedy)*random_actions
+        
+        return actions
 
     def query_model(self, model, state, goal):
         if self.recurrent:
@@ -498,6 +507,70 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                                          kernel_sizes=kernels,
                                          strides=strides,
                                          paddings=paddings)
+        elif kwargs['critic_arch'] == 'MLP-LSTM-RNN':
+            # Assuming flatten input:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            state_dim = input_dim
+            critic_arch_feature_dim = kwargs['critic_arch_feature_dim']
+            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
+
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_critic_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
+                    if 'critic_body' in tl:
+                        extra_inputs_infos_critic_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
+            
+            critic_body = LinearLstmBody(
+                state_dim=state_dim,
+                feature_dim=critic_arch_feature_dim, 
+                hidden_units=critic_arch_hidden_units, 
+                non_linearities=[nn.ReLU], 
+                gate=F.relu,
+                dropout=0.0,
+                add_non_lin_final_layer=True,
+                layer_init_fn=None,
+                extra_inputs_infos=extra_inputs_infos_critic_body,
+            )
+
+        elif kwargs['critic_arch'] == 'MLP-MLP-RNN':
+            # Assuming flatten input:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            state_dim = input_dim
+            critic_arch_feature_dim = kwargs['critic_arch_feature_dim']
+            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
+
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_critic_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
+                    if 'critic_body' in tl:
+                        extra_inputs_infos_critic_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
+            
+            critic_body = LinearLinearBody(
+                state_dim=state_dim,
+                feature_dim=critic_arch_feature_dim, 
+                hidden_units=critic_arch_hidden_units, 
+                non_linearities=[nn.ReLU], 
+                gate=F.relu,
+                dropout=0.0,
+                add_non_lin_final_layer=True,
+                layer_init_fn=None,
+                extra_inputs_infos=extra_inputs_infos_critic_body,
+            )
+
 
 
     # TODO: remove this! We needed to relax this condition for MineRL

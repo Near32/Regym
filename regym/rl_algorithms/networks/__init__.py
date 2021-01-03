@@ -2,6 +2,7 @@ from .utils import hard_update, soft_update, random_sample, layer_init
 from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 from .bodies import FCBody, LSTMBody, GRUBody, EmbeddingRNNBody, CaptionRNNBody 
 from .bodies import ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
+from .bodies import LinearLinearBody, LinearLstmBody
 from .bodies import NoisyLinear
 from .heads import SquashedGaussianActorNet, GaussianActorNet, CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
 from .heads import QNet, CategoricalQNet, InstructionPredictor
