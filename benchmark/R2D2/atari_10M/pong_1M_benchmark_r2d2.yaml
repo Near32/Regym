@@ -86,7 +86,8 @@ LargeCNNLSTM: &LargeCNNLSTM
 LargeCNNMLP: &LargeCNNMLP
         phi_arch: 'CNN' #-LSTM-RNN'
         actor_arch: 'None'
-        critic_arch: 'None' #'MLP-MLP-RNN'
+        #critic_arch: 'None' 
+        critic_arch: 'MLP-MLP-RNN'
         
         # Phi Body:
         phi_arch_channels: [32, 64, 64]
@@ -308,22 +309,12 @@ experiment:
         #'run-id': 'test/async/CrossingEpisodeBarriers/NonTerminalProd/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NotCurrentAction/ScalingFN_EPS1m3/Seed1_venv16_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_NOSingleLife_NOClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
         # Trying to solve pong:
         # layer init allows for similar entropy behaviour than DQN implementation...
-        'run-id': 'test/serial/WithoutExtraInputs/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/NoScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        #'run-id': 'test/serial/WithoutExtraInputs/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
         # Adding ExtraInputs back:
-        #'run-id': 'test/serial/WithExtraInputs/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/NoScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        'run-id': 'test/serial/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
         
-
-        # Adding n-step=5 like in original R2D2:
-        #'agent-id': '5step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha7m1_beta4m1_over1e4_eta9m1_tau5m4_RepP4_BURNIN_b8_L8_O4_B4',
-
-        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeLSTMCNN_GradClip4p1_r2e4Min1e4_alpha9m1_beta4m1_over1e4_eta9m1_tau4m4_RepP1_BURNIN_b64_L20_O10_B10',
-        # batched torso unroll lstm execution:
-        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e4_alpha9m1_beta4m1_over1e4_eta9m1_tau4m4_RepP1_BURNIN_b8_L20_O10_B10',
-        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeCNNLSTM_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau4m4_RepP1_BURNIN_b16_L20_O10_B10',
-        # reducing target network update interval... single storage: b16-> b64 (b16 was more data-efficient at the beginning though and had better time complexity over performance ratio)
         #####
         #solves the simple env:
-        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeCNNLSTM_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau4m4_RepP1_BURNIN_b64_L20_O10_B10',
         #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b64_L2_O1_B0',
         # changing sequences: but batchsize is left high
         #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b32_L10_O5_B0',
@@ -354,7 +345,7 @@ experiment:
         #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
         
         #####
-        # now trying to solve pong (breakout):
+        # now trying to solve pong:
         #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
         # trying to get longer PER beta increase and min_capacity 1e3->1e4
         #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over1e5_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
@@ -362,7 +353,16 @@ experiment:
         #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta1m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0',
         #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta1m1_tau1m3_RepP1_NOBURNIN_b32_L2_O1_B0',
         # trying with non-recurrent model:
-        'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0',
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0',
+        # n=3 steps + 8 unroll lenght: greater sample-efficiency!
+        #'agent-id': 'paper_3step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        # increasing n=5 steps : increase sample-efficiency again! but once convergence is reached, there are some unstability signs...
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        # switching back to recurrent architecture reduces the observed unstability:
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        ## GOOD ONE above...
+        # let us increase the unroll length: l=8->20 (increase PER alpha 0.6 to 0.9, and gamme=0.99->0.997 like in r2d2 paper...)
+        'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0',
         
         #####
         # (PREVIOUSLY)now trying to solve pong (breakout):
@@ -823,13 +823,13 @@ agents:
         # with base_eps=0.4 and \alpha = 7...
         eps_greedy_alpha: 7.0
     
-    paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta1m1_tau1m3_RepP1_NOBURNIN_b32_L2_O1_B0:
+    paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0:
         <<: *r2d2_LargeCNNLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
         actor_models_update_steps_interval: 32 #considering only 1 actor's steps.
 
         learning_rate: 2.5e-4
         adam_eps: 1.0e-8
-        discount: 0.99
+        discount: 0.997
         gradient_clip: 0.5 
         # ...not specified in r2d2 paper but in Ape-X,
         # and r2d2 paper says that missing hyper-param
@@ -841,20 +841,20 @@ agents:
         min_capacity: 1e4
         
         use_PER: True 
-        PER_alpha: 0.6
+        PER_alpha: 0.9
         PER_beta: 0.6
         PER_beta_increase_interval: 2e5
-        sequence_replay_PER_eta: 0.1
+        sequence_replay_PER_eta: 0.9
         replay_period: 1
         batch_size: 32
         double: True
         dueling: True 
         noisy: False
-        n_step: 1
-        tau: 1.0e-3 #2.5e-3
+        n_step: 5
+        tau: 1.0e-4 #2.5e-3
         burn_in: False
-        sequence_replay_unroll_length: 2
-        sequence_replay_overlap_length: 1
+        sequence_replay_unroll_length: 20
+        sequence_replay_overlap_length: 10
         sequence_replay_burn_in_length: 0
         
 
@@ -867,7 +867,7 @@ agents:
         # with base_eps=0.4 and \alpha = 7...
         eps_greedy_alpha: 7.0
         
-    paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0:
+    paper_3step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0:
         <<: *r2d2_LargeCNNMLP_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
         actor_models_update_steps_interval: 32 #considering only 1 actor's steps.
 
@@ -897,8 +897,8 @@ agents:
         n_step: 1
         tau: 1.0e-4 #2.5e-3
         burn_in: False
-        sequence_replay_unroll_length: 2
-        sequence_replay_overlap_length: 1
+        sequence_replay_unroll_length: 8
+        sequence_replay_overlap_length: 4
         sequence_replay_burn_in_length: 0
         
 

@@ -41,13 +41,14 @@ def value_function_rescaling(x):
     '''
     Value function rescaling (table 2).
     '''
-    return x
-    #return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
+    #return x
+    return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
 
 
 def inverse_value_function_rescaling(x):
     '''
     See Proposition A.2 in paper "Observe and Look Further".
+    '''
     '''
     return x
     '''
@@ -56,7 +57,6 @@ def inverse_value_function_rescaling(x):
             (torch.sqrt(1. + 4. * eps * (torch.abs(x) + 1. + eps)) - 1.) / (2. * eps)
         ).pow(2.0) - 1.
     )
-    '''
     
 
 def extract_rnn_states_from_time_indices(rnn_states_batched: Dict, 
