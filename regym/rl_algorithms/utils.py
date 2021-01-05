@@ -66,13 +66,14 @@ def extract_subtree(in_dict: Dict,
 
     while len(queue):
         pointer = queue.pop(0)
+        if not isinstance(pointer, dict): continue
         for k in pointer.keys():
             if node_id==k:
                 return copy_hdict(pointer[k])
             else:
                 queue.append(pointer[k])
 
-    return None
+    return {}
 
 
 def _extract_from_rnn_states(rnn_states_batched: Dict,

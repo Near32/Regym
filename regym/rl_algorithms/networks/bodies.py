@@ -866,7 +866,7 @@ class ConvolutionalLstmBody(nn.Module):
         )
         
         extra_inputs = [v[0].to(features.dtype).to(features.device) for v in extra_inputs.values()]
-        if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
+        if len(extra_inputs): features = torch.cat([features]+extra_inputs, dim=-1)
 
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
         return x, recurrent_neurons
@@ -1144,7 +1144,7 @@ class LinearLinearBody(nn.Module):
         )
         
         extra_inputs = [v[0].to(features.dtype).to(features.device) for v in extra_inputs.values()]
-        if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
+        if len(extra_inputs): features = torch.cat([features]+extra_inputs, dim=-1)
 
         x = self.final_linear_body( features)
         return x, recurrent_neurons
@@ -1229,7 +1229,7 @@ class LinearLstmBody(nn.Module):
         )
         
         extra_inputs = [v[0].to(features.dtype).to(features.device) for v in extra_inputs.values()]
-        if extra_inputs: features = torch.cat([features]+extra_inputs, dim=-1)
+        if len(extra_inputs): features = torch.cat([features]+extra_inputs, dim=-1)
 
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
         return x, recurrent_neurons
