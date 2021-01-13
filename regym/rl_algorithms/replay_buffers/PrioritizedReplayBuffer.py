@@ -186,7 +186,7 @@ class PrioritizedReplayStorage_:
             self.position[k] = 0
             self.current_size[k] = 0
 
-    def total(self) :
+    def total(self):
         return self.tree[0]
 
     def cat(self, keys):

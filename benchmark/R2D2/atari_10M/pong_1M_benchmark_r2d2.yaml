@@ -311,7 +311,7 @@ experiment:
         # layer init allows for similar entropy behaviour than DQN implementation...
         #'run-id': 'test/serial/WithoutExtraInputs/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
         # Adding ExtraInputs back:
-        'run-id': 'test/serial/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        'run-id': 'test/async/debugNewFeatures2/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
         
         #####
         #solves the simple env:
@@ -389,9 +389,9 @@ experiment:
         'observation_resize_dim': (84,84),
         },
     ]
-    experiment_id: 'r2d2_paper_debug'
-    benchmarking_episodes: 1
-    benchmarking_interval: 1.0e3
+    experiment_id: 'r2d2_benchmark'
+    benchmarking_episodes: 10
+    benchmarking_interval: 5.0e3
     benchmarking_record_episode_interval: 1.0e8
     train_observation_budget: 1.0e7 #3.0e5 #1.0e7
     seed: 1

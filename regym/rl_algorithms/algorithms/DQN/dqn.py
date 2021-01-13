@@ -87,8 +87,11 @@ class DQNAlgorithm(Algorithm):
         self.loss_fn = loss_fn
         print(f"WARNING: loss_fn is {self.loss_fn}")
             
-            
-        self.recurrent = False
+        
+        # DEPRECATED in order to allow extra_inputs infos 
+        # stored in the rnn_states that acts as frame_states...
+        #self.recurrent = False
+        self.recurrent = True
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
         # elements that do not concern the model trained by this algorithm, given that it is now use-able inside I2A...
         self.recurrent_nn_submodule_names = [hyperparameter for hyperparameter, value in self.kwargs.items() if isinstance(value, str) and 'RNN' in value]
@@ -123,29 +126,28 @@ class DQNAlgorithm(Algorithm):
         if sum_writer is not None: summary_writer = sum_writer
         self.summary_writer = summary_writer
         if regym.RegymManager is not None:
-            #self._param_update_counter = regym.RegymManager.Value(int, 0, lock=False)
-            from regym import SharedVariable
+            from regym import RaySharedVariable
             try:
                 self._param_update_counter = ray.get_actor(f"{self.name}.param_update_counter")
             except ValueError:  # Name is not taken.
-                self._param_update_counter = SharedVariable.options(name=f"{self.name}.param_update_counter").remote(0)
-
+                self._param_update_counter = RaySharedVariable.options(name=f"{self.name}.param_update_counter").remote(0)
         else:
-            self._param_update_counter =0 
+            from regym import SharedVariable
+            self._param_update_counter = SharedVariable(0)
 
     @property
     def param_update_counter(self):
-        if isinstance(self._param_update_counter, int):
-            return self._param_update_counter
-        else:
+        if isinstance(self._param_update_counter, ray.actor.ActorHandle):
             return ray.get(self._param_update_counter.get.remote())    
+        else:
+            return self._param_update_counter.get()
 
     @param_update_counter.setter
     def param_update_counter(self, val):
-        if isinstance(self._param_update_counter, int):
-            self._param_update_counter = val
-        else:
+        if isinstance(self._param_update_counter, ray.actor.ActorHandle):
             self._param_update_counter.set.remote(val) 
+        else:
+            self._param_update_counter.set(val)
     
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
@@ -216,7 +218,7 @@ class DQNAlgorithm(Algorithm):
         if self.summary_writer is not None:
             for actor_i in range(self.eps.shape[0]):
                 self.summary_writer.add_scalar(f'Training/Eps_Actor_{actor_i}', self.eps[actor_i], nbr_steps)
-
+        
         return self.eps 
 
     def reset_storages(self, nbr_actor: int=None):
@@ -277,7 +279,7 @@ class DQNAlgorithm(Algorithm):
             self.summary_writer = summary_writer
         if self.summary_writer is not None:
             self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
-        #print(f"Train request: {self.train_request_count} // nbr_exp stored: {nbr_stored_experiences}")
+        
         return nbr_stored_experiences
 
     def _compute_truncated_n_step_return(self, actor_index=0):

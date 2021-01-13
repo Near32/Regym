@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from functools import reduce
 from .utils import layer_init, layer_init_lstm, layer_init_gru
-from regym.rl_algorithms.utils import _extract_from_rnn_states, extract_subtree
+from regym.rl_algorithms.utils import _extract_from_rnn_states, extract_subtree, copy_hdict
 
 # From : https://github.com/Kaixhin/Raynbow/blob/master/model.py#10
 class NoisyLinear(nn.Module):
@@ -98,10 +98,19 @@ class ConvolutionalBody(nn.Module):
                 w_dim = (w_dim-k)//s+1
                 print(f"Dims: Height: {h_dim}\t Width: {w_dim}")
             else:
+                add_bn = False
+                if isinstance(cfg, str) and 'BN' in cfg:
+                    add_bn = True
+                    cfg = int(cfg[2:])
+                    channels[idx+1] = cfg
+                    # Assumes 'BNX' where X is an integer...
+                
                 layer = nn.Conv2d(in_channels=in_ch, out_channels=cfg, kernel_size=k, stride=s, padding=p) 
                 layer = layer_init(layer, w_scale=math.sqrt(2))
                 in_ch = cfg
                 self.features.append(layer)
+                if add_bn:
+                    self.features.append(nn.BatchNorm2d(cfg))
                 self.features.append(self.non_linearities[idx](inplace=True))
                 # Update of the shape of the input-image, following Conv:
                 h_dim = (h_dim-k+2*p)//s+1
@@ -850,7 +859,10 @@ class ConvolutionalLstmBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, frame_states = inputs[0], inputs[1]
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
         
         features = self.cnn_body.forward(x)
         
@@ -1092,15 +1104,19 @@ class LinearLinearBody(nn.Module):
         super(LinearLinearBody, self).__init__()
         self.state_dim = state_dim
 
-        self.linear_body = FCBody(
-            state_dim=state_dim,
-            hidden_units=[feature_dim],
-            non_linearities=non_linearities,
-            gate=gate,
-            dropout=dropout,
-            add_non_lin_final_layer=add_non_lin_final_layer,
-            layer_init_fn=layer_init_fn
-        )
+        if feature_dim != 'None':
+            self.linear_body = FCBody(
+                state_dim=state_dim,
+                hidden_units=[feature_dim],
+                non_linearities=non_linearities,
+                gate=gate,
+                dropout=dropout,
+                add_non_lin_final_layer=add_non_lin_final_layer,
+                layer_init_fn=layer_init_fn
+            )
+        else:
+            if isinstance(state_dim, list): state_dim = state_dim[-1]
+            self.linear_body = DummyBody(state_shape=state_dim)
 
         final_linear_input_dim = self.linear_body.get_feature_shape() # lstm_input_dim if lstm_input_dim != -1 else self.cnn_body.get_feature_shape()
         # verify featureshape = feature_dim
@@ -1128,7 +1144,10 @@ class LinearLinearBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, frame_states = inputs[0], inputs[1]
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
         
         recurrent_neurons = _extract_from_rnn_states(
             rnn_states_batched=frame_states,
@@ -1213,7 +1232,10 @@ class LinearLstmBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, frame_states = inputs[0], inputs[1]
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
         
         features = self.linear_body(x)
         
@@ -1244,12 +1266,37 @@ class LinearLstmBody(nn.Module):
         return self.lstm_body.get_feature_shape()
 
 class LSTMBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
+    def __init__(
+        self, 
+        state_dim, 
+        hidden_units=[256], 
+        gate=F.relu,
+        extra_inputs_infos: Dict={},
+        ):
+        '''
+        :param state_dim: dimensions of the input.
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        '''
         super(LSTMBody, self).__init__()
-        if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
-        if isinstance(state_dim,int):   dims = (state_dim, ) + hidden_units
-        else:   dims = state_dim + hidden_units
-        self.layers = nn.ModuleList([layer_init_lstm(nn.LSTMCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.state_dim = state_dim
+        self.hidden_units = hidden_units
+
+        # Use lstm_input_dim instead of cnn_body output feature dimension 
+        lstm_input_dim = self.state_dim
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            lstm_input_dim += shape[-1]
+        self.lstm_input_dim = lstm_input_dim
+
+        if not isinstance(hidden_units, list): hidden_units = list(hidden_units)
+        dims = [self.lstm_input_dim] + self.hidden_units
+        
+        self.layers = nn.ModuleList([
+            layer_init_lstm(nn.LSTMCell(dim_in, dim_out)) 
+            for dim_in, dim_out in zip(dims[:-1], dims[1:])
+        ])
+        
         self.feature_dim = dims[-1]
         self.gate = gate
 
@@ -1259,11 +1306,29 @@ class LSTMBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, recurrent_neurons = inputs[0], inputs[1]
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
+        
+        recurrent_neurons = extract_subtree(
+            in_dict=frame_states,
+            node_id='lstm',
+        )
+
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
+
+        extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+        if len(extra_inputs): x = torch.cat([x]+extra_inputs, dim=-1)
+
         if next(self.layers[0].parameters()).is_cuda and not(x.is_cuda):    x = x.cuda() 
         hidden_states, cell_states = recurrent_neurons['hidden'], recurrent_neurons['cell']
 
         next_hstates, next_cstates = [], []
+        outputs = []
         for idx, (layer, hx, cx) in enumerate(zip(self.layers, hidden_states, cell_states) ):
             batch_size = x.size(0)
             if hx.size(0) == 1: # then we have just resetted the values, we need to expand those:
@@ -1278,14 +1343,25 @@ class LSTMBody(nn.Module):
                 if hx is not None:  hx = hx.cuda()
                 if cx is not None:  cx = cx.cuda() 
 
+            """
             nhx, ncx = layer(x, (hx, cx))
             next_hstates.append(nhx)
             next_cstates.append(ncx)
+            """
+            outputs.append(layer(x, (hx, cx)))
+            next_hstates.append(outputs[-1][0])
+            next_cstates.append(outputs[-1][1])
+            
             # Consider not applying activation functions on last layer's output
             if self.gate is not None:
-                x = self.gate(nhx)
+                x = self.gate(outputs[-1][0])
 
-        return x, {'hidden': next_hstates, 'cell': next_cstates}
+        frame_states.update({'lstm':
+            {'hidden': next_hstates, 
+            'cell': next_cstates}
+        })
+
+        return x, frame_states
 
     def get_reset_states(self, cuda=False, repeat=1):
         hidden_states, cell_states = [], []
@@ -1295,7 +1371,7 @@ class LSTMBody(nn.Module):
                 h = h.cuda()
             hidden_states.append(h)
             cell_states.append(h)
-        return {'hidden': hidden_states, 'cell': cell_states}
+        return {'lstm':{'hidden': hidden_states, 'cell': cell_states}}
 
     def get_feature_shape(self):
         return self.feature_dim

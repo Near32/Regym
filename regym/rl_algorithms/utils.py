@@ -8,30 +8,44 @@ def is_leaf(node: Dict):
     return all([ not isinstance(node[key], dict) for key in node.keys()])
 
 
-def recursive_inplace_update(in_dict: Dict,
-                             extra_dict: Union[Dict, torch.Tensor]):
+def recursive_inplace_update(
+    in_dict: Dict,
+    extra_dict: Union[Dict, torch.Tensor],
+    batch_mask_indices: Optional[torch.Tensor]=None,
+    preprocess_fn: Optional[Callable] = None):
     '''
     Taking both :param: in_dict, extra_dict as tree structures,
-    adds the nodes of extra_dict into in_dict via tree traversal
+    adds the nodes of extra_dict into in_dict via tree traversal.
+    Extra leaf keys are created if and only if the update is over the whole batch, i.e. :param
+    batch_mask_indices: is None.
+    :param batch_mask_indices: torch.Tensor of shape (batch_size,), containing batch indices that
+                        needs recursive inplace update. If None, everything is updated.
     '''
     if in_dict is None: return None
     if is_leaf(extra_dict):
         for leaf_key in extra_dict:
             # In order to make sure that the lack of deepcopy at this point will not endanger
-            # the consistancy of the data (since we are slicing at some other parts),
+            # the consistency of the data (since we are slicing at some other parts),
             # or, in other words, to make sure that this is yielding a copy rather than
             # a reference, proceed with caution:
             # WARNING: the following makes a referrence of the elements:
             # listvalue = extra_dict[node_key][leaf_key]
-            # RATHER, to generate copies, do:
-            listvalue = [value for value in extra_dict[leaf_key]]
+            # RATHER, to generate copies that lets gradient flow but do not share
+            # the same data space (i.e. modifying one will leave the other intact), make
+            # sure to use the clone() method, as list comprehension does not create new tensors.
+            listvalue = [value.clone() for value in extra_dict[leaf_key]]
             in_dict[leaf_key] = listvalue
         return 
 
     for node_key in extra_dict:
         if node_key not in in_dict: in_dict[node_key] = {}
         if not is_leaf(extra_dict[node_key]):
-            recursive_inplace_update(in_dict[node_key], extra_dict[node_key])
+            recursive_inplace_update(
+                in_dict=in_dict[node_key], 
+                extra_dict=extra_dict[node_key],
+                batch_mask_indices=batch_mask_indices,
+                preprocess_fn=preprocess_fn,
+            )
         else:
             for leaf_key in extra_dict[node_key]:
                 # In order to make sure that the lack of deepcopy at this point will not endanger
@@ -40,9 +54,19 @@ def recursive_inplace_update(in_dict: Dict,
                 # a reference, proceed with caution:
                 # WARNING: the following makes a referrence of the elements:
                 # listvalue = extra_dict[node_key][leaf_key]
-                # RATHER, to generate copies, do:
-                listvalue = [value for value in extra_dict[node_key][leaf_key]]
-                in_dict[node_key][leaf_key] = listvalue
+                # RATHER, to generate copies that lets gradient flow but do not share
+                # the same data space (i.e. modifying one will leave the other intact), make
+                # sure to use the clone() method, as list comprehension does not create new tensors.
+                listvalue = [value.clone() for value in extra_dict[node_key][leaf_key]]
+                if batch_mask_indices is None or batch_mask_indices==[]:
+                    in_dict[node_key][leaf_key]= listvalue
+                else:
+                    for vidx in range(len(in_dict[node_key][leaf_key])):
+                        v = listvalue[vidx]
+                        if leaf_key not in in_dict[node_key]:   continue
+                        new_v = v[batch_mask_indices, ...].clone()
+                        if preprocess_fn is not None:   new_v = preprocess_fn(new_v)
+                        in_dict[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v
 
 def copy_hdict(in_dict: Dict):
     '''

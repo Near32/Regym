@@ -523,6 +523,20 @@ def baseline_atari_pixelwrap(env,
     return env
 
 
+def hanabi_wrap(
+    env, 
+    clip_reward=True,
+    previous_reward_action=True
+    ):
+    if clip_reward:
+        env = ClipRewardEnv(env)
+
+    if previous_reward_action:
+        env = PreviousRewardActionInfoMultiAgentWrapper(env=env)
+    
+    return env
+
+
 
 #---------------------------------------------------------#
 
@@ -1378,28 +1392,72 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
     def reset(self):
         self.previous_reward = np.zeros((1, 1))
         self.previous_action = np.zeros((1, self.nbr_actions))
-        return self.env.reset()
+        infos = {}
+        infos['previous_reward'] = copy.deepcopy(self.previous_reward)
+        infos['previous_action'] = copy.deepcopy(self.previous_action)
+    
+        return self.env.reset(), infos
 
     def step(self, action):
-        observation, reward, done, info = self.env.step(action)
+        next_observation, reward, done, next_infos = self.env.step(action)
         
-        info['previous_reward'] = copy.deepcopy(self.previous_reward)
-        if self.trajectory_wrapping:
-            # Only perform discrete-to-ohe transformation:
-            # No need to fetch the previous value, it is already given.
-            info['previous_action'] = np.eye(self.nbr_actions, dtype=np.float32)[info['previous_action'][0]].reshape(1, -1)
-        else:
-            # Fetch the previous value:
-            info['previous_action'] = copy.deepcopy(self.previous_action)
-
         self.previous_reward = np.ones((1, 1), dtype=np.float32)*reward
-        if not(self.trajectory_wrapping):
-            # Perform the discrete-to-ohe transformation:
-            # And the value will be used at the next step.
-            self.previous_action = np.eye(self.nbr_actions, dtype=np.float32)[action].reshape(1, -1)
+        self.previous_action = np.eye(self.nbr_actions, dtype=np.float32)[action].reshape(1, -1)
 
-        return observation, reward, done, info
+        pa = copy.deepcopy(self.previous_action) 
+        if self.trajectory_wrapping:
+            pa = np.eye(self.nbr_actions, dtype=np.float32)[next_infos['previous_action'][0]].reshape(1, -1)
+        
+        next_infos['previous_reward'] = copy.deepcopy(self.previous_reward)
+        next_infos['previous_action'] = copy.deepcopy(pa)
+        
+        return next_observation, reward, done, next_infos
 
+class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
+    """
+    Integrates the previous reward and previous action into the info dictionnary for multi-agent environments.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+
+    def __init__(self, env, trajectory_wrapping=False):
+        super(PreviousRewardActionInfoMultiAgentWrapper, self).__init__(env)
+        self.nbr_actions = env.action_space.n
+        self.trajectory_wrapping = trajectory_wrapping
+
+    def reset(self):
+        obs, infos = self.env.reset()
+        nbr_agent = len(infos)
+        self.previous_reward = [np.zeros((1, 1)) for _ in range(nbr_agent)]
+        self.previous_action = [np.zeros((1, self.nbr_actions)) for _ in range(nbr_agent)]
+        
+        for info_idx in range(len(infos)):
+            infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
+            infos[info_idx]['previous_action'] = copy.deepcopy(self.previous_action[info_idx])
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        nbr_agent = len(next_infos)
+        
+        self.previous_reward = [np.ones((1, 1), dtype=np.float32)*reward[agent_idx] for agent_idx in range(nbr_agent)]
+        self.previous_action = [
+            np.eye(self.nbr_actions, dtype=np.float32)[action[agent_idx]].reshape(1, -1)
+            for agent_idx in range(nbr_agent)
+        ]
+
+        pa = copy.deepcopy(self.previous_action) 
+        if self.trajectory_wrapping:
+            pa = [
+                np.eye(self.nbr_actions, dtype=np.float32)[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
+                for agent_idx in range(nbr_agent)
+            ]
+        
+        for info_idx in range(len(next_infos)):
+            next_infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
+            next_infos[info_idx]['previous_action'] = copy.deepcopy(pa[info_idx])
+        
+        return next_observation, reward, done, next_infos
 
 class FailureEndingTimeLimit(gym.Wrapper):
     """TimeLimit wrapper for failure-ending environments.

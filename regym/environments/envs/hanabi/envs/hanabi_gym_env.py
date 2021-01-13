@@ -17,6 +17,303 @@ except Exception as e:
         )
     )
 
+class TinyAbstractHanabiGymEnv(gym.Env):
+    metadata = {'render.modes': ['human']}
+
+    # set of all required params
+    required_keys: set = {
+        'payout_matrix',
+        'num_cards',
+        'num_actions',
+        'players',
+        'random_start_player',
+    }
+
+    def __init__(
+        self,
+        payout_matrix: np.ndarray,
+        num_cards: int = 2,
+        num_actions: int = 3,
+        players: int = 2,
+        random_start_player: bool = False,
+        seed: int = 0,
+        observation_type: int = 0,
+         ):
+
+        """
+        Parameter descriptions :
+              - num_cards: int, Number of cards in [2,5].
+              - num_actions: int, Number of actions in [3,5].
+              - players: int, Number of players in [2,5].
+              - random_start_player: bool, Random start player.
+              - observation_type: int, type of observation given to each player.
+                - 0: one-hot-encoded card, concatenated with one-hot-encoded previous player's action.
+                - 1: one-hot-encoded car+previous_player_action all at once.
+        """
+
+        gym.Env.__init__(self)
+
+        self._config = {
+            'payout_matrix': payout_matrix,
+            'num_cards': num_cards,
+            'num_actions': num_actions,
+            'players': players,
+            'random_start_player': random_start_player,
+            'seed': seed,
+            'observation_type': observation_type,
+        }
+        
+        self.agents = list(range(players))
+        self.current_agent: int
+
+        if self._config['observation_type'] == 0:
+            agent_action_space = gym.spaces.Discrete(num_actions)
+            self.action_space = agent_action_space
+            
+            self.observation_space_size = num_cards+num_actions
+            agent_observation_space = gym.spaces.Box(
+                low=0,
+                high=1,
+                shape=(self.observation_space_size,),
+                dtype=np.float32
+            )
+            action_mask_observation_space = gym.spaces.Box(
+                low=0, 
+                high=1, 
+                shape=(num_actions,), 
+                dtype=np.int8
+            )
+        elif self._config['observation_type'] == 1:
+            # We add a No-op action that is at idx=num_actions
+            agent_action_space = gym.spaces.Discrete(num_actions+1)
+            self.action_space = agent_action_space
+            
+            self.observation_space_size = num_cards*(num_actions+1)
+            agent_observation_space = gym.spaces.Box(
+                low=0,
+                high=1,
+                shape=(self.observation_space_size,),
+                dtype=np.float32
+            )
+            action_mask_observation_space = gym.spaces.Box(
+                low=0, 
+                high=1, 
+                shape=(num_actions+1,), 
+                dtype=np.int8
+            )
+        else:
+            raise NotImplementedError
+
+
+        self.observation_space = agent_observation_space
+
+        self.reset()
+
+    def seed(self, seed=None):
+        self._config['seed'] = seed
+        np.random.seed(seed)
+
+    def reset(self):
+        self.player_actions = []
+
+        all_cards = np.arange(self._config["num_cards"])
+
+        self.player_cards = []
+        self.player_cards_ohe = []
+        for player in range(self._config["players"]):
+            card_idx = np.random.choice(all_cards, size=1) 
+            self.player_cards.append(card_idx)
+            card_ohe = np.zeros((1,self._config["num_cards"]))
+            card_ohe[0, card_idx] = 1
+            self.player_cards_ohe.append(card_ohe)
+
+        #self.current_agent = 0 
+        self.current_agent = np.random.choice(list(range(self._config["players"])))
+
+        # Only used with observation_type==1:
+        self.previous_player_actions = [self._config["num_actions"] for _ in range(self._config["players"])]    #No-op for all...
+        # Only used with observation_type==0:
+        self.previous_player_actions_ohe = [np.zeros((1,self._config["num_actions"])) for _ in range(self._config["players"])]
+
+        self.rewards = [0 for _ in self.agents]
+        
+        self.done = False 
+
+        self._encode_observations()
+
+        return self.observations, self.infos
+
+    def _step_agents(self):
+        self.current_agent = (self.current_agent+1)%len(self.agents)
+
+    def step(self, actions: List[int]) -> Optional[Union[np.ndarray, List[List[dict]]]]:
+        """ 
+        Advances the environment by one step. 
+        Actions must be within self.legal_moves, otherwise throws error.
+        Returns:
+            observation: Optional List of new observations of agent at turn after the action step is performed.
+            By default a list of integers, describing the logic state of the game from the view of the agent.
+        """
+        assert not self.done
+
+        agent_on_turn = self.current_agent
+        
+        legal_moves = self.legal_actions_as_int[agent_on_turn]
+        action = actions[agent_on_turn].item()
+
+        if action not in legal_moves:
+            raise ValueError('Illegal action. Please choose between legal actions, as documented in dict self.infos')
+
+        self.player_actions.append(action)
+
+        # Iterate current_agent pointer: 
+        self._step_agents()
+
+        # Apply action
+        next_agent = self.current_agent
+        self.previous_player_actions[next_agent] = action
+        self.previous_player_actions_ohe[next_agent] = np.zeros((1,self._config["num_actions"]))
+        self.previous_player_actions_ohe[next_agent][0,action] = 1
+
+        reward = 0
+        self.done = False
+        if len(self.player_actions)==2:
+            # With player 0 starting:
+            """
+            reward = self._config["payout_matrix"][
+                self.player_cards[0], 
+                self.player_cards[1],
+                self.player_actions[0],
+                self.player_actions[1] 
+            ]
+            """
+            # Generalisation to random player start:
+            agent_on_previous_turn = (agent_on_turn-1)%len(self.agents) 
+            reward = self._config["payout_matrix"][
+                self.player_cards[agent_on_previous_turn], 
+                self.player_cards[agent_on_turn],
+                self.player_actions[0],
+                self.player_actions[1] 
+            ]
+            self.done = True
+
+        self._encode_observations()
+        
+        self.rewards = [reward for _ in self.agents]
+
+        return self.observations, self.rewards, self.done, self.infos
+
+    def _encode_observations(self):
+        
+        if self._config['observation_type'] == 0:
+            self.observations = [
+                np.concatenate([self.player_cards_ohe[player_idx], self.previous_player_actions_ohe[player_idx]],axis=-1)
+                for player_idx in self.agents
+            ]
+        elif self._config['observation_type'] == 1:
+            self.observations = []
+            for player_idx in self.agents:
+                obs_idx = self.player_cards[player_idx]*(self._config["num_actions"]+1)+self.previous_player_actions[player_idx]
+                obs_ohe = np.zeros((1,self.observation_space_size))
+                obs_ohe[0, obs_idx] = 1
+                self.observations.append(obs_ohe)
+        else:
+            raise NotImplementedError
+        
+        self.legal_actions_as_int = []
+        self.infos = []
+        if self._config["observation_type"]==0:
+            for player_idx in self.agents:
+                legal_moves= []
+                if player_idx==self.current_agent:
+                    legal_moves = list(range(self._config["num_actions"]))
+                self.legal_actions_as_int.append(legal_moves)
+                
+                action_mask=np.zeros((1,self._config["num_actions"]))
+                np.put(action_mask, ind=legal_moves, v=1)
+                
+                info = {}
+                info['action_mask'] = action_mask
+                info['legal_actions'] = action_mask
+                self.infos.append(info)
+        elif self._config["observation_type"]==1:
+            for player_idx in self.agents:
+                # Only No-op:
+                legal_moves= [self._config["num_actions"]]
+                if player_idx==self.current_agent:
+                    # Everything, except No-op:
+                    legal_moves = list(range(self._config["num_actions"]))
+                self.legal_actions_as_int.append(legal_moves)
+                
+                action_mask=np.zeros((1,self._config["num_actions"]+1))
+                np.put(action_mask, ind=legal_moves, v=1)
+                
+                info = {}
+                info['action_mask'] = action_mask
+                info['legal_actions'] = action_mask
+                self.infos.append(info)
+        else:
+            raise NotImplementedError
+
+    def render(self, mode='human'):
+        """ 
+        Supports console print only. Prints player's data.
+        """
+        pass
+
+
+class TinyAbstractHanabi2P2C3AGymEnv(TinyAbstractHanabiGymEnv,EzPickle):
+    def __init__(self, seed: int = 0,):
+        """
+        """
+        EzPickle.__init__(**locals())
+        
+        payout_matrix = [              
+            [[[10, 0, 0], [4, 8, 4], [10, 0, 0]],
+            [[0, 0, 10], [4, 8, 4], [0, 0, 10]]],
+            [[[0, 0, 10], [4, 8, 4], [0, 0, 0]],
+            [[10, 0, 0], [4, 8, 4], [10, 0, 0]]]
+        ]
+
+        payout_matrix = np.array(payout_matrix)
+
+        TinyAbstractHanabiGymEnv.__init__(
+            self=self,
+            payout_matrix = payout_matrix,
+            num_cards = 2,
+            num_actions = 3,
+            players = 2,
+            random_start_player= False,
+            seed=seed,
+            observation_type=0,
+        )
+
+
+class TinyAbstractHanabiOHEObs2P2C3AGymEnv(TinyAbstractHanabiGymEnv,EzPickle):
+    def __init__(self, seed: int = 0,):
+        """
+        """
+        EzPickle.__init__(**locals())
+        
+        payout_matrix = [              
+            [[[10, 0, 0], [4, 8, 4], [10, 0, 0]],
+            [[0, 0, 10], [4, 8, 4], [0, 0, 10]]],
+            [[[0, 0, 10], [4, 8, 4], [0, 0, 0]],
+            [[10, 0, 0], [4, 8, 4], [10, 0, 0]]]
+        ]
+
+        payout_matrix = np.array(payout_matrix)
+
+        TinyAbstractHanabiGymEnv.__init__(
+            self=self,
+            payout_matrix = payout_matrix,
+            num_cards = 2,
+            num_actions = 3,
+            players = 2,
+            random_start_player= False,
+            seed=seed,
+            observation_type=1,
+        )
 
 """
  TODO:

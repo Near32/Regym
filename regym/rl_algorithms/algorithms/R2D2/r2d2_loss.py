@@ -1,9 +1,10 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Callable
 
 from functools import partial 
 import copy
 import time 
 
+import numpy as np
 import torch
 import ray
 
@@ -13,6 +14,7 @@ from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdi
 
 eps = 1e-3
 study_qa_values_discrepancy = False
+use_BPTT = False
 
 use_zero_initial_states_for_target = False
 """
@@ -59,9 +61,14 @@ def inverse_value_function_rescaling(x):
     )
     
 
-def extract_rnn_states_from_time_indices(rnn_states_batched: Dict, 
-                                         time_indices_start:int, 
-                                         time_indices_end:int):
+def extract_rnn_states_from_time_indices(
+    rnn_states_batched: Dict, 
+    time_indices_start:int, 
+    time_indices_end:int,
+    preprocess_fn: Optional[Callable] = None):
+    """
+    If time_indices_start is out of bound, then the value is silently ommitted.
+    """
     if rnn_states_batched is None:  return None 
 
     rnn_states = {k: {} for k in rnn_states_batched}
@@ -78,14 +85,18 @@ def extract_rnn_states_from_time_indices(rnn_states_batched: Dict,
                 if key not in rnn_states[recurrent_submodule_name]:
                     rnn_states[recurrent_submodule_name][key] = []
                 for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
+                    if tis>=rnn_states_batched[recurrent_submodule_name][key][idx].shape[1]: 
+                        continue
                     value = rnn_states_batched[recurrent_submodule_name][key][idx][:, tis:tie,...]
+                    if preprocess_fn is not None:   value = preprocess_fn(value)
                     if squeeze_needed:  value = value.squeeze(1) 
                     rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = extract_rnn_states_from_time_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
                 time_indices_start=time_indices_start, 
-                time_indices_end=time_indices_end, 
+                time_indices_end=time_indices_end,
+                preprocess_fn=preprocess_fn
             )
     return rnn_states
 
@@ -150,7 +161,7 @@ def roll_sequences(unrolled_sequences:List[Dict[str, torch.Tensor]], batch_size:
     return d
 
 
-def unrolled_inferences(model: torch.nn.Module, 
+def unrolled_inferences_deprecated(model: torch.nn.Module, 
                         states: torch.Tensor, 
                         rnn_states: Dict[str, Dict[str, List[torch.Tensor]]],
                         goals: torch.Tensor=None,
@@ -189,7 +200,7 @@ def unrolled_inferences(model: torch.nn.Module,
         init_rnn_states_inputs = extract_rnn_states_from_time_indices(
             rnn_states, 
             time_indices_start=0,
-            time_indices_end=0
+            time_indices_end=0,
         )
 
     burn_in_predictions =  []
@@ -224,6 +235,7 @@ def unrolled_inferences(model: torch.nn.Module,
                 unrolled_rnn_states_inputs = copy_hdict(burn_in_rnn_states_inputs)
             
             ## Update burn-in rnn states:
+            # TODO : account for end of episode...
             recursive_inplace_update(
                 in_dict=burn_in_rnn_states_inputs,
                 extra_dict=burn_in_prediction['next_rnn_states']
@@ -246,14 +258,17 @@ def unrolled_inferences(model: torch.nn.Module,
     return burn_in_predictions, unrolled_predictions, burned_in_rnn_states_inputs
 
 
-def batched_unrolled_inferences(model: torch.nn.Module, 
-                        states: torch.Tensor, 
-                        rnn_states: Dict[str, Dict[str, List[torch.Tensor]]],
-                        goals: torch.Tensor=None,
-                        grad_enabler: bool=False,
-                        use_zero_initial_states: bool=False,
-                        extras: bool=False,
-                        map_keys:List[str]=None):
+def batched_unrolled_inferences(
+    model: torch.nn.Module, 
+    states: torch.Tensor, 
+    non_terminals: torch.Tensor,
+    rnn_states: Dict[str, Dict[str, List[torch.Tensor]]],
+    goals: torch.Tensor=None,
+    grad_enabler: bool=False,
+    use_zero_initial_states: bool=False,
+    extras: bool=False,
+    map_keys:List[str]=None
+    ):
     '''
     Compute feed-forward inferences on the :param model: of the :param states: with the rnn_states used as burn_in values.
     NOTE: The function also computes the inferences using the rnn states used when gathering the states, in order to 
@@ -261,6 +276,7 @@ def batched_unrolled_inferences(model: torch.nn.Module,
     
     :param model: torch.nn.Module to use for inference.
     :param states: torch.Tensor of shape (batch_size, unroll_dim, ...) to use as input for inference.
+    :param non_terminals: Dimension: batch_size x unroll_length x 1: Non-terminal integers.
     :param rnn_states: Hierarchy of dictionnaries containing as leaf the hidden an cell states of the relevant recurrent modules.
                         The shapes are batch_first, i.e. (batch_size, unroll_dim, ...).
     :param goals: Dimension batch_size x goal shape: Goal of the agent.
@@ -277,6 +293,8 @@ def batched_unrolled_inferences(model: torch.nn.Module,
     :return burned_in_rnn_states_inputs: Hierarchy of dictionnaries containing the final hidden and cell states of the recurrent
                                         submodules contained in :param model:, with shape (batch_size, unroll_dim=1, ...).
     '''
+    #torch.autograd.set_detect_anomaly(True)
+
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
 
@@ -307,7 +325,8 @@ def batched_unrolled_inferences(model: torch.nn.Module,
         init_rnn_states_inputs = extract_rnn_states_from_time_indices(
             rnn_states, 
             time_indices_start=0,
-            time_indices_end=0
+            time_indices_end=0,
+            preprocess_fn= (lambda x:x.detach()) if use_BPTT else None, # not performing BPTT
         )
 
     burn_in_predictions =  []
@@ -320,7 +339,8 @@ def batched_unrolled_inferences(model: torch.nn.Module,
     with torch.set_grad_enabled(grad_enabler):
         for unroll_id in range(unroll_length):
             inputs = head_input[:, unroll_id,...]
-            
+            non_terminals_input = non_terminals[:, unroll_id, ...].reshape(batch_size)
+
             burn_in_prediction = model_head(inputs, rnn_states=burn_in_rnn_states_inputs)
             
             if extras:
@@ -336,17 +356,28 @@ def batched_unrolled_inferences(model: torch.nn.Module,
                 rnn_states, 
                 time_indices_start=unroll_id+1,  #sample for next step...
                 time_indices_end=unroll_id+1,
+                preprocess_fn= (lambda x:x.detach()) if use_BPTT else None, # not performing BPTT
             )
             
             if extras and unroll_id < unroll_length-1:
                 unrolled_rnn_states_inputs = copy_hdict(burn_in_rnn_states_inputs)
             
-            ## Update burn-in rnn states:
+            ## Carry currently computated next rnn states into next loop iteration's 
+            # burn-in rnn states inputs, unless it is the end of the episode:
+            # if it is the end of the episode then we use the rnn states
+            # that was stored, the one that is currently in, that should be zeroed.
+            #
+            non_terminals_batch_indices = torch.from_numpy(
+                np.where(non_terminals_input.cpu().numpy()==1)[0]
+            ).to(non_terminals_input.device)
+            
             recursive_inplace_update(
                 in_dict=burn_in_rnn_states_inputs,
-                extra_dict=burn_in_prediction['next_rnn_states']
+                extra_dict=burn_in_prediction['next_rnn_states'],
+                batch_mask_indices=non_terminals_batch_indices,
+                preprocess_fn= (lambda x:x.detach()) if use_BPTT else None, # not performing BPTT
             )
-
+            
     burned_in_rnn_states_inputs = burn_in_rnn_states_inputs
     # (batch_size, ...)  
     burn_in_predictions = roll_sequences(
@@ -430,13 +461,14 @@ def compute_loss(states: torch.Tensor,
             rnn_states, 
             time_indices_start=kwargs['sequence_replay_burn_in_length'],
             time_indices_end=kwargs['sequence_replay_unroll_length'],
+            preprocess_fn= (lambda x:x.detach()) if use_BPTT else None, # not performing BPTT
         )
         _, training_rewards = torch.split(
             rewards, 
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
         )
-        _, training_non_terminals = torch.split(
+        burn_in_non_terminals, training_non_terminals = torch.split(
             non_terminals, 
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
@@ -455,6 +487,7 @@ def compute_loss(states: torch.Tensor,
         burned_in_rnn_states_inputs = batched_unrolled_inferences(
             model=model, 
             states=burn_in_states, 
+            non_terminals=burn_in_non_terminals,
             rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
@@ -469,6 +502,7 @@ def compute_loss(states: torch.Tensor,
         burned_in_rnn_states_target_inputs = batched_unrolled_inferences(
             model=target_model, 
             states=burn_in_states, 
+            non_terminals=burn_in_non_terminals,
             rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
@@ -505,6 +539,7 @@ def compute_loss(states: torch.Tensor,
     training_unrolled_predictions, _ = batched_unrolled_inferences(
         model=model, 
         states=training_states, 
+        non_terminals=training_non_terminals,
         rnn_states=training_rnn_states,
         grad_enabler=True,
         use_zero_initial_states=False,
@@ -518,6 +553,7 @@ def compute_loss(states: torch.Tensor,
     training_unrolled_target_predictions, _ = batched_unrolled_inferences(
         model=target_model, 
         states=training_states, 
+        non_terminals=training_non_terminals,
         rnn_states=training_target_rnn_states,
         grad_enabler=False,
         use_zero_initial_states=use_zero_initial_states_for_target,
@@ -701,7 +737,7 @@ def compute_loss(states: torch.Tensor,
 
 
 
-unrolled_inferences_ray = ray.remote(unrolled_inferences)
+unrolled_inferences_ray = ray.remote(unrolled_inferences_deprecated)
 
 
 # Adapted from: https://github.com/google-research/seed_rl/blob/34fb2874d41241eb4d5a03344619fb4e34dd9be6/agents/r2d2/learner.py#L333

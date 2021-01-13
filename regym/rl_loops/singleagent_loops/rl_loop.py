@@ -71,7 +71,7 @@ def run_episode_parallel(env,
     :param env_configs: configuration dictionnary to use when resetting the environments.
     :returns: Trajectory (o,a,r,o')
     '''
-    observations = env.reset(env_configs=env_configs)
+    observations, info = env.reset(env_configs=env_configs)
 
     nbr_actors = env.get_nbr_envs()
     agent.set_nbr_actor(nbr_actors)
@@ -83,16 +83,22 @@ def run_episode_parallel(env,
     #generator = tqdm(range(int(max_episode_length))) if max_episode_length != math.inf else range(int(1e20))
     #for step in generator:
     for step in range(int(max_episode_length)):
-        action = agent.take_action(observations)
-        succ_observations, reward, done, info = env.step(action)
+        action = agent.take_action(
+            state=observations,
+            infos=info
+        )
+        
+        succ_observations, reward, done, succ_info = env.step(action, only_progress_non_terminated=True)
 
         if training:
-            agent.handle_experience(observations,
-                                    action,
-                                    reward,
-                                    succ_observations,
-                                    done,
-                                    infos=info)
+            agent.handle_experience(
+                s=observations,
+                a=action,
+                r=reward,
+                succ_s=succ_observations,
+                done=done,
+                infos=info
+            )
 
         batch_index = -1
         batch_idx_done_actors_among_not_done = []
@@ -103,8 +109,8 @@ def run_episode_parallel(env,
 
             # Bookkeeping of the actors whose episode just ended:
             d = done[actor_index]
-            if ('real_done' in info[actor_index]):
-                d = info[actor_index]['real_done']
+            if ('real_done' in succ_info[actor_index]):
+                d = succ_info[actor_index]['real_done']
 
             if d and not(previous_done[actor_index]):
                 batch_idx_done_actors_among_not_done.append(batch_index)
@@ -122,18 +128,24 @@ def run_episode_parallel(env,
             per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
 
         observations = copy.deepcopy(succ_observations)
+        info = copy.deepcopy(succ_info)
+
+        """
         if len(batch_idx_done_actors_among_not_done):
             # Regularization of the agents' next observations:
             batch_idx_done_actors_among_not_done.sort(reverse=True)
             for batch_idx in batch_idx_done_actors_among_not_done:
                 observations = np.concatenate( [observations[:batch_idx,...], observations[batch_idx+1:,...]], axis=0)
+        """
 
         previous_done = copy.deepcopy(done)
 
         alldone = all(done)
         allrealdone = False
+        """
         for idx in reversed(range(len(info))):
             if info[idx] is None:   del info[idx]
+        """
 
         if len(info):
             allrealdone =  all([i['real_done'] if 'real_done' in i else False for i in info])
@@ -403,7 +415,7 @@ def gather_experience_parallel(task,
     env = task.env
     test_env = task.test_env
 
-    observations = env.reset(env_configs=env_configs)
+    observations, info = env.reset(env_configs=env_configs)
 
     nbr_actors = env.get_nbr_envs()
     agent.set_nbr_actor(nbr_actors)
@@ -429,16 +441,22 @@ def gather_experience_parallel(task,
         agent.algorithm.summary_writer = sum_writer
 
     while True:
-        action = agent.take_action(observations)
-        succ_observations, reward, done, info = env.step(action)
+        action = agent.take_action(
+            state=observations,
+            infos=info
+        )
+        
+        succ_observations, reward, done, succ_info = env.step(action)
 
         if training:
-            agent.handle_experience(observations,
-                                    action,
-                                    reward,
-                                    succ_observations,
-                                    done,
-                                    infos=info)
+            agent.handle_experience(
+                s=observations,
+                a=action,
+                r=reward,
+                succ_s=succ_observations,
+                done=done,
+                infos=info
+            )
 
         for actor_index in range(nbr_actors):
             obs_count += 1
@@ -451,11 +469,13 @@ def gather_experience_parallel(task,
             if done[actor_index]:
                 agent.reset_actors(indices=[actor_index])
 
-            if ('real_done' in info[actor_index] and info[actor_index]['real_done'])\
-                or ('real_done' not in info[actor_index] and done[actor_index]):
+            done_condition = ('real_done' in succ_info[actor_index] and succ_info[actor_index]['real_done']) or ('real_done' not in succ_info[actor_index] and done[actor_index])
+            if done_condition:
                 update_count = agent.get_update_count()
                 episode_count += 1
-                succ_observations[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                succ_observations[actor_index], succ_info[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                # account for list formatting of infos:
+                succ_info[actor_index] = succ_info[actor_index][0]
                 agent.reset_actors(indices=[actor_index])
 
                 # Logging:
@@ -539,6 +559,7 @@ def gather_experience_parallel(task,
                             save_traj=save_traj)
 
         observations = copy.deepcopy(succ_observations)
+        info = copy.deepcopy(succ_info)
 
         if obs_count >= max_obs_count:  break
 

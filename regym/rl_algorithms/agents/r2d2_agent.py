@@ -26,8 +26,8 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             algorithm=algorithm
         )
 
-    def _take_action(self, state):
-        return DQNAgent.take_action(self, state)
+    def _take_action(self, state, infos=None):
+        return DQNAgent.take_action(self, state=state, infos=infos)
 
     def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
@@ -50,7 +50,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             succ_s=succ_s,
             done=done,
             goals=goals,
-            infos=infos
+            infos=infos,
         )
 
     def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
@@ -105,10 +105,37 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         clone.async_learner = False
         clone.async_actor = True
 
+        ######################################
+        ######################################
+        # Update actor_learner_shared_dict:
+        ######################################
+        if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+            actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+        else:
+            actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+        # Increase the size of the list of toggle booleans:
+        actor_learner_shared_dict["models_update_required"] += [False]
+        
+        # Update the (Ray)SharedVariable            
+        if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+            self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+        else:
+            self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+        
+        ######################################
+        # Update the async_actor index:
+        clone.async_actor_idx = len(actor_learner_shared_dict["models_update_required"])-1
+
+        ######################################
+        ######################################
+        
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count
-        if training is not None:    clone.training = training
+        if training is not None:    
+            clone.training = training
+        else:
+            clone.training = self.training
         clone.nbr_steps = self.nbr_steps
         return clone
 
@@ -174,7 +201,9 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     kwargs['state_preprocess'] = partial(PreprocessFunction, normalization=False)
     kwargs['goal_preprocess'] = partial(PreprocessFunction, normalization=False)
 
-    if not isinstance(kwargs['observation_resize_dim'], int):  kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
+    if 'observation_resize_dim' in kwargs\
+    and not isinstance(kwargs['observation_resize_dim'], int):  
+        kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
     #if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
 
     kwargs = parse_and_check(kwargs, task)
@@ -182,7 +211,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     model = generate_model(task, kwargs)
 
     print(model)
-    
+
     algorithm = R2D2Algorithm(
         kwargs=kwargs,
         model=model,

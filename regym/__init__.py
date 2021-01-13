@@ -6,8 +6,6 @@ class CustomManager(SyncManager):
 RegymManager = None
 RegymSummaryWriterPath = None
 
-import ray
-@ray.remote
 class SharedVariable:
 	def __init__(self, init_val=0):
 		self.var = init_val
@@ -17,6 +15,9 @@ class SharedVariable:
 		return self.var
 	def set(self, val):
 		self.var = val
+
+import ray
+RaySharedVariable = ray.remote(SharedVariable)
 
 from . import environments
 from . import util

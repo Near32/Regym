@@ -1,8 +1,11 @@
+from typing import Dict 
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .utils import layer_init
 from .bodies import DummyBody, NoisyLinear, reset_noisy_layer
+from regym.rl_algorithms.utils import extract_subtree, copy_hdict
 
 import numpy as np
 
@@ -47,18 +50,26 @@ class InstructionPredictor(nn.Module):
         return output_dict
 
 class CategoricalQNet(nn.Module):
-    def __init__(self,
-                 state_dim,
-                 action_dim,
-                 phi_body=None,
-                 critic_body=None,
-                 dueling=False,
-                 noisy=False,
-                 goal_oriented=False,
-                 goal_shape=None,
-                 goal_phi_body=None,
-                 layer_init_fn=None):
+    def __init__(
+        self,
+        state_dim,
+        action_dim,
+        phi_body=None,
+        critic_body=None,
+        dueling=False,
+        noisy=False,
+        goal_oriented=False,
+        goal_shape=None,
+        goal_phi_body=None,
+        layer_init_fn=None,
+        extra_inputs_infos: Dict={}):
+        """
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        """
         super(CategoricalQNet, self).__init__()
+
+        self.greedy = True
+
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.dueling = dueling
@@ -88,6 +99,15 @@ class CategoricalQNet(nn.Module):
         self.critic_body = critic_body
 
         fc_critic_input_shape = self.critic_body.get_feature_shape()
+        
+        if isinstance(fc_critic_input_shape, list):
+            fc_critic_input_shape = fc_critic_input_shape[-1]
+
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            fc_critic_input_shape += shape[-1]
+        
         layer_fn = nn.Linear 
         if self.noisy:  layer_fn = NoisyLinear
         if self.dueling:
@@ -101,6 +121,8 @@ class CategoricalQNet(nn.Module):
         self.apply(reset_noisy_layer)
 
     def forward(self, obs, action=None, rnn_states=None, goal=None):
+        batch_size = obs.shape[0]
+
         if not(self.goal_oriented):  assert(goal==None)
         
         if self.goal_oriented:
@@ -109,7 +131,7 @@ class CategoricalQNet(nn.Module):
 
         next_rnn_states = None 
         if rnn_states is not None:
-            next_rnn_states = {k: None for k in rnn_states}
+            next_rnn_states = copy_hdict(rnn_states)
 
         if rnn_states is not None and 'phi_body' in rnn_states:
             phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
@@ -133,11 +155,31 @@ class CategoricalQNet(nn.Module):
 
         phi_features = phi_v
         
-        # batch x action_dim
+        if 'final_critic_layer' in rnn_states:
+            extra_inputs = extract_subtree(
+                in_dict=rnn_states['final_critic_layer'],
+                node_id='extra_inputs',
+            )
+            
+            extra_inputs = [v[0].to(phi_features.dtype).to(phi_features.device) for v in extra_inputs.values()]
+            if len(extra_inputs): phi_features = torch.cat([phi_features]+extra_inputs, dim=-1)
+        
         qa = self.fc_critic(phi_features)     
+        # batch x action_dim
 
+        legal_actions = torch.ones_like(qa)
+        if 'head' in rnn_states \
+        and 'extra_inputs' in rnn_states['head'] \
+        and 'legal_actions' in rnn_states['head']['extra_inputs']:
+            legal_actions = rnn_states['head']['extra_inputs']['legal_actions'][0]
+            next_rnn_states['head'] = rnn_states['head']
+        legal_actions = legal_actions.to(qa.device)
+        legal_qa = (1+qa-qa.min()) * legal_actions
         if action is None:
-            action  = qa.max(dim=-1)[1]
+            if self.greedy:
+                action  = legal_qa.max(dim=-1)[1]
+            else:
+                action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1).reshape((batch_size,))
         # batch #x 1
         
         probs = F.softmax( qa, dim=-1 )
@@ -145,12 +187,16 @@ class CategoricalQNet(nn.Module):
         entropy = -torch.sum(probs*log_probs, dim=-1)
         # batch #x 1
         
-        prediction = {'a': action,
-                    'ent': entropy,
-                    'qa': qa}
+        prediction = {
+            'a': action,
+            'ent': entropy,
+            'qa': qa
+        }
         
-        prediction.update({'rnn_states': rnn_states,
-                               'next_rnn_states': next_rnn_states})
+        prediction.update({
+            'rnn_states': rnn_states,
+            'next_rnn_states': next_rnn_states
+        })
 
         return prediction
 
@@ -164,7 +210,7 @@ class CategoricalQNet(nn.Module):
 
             next_rnn_states = None 
             if rnn_states is not None:
-                next_rnn_states = {k: None for k in rnn_states}
+                next_rnn_states = copy_hdict(rnn_states)
 
             if rnn_states is not None and 'phi_body' in rnn_states:
                 phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
@@ -186,9 +232,11 @@ class CategoricalQNet(nn.Module):
 
     def get_head(self):
         def head_forward(phi, action=None, rnn_states=None, goal=None):
+            batch_size = phi.shape[0]
+            
             next_rnn_states = None 
             if rnn_states is not None:
-                next_rnn_states = {k: None for k in rnn_states}
+                next_rnn_states = copy_hdict(rnn_states)
 
             if rnn_states is not None and 'critic_body' in rnn_states:
                 phi_v, next_rnn_states['critic_body'] = self.critic_body( (phi, rnn_states['critic_body']) )
@@ -197,11 +245,29 @@ class CategoricalQNet(nn.Module):
 
             phi_features = phi_v
             
-            # batch x action_dim
+            if 'final_critic_layer' in rnn_states:
+                extra_inputs = extract_subtree(
+                    in_dict=rnn_states['final_critic_layer'],
+                    node_id='extra_inputs',
+                )
+                
+                extra_inputs = [v[0].to(phi_features.dtype).to(phi_features.device) for v in extra_inputs.values()]
+                if len(extra_inputs): phi_features = torch.cat([phi_features]+extra_inputs, dim=-1)
+            
             qa = self.fc_critic(phi_features)     
+            # batch x action_dim
 
+            legal_actions = torch.ones_like(qa)
+            if 'head' in rnn_states and 'extra_inputs' in rnn_states['head'] and 'legal_actions' in rnn_states['head']['extra_inputs']:
+                legal_actions = rnn_states['head']['extra_inputs']['legal_actions'][0]
+                next_rnn_states['head'] = rnn_states['head']
+            legal_qa = (1+qa-qa.min()) * legal_actions
+            
             if action is None:
-                action  = qa.max(dim=-1)[1]
+                if self.greedy:
+                    action  = legal_qa.max(dim=-1)[1]
+                else:
+                    action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1).reshape((batch_size,))
             # batch #x 1
             
             probs = F.softmax( qa, dim=-1 )

@@ -40,7 +40,6 @@ class VecEnv():
             raise NotImplementedError
 
         self.dones = [False]*self.nbr_parallel_env
-        self.previous_dones = copy.deepcopy(self.dones)
 
     @property
     def observation_space(self):
@@ -130,27 +129,57 @@ class VecEnv():
         for idx in env_indices:
             self.check_update_reset_env_process(idx, env_configs=env_configs, reset=True)
 
-        observations = [self.get_from_queue(idx) for idx in env_indices] 
+        observations = []
+        infos = []
+        for idx in env_indices:
+            data = self.get_from_queue(idx) 
+            if isinstance(data, tuple):
+                obs, info = data
+            else:
+                obs, info = data, None 
+            
+            observations.append(obs)
+            infos.append(info)
+
         
         if self.single_agent:
             per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
+            per_env_infos = infos
         else:
-            per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1, *(obs[idx_agent].shape)) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]
-        
+            # agent/player x actor/env x ...
+            per_env_obs = [ 
+                np.concatenate([ 
+                    #np.array(obs[idx_agent]).reshape(1,-1) 
+                    np.expand_dims(obs[idx_agent], axis=0) if obs[idx_agent].shape[0]!=1 else obs[idx_agent] 
+                    for obs in observations
+                    ], 
+                    axis=0
+                ) 
+                for idx_agent in range(len(observations[0])) 
+            ]
+            per_env_infos = [ 
+                [ 
+                    info[idx_agent] 
+                    for info in infos
+                ]
+                for idx_agent in range(len(infos[0])) 
+            ]
+            
         for idx in env_indices:
             self.dones[idx] = False
-        self.previous_dones = copy.deepcopy(self.dones)
+        self.init_reward = []
 
-        return per_env_obs
+        return copy.deepcopy([per_env_obs, per_env_infos])
 
-    def step(self, action_vector):
+    def step(self, action_vector, only_progress_non_terminated=True):
         observations = []
         rewards = []
         infos = []
+        dones = []
         
         batch_env_index = -1
         for env_index in range(len(self.env_queues) ):
-            if not(self.gathering) and self.dones[env_index]:
+            if not(self.gathering) and self.dones[env_index] and not(only_progress_non_terminated):
                 continue
             batch_env_index += 1
             
@@ -159,31 +188,68 @@ class VecEnv():
             else:
                 pa_a = [ action_vector[idx_agent][batch_env_index] for idx_agent in range( len(action_vector) ) ]
             
+            if only_progress_non_terminated and self.dones[env_index]:  continue 
+
             self.put_action_in_queue(action=pa_a, idx=env_index)
 
         for env_index in range(len(self.env_queues) ):
-            if not(self.gathering) and self.dones[env_index]:
+            if not(self.gathering) and self.dones[env_index] and not(only_progress_non_terminated):
                 infos.append(None)
                 continue
             
             experience = self.get_from_queue(idx=env_index, exhaust_first_when_failure=True)
             obs, r, done, info = experience
-            
+
+            if len(self.init_reward)<len(self.env_queues):
+                self.init_reward.append(r)
+
             observations.append( obs )
             rewards.append( r )
-            self.dones[env_index] = done
+
+            if only_progress_non_terminated and self.dones[env_index] and not(all(self.dones)):
+                done=False
+                rewards[-1] = self.init_reward[env_index]
+            else:
+                self.dones[env_index] = done 
+
+            dones.append(done)
             infos.append(info)
         
-        self.previous_dones = copy.deepcopy(self.dones[env_index]) 
             
         if self.single_agent:
             per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
             per_env_reward = np.concatenate( [ np.array(r).reshape(-1) for r in rewards], axis=0)
+            per_env_infos = infos
         else:
-            per_env_obs = [ np.concatenate( [ np.array(obs[idx_agent]).reshape(1,-1) for obs in observations], axis=0) for idx_agent in range(len(observations[0]) ) ]
-            per_env_reward = [ np.concatenate( [ np.array(r[idx_agent]).reshape((-1)) for r in rewards], axis=0) for idx_agent in range(len(rewards[0]) ) ]
+            # agent/player x actor/env x ...
+            per_env_obs = [ 
+                np.concatenate([ 
+                    #np.array(obs[idx_agent]).reshape(1,-1) 
+                    np.expand_dims(obs[idx_agent], axis=0) if obs[idx_agent].shape[0]!=1 else obs[idx_agent] 
+                    for obs in observations
+                    ], 
+                    axis=0
+                ) 
+                for idx_agent in range(len(observations[0])) 
+            ]
+            per_env_reward = [ 
+                np.concatenate([ 
+                    np.array(r[idx_agent]).reshape((-1)) 
+                    for r in rewards
+                    ], 
+                    axis=0
+                ) 
+                for idx_agent in range(len(rewards[0])) 
+            ]
+            per_env_infos = [ 
+                [ 
+                    info[idx_agent] 
+                    for info in infos
+                ]
+                for idx_agent in range(len(infos[0])) 
+            ]
 
-        return per_env_obs, per_env_reward, self.dones, infos
+        return copy.deepcopy([per_env_obs, per_env_reward, dones, per_env_infos])
 
     def close(self) :
         if self.env_processes is not None:
@@ -197,4 +263,3 @@ class VecEnv():
         self.worker_ids = [None]*self.nbr_parallel_env
         
         self.dones = [False]*self.nbr_parallel_env
-        self.previous_dones = copy.deepcopy(self.dones)

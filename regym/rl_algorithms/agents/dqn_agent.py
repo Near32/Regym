@@ -47,17 +47,17 @@ class DQNAgent(Agent):
 
         self.noisy = self.kwargs['noisy'] if 'noisy' in self.kwargs else False
 
-        # Number of training steps:
+        # Number of interaction/step with/in the environment:
         self.nbr_steps = 0
 
-        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 1e4
+        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 1e5
         
         self.previous_save_quotient = -1
 
     def get_update_count(self):
         return self.algorithm.get_update_count()
 
-    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -69,7 +69,10 @@ class DQNAgent(Agent):
         :param done: list of boolean (batch=nbr_actor) x state_shape.
         :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
         :param infos: Dictionnary of information from the environment.
+        :param prediction: Dictionnary of tensors containing the model's output at the current state.
         '''
+        if prediction is None:  prediction = self.current_prediction
+
         state, r, succ_state, non_terminal = self.preprocess_environment_signals(s, r, succ_s, done)
         a = torch.from_numpy(a)
         # batch x ...
@@ -104,17 +107,17 @@ class DQNAgent(Agent):
             if infos is not None:
                 exp_dict['info'] = infos[actor_index]
 
-            exp_dict.update(Agent._extract_from_prediction(self.current_prediction, batch_index))
+            exp_dict.update(Agent._extract_from_prediction(prediction, batch_index))
 
 
             if self.recurrent:
                 exp_dict['rnn_states'] = _extract_from_rnn_states(
-                    self.current_prediction['rnn_states'],
+                    prediction['rnn_states'],
                     batch_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
                 exp_dict['next_rnn_states'] = _extract_from_rnn_states(
-                    self.current_prediction['next_rnn_states'],
+                    prediction['next_rnn_states'],
                     batch_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
@@ -127,11 +130,17 @@ class DQNAgent(Agent):
             self.handled_experiences +=1
 
         if len(done_actors_among_notdone):
+            """
+            DEPRECATED: will be removed soon:
+            see update_actors method of agent interface...
+            """
+            pass
+            """
             # Regularization of the agents' actors:
             done_actors_among_notdone.sort(reverse=True)
             for batch_idx in done_actors_among_notdone:
                 self.update_actors(batch_idx=batch_idx)
-
+            """
 
         self.replay_period_count += 1
         if self.nbr_episode_per_cycle is not None:
@@ -165,19 +174,37 @@ class DQNAgent(Agent):
             
             nbr_updates = self.nbr_training_iteration_per_cycle
 
+            if self.algorithm.summary_writer is not None:
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+                else:
+                    actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+                nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
+                self.algorithm.summary_writer.add_scalar(
+                    f'PerUpdates/ActorLearnerSynchroRemainingUpdates', 
+                    nbr_update_remaining, 
+                    self.algorithm.get_update_count()
+                )
+            
             # Update actor's models:
             if self.async_learner\
-            and (self.algorithm.stored_experiences() // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
-            #and (self.algorithm.get_update_count() // self.actor_models_update_optimization_interval) != self.previous_actor_models_update_quotient:
-                #self.previous_actor_models_update_quotient = self.algorithm.get_update_count() // self.actor_models_update_optimization_interval
-                self.previous_actor_models_update_quotient = self.algorithm.stored_experiences() // self.actor_models_update_steps_interval
+            and (self.handled_experiences // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
+                self.previous_actor_models_update_quotient = self.handled_experiences // self.actor_models_update_steps_interval
                 new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.get_models().items()}
                 
-                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+                else:
+                    actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+                
                 actor_learner_shared_dict["models"] = new_models_cpu
-                actor_learner_shared_dict["models_update_required"] = True
-                self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
-            
+                actor_learner_shared_dict["models_update_required"] = [True]*len(actor_learner_shared_dict["models_update_required"])
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+
             if self.async_learner\
             and self.save_path is not None \
             and (self.algorithm.get_update_count() // self.saving_interval) != self.previous_save_quotient:
@@ -186,13 +213,21 @@ class DQNAgent(Agent):
 
         return nbr_updates
 
-    def take_action(self, state):
+    def take_action(self, state, infos=None):
         if self.async_actor:
             # Update the algorithm's model if needs be:
-            actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
-            if actor_learner_shared_dict["models_update_required"]:
-                actor_learner_shared_dict["models_update_required"] = False
-                self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            if actor_learner_shared_dict["models_update_required"][self.async_actor_idx]:
+                actor_learner_shared_dict["models_update_required"][self.async_actor_idx] = False
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+                
                 if "models" in actor_learner_shared_dict.keys():
                     new_models = actor_learner_shared_dict["models"]
                     self.algorithm.set_models(new_models)
@@ -211,6 +246,7 @@ class DQNAgent(Agent):
         model = self.algorithm.get_models()['model']
         if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
             model = self.algorithm.get_models()['target_model']
+        model = model.train(mode=self.training)
 
         self.current_prediction = self.query_model(model, state, goal)
         
@@ -225,11 +261,25 @@ class DQNAgent(Agent):
         if self.noisy or not(self.training):
             return greedy_action
 
+        legal_actions = torch.ones_like(self.current_prediction['qa'])
+        if infos is not None\
+        and 'head' in infos\
+        and 'extra_inputs' in infos['head']\
+        and 'legal_actions' in infos['head']['extra_inputs']:
+            legal_actions = infos['head']['extra_inputs']['legal_actions'][0]
+            # in case there are no legal actions for this agent in this current turn:
+            for actor_idx in range(legal_actions.shape[0]):
+                if legal_actions[actor_idx].sum() == 0: 
+                    legal_actions[actor_idx, ...] = 1
         sample = np.random.random(size=self.eps.shape)
         greedy = (sample > self.eps)
         greedy = np.reshape(greedy[:state.shape[0]], (state.shape[0],1))
 
-        random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
+        #random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
+        random_actions = [
+            legal_actions[actor_idx].multinomial(num_samples=1).item() 
+            for actor_idx in range(legal_actions.shape[0])
+        ]
         random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
         
         actions = greedy*greedy_action + (1-greedy)*random_actions
@@ -285,9 +335,34 @@ class DQNAgent(Agent):
 
         cloned_algo = self.algorithm.async_actor()
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
+        
         clone.async_learner = False 
         clone.async_actor = True 
 
+        ######################################
+        ######################################
+        # Update actor_learner_shared_dict:
+        ######################################
+        if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+            actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+        else:
+            actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+        # Increase the size of the list of toggle booleans:
+        actor_learner_shared_dict["models_update_required"] += [False]
+        
+        # Update the (Ray)SharedVariable            
+        if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+            self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+        else:
+            self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+        
+        ######################################
+        # Update the async_actor index:
+        clone.async_actor_idx = len(actor_learner_shared_dict["models_update_required"])-1
+
+        ######################################
+        ######################################
+        
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count
@@ -314,7 +389,9 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
         elif kwargs['phi_arch'] == 'GRU-RNN':
             phi_body = GRUBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
         elif kwargs['phi_arch'] == 'MLP':
-            phi_body = FCBody(input_dim, hidden_units=(output_dim, ), gate=F.leaky_relu)
+            hidden_units=kwargs['phi_arch_hidden_units']
+            hidden_units += [output_dim]
+            phi_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
         elif kwargs['phi_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             if isinstance(kwargs['observation_resize_dim'], int):
@@ -481,8 +558,30 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
     if kwargs['noisy']:  layer_fn = NoisyLinear
     if kwargs['critic_arch'] != 'None':
         output_dim = 256
-        if kwargs['critic_arch'] == 'RNN':
-            critic_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
+        if kwargs['critic_arch'] == 'LSTM-RNN':
+            #critic_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
+            state_dim = input_dim
+            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
+
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_critic_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
+                    if 'critic_body' in tl:
+                        extra_inputs_infos_critic_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
+            
+            critic_body = LSTMBody(
+                state_dim=state_dim,
+                hidden_units=critic_arch_hidden_units, 
+                gate=F.relu,
+                extra_inputs_infos=extra_inputs_infos_critic_body,
+            )
         elif kwargs['critic_arch'] == 'MLP':
             hidden_units=(output_dim,)
             if 'critic_arch_hidden_units' in kwargs:
@@ -581,15 +680,32 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
     if 'preprocessed_goal_shape' in kwargs: goal_shape = kwargs['preprocessed_goal_shape']
     if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
         obs_shape[-1] = obs_shape[-1] + goal_shape[-1]
-    model = CategoricalQNet(state_dim=obs_shape,
-                            action_dim=task.action_dim,
-                            phi_body=phi_body,
-                            critic_body=critic_body,
-                            dueling=kwargs['dueling'],
-                            noisy=kwargs['noisy'],
-                            goal_oriented=kwargs['goal_oriented'] if 'goal_oriented' in kwargs else False,
-                            goal_shape=goal_shape,
-                            goal_phi_body=goal_phi_body)
+
+    # Selecting Extra Inputs Infos relevant to final_critic_layer:
+    extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+    extra_inputs_infos_final_critic_layer = {}
+    if extra_inputs_infos != {}:
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            tl = extra_inputs_infos[key]['target_location']
+            if 'final_critic_layer' in tl:
+                extra_inputs_infos_final_critic_layer[key] = {
+                    'shape':shape, 
+                    'target_location':tl
+                }
+    
+    model = CategoricalQNet(
+        state_dim=obs_shape,
+        action_dim=task.action_dim,
+        phi_body=phi_body,
+        critic_body=critic_body,
+        dueling=kwargs['dueling'],
+        noisy=kwargs['noisy'],
+        goal_oriented=kwargs['goal_oriented'] if 'goal_oriented' in kwargs else False,
+        goal_shape=goal_shape,
+        goal_phi_body=goal_phi_body,
+        extra_inputs_infos=extra_inputs_infos_final_critic_layer
+    )
 
     model.share_memory()
     return model

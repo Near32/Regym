@@ -33,45 +33,37 @@ class Agent(object):
         self.previously_done_actors = [False]*self.nbr_actor
         
         self.async_actor = False
+        self.async_actor_idx: int = -1
         self.async_learner = False 
+        actor_learner_shared_dict = {"models_update_required":[], "models": None}
         if regym.RegymManager is not None:
-            #self.actor_learner_shared_dict = regym.RegymManager.dict({"models_update_required":False, "models": None}, lock=False)
-            from regym import SharedVariable
-            actor_learner_shared_dict = {"models_update_required":False, "models": None}
+            from regym import RaySharedVariable
             try:
                 self.actor_learner_shared_dict = ray.get_actor(f"{self.name}.actor_learner_shared_dict")
             except ValueError:  # Name is not taken.
-                self.actor_learner_shared_dict = SharedVariable.options(name=f"{self.name}.actor_learner_shared_dict").remote(actor_learner_shared_dict)
-            
+                self.actor_learner_shared_dict = RaySharedVariable.options(name=f"{self.name}.actor_learner_shared_dict").remote(actor_learner_shared_dict)
         else:
-            self.actor_learner_shared_dict = {"models_update_required":False, "models": None}
+            from regym import SharedVariable
+            self.actor_learner_shared_dict = SharedVariable(actor_learner_shared_dict)
 
         self.actor_models_update_steps_interval = 32
         if "actor_models_update_steps_interval" in self.algorithm.kwargs:
             self.actor_models_update_steps_interval = self.algorithm.kwargs["actor_models_update_steps_interval"]
-        """
-        self.actor_models_update_optimization_interval = 1
-        if "actor_models_update_optimization_interval" in self.algorithm.kwargs:
-            self.actor_models_update_optimization_interval = self.algorithm.kwargs["actor_models_update_optimization_interval"]
-        """
+        
         # Accounting for the number of actors:
         self.actor_models_update_steps_interval *= self.nbr_actor
         self.previous_actor_models_update_quotient = -1
 
         if regym.RegymManager is not None:
-            #self._handled_experiences = regym.RegymManager.Value(int, 0, lock=False)
-            from regym import SharedVariable
+            from regym import RaySharedVariable
             try:
                 self._handled_experiences = ray.get_actor(f"{self.name}.handled_experiences")
             except ValueError:  # Name is not taken.
-                self._handled_experiences = SharedVariable.options(name=f"{self.name}.handled_experiences").remote(0)
-            #print(ray.get(counter.get.remote()))  # get the latest count
-
-            # # in your envs
-            # counter = ray.get_actor("global_counter")
-            # counter.inc.remote(1)  # async call to increment the global count
+                self._handled_experiences = RaySharedVariable.options(name=f"{self.name}.handled_experiences").remote(0)
         else:
-            self._handled_experiences = 0
+            from regym import SharedVariable
+            self._handled_experiences = SharedVariable(0)
+
         self.save_path = None
         self.episode_count = 0
 
@@ -88,27 +80,29 @@ class Agent(object):
         # Holds model output from last observation
         self.current_prediction: Dict[str, Any] = None
 
-        self.recurrent = False
+        # DEPRECATED in order to allow extra_inputs infos 
+        # stored in the rnn_states that acts as frame_states...
+        #self.recurrent = False
+        self.recurrent = True
         self.rnn_states = None
         self.rnn_keys, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
+        """
         if len(self.rnn_keys):
             self.recurrent = True
-
+        """
     @property
     def handled_experiences(self):
-        if isinstance(self._handled_experiences, int):
-            return self._handled_experiences
-        else:
+        if isinstance(self._handled_experiences, ray.actor.ActorHandle):
             return ray.get(self._handled_experiences.get.remote())
-            #return self._handled_experiences.value
+        else:
+            return self._handled_experiences.get()
 
     @handled_experiences.setter
     def handled_experiences(self, val):
-        if isinstance(self._handled_experiences, int):
-            self._handled_experiences = val 
-        else:
+        if isinstance(self._handled_experiences, ray.actor.ActorHandle):
             self._handled_experiences.set.remote(val)
-            #self._handled_experiences.value = val
+        else:
+            self._handled_experiences.set(val)
 
     def get_experience_count(self):
         return self.handled_experiences
@@ -123,14 +117,12 @@ class Agent(object):
             self.algorithm.set_nbr_actor(nbr_actor=self.nbr_actor)
             self.algorithm.reset_storages(nbr_actor=self.nbr_actor)
 
-    def reset_actors(self, indices:Optional[List]=None, init:Optional[bool]=False):
+    def reset_actors(self, indices:Optional[List]=[], init:Optional[bool]=False):
         '''
         In case of a multi-actor process, this function is called to reset
         the actors' internal values.
         '''
         self.current_prediction: Dict[str, Any] = None
-
-        if indices is None: indices = range(self.nbr_actor)
 
         if init:
             self.previously_done_actors = [False]*self.nbr_actor
@@ -138,9 +130,16 @@ class Agent(object):
             for idx in indices: self.previously_done_actors[idx] = False
 
         if self.recurrent:
-            _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
+            _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor, actor_indices=indices)
 
     def update_actors(self, batch_idx:int):
+        """
+        DEPRECATED: will be removed soon:
+        We are no longer udpating the actors while episode are running.
+        We assume the vectorized environment will allways provide tensors
+        of regular shape where the batch size is always equal to the number of actors.
+        """
+        import ipdb; ipdb.set_trace()
         '''
         In case of a multi-actor process, this function is called to handle
         the (dynamic) number of environment that are being used.
@@ -163,27 +162,56 @@ class Agent(object):
             self.remove_from_goals(batch_idx=batch_idx)
 
     def update_goals(self, goals:torch.Tensor):
+        """
+        DEPRECATED: will be removed soon:
+        see update_actors method
+        """
+        import ipdb; ipdb.set_trace()
         assert(self.goal_oriented)
         self.goals = goals
 
     def remove_from_goals(self, batch_idx:int):
+        """
+        DEPRECATED: will be removed soon:
+        see update_actors method
+        """
+        import ipdb; ipdb.set_trace()
         self.goals = np.concatenate(
                     [self.goals[:batch_idx,...],
                      self.goals[batch_idx+1:,...]],
                      axis=0)
 
-    def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[]):
         # TODO: account for the indices in rnn states:
         lookedup_keys = ['LSTM', 'GRU']
-        rnn_states = {}
-        kwargs = {'cuda': algorithm.kwargs['use_cuda'], 'repeat':nbr_actor}
-        #look_for_keys_and_apply(algorithm.get_models()['model'], keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
+        new_rnn_states = {}
+        #kwargs = {'cuda': algorithm.kwargs['use_cuda'], 'repeat':nbr_actor}
+        kwargs = {'cuda': False, 'repeat':nbr_actor}
         for name, model in algorithm.get_models().items():
             if "model" in name and model is not None:
-                look_for_keys_and_apply( model, keys=lookedup_keys, accum=rnn_states, apply_fn='get_reset_states', kwargs=kwargs)
-        rnn_keys = list(rnn_states.keys())
-        return rnn_keys, rnn_states
+                look_for_keys_and_apply( 
+                    model, 
+                    keys=lookedup_keys, 
+                    accum=new_rnn_states, 
+                    apply_fn='get_reset_states', 
+                    kwargs=kwargs
+                )
+        rnn_keys = list(new_rnn_states.keys())
 
+        if self.rnn_states is None or actor_indices==[]:    
+            return rnn_keys, new_rnn_states
+
+        # Reset batch element only: 
+        batch_indices_to_update = torch.Tensor(actor_indices).long()
+        
+        recursive_inplace_update(
+            in_dict=self.rnn_states,
+            extra_dict=new_rnn_states,
+            batch_mask_indices=batch_indices_to_update
+        )
+
+        return rnn_keys, self.rnn_states
+        
     def remove_from_rnn_states(self, batch_idx:int, rnn_states_dict:Optional[Dict]=None, map_keys: Optional[List]=None):
         '''
         Remove a row(=batch) of data from the rnn_states.
@@ -204,7 +232,7 @@ class Agent(object):
                              dim=0
                         )
 
-    def _pre_process_rnn_states(self, rnn_states_dict: Optional[Dict]=None, map_keys: Optional[List]=None):
+    def _pre_process_rnn_states(self, rnn_states_dict: Optional[Dict]=None):
         '''
         :param map_keys: List of keys we map the operation to.
         '''
@@ -212,18 +240,6 @@ class Agent(object):
             if self.rnn_states is None:
                 _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
             rnn_states_dict = self.rnn_states
-
-        if self.algorithm.kwargs['use_cuda']:
-            for recurrent_submodule_name in rnn_states_dict:
-                if not is_leaf(rnn_states_dict[recurrent_submodule_name]):
-                    self._pre_process_rnn_states(rnn_states_dict=rnn_states_dict[recurrent_submodule_name])
-                else:
-                    eff_map_keys = map_keys if map_keys is not None else rnn_states_dict[recurrent_submodule_name].keys()
-                    for key in eff_map_keys:
-                        if key in rnn_states_dict[recurrent_submodule_name]:
-                            for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
-                                rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
-                                rnn_states_dict[recurrent_submodule_name][key][idx]   = rnn_states_dict[recurrent_submodule_name][key][idx].cuda()
 
     @staticmethod
     def _post_process_and_update_rnn_states(next_rnn_states_dict: Dict, rnn_states_dict: Dict, map_keys: Optional[List]=None):
@@ -349,6 +365,8 @@ class Agent(object):
         """
         self.async_learner = True 
         self.async_actor = False 
+        # self.async_actor_idx needs to be implemented in the resulting actor.
+        # and the actor_learner_shared_dict's toggle boolean needs to be increased.
 
         return 
 
@@ -378,12 +396,21 @@ class ExtraInputsHandlingAgent(Agent):
             algorithm=algorithm
         )
 
-    def _reset_rnn_states(self, algorithm: object, nbr_actor: int):
-        self.rnn_keys, self.rnn_states = super()._reset_rnn_states(algorithm=algorithm, nbr_actor=nbr_actor)
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=None):
+        self.rnn_keys, self.rnn_states = super()._reset_rnn_states(
+            algorithm=algorithm, 
+            nbr_actor=nbr_actor,
+            actor_indices=actor_indices
+        )
+        
         
         # Resetting extra inputs:
         hdict = self._init_hdict()
-        recursive_inplace_update(self.rnn_states, hdict)
+        recursive_inplace_update(
+            in_dict=self.rnn_states, 
+            extra_dict=hdict,
+            batch_mask_indices=actor_indices,
+        )
         
         return self.rnn_keys, self.rnn_states
 
@@ -411,13 +438,14 @@ class ExtraInputsHandlingAgent(Agent):
         return out_hdict
 
     def take_action(self, state, infos=None):
-        if infos and not self.training:
+        hdict = None
+        if infos:# and not self.training:
             agent_infos = [info for info in infos if info is not None]
             hdict = self._build_dict_from(lhdict=agent_infos)
             recursive_inplace_update(self.rnn_states, hdict)
-        return self._take_action(state)
+        return self._take_action(state, infos=hdict)
 
-    def _take_action(self, state):
+    def _take_action(self, state, infos=None):
         raise NotImplementedError
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
@@ -436,11 +464,16 @@ class ExtraInputsHandlingAgent(Agent):
         :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
         :param infos: List of Dictionnaries of information from the environment.
         '''
+
+        """
+        #TODO: make sure that it is not important to update rnn states from this info...
+        
         agent_infos = [info for info in infos if info is not None]
         hdict = self._build_dict_from(lhdict=agent_infos)
         
         recursive_inplace_update(self.rnn_states, hdict)
-        
+        """
+
         self._handle_experience(s, a, r, succ_s, done, goals=goals, infos=infos)
     
     def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
