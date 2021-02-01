@@ -523,8 +523,10 @@ def baseline_atari_pixelwrap(env,
     return env
 
 
+
 def hanabi_wrap(
-    env, 
+    env,
+    sad=False, 
     clip_reward=True,
     previous_reward_action=True
     ):
@@ -534,6 +536,9 @@ def hanabi_wrap(
     if previous_reward_action:
         env = PreviousRewardActionInfoMultiAgentWrapper(env=env)
     
+    if sad:
+        env = SADEnvWrapper(env=env)
+
     return env
 
 
@@ -1459,6 +1464,86 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
         
         return next_observation, reward, done, next_infos
 
+
+class SADEnvWrapper(gym.Wrapper):
+    def __init__(self, env):
+        """
+        Simplified Action Decoder wrapper expects the action argument to
+        the step method to be a list of dictionnary containing the following keys:
+        - "action": the actual action to execute in the environment.
+        - "greedy_action": the greedy action that the agent would have used at test time.
+        It passes the action to the wrapped environment and writes the greedy action
+        of each player into the next_info dictionnary of the other player.
+        """
+        gym.Wrapper.__init__(self, env)
+        
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        assert isinstance(action, list), "action argument must be a list of dictionnary."
+        assert len(action)==2, "not implemented yet for more than 2 players..."
+        
+        env_action = []
+        if isinstance(action[0], dict):
+            for a in action:
+                env_action.append(a["action"])
+        else:
+            env_action = action
+
+        next_obs, reward, done, next_infos = self.env.step(env_action)
+        
+        for info_idx in range(2):
+            other_idx = (info_idx+1)%2
+            next_infos[info_idx]["greedy_action"] = action[other_idx]["greedy_action"]
+
+        import ipdb; ipdb.set_trace()
+        return next_obs, reward, done, next_infos
+
+class SADVecEnvWrapper(object):
+    def __init__(self, env, nbr_actions):
+        """
+        Simplified Action Decoder wrapper expects the action argument to
+        the step method to be a list of dictionnary containing the following keys:
+        - "action": the actual action to execute in the environment.
+        - "greedy_action": the greedy action that the agent would have used at test time.
+        It passes the action to the wrapped environment and writes the greedy action
+        of each player into the next_info dictionnary of the other player.
+        """
+        self.env = env
+        self.nbr_actions = nbr_actions
+
+    def get_nbr_envs(self):
+        return self.env.get_nbr_envs()
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        assert isinstance(action, list), "action argument must be a list of dictionnary."
+        assert len(action)==2, "not implemented yet for more than 2 players..."
+        
+
+        env_action = []
+        if isinstance(action[0], dict):
+            for a in action:
+                env_action.append(a["action"])
+        else:
+            env_action = action
+
+        next_obs, reward, done, next_infos = self.env.step(env_action)
+        
+        for player_idx in range(2):
+            other_idx = (player_idx+1)%2
+            for env_idx in range(len(next_infos[player_idx])):
+                ga = action[other_idx]["greedy_action"][env_idx]
+                ohe_ga = np.zeros((1,self.nbr_actions), dtype=np.float32)
+                ohe_ga[0,ga] = 1
+                next_infos[player_idx][env_idx]["greedy_action"] = ohe_ga
+
+        return next_obs, reward, done, next_infos
+
+
 class FailureEndingTimeLimit(gym.Wrapper):
     """TimeLimit wrapper for failure-ending environments.
 
@@ -1748,6 +1833,7 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
             self.is_video_enabled = True
         else:
             if self.is_video_enabled:
+                self.video_recorder.capture_frame()
                 self.video_recorder.close()
                 del self.video_recorder
                 self.is_video_enabled = False

@@ -550,6 +550,92 @@ class DQNAlgorithm(Algorithm):
             self.summary_writer.flush()
 
 
+    def compute_td_error(self, samples: Dict):
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        
+        start = time.time()
+
+        beta = 1.0
+        # if self.use_PER:
+        #     if hasattr(self.storages[0].get_beta, "remote"):
+        #         beta_id = self.storages[0].get_beta.remote()
+        #         beta = ray.get(beta_id)
+        #     else:
+        #         beta = self.storages[0].get_beta()
+
+        states = samples['s']
+        actions = samples['a']
+        next_states = samples['succ_s']
+        rewards = samples['r']
+        non_terminals = samples['non_terminal']
+
+        rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
+        next_rnn_states = samples['next_rnn_states'] if 'next_rnn_states' in samples else None
+        goals = samples['g'] if 'g' in samples else None
+
+        #importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
+
+        batch_indices = torch.arange(states.shape[0])
+        
+        sampled_rnn_states = None
+        sampled_next_rnn_states = None
+        if self.recurrent:
+            sampled_rnn_states, sampled_next_rnn_states = self.sample_from_rnn_states(
+                rnn_states, 
+                next_rnn_states, 
+                batch_indices, 
+                use_cuda=self.kwargs['use_cuda']
+            )
+            # (batch_size, unroll_dim, ...)
+
+        sampled_goals = None
+        if self.goal_oriented:
+            sampled_goals = goals[batch_indices].cuda() if self.kwargs['use_cuda'] else goals[batch_indices]
+
+        sampled_importanceSamplingWeights = None
+        # if self.use_PER:
+        #     sampled_importanceSamplingWeights = importanceSamplingWeights[batch_indices].cuda() if self.kwargs['use_cuda'] else importanceSamplingWeights[batch_indices]
+        
+        sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
+        sampled_actions = actions[batch_indices].cuda() if self.kwargs['use_cuda'] else actions[batch_indices]
+        sampled_next_states = next_states[batch_indices].cuda() if self.kwargs['use_cuda'] else next_states[batch_indices]
+        sampled_rewards = rewards[batch_indices].cuda() if self.kwargs['use_cuda'] else rewards[batch_indices]
+        sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
+        # (batch_size, unroll_dim, ...)
+
+        loss, loss_per_item = self.loss_fn(
+            sampled_states, 
+            sampled_actions, 
+            sampled_next_states,
+            sampled_rewards,
+            sampled_non_terminals,
+            rnn_states=sampled_rnn_states,
+            next_rnn_states=sampled_next_rnn_states,
+            goals=sampled_goals,
+            gamma=self.GAMMA,
+            model=self.model,
+            target_model=self.target_model,
+            weights_decay_lambda=self.weights_decay_lambda,
+            weights_entropy_lambda=self.weights_entropy_lambda,
+            use_PER=self.use_PER,
+            PER_beta=beta,
+            importanceSamplingWeights=sampled_importanceSamplingWeights,
+            HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
+            iteration_count=self.param_update_counter,
+            summary_writer=None,
+            kwargs=self.kwargs
+        )
+
+        end = time.time()
+        
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/TDErrorComputation', end-start, self.param_update_counter)
+            self.summary_writer.flush()
+        
+        return loss, loss_per_item 
+
     def sample_from_rnn_states(self, rnn_states, next_rnn_states, batch_indices, use_cuda):
         sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
         sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])

@@ -46,8 +46,19 @@ class AgentWrapper(Agent):
     def clone(self, training=None, with_replay_buffer=False):
         return AgentWrapper(agent=self.agent.clone(training=training, with_replay_buffer=with_replay_buffer))
 
+    """
     def save(self, with_replay_buffer=False):
         torch.save(self.clone(with_replay_buffer=with_replay_buffer), self.save_path)
+    """
+    def save(self, with_replay_buffer=False, minimal=False):
+        assert(self.save_path is not None)
+        torch.save(
+            self.clone(
+                with_replay_buffer=with_replay_buffer, 
+                clone_proxies=False,
+                minimal=minimal), 
+            self.save_path
+        )
 
 
 class ExtraInputsHandlingAgentWrapper(AgentWrapper):
@@ -169,3 +180,114 @@ class DictHandlingAgentWrapper(AgentWrapper):
     def clone(self, training=None):
         return DictHandlingAgentWrapper(agent=self.agent.clone(training=training))
 
+
+class SADAgentWrapper(AgentWrapper):
+    def __init__(self, agent):
+        super(SADAgentWrapper, self).__init__(agent=agent)
+        
+    def take_action(self, s):
+        '''
+        Assumes `param s` to be a `numpy.ndarray` of shape (nbr_actors(-), 1)
+        where each line element is a dictionnary.
+        This function firstly separates this `numpy.ndarray` into a dictionnary
+        of `numpy.ndarray`.
+        Then, if there is a `"goal"` item, it feeds it to the agent.
+        Finaly, it feeds the relevant `"state"`'s value to 
+        the agent for action selection.
+        '''
+        """
+        obs_dict = self._build_obs_dict(s)
+        state = obs_dict["observation"]
+        if "desired_goal" in obs_dict:
+            self.agent.update_goals(goals=obs_dict["desired_goal"])
+        return self.agent.take_action(state=state)
+
+        if self.async_actor:
+            # Update the algorithm's model if needs be:
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            if actor_learner_shared_dict["models_update_required"][self.async_actor_idx]:
+                actor_learner_shared_dict["models_update_required"][self.async_actor_idx] = False
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+                
+                if "models" in actor_learner_shared_dict.keys():
+                    new_models = actor_learner_shared_dict["models"]
+                    self.algorithm.set_models(new_models)
+                else:
+                    raise NotImplementedError 
+
+        if self.training:
+            self.nbr_steps += state.shape[0]
+        self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
+
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
+        goal = None
+        if self.goal_oriented:
+            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.kwargs['use_cuda'])
+
+        model = self.algorithm.get_models()['model']
+        if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
+            model = self.algorithm.get_models()['target_model']
+        model = model.train(mode=self.training)
+
+        self.current_prediction = self.query_model(model, state, goal)
+        
+        # Post-process and update the rnn_states from the current prediction:
+        # self.rnn_states <-- self.current_prediction['next_rnn_states']
+        # WARNING: _post_process affects self.rnn_states. It is imperative to
+        # manipulate a copy of it outside of the agent's manipulation, e.g.
+        # when feeding it to the models.
+        self.current_prediction = self._post_process(self.current_prediction)
+
+        greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
+        if self.noisy or not(self.training):
+            return greedy_action
+
+        legal_actions = torch.ones_like(self.current_prediction['qa'])
+        if infos is not None\
+        and 'head' in infos\
+        and 'extra_inputs' in infos['head']\
+        and 'legal_actions' in infos['head']['extra_inputs']:
+            legal_actions = infos['head']['extra_inputs']['legal_actions'][0]
+            # in case there are no legal actions for this agent in this current turn:
+            for actor_idx in range(legal_actions.shape[0]):
+                if legal_actions[actor_idx].sum() == 0: 
+                    legal_actions[actor_idx, ...] = 1
+        sample = np.random.random(size=self.eps.shape)
+        greedy = (sample > self.eps)
+        greedy = np.reshape(greedy[:state.shape[0]], (state.shape[0],1))
+
+        #random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
+        random_actions = [
+            legal_actions[actor_idx].multinomial(num_samples=1).item() 
+            for actor_idx in range(legal_actions.shape[0])
+        ]
+        random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
+        
+        actions = greedy*greedy_action + (1-greedy)*random_actions
+        
+        return actions
+        """
+        pass
+
+    def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
+        return SADAgentWrapper(agent=self.agent.clone(
+            training=training,
+            with_replay_buffer=with_replay_buffer,
+            clone_proxies=clone_proxies,
+            minimal=minimal)
+        )
+    
+    def get_async_actor(self, training=None, with_replay_buffer=False):
+        """
+        Returns an asynchronous actor agent (i.e. attribute async_actor
+        of the return agent must be set to True).
+        RegymManager's value must be reference back from original to clone!
+        """
+        pass

@@ -105,7 +105,14 @@ class ConvolutionalBody(nn.Module):
                     channels[idx+1] = cfg
                     # Assumes 'BNX' where X is an integer...
                 
-                layer = nn.Conv2d(in_channels=in_ch, out_channels=cfg, kernel_size=k, stride=s, padding=p) 
+                layer = nn.Conv2d(
+                    in_channels=in_ch, 
+                    out_channels=cfg, 
+                    kernel_size=k, 
+                    stride=s, 
+                    padding=p,
+                    bias=not add_bn
+                ) 
                 layer = layer_init(layer, w_scale=math.sqrt(2))
                 in_ch = cfg
                 self.features.append(layer)
@@ -1270,13 +1277,15 @@ class LSTMBody(nn.Module):
         self, 
         state_dim, 
         hidden_units=[256], 
-        gate=F.relu,
+        gate=None,
         extra_inputs_infos: Dict={},
         ):
         '''
         :param state_dim: dimensions of the input.
         :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
         '''
+        assert gate is None, "It is not recommended to use a gating function..."
+
         super(LSTMBody, self).__init__()
         self.state_dim = state_dim
         self.hidden_units = hidden_units
@@ -1352,9 +1361,11 @@ class LSTMBody(nn.Module):
             next_hstates.append(outputs[-1][0])
             next_cstates.append(outputs[-1][1])
             
-            # Consider not applying activation functions on last layer's output
+            # Consider not applying activation functions on last layer's output?
             if self.gate is not None:
                 x = self.gate(outputs[-1][0])
+            else:
+                x = outputs[-1][0]
 
         frame_states.update({'lstm':
             {'hidden': next_hstates, 
@@ -1378,12 +1389,39 @@ class LSTMBody(nn.Module):
 
 
 class GRUBody(nn.Module):
-    def __init__(self, state_dim, hidden_units=(256), gate=F.relu):
+    def __init__(
+        self, 
+        state_dim, 
+        hidden_units=[256], 
+        gate=None,
+        extra_inputs_infos: Dict={},
+        ):
+        '''
+        :param state_dim: dimensions of the input.
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        '''
+        assert gate is None, "It is not recommended to use a gating function..."
+        
         super(GRUBody, self).__init__()
-        if not isinstance(hidden_units, tuple): hidden_units = tuple(hidden_units)
-        if isinstance(state_dim,int):   dims = (state_dim, ) + hidden_units
-        else:   dims = state_dim + hidden_units
-        self.layers = nn.ModuleList([layer_init_gru(nn.GRUCell(dim_in, dim_out)) for dim_in, dim_out in zip(dims[:-1], dims[1:])])
+        self.state_dim = state_dim
+        self.hidden_units = hidden_units
+
+        # Use lstm_input_dim instead of cnn_body output feature dimension 
+        lstm_input_dim = self.state_dim
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            lstm_input_dim += shape[-1]
+        self.lstm_input_dim = lstm_input_dim
+
+        if not isinstance(hidden_units, list): hidden_units = list(hidden_units)
+        dims = [self.lstm_input_dim] + self.hidden_units
+        
+        self.layers = nn.ModuleList([
+            layer_init_gru(nn.GRUCell(dim_in, dim_out)) 
+            for dim_in, dim_out in zip(dims[:-1], dims[1:])
+        ])
+        
         self.feature_dim = dims[-1]
         self.gate = gate
 
@@ -1393,11 +1431,29 @@ class GRUBody(nn.Module):
         hidden_states: list of hidden_state(s) one for each self.layers.
         cell_states: list of hidden_state(s) one for each self.layers.
         '''
-        x, recurrent_neurons = inputs
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
+        
+        recurrent_neurons = extract_subtree(
+            in_dict=frame_states,
+            node_id='gru',
+        )
+
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
+
+        extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+        if len(extra_inputs): x = torch.cat([x]+extra_inputs, dim=-1)
+
         if next(self.layers[0].parameters()).is_cuda and not(x.is_cuda):    x = x.cuda() 
         hidden_states, cell_states = recurrent_neurons['hidden'], recurrent_neurons['cell']
 
         next_hstates, next_cstates = [], []
+        outputs = []
         for idx, (layer, hx, cx) in enumerate(zip(self.layers, hidden_states, cell_states) ):
             batch_size = x.size(0)
             if hx.size(0) == 1: # then we have just resetted the values, we need to expand those:
@@ -1410,14 +1466,28 @@ class GRUBody(nn.Module):
                 (hx is not None or not(hx.is_cuda)):
                 if hx is not None:  hx = hx.cuda()
 
-            nhx = layer(x, hx)
+            """
+            nhx, ncx = layer(x, (hx, cx))
             next_hstates.append(nhx)
-            next_cstates.append(nhx)
-            # Consider not applying activation functions on last layer's output
+            next_cstates.append(ncx)
+            """
+            outputs.append(layer(x, hx))
+            next_hstates.append(outputs[-1])
+            next_cstates.append(outputs[-1])
+            
+            # Consider not applying activation functions on last layer's output?
             if self.gate is not None:
-                x = self.gate(nhx)
+                x = self.gate(outputs[-1])
+            else:
+                x = outputs[-1]
 
-        return x, {'hidden': next_hstates, 'cell': next_cstates}
+        frame_states.update({'gru':
+            {'hidden': next_hstates, 
+            'cell': next_cstates}
+        })
+
+        return x, frame_states
+
 
     def get_reset_states(self, cuda=False, repeat=1):
         hidden_states, cell_states = [], []
@@ -1427,7 +1497,7 @@ class GRUBody(nn.Module):
                 h = h.cuda()
             hidden_states.append(h)
             cell_states.append(h)
-        return {'hidden': hidden_states, 'cell': cell_states}
+        return {'gru':{'hidden': hidden_states, 'cell': cell_states}}
 
     def get_feature_shape(self):
         return self.feature_dim

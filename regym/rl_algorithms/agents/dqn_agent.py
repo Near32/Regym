@@ -71,6 +71,10 @@ class DQNAgent(Agent):
         :param infos: Dictionnary of information from the environment.
         :param prediction: Dictionnary of tensors containing the model's output at the current state.
         '''
+        if "sad" in self.kwargs \
+        and self.kwargs["sad"]:
+            a = a["action"]
+
         if prediction is None:  prediction = self.current_prediction
 
         state, r, succ_state, non_terminal = self.preprocess_environment_signals(s, r, succ_s, done)
@@ -181,7 +185,7 @@ class DQNAgent(Agent):
                     actor_learner_shared_dict = self.actor_learner_shared_dict.get()
                 nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
                 self.algorithm.summary_writer.add_scalar(
-                    f'PerUpdates/ActorLearnerSynchroRemainingUpdates', 
+                    f'PerUpdate/ActorLearnerSynchroRemainingUpdates', 
                     nbr_update_remaining, 
                     self.algorithm.get_update_count()
                 )
@@ -284,6 +288,14 @@ class DQNAgent(Agent):
         
         actions = greedy*greedy_action + (1-greedy)*random_actions
         
+        if "sad" in self.kwargs \
+        and self.kwargs["sad"]:
+            action_dict = {
+                'action': actions,
+                'greedy_action': greedy_action,
+            }
+            return action_dict 
+
         return actions
 
     def query_model(self, model, state, goal):
@@ -575,11 +587,34 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                             'shape':shape, 
                             'target_location':tl
                         }
-            
+
             critic_body = LSTMBody(
                 state_dim=state_dim,
                 hidden_units=critic_arch_hidden_units, 
-                gate=F.relu,
+                gate=None,
+                extra_inputs_infos=extra_inputs_infos_critic_body,
+            )
+        elif kwargs['critic_arch'] == 'GRU-RNN':
+            state_dim = input_dim
+            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
+
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_critic_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
+                    if 'critic_body' in tl:
+                        extra_inputs_infos_critic_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
+            
+            critic_body = GRUBody(
+                state_dim=state_dim,
+                hidden_units=critic_arch_hidden_units, 
+                gate=None,
                 extra_inputs_infos=extra_inputs_infos_critic_body,
             )
         elif kwargs['critic_arch'] == 'MLP':

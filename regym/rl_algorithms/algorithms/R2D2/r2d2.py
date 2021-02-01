@@ -9,6 +9,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+import matplotlib.pyplot as plt 
+
 import regym
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
@@ -17,9 +19,6 @@ from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayS
 from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdict
 
 sum_writer = None
-
-store_on_terminal = False
-
 
 class R2D2Algorithm(DQNAlgorithm):
     def __init__(self, 
@@ -35,9 +34,13 @@ class R2D2Algorithm(DQNAlgorithm):
         Algorithm.__init__(self=self, name=name)
         self.single_storage = single_storage
 
+        print(kwargs)
+        
         self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
         self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
         self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
+        
+        self.sequence_replay_store_on_terminal = kwargs["sequence_replay_store_on_terminal"]
         
         self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
         
@@ -96,6 +99,8 @@ class R2D2Algorithm(DQNAlgorithm):
 
         beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  if 'PER_beta_increase_interval' in self.kwargs else 1e4
         
+        self.pre_storage_sequence_exp_dict = []
+
         for i in range(nbr_storages):
             if self.kwargs['use_PER']:
                 if regym.RegymManager is not None:
@@ -167,7 +172,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 value = _concatenate_list_hdict(
                     lhds=values, 
                     concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
-                    preprocess_fn=lambda x: x.reshape(1, 1, -1),
+                    preprocess_fn=lambda x: x.clone().reshape(1, 1, -1),
                 )
             else:
                 value = torch.cat(
@@ -188,21 +193,73 @@ class R2D2Algorithm(DQNAlgorithm):
         if not override and len(self.sequence_replay_buffers[actor_index]) < self.sequence_replay_unroll_length:
             return
         if override or self.sequence_replay_overlap_length == 0 or self.sequence_replay_buffers_count[actor_index] % self.sequence_replay_overlap_length == 0:
+            # Verify the length of the sequence:
+            while len(self.sequence_replay_buffers[actor_index]) != self.sequence_replay_unroll_length:
+                # This can only happen when overriding, i.e. end of episode is reached and we store on end of episode:
+                # Therefore we can pad the sequence with the last transition, that consist of a terminal transition:
+                self.sequence_replay_buffers[actor_index].append(copy.deepcopy(self.sequence_replay_buffers[actor_index][-1]))
+
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
             if self.use_PER:
-                init_sampling_priority = None 
-                if isinstance(self.storages[storage_index], ray.actor.ActorHandle):
-                    ray.get(
-                        self.storages[storage_index].add.remote(
-                            current_sequence_exp_dict, 
-                            priority=init_sampling_priority
+                """
+                Put the experience dict into a buffer until we have enough
+                to compute td_errors in batch.
+                """
+                if len(self.pre_storage_sequence_exp_dict)<self.batch_size:
+                    self.pre_storage_sequence_exp_dict.append(current_sequence_exp_dict)
+                    return 
+
+                samples = {}
+                for exp_dict in self.pre_storage_sequence_exp_dict:
+                    for key, value in exp_dict.items():
+                        if key not in samples:  samples[key] = []
+                        samples[key].append(value)
+
+                for key, value_list in samples.items():
+                    if len(value_list) >1:
+                        if isinstance(value_list[0], dict):
+                            batched_values = _concatenate_list_hdict(
+                                lhds=value_list, 
+                                concat_fn=partial(torch.cat, dim=0),   # concatenate on the batch dimension (axis=0).
+                                preprocess_fn=(lambda x:x),
+                            )
+                        else:
+                            batched_values = torch.cat(value_list, dim=0)
+                    else:
+                        batched_values = value_list[0]
+
+                    samples[key] = batched_values
+
+                with torch.no_grad():
+                    td_error_per_item = self.compute_td_error(samples=samples)[-1].cpu().detach().numpy()
+                
+                unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
+                for exp_dict_idx, current_sequence_exp_dict in enumerate(self.pre_storage_sequence_exp_dict):
+                    if isinstance(self.storages[0], ray.actor.ActorHandle):
+                        new_priority = ray.get(
+                            self.storages[storage_index].sequence_priority.remote(
+                                td_error_per_item[exp_dict_idx].reshape(unroll_length,)
+                            )
                         )
-                    )
-                else:
-                    self.storages[storage_index].add(
-                        current_sequence_exp_dict, 
-                        priority=init_sampling_priority
-                    )
+                    else:
+                        new_priority = self.storages[storage_index].sequence_priority(
+                            td_error_per_item[exp_dict_idx].reshape(unroll_length,)
+                        )
+                    
+                    if isinstance(self.storages[storage_index], ray.actor.ActorHandle):
+                        ray.get(
+                            self.storages[storage_index].add.remote(
+                                current_sequence_exp_dict, 
+                                priority=new_priority
+                            )
+                        )
+                    else:
+                        self.storages[storage_index].add(
+                            current_sequence_exp_dict, 
+                            priority=new_priority
+                        )
+
+                self.pre_storage_sequence_exp_dict = []
             else:
                 self.storages[storage_index].add(current_sequence_exp_dict)
 
@@ -220,7 +277,7 @@ class R2D2Algorithm(DQNAlgorithm):
         '''
         if self.n_step>1:
             # Append to deque:
-            self.n_step_buffers[actor_index].append(exp_dict)
+            self.n_step_buffers[actor_index].append(copy.deepcopy(exp_dict))
             if len(self.n_step_buffers[actor_index]) < self.n_step:
                 return
         
@@ -235,7 +292,11 @@ class R2D2Algorithm(DQNAlgorithm):
                 truncated_n_step_return = self._compute_truncated_n_step_return(actor_index=actor_index)
                 # Retrieve the first element of deque:
                 current_exp_dict = copy.deepcopy(self.n_step_buffers[actor_index][0])
+                #if current_exp_dict['r'].cpu().min().item() != 0.0:
+                #    import ipdb; ipdb.set_trace()
                 current_exp_dict['r'] = truncated_n_step_return
+                #condition_state = torch.all(self.n_step_buffers[actor_index][0]['s']==self.n_step_buffers[actor_index][-1]['s'])
+                #import ipdb; ipdb.set_trace()
             else:
                 current_exp_dict = exp_dict
             
@@ -255,16 +316,16 @@ class R2D2Algorithm(DQNAlgorithm):
             # Maybe add to replay storage?
             self._add_sequence_to_replay_storage(
                 actor_index=actor_index, 
-                override=(store_on_terminal and (exp_it==nbr_experience_to_handle-1) and reached_end_of_episode),
+                override=(self.sequence_replay_store_on_terminal and (exp_it==nbr_experience_to_handle-1) and reached_end_of_episode),
                 # Only add if experience count handled, 
                 # no longer cares about crossing the episode barrier as the loss handles it,
-                # unless store_on_terminal is true
+                # unless self.sequence_replay_store_on_terminal is true
             )
 
         # Make sure the sequence buffer do not cross the episode barrier:
         # UPDATE: no longer care about this since the loss takes care of the episode barriers...
-        # unless store_on_terminal is true
-        if (store_on_terminal and reached_end_of_episode):
+        # unless self.sequence_replay_store_on_terminal is true
+        if (self.sequence_replay_store_on_terminal and reached_end_of_episode):
             self.sequence_replay_buffers[actor_index].clear()
             # Re-initialise the buffer count since the buffer is cleared out.
             # Otherwise some stored sequences could have length different than

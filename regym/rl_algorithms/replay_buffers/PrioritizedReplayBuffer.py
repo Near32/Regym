@@ -706,6 +706,10 @@ class PrioritizedReplayStorage(ReplayStorage):
         if priority is None:
             priority = self.max_priority
 
+        # TODO: Verify that the current position
+        # does not contain a more valuable experience
+        # If so, then keep increasing until it is not the case.
+        
         super(PrioritizedReplayStorage, self).add(data=exp)
         self.length = min(self.length+1, self.capacity)
         self.iteration += 1 
