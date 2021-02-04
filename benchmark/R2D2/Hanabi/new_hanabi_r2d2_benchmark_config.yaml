@@ -368,7 +368,7 @@ experiment:
         
         'run-id': 'test/serial/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction/Env-NoPenaltyTimeLimit-WithTimePenalty/ScalingFN_EPS1m3/Seed1_venv32_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
         
-        'agent-id': 'SAD_1step_linear_paper_r2d2_AdamLR5m1_EPS1d5m5_L2AModelUpdate10Steps_EPSgreedyAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_LINEAR_GradClip5m1_r2p4Min2e3_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TerminalStore_ZeroInitStates_RegMaskedLoss',
+        'agent-id': 'SAD_1step_linear_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_LINEAR_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss',
         
         'nbr_actor': 32,
         #'nbr_frame_skipping': 4,
@@ -390,7 +390,7 @@ experiment:
     seed: 2
 
 agents:    
-    SAD_1step_linear_paper_r2d2_AdamLR5m1_EPS1d5m5_L2AModelUpdate10Steps_EPSgreedyAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_LINEAR_GradClip5m1_r2p4Min2e3_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TerminalStore_ZeroInitStates_RegMaskedLoss:
+    SAD_1step_linear_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_LINEAR_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss:
         <<: *r2d2_SAD_LINEAR_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
         #<<: *r2d2_SAD_MLP_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
         #<<: *r2d2_SAD_MLPLSTM_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
