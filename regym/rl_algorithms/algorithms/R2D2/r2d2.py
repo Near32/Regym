@@ -35,7 +35,7 @@ class R2D2Algorithm(DQNAlgorithm):
         self.single_storage = single_storage
 
         print(kwargs)
-        
+
         self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
         self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
         self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
@@ -68,8 +68,10 @@ class R2D2Algorithm(DQNAlgorithm):
         if nbr_actor is not None:    
             self.nbr_actor = nbr_actor
         
+            """
             if self.n_step > 1:
                 self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
+            """
 
             self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
             self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]    
@@ -275,7 +277,8 @@ class R2D2Algorithm(DQNAlgorithm):
         then the n-step buffer is dumped entirely in the sequence buffer and the sequence is committed 
         to the relevant storage buffer.
         '''
-        if self.n_step>1:
+        if False: #self.n_step>1:
+            raise NotImplementedError
             # Append to deque:
             self.n_step_buffers[actor_index].append(copy.deepcopy(exp_dict))
             if len(self.n_step_buffers[actor_index]) < self.n_step:
@@ -283,18 +286,20 @@ class R2D2Algorithm(DQNAlgorithm):
         
         reached_end_of_episode = not(exp_dict['non_terminal'])
         nbr_experience_to_handle = 1
-        if self.n_step > 1 and reached_end_of_episode:
+        if False: #self.n_step > 1 and reached_end_of_episode:
+            raise NotImplementedError
             nbr_experience_to_handle = min(self.n_step, len(self.n_step_buffers[actor_index])) 
 
         for exp_it in range(nbr_experience_to_handle):
-            if self.n_step>1:
+            if False: #self.n_step>1:
+                raise NotImplementedError
                 # Compute n-step return of the first element of deque:
                 truncated_n_step_return = self._compute_truncated_n_step_return(actor_index=actor_index)
                 # Retrieve the first element of deque:
                 current_exp_dict = copy.deepcopy(self.n_step_buffers[actor_index][0])
-                #if current_exp_dict['r'].cpu().min().item() != 0.0:
-                #    import ipdb; ipdb.set_trace()
+                
                 current_exp_dict['r'] = truncated_n_step_return
+                
                 #condition_state = torch.all(self.n_step_buffers[actor_index][0]['s']==self.n_step_buffers[actor_index][-1]['s'])
                 #import ipdb; ipdb.set_trace()
             else:
@@ -308,6 +313,7 @@ class R2D2Algorithm(DQNAlgorithm):
             self.sequence_replay_buffers_count[actor_index] += 1
 
             if nbr_experience_to_handle > 1:
+                raise NotImplementedError
                 # If we need to dump the whole buffer into the sequence,
                 # then here we make sure the next iteration of the loop will handle
                 # the next element of the n_step buffer until it is empty. 

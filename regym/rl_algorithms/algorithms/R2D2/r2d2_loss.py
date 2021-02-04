@@ -400,6 +400,169 @@ def batched_unrolled_inferences(
     
     return burn_in_predictions, unrolled_predictions, burned_in_rnn_states_inputs
 
+def compute_n_step_bellman_target_depr(
+    training_returns,
+    training_non_terminals,
+    unscaled_targetQ_Si_onlineGreedyAction, 
+    gamma, 
+    kwargs):
+    # Mixed n-step value approach:
+    unscaled_targetQ_Sipn_onlineGreedyAction = torch.cat(
+        [
+            unscaled_targetQ_Si_onlineGreedyAction[:, kwargs['n_step']:, ...]
+        ]+[
+            unscaled_targetQ_Si_onlineGreedyAction[:, -1:, ...] / (gamma**(k+1)) # it will be normalized down below when computing bellman target    
+            for k in range(kwargs['n_step'])
+        ],
+        dim=1,
+    )
+    # (batch_size, training_length, 1)
+    
+    '''
+    # Adapted from hanabi_SAD :
+    targetQ_Sipn_argmaxAipn_values = torch.cat([
+            targetQ_Si_argmaxAQvalue[:, kwargs['n_step']:],
+            targetQ_Si_argmaxAQvalue[:, :kwargs['n_step']]
+        ],
+        dim=1
+    )
+    '''
+    # Adapted from hanabi_SAD : 
+    # https://github.com/facebookresearch/hanabi_SAD/blob/54a8d34f6ab192898121f8d3935339e63f1f4b35/pyhanabi/r2d2.py#L373
+    # Zero-ing the value of the state we cannot compute a complete n-step sounds valuable:
+    # given that the alternative is to get an unreliable target-network-based estimation..
+    # unfortunately, it results in a less expressive qa function at the beginning, 
+    # as opposed to using mixed n-step values... 
+    #unscaled_targetQ_Sipn_onlineGreedyAction[:, -kwargs['n_step']:] = 0
+    
+    '''
+    training_non_terminals_ipn = torch.cat(
+        [   # :k+1 since k \in [0, n_step-1], and np.zeros(length)[:0] has shape (0,)...
+            training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
+            for k in range(kwargs['n_step'])
+        ]+[
+            training_non_terminals.prod(dim=1).reshape(batch_size, 1, -1)
+        ]*(training_non_terminals.shape[1]-kwargs['n_step']),
+        dim=1,
+    )
+    '''
+    training_non_terminals_ipnm1 = torch.cat(
+        [   
+            training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
+            for k in range(training_non_terminals.shape[1])
+        ],
+        dim=1,
+    )
+    
+    # Compute the Bellman Target for Q values at Si,Ai: with gamma
+    unscaled_bellman_target_Sipn_onlineGreedyAction = training_returns + (gamma**kwargs['n_step']) * unscaled_targetQ_Sipn_onlineGreedyAction * training_non_terminals_ipnm1
+    
+    return unscaled_bellman_target_Sipn_onlineGreedyAction
+
+
+# Adapted from: https://github.com/google-research/seed_rl/blob/f53c5be4ea083783fb10bdf26f11c3a80974fa03/agents/r2d2/learner.py#L195
+def compute_n_step_bellman_target(
+    training_rewards,
+    training_non_terminals,
+    unscaled_targetQ_Si_onlineGreedyAction, 
+    gamma, 
+    kwargs):
+    
+    # Mixed n-step value approach:
+    """
+    unscaled_bellman_target_Si_onlineGreedyAction = torch.cat(
+        [   
+            torch.zeros_like(unscaled_targetQ_Si_onlineGreedyAction[:, 0:1, ...])   #initialisation for the loop
+        ]+[
+            unscaled_targetQ_Si_onlineGreedyAction[:, :kwargs['n_step'], ...]       #will be exhausted in the loop
+        ]+[
+            unscaled_targetQ_Si_onlineGreedyAction[:, kwargs['n_step']:, ...]
+        ]+[
+            unscaled_targetQ_Si_onlineGreedyAction[:, -1:, ...] / (gamma**k)    #will be normalized down below when computing bellman target    
+            for k in range(1,kwargs['n_step'])
+        ],
+        dim=1,
+    )
+    # (batch_size, training_length+n_step, 1)
+    """
+    unscaled_bellman_target_Si_onlineGreedyAction = torch.cat(
+        [
+            unscaled_targetQ_Si_onlineGreedyAction[:, :kwargs['n_step'], ...]       #will be exhausted in the loop
+        ]+[
+            unscaled_targetQ_Si_onlineGreedyAction[:, kwargs['n_step']:, ...]
+        ]+[
+            unscaled_targetQ_Si_onlineGreedyAction[:, -1:, ...] # testing without normalisation ... #unscaled_targetQ_Si_onlineGreedyAction[:, -1:, ...] / (gamma**k)    #will be normalized down below when computing bellman target    
+            for k in range(kwargs['n_step'])                    # not like SEED_RL (: range(1, kwargs['n_step']))
+        ],
+        dim=1,
+    )
+    # (batch_size, training_length+n_step, 1)
+    
+    rewards_i = torch.cat(
+        [
+            training_rewards
+        ]+[
+            torch.zeros_like(training_rewards[:, 0:1, ...])
+        ]*kwargs['n_step'],     # dummy values to account for the mixed n-step approach
+        dim=1,
+    )
+    # (batch_size, training_length+n_step, 1)
+    
+    notdones_i = torch.cat(
+        [
+            training_non_terminals
+        ]+[
+            torch.ones_like(training_rewards[:, 0:1, ...])
+        ]*kwargs['n_step'],     # dummy values to account for the mixed n-step approach
+        dim=1,
+    )
+    # (batch_size, training_length+n_step, 1)
+    
+    # Compute the Bellman Target for Q values at Si,Ai: with gamma
+    for nt in range(1,kwargs["n_step"]+1):
+        rewards_i = rewards_i[:, :-1]
+        # (batch_size, training_length+n_step-nt, 1)
+        notdones_i = notdones_i[:, :-1]
+        # (batch_size, training_length+n_step-nt, 1)
+        #
+        # nt=1: b_0 = r_0 + gamma * notdone_0 * qTargetSA_1
+        # nt=1: b_1 = r_1 + gamma * notdone_1 * qTargetSA_2
+        # nt=1: b_2 = r_2 + gamma * notdone_2 * qTargetSA_3
+        # nt=1: b_3 = r_3 + gamma * notdone_3 * qTargetSA_4
+        #   ...
+        # nt=1: b_{L-2} = r_{L-2} + gamma * notdone_{L-2} * qTargetSA_{L-1}
+        # nt=1: b_{L-1} = r_{L-1} + gamma * notdone_{L-1} * qTargetSA_{L-1} 
+        # nt=1: b_{L} = 0 + gamma *1* qTargetSA_{L-1}/gamma = qTargetSA_{L-1}
+        # nt=1: b_{L+1} = 0 + gamma *1* qTargetSA_{L-1} = gamma * qTargetSA_{L-1}
+        #
+        #
+        # nt=2: b'_0 = r_0 + gamma * notdone_0 * b1 (= r_1 + gamma * notdone_1 * qTargetSA_2)
+        # nt=2: b'_1 = r_1 + gamma * notdone_1 * b2 (= r_2 + gamma * notdone_2 * qTargetSA_3)
+        # nt=2: b'_2 = r_2 + gamma * notdone_2 * b3 (= r_3 + gamma * notdone_3 * qTargetSA_4)
+        # nt=2: b'_3 = r_3 + gamma * notdone_3 * b4 (= r_4 + gamma * notdone_4 * qTargetSA_5)
+        #   ...
+        # nt=2: b'_{L-2} = r_{L-2} + gamma * notdone_{L-2} * b_{L-1} ( = r_{L-1} + gamma * notdone_{L-1} * qTargetSA_{L-1})
+        # nt=2: b'_{L-1} = r_{L-1} + gamma * notdone_{L-1} * b_{L} ( = qTargetSA_{L-1}) = r_{L-1} + gamma * notdone_{L-1} * qTargetSA_{L-1} 
+        # nt=2: b'_{L} = 0 + gamma * 1 * b_{L+1} ( = gamma * qTargetSA_{L-1}) = gamma**2 * qTargetSA_{L-1} 
+        #
+        #
+        # nt=3: b''_0 = r_0 + gamma * notdone_0 * b'_1 (= r_1 + gamma * notdone_1 * b2 (= r_2 + gamma * notdone_2 * qTargetSA_3))
+        # nt=3: b''_1 = r_1 + gamma * notdone_1 * b'_2 (= r_2 + gamma * notdone_2 * b3 (= r_3 + gamma * notdone_3 * qTargetSA_4))
+        #   ...
+        # nt=3: b''_{L-3} = r_{L-3} + gamma * notdone_{L-3} * b'_{L-2} ( = r_{L-2} + gamma * notdone_{L-2} * b_{L-1}) = r_{L-3} + gamma * notdone_{L-3} * r_{L-2} + gamma **2 * notdone_{L-3} * notdone_{L-2} * r_{L-1} + gamma ** 3 * notdone_{L-3} * notdone_{L-2} * notdone_{L-1} qTargetSA_{L-1})
+        # nt=3: b''_{L-2} = r_{L-2} + gamma * notdone_{L-2} * b'_{L-1} ( = r_{L-1} + gamma * notdone_{L-1} * b_{L}) = r_{L-2} + gamma * notdone_{L-2} * r_{L-1} + gamma **2 * notdone_{L-2} * notdone_{L-1} qTargetSA_{L-1})
+        # nt=3: b''_{L-1} = r_{L-1} + gamma * notdone_{L-1} * b'_{L} ( = gamma**2 * qTargetSA_{L-1}) = r_{L-1} + gamma * n_step * notdone_{L-1} * qTargetSA_{L-1} 
+        
+
+        # nt=3: b''_{L} = 0 + gamma * 1 * b_{L+n_step-2} ( = qTargetSA_{L-1}/gamma) ) = qTargetSA_{L-1} 
+        # nt=3: b''_{L+n_step-3} = 0 + gamma * 1 * b_{L+n_step-1} ( = qTargetSA_{L-1}/gamma**2 ) = qTargetSA_{L-1}/gamma 
+        
+        unscaled_bellman_target_Si_onlineGreedyAction = rewards_i \
+            + gamma * notdones_i * unscaled_bellman_target_Si_onlineGreedyAction[:, 1:] 
+        # (batch_size, training_length+n_step-nt, 1)
+    
+    # (batch_size, training_length, 1)
+    return unscaled_bellman_target_Si_onlineGreedyAction
 
 # Adapted from: https://github.com/google-research/seed_rl/blob/34fb2874d41241eb4d5a03344619fb4e34dd9be6/agents/r2d2/learner.py#L333
 def compute_loss(states: torch.Tensor,
@@ -600,62 +763,24 @@ def compute_loss(states: torch.Tensor,
     ).reshape(batch_size, training_length, -1)
     # (batch_size, training_length, 1)
 
-    # Mixed n-step value approach:
-    unscaled_targetQ_Sipn_onlineGreedyAction = torch.cat(
-        [
-            unscaled_targetQ_Si_onlineGreedyAction[:, kwargs['n_step']:, ...]
-        ]+[
-            unscaled_targetQ_Si_onlineGreedyAction[:, -1:, ...] / gamma**(k+1) # it will be normalized down below when computing bellman target    
-            for k in range(kwargs['n_step'])
-        ],
-        dim=1,
+    """
+    # Assumes training_rewards is actually n-step returns...
+    unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
+        training_returns=training_rewards,
+        training_non_terminals=training_non_terminals,
+        unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction,
+        gamma=gamma,
+        kwargs=kwargs
     )
-    # (batch_size, training_length, 1)
-    
-    '''
-    # Adapted from hanabi_SAD :
-    targetQ_Sipn_argmaxAipn_values = torch.cat([
-            targetQ_Si_argmaxAQvalue[:, kwargs['n_step']:],
-            targetQ_Si_argmaxAQvalue[:, :kwargs['n_step']]
-        ],
-        dim=1
+    """
+    unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
+        training_rewards=training_rewards,
+        training_non_terminals=training_non_terminals,
+        unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction,
+        gamma=gamma,
+        kwargs=kwargs
     )
-    '''
-    # Adapted from hanabi_SAD : 
-    # https://github.com/facebookresearch/hanabi_SAD/blob/54a8d34f6ab192898121f8d3935339e63f1f4b35/pyhanabi/r2d2.py#L373
-    # Zero-ing the value of the state we cannot compute a complete n-step sounds valuable:
-    # given that the alternative is to get an unreliable target-network-based estimation..
-    # unfortunately, it results in a less expressive qa function at the beginning, 
-    # as opposed to using mixed n-step values... 
-    #unscaled_targetQ_Sipn_onlineGreedyAction[:, -kwargs['n_step']:] = 0
-    
-    '''
-    training_non_terminals_ipn = torch.cat(
-        [   # :k+1 since k \in [0, n_step-1], and np.zeros(length)[:0] has shape (0,)...
-            training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
-            for k in range(kwargs['n_step'])
-        ]+[
-            training_non_terminals.prod(dim=1).reshape(batch_size, 1, -1)
-        ]*(training_non_terminals.shape[1]-kwargs['n_step']),
-        dim=1,
-    )
-    '''
-    training_non_terminals_ipnm1 = torch.cat(
-        [   
-            training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
-            for k in range(training_non_terminals.shape[1])
-        ],
-        dim=1,
-    )
-    
-    # Compute the Bellman Target for Q values at Si,Ai: with gamma
-    #bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values * training_non_terminals
-    #bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values * training_non_terminals_ipn
-    # Potentially Correct one:
-    unscaled_bellman_target_Sipn_onlineGreedyAction = training_rewards + (gamma**kwargs['n_step']) * unscaled_targetQ_Sipn_onlineGreedyAction * training_non_terminals_ipnm1
-    # Test non_terminal computation:
-    #bellman_target_Sipn_Aipn = training_rewards + (gamma**kwargs['n_step']) * targetQ_Sipn_argmaxAipn_values
-    
+
     # (batch_size, training_length, ...)
     scaled_bellman_target_Sipn_onlineGreedyAction = value_function_rescaling(unscaled_bellman_target_Sipn_onlineGreedyAction)
 
@@ -685,14 +810,24 @@ def compute_loss(states: torch.Tensor,
     # not sure where this masking strategy comes from, maybe forget about it
     # since the distribution of qa values is more expressive without it...
     # the initial rational for it was to allow training on the last value only if terminal...
+    assert kwargs["r2d2_loss_masking"], "r2d2_loss_masking must be True for this test."
     if kwargs["r2d2_loss_masking"]:
         mask = torch.ones_like(diff_squared)
         mask[:,-1, ...] = (1-training_non_terminals[:,-1,...])
-    
+        #if torch.any(training_non_terminals[:,-1,...]==0):
+        #    import ipdb; ipdb.set_trace()
+
+        assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
+        if kwargs['r2d2_loss_masking_n_step_regularisation']:
+            mask[:, -kwargs["n_step"]:, ...] = 0
+
         loss_per_item = loss_per_item*mask
         loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
     else:
-        loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*training_predictions['ent'].mean()
+        mask = torch.ones_like(diff_squared)
+        loss_per_item = loss_per_item*mask
+        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
+        #loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*training_predictions['ent'].mean()
     
     end = time.time()
 
@@ -718,9 +853,9 @@ def compute_loss(states: torch.Tensor,
         summary_writer.add_scalar('Training/MinTrainingNStepReturn', training_rewards.cpu().min().item(), iteration_count)
         summary_writer.add_scalar('Training/MaxTrainingNStepReturn', training_rewards.cpu().max().item(), iteration_count)
         
-        summary_writer.add_scalar('Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A', unscaled_targetQ_Sipn_onlineGreedyAction.cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A', unscaled_targetQ_Sipn_onlineGreedyAction.cpu().min().item(), iteration_count)
-        summary_writer.add_scalar('Training/MaxTargetQSipn_ArgmaxAOnlineQSipn_A', unscaled_targetQ_Sipn_onlineGreedyAction.cpu().max().item(), iteration_count)
+        #summary_writer.add_scalar('Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A', unscaled_targetQ_Sipn_onlineGreedyAction.cpu().mean().item(), iteration_count)
+        #summary_writer.add_scalar('Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A', unscaled_targetQ_Sipn_onlineGreedyAction.cpu().min().item(), iteration_count)
+        #summary_writer.add_scalar('Training/MaxTargetQSipn_ArgmaxAOnlineQSipn_A', unscaled_targetQ_Sipn_onlineGreedyAction.cpu().max().item(), iteration_count)
         
         summary_writer.add_scalar('Training/MeanTargetQsi', unscaled_targetQ_Si_A_values.cpu().mean().item(), iteration_count)
         summary_writer.add_scalar('Training/MinTargetQsi', unscaled_targetQ_Si_A_values.cpu().min().item(), iteration_count)

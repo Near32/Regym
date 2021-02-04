@@ -326,12 +326,12 @@ r2d2_LargeCNNMLP_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeCNNM
 experiment:
     tasks: [{
         #'env-id': 'PongNoFrameskip-v4',
-        #'env-id': 'SimpleMemoryTestingEnv-v0',
+        'env-id': 'SimpleMemoryTestingEnv-v0',
         #'env-id': 'SimpleMemoryTestingEnv-2Colors-v0',
-        'env-id': 'SimpleMemoryTestingEnv-Easy-v0',
+        #'env-id': 'SimpleMemoryTestingEnv-Easy-v0',
         #'env-id': 'SimpleMemoryTestingEnv-Easy-2Colors-v0',
 
-        'run-id': 'test/serial/debugLSTMGRU/debugTinyArch-WithOutBN/Env-NoPenaltyTimeLimit-WithTimePenalty/ScalingFN_EPS1m3/Seed1_venv32_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
+        'run-id': 'test/serial/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction/ReplicateProperParam/Env-NoPenaltyTimeLimit-WithTimePenalty/ScalingFN_EPS1m3/Seed1_venv32_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
         
         #####
         # now trying to solve pong:
@@ -360,8 +360,21 @@ experiment:
         # Store on terminal but without zero init state?
         #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_NOZeroInitStates',
 
-        # Both + n=5step?
-        'agent-id': '5step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates',
+        # With bigger replay_buffer:
+        #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates',
+        # ... and masked loss: complete failure?!
+        # multiplier by mask but ones...? not difference without multiplication
+        # new loss computation with n_step bellman_target function + masked loss: back to small replay buffer...
+        #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss',
+        # 3steps? more stable
+        #'agent-id': '3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss',
+        # 10steps? instability due to max bellman target explosion...
+        #'agent-id': '10step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss',
+        # Trying to regularise loss computation with regards to n_step:
+        'agent-id': '3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_RegMaskedLoss',
+        
+        # Both + n=5step? not okay cause the loss has an issue...
+        #'agent-id': '5step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates',
 
         # With loss masking?
 
@@ -451,7 +464,45 @@ agents:
     1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates:
         <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
         sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
     
+    1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        replay_capacity: 5e4
+        min_capacity: 3e4 
+
+    #1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+    1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        #replay_capacity: 5e4
+        #min_capacity: 3e4 
+        r2d2_loss_masking: True
+        n_step: 1
+
+    #3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+    3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        #replay_capacity: 5e4
+        #min_capacity: 3e4 
+        r2d2_loss_masking: True
+        n_step: 3
+
+    3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_RegMaskedLoss:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        replay_capacity: 5e4
+        min_capacity: 3e4 
+        r2d2_loss_masking: True
+        r2d2_loss_masking_n_step_regularisation: True
+        n_step: 3
+
     5step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates:
         <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
         sequence_replay_store_on_terminal: True
