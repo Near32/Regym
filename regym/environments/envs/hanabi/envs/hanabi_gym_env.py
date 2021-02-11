@@ -315,6 +315,40 @@ class TinyAbstractHanabiOHEObs2P2C3AGymEnv(TinyAbstractHanabiGymEnv,EzPickle):
             observation_type=1,
         )
 
+class EasyTinyAbstractHanabiOHEObs2P2C3AGymEnv(TinyAbstractHanabiGymEnv,EzPickle):
+    def __init__(self, seed: int = 0,):
+        """
+        """
+        EzPickle.__init__(**locals())
+        
+        """
+        payout_matrix = [              
+            [[[10, 0, 0], [4, 8, 4], [10, 0, 0]],
+            [[0, 0, 10], [4, 8, 4], [0, 0, 10]]],
+            [[[0, 0, 10], [4, 8, 4], [0, 0, 0]],
+            [[10, 0, 0], [4, 8, 4], [10, 0, 0]]]
+        ]
+        """
+        payout_matrix = [              
+            [[[10, 0, 0], [4, 0, 4], [10, 0, 0]],
+            [[0, 0, 10], [4, 0, 4], [0, 0, 10]]],
+            [[[0, 0, 10], [4, 0, 4], [0, 0, 0]],
+            [[10, 0, 0], [4, 0, 4], [10, 0, 0]]]
+        ]
+
+        payout_matrix = np.array(payout_matrix)
+
+        TinyAbstractHanabiGymEnv.__init__(
+            self=self,
+            payout_matrix = payout_matrix,
+            num_cards = 2,
+            num_actions = 3,
+            players = 2,
+            random_start_player= False,
+            seed=seed,
+            observation_type=1,
+        )
+
 """
  TODO:
     1. think about a penalty wrapper for illegal moves, maybe?
@@ -420,9 +454,6 @@ class HanabiGymEnv(gym.Env):
         self.agents = list(range(self.hanabi_env.players))
         self.current_agent: int
 
-        # Sets hanabi game to clean state and updates all internal dictionaries
-        self.reset()
-
         agent_action_space = gym.spaces.Discrete(self.hanabi_env.num_moves())
         #self.action_space = gym.spaces.Tuple([agent_action_space for _ in self.agents])
         self.action_space = agent_action_space
@@ -462,7 +493,7 @@ class HanabiGymEnv(gym.Env):
         #self.observation_space = gym.spaces.Tuple([agent_observation_space for _ in self.agents])
         self.observation_space = agent_observation_space
 
-
+        
     def seed(self, seed=None):
         self._config['seed'] = seed
         self.hanabi_env = HanabiEnv(config=self._config)
@@ -515,9 +546,10 @@ class HanabiGymEnv(gym.Env):
     def _encode_observations(self, obs: Dict, reward: Optional[float] = 0, done: Optional[bool] = False):
         self.dict_observation = obs 
         self.observations = [
-            obs['player_observations'][player_idx]['vectorized']
+            np.asarray(obs['player_observations'][player_idx]['vectorized'])
             for player_idx in self.agents
         ]
+        
         self.rewards = [reward for _ in self.agents]
         self.done = done
 
