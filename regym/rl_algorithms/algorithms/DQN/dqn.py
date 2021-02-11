@@ -44,6 +44,7 @@ class DQNAlgorithm(Algorithm):
         self.dueling = self.kwargs['dueling']
         self.noisy = self.kwargs['noisy']
         self.n_step = self.kwargs['n_step'] if 'n_step' in self.kwargs else 1
+        
         if self.n_step > 1:
             self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
 
@@ -159,7 +160,8 @@ class DQNAlgorithm(Algorithm):
             hard_update(self.target_model, models_dict["target_model"])
     
     def get_nbr_actor(self):
-        return self.nbr_actor
+        nbr_actor = self.nbr_actor
+        return nbr_actor
 
     def set_nbr_actor(self, nbr_actor):
         self.nbr_actor = nbr_actor
@@ -215,9 +217,11 @@ class DQNAlgorithm(Algorithm):
         else:
             self.eps = self.epsend + max(0, (self.epsstart-self.epsend)/((float(nbr_steps)/self.epsdecay)+1))
 
+        """
         if self.summary_writer is not None:
             for actor_i in range(self.eps.shape[0]):
                 self.summary_writer.add_scalar(f'Training/Eps_Actor_{actor_i}', self.eps[actor_i], nbr_steps)
+        """
         
         return self.eps 
 

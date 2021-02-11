@@ -8,7 +8,8 @@ extra_hyperparameters: &extra_hyperparameters
     sequence_replay_store_on_terminal: True 
     r2d2_loss_masking: True
     r2d2_loss_masking_n_step_regularisation: True
-            
+    r2d2_bellman_target_SAD: True 
+
     burn_in: True 
     sequence_replay_unroll_length: 80
     sequence_replay_overlap_length: 40
@@ -16,7 +17,8 @@ extra_hyperparameters: &extra_hyperparameters
 
     sequence_replay_PER_eta: 0.9
 
-
+    vdn: False 
+    vdn_nbr_players: 2
 
 MLPLSTM: &MLPLSTM
         phi_arch: 'MLP'
@@ -63,6 +65,8 @@ MLPLSTM: &MLPLSTM
         critic_arch_hidden_units: [64]
 
 SAD_MLPLSTM: &SAD_MLPLSTM
+        sad: True
+        
         phi_arch: 'MLP'
         actor_arch: 'None'
         critic_arch: 'LSTM-RNN'
@@ -84,12 +88,50 @@ SAD_MLPLSTM: &SAD_MLPLSTM
                 shape: ['task.action_dim',], 
                 target_location: ['critic_body', 'extra_inputs']
             },
+            ########################
+            # WITH SAD:
+            ########################
+            'greedy_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            ########################
+            ########################
             'legal_actions':{
                 shape: ['task.action_dim',], 
                 target_location: ['head', 'extra_inputs']
-            },
-               
+            },       
         }
+        
+
+        # extra_inputs_infos: {
+        #     'previous_reward':{
+        #         shape: [1,], 
+        #         target_location: ['phi_body', 'extra_inputs']
+        #     },
+        #     'previous_action':{
+        #         shape: ['task.action_dim',], 
+        #         target_location: ['phi_body', 'extra_inputs']
+        #     },
+        #     'action_mask':{
+        #         shape: ['task.action_dim',], 
+        #         target_location: ['phi_body', 'extra_inputs']
+        #     },
+        #     ########################
+        #     # WITH SAD:
+        #     ########################
+        #     'greedy_action':{
+        #         shape: ['task.action_dim',], 
+        #         target_location: ['phi_body', 'extra_inputs']
+        #     },
+        #     ########################
+        #     ########################
+        #     'legal_actions':{
+        #         shape: ['task.action_dim',], 
+        #         target_location: ['head', 'extra_inputs']
+        #     },
+               
+        # }
 
         # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
         # Value is a tuple where the first element is the expected shape of the extra input,
@@ -103,6 +145,8 @@ SAD_MLPLSTM: &SAD_MLPLSTM
         critic_arch_hidden_units: [512, 512]
 
 SAD_MLP: &SAD_MLP
+        sad: True 
+
         phi_arch: 'None'
         actor_arch: 'None'
         critic_arch: 'MLP-MLP-RNN'
@@ -194,7 +238,7 @@ SAD_LINEAR: &SAD_LINEAR
         critic_arch_hidden_units: [32]
 
 r2d2_MLPLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_MLPLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
-        dueling: False
+        dueling: True
         noisy: False 
         n_step: 1
 
@@ -238,7 +282,7 @@ r2d2_SAD_MLPLSTM_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_SAD_MLPLSTM_g
         min_capacity: 4e5 #in terms of experiences... #1e4
         replay_period: 1
         
-        actor_models_update_steps_interval: 10 #considering only 1 actor's steps.
+        actor_models_update_steps_interval: 1 #considering only 1 actor's steps.
 
         discount: 0.999
         use_cuda: True
@@ -253,8 +297,8 @@ r2d2_SAD_MLPLSTM_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_SAD_MLPLSTM_g
         epsdecay: 10000
         eps_greedy_alpha: 7.0
 
-        sequence_replay_use_zero_initial_states: True
-        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: False
         r2d2_loss_masking: True
         r2d2_loss_masking_n_step_regularisation: True
         
@@ -296,8 +340,8 @@ r2d2_SAD_MLP_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_SAD_MLP_graclip5m
         epsdecay: 10000
         eps_greedy_alpha: 7.0
 
-        sequence_replay_use_zero_initial_states: True
-        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: False
         r2d2_loss_masking: True
         r2d2_loss_masking_n_step_regularisation: True
         
@@ -359,24 +403,35 @@ r2d2_SAD_LINEAR_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_SAD_LINEAR_gra
 experiment:
     tasks: [{
         #'env-id': 'TinyAbstractHanabi2P2C3A-v0',
-        'env-id': 'TinyAbstractHanabi2P2C3A-OHEObs-v0',
-        #'env-id': 'Hanabi-VerySmall-v0',
+        #'env-id': 'TinyAbstractHanabi2P2C3A-OHEObs-v0',
+        #'env-id': 'EasyTinyAbstractHanabi2P2C3A-OHEObs-v0',
+        'env-id': 'Hanabi-VerySmall-v0',
         #'env-id': 'Hanabi-Full-v0',
         #'env-id': 'Hanabi-Small-v0',
         
         
         
-        'run-id': 'test/serial/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction/Env-NoPenaltyTimeLimit-WithTimePenalty/ScalingFN_EPS1m3/Seed1_venv32_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
+        #'run-id': 'test/serial/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction/Env-NoPenaltyTimeLimit-WithTimePenalty/ScalingFN_EPS1m3/Seed1_venv32_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
+        # SAD bellman target:
+        #'run-id': 'test/serial/SELFPLAY/L2AUpdateInterval1p0/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction_SAD/AddingNonLinFCN+Dueling+ExtraInputOnInitialLayer/LayerInitFn/NOScalingFN_EPS1m3/Seed11_venv3160_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
         
-        'agent-id': 'SAD_1step_linear_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_LINEAR_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss',
+        #'run-id': 'test/serial/SELFPLAY/L2AUpdateInterval1p0/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction_SAD/AddingNonLinFCN+Dueling+ExtraInputOnCriticLayer/LayerInitFn/NOScalingFN_EPS1m3/Seed11_venv3160_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
+        'run-id': 'test/serial/SELFPLAY/L2AUpdateInterval1p0/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction_SAD/AddingNonLinFCN+NONDueling+ExtraInputOnCriticLayer/LayerInitFn/NOScalingFN_EPS1m3/Seed11_venv3160_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
         
-        'nbr_actor': 32,
+        #'agent-id': 'SAD_1step_linear_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_LINEAR_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss',
+        #'agent-id': 'SAD_3step_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_MLP_LSTM_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss',
+        
+        'agent-id': 'SAD_VDN_3step_r2d2_AdamLR6d25m5_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha7_gamma999_SAD_MLP_LSTM_GradClip5m0_r1p5Min2e4_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOTermSt_NOZeroInitSt_RegMaskLoss',
+        
+        'nbr_actor': 160, #1600 #32,
         #'nbr_frame_skipping': 4,
         #'nbr_frame_stacking': 4,
         #'grayscale': True,
         #'single_life_episode': True, #False,
         #'nbr_max_random_steps': 30,
         'sad': True,
+        'vdn': True,
+        'vdn_nbr_players': 2,
         'clip_reward': False,
         'previous_reward_action': True,
         #'observation_resize_dim': (84,84),
@@ -386,15 +441,15 @@ experiment:
     benchmarking_episodes: 10
     benchmarking_interval: 1.0e3
     benchmarking_record_episode_interval: 1.0e20
-    train_observation_budget: 640000 #1.0e10 #3.0e5 #1.0e7
-    seed: 2
+    train_observation_budget: 5.0e6 #640000 #1.0e10 #3.0e5 #1.0e7
+    seed: 11
 
 agents:    
     SAD_1step_linear_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_LINEAR_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss:
         <<: *r2d2_SAD_LINEAR_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
         #<<: *r2d2_SAD_MLP_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
         #<<: *r2d2_SAD_MLPLSTM_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
-        actor_models_update_steps_interval: 10 #considering only 1 actor's steps.
+        actor_models_update_steps_interval: 1 #considering only 1 actor's steps.
 
         learning_rate: 5e-1
         #learning_rate: 1e-3
@@ -427,7 +482,8 @@ agents:
         sequence_replay_store_on_terminal: True 
         r2d2_loss_masking: True
         r2d2_loss_masking_n_step_regularisation: True
-        
+        r2d2_bellman_target_SAD: True 
+
         burn_in: False
 
         sequence_replay_unroll_length: 20
@@ -445,17 +501,18 @@ agents:
         # with base_eps=0.4 and \alpha = 7...
         eps_greedy_alpha: 0.0
 
-    SAD_1step_paper_r2d2_AdamLRActually625m5_EPS1d5m5_L2AModelUpdate10Steps_EPSgreedyAPEX1m0_4m1OVER6p5_gamma999_SAD_LINEAR_GradClip5m1_r2p4Min2e3_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L2_O1_B0:
-        <<: *r2d2_SAD_LINEAR_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
+    SAD_3step_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_MLP_LSTM_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss: &SAD_3step_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_MLP_LSTM_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss
+        #<<: *r2d2_SAD_LINEAR_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
         #<<: *r2d2_SAD_MLP_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
-        #<<: *r2d2_SAD_MLPLSTM_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
-        actor_models_update_steps_interval: 10 #considering only 1 actor's steps.
+        <<: *r2d2_SAD_MLPLSTM_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
+        actor_models_update_steps_interval: 1 #considering only 1 actor's steps.
 
+        learning_rate: 5e-1
         #learning_rate: 1e-3
-        learning_rate: 6.25e-5
+        #learning_rate: 6.25e-5
         adam_eps: 1.5e-5
-        discount: 0.999
-        #discount: 0.997
+        #discount: 0.999
+        discount: 0.997
         gradient_clip: 0.5 
         # ...not specified in r2d2 paper but in Ape-X,
         # and r2d2 paper says that missing hyper-param
@@ -470,26 +527,81 @@ agents:
         dueling: True 
         noisy: False
         
-        n_step: 1
+        #n_step: 1
+        n_step: 3
         
         #tau: 1e-1
         #tau: 1e-2
         #tau: 1e-3 
         tau: 4.0e-4
         
+        sequence_replay_use_zero_initial_states: True
+        sequence_replay_store_on_terminal: True 
+        r2d2_loss_masking: True
+        r2d2_loss_masking_n_step_regularisation: True
+        r2d2_bellman_target_SAD: True 
+
         burn_in: False
-        sequence_replay_unroll_length: 2
-        sequence_replay_overlap_length: 1
+
+        sequence_replay_unroll_length: 20
+        sequence_replay_overlap_length: 10
         sequence_replay_burn_in_length: 0
         
 
         epsstart: 1.0
-        #epsend: 0.1
-        epsend: 0.4
-        epsdecay: 600000 #30000 #1000000
+        epsend: 0.05
+        #epsend: 0.4
+        epsdecay: 300000 #30000 #1000000
         
         # ape-X and r2d2 keep it constant over each actor 
         # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
         # with base_eps=0.4 and \alpha = 7...
+        eps_greedy_alpha: 0.0
+    
+    # Hanabi SAD implementation starts from stored RNN states:
+    SAD_VDN_3step_r2d2_AdamLR6d25m5_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha7_gamma999_SAD_MLP_LSTM_GradClip5m0_r1p5Min2e4_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOTermSt_NOZeroInitSt_RegMaskLoss: &SAD_VDN_3step_r2d2_AdamLR1m3_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma999_SAD_MLP_LSTM_GradClip5m0_r1p5Min2e4_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOTermSt_NOZeroInitSt_RegMaskLoss
+        #<<: *SAD_3step_r2d2_AdamLR5m1_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma997_SAD_MLP_LSTM_GradClip5m1_r2p4Min2e3_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_TermSt_ZeroInitSt_RegMaskLoss
+        <<: *r2d2_SAD_MLPLSTM_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
+        actor_models_update_steps_interval: 1 #considering only 1 actor's steps.
+        
+        vdn: True 
+        vdn_nbr_players: 2
+
+        learning_rate: 6.25e-5
+        adam_eps: 1.5e-5
+        discount: 0.999
+        gradient_clip: 5.0 
+
+        batch_size: 128
+        replay_capacity: 1e5 #2e4 #163840 #2e13*20 #5242880 # in terms of experience #1e6
+        min_capacity: 2e4 #2e3 #in terms of experiences... #1e4
+        
+        double: True
+        dueling: False #True 
+        noisy: False
+        n_step: 3
+        tau: 4.0e-4
+        
+        use_PER: True
+        PER_alpha: 0.9
+        PER_beta: 0.6
+
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: False 
+        #r2d2_loss_masking: True
+        #r2d2_loss_masking_n_step_regularisation: True
+        #r2d2_bellman_target_SAD: True
+
+        burn_in: False
+        sequence_replay_unroll_length: 20
+        sequence_replay_overlap_length: 10
+        sequence_replay_burn_in_length: 0
+        
+        epsstart: 1.0
+        epsend: 0.05
+        epsdecay: 300000 #30000 #1000000
         eps_greedy_alpha: 7.0
     
+    SAD_VDN_3step_r2d2_AdamLR1m3_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma999_SAD_MLP_LSTM_GradClip5m0_r1p5Min2e4_a9m1_b6m1_over2e4_e9m1_tau1m2_RepP1_NOBURNIN_b128_L20_O10_B0_NOTermSt_NOZeroInitSt_RegMaskLoss:
+        <<: *SAD_VDN_3step_r2d2_AdamLR1m3_EPS1d5m5_EPSAPEX1m0_5m2OVER3p5_Alpha0_gamma999_SAD_MLP_LSTM_GradClip5m0_r1p5Min2e4_a9m1_b6m1_over2e4_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOTermSt_NOZeroInitSt_RegMaskLoss
+        tau: 1e-2

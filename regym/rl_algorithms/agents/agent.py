@@ -183,6 +183,18 @@ class Agent(object):
 
     def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[]):
         # TODO: account for the indices in rnn states:
+        if "vdn" in self.algorithm.kwargs \
+        and self.algorithm.kwargs["vdn"]:
+            nbr_players = self.algorithm.kwargs["vdn_nbr_players"]
+            nbr_envs = nbr_actor
+            nbr_actor *= nbr_players
+            if isinstance(actor_indices,list):
+                new_actor_indices = []
+                for aidx in actor_indices:
+                    for pidx in range(nbr_players):
+                        new_actor_indices.append(aidx+nbr_envs*pidx)
+                actor_indices = new_actor_indices
+
         lookedup_keys = ['LSTM', 'GRU']
         new_rnn_states = {}
         #kwargs = {'cuda': algorithm.kwargs['use_cuda'], 'repeat':nbr_actor}

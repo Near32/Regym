@@ -1,3 +1,4 @@
+from typing import Dict, Any, Optional, List, Callable, Union
 import os
 import copy
 from functools import partial 
@@ -7,6 +8,7 @@ from collections import deque, OrderedDict
 import cv2
 cv2.setNumThreads(0)
 import numpy as np
+
 
 import gym
 from gym.wrappers import TimeLimit
@@ -19,6 +21,172 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 verbose = False
+
+
+
+def is_leaf(node: Dict):
+    return all([ not isinstance(node[key], dict) for key in node.keys()])
+
+def _concatenate_list_hdict(
+    lhds: List[Dict],
+    concat_fn: Optional[Callable] = partial(np.concatenate, axis=0),
+    preprocess_fn: Optional[Callable] = (lambda x: x)
+    ):
+    out_hd = {key: {} for key in lhds[0]}
+
+    queue = [lhds]
+    pointers = None
+
+    out_queue = [out_hd]
+    out_pointer = None
+
+    while len(queue):
+        pointers = [hds for hds in queue.pop(0)]
+        out_pointer = out_queue.pop(0)
+
+        if not is_leaf(pointers[0]):
+            #out_pointer = {}
+            # previously is taken care of at 145 upon initialization,
+            # and then at 165 upon 'recurrence'.
+            for k in pointers[0]:
+                queue_element = [pointer[k] for pointer in pointers if k in pointer]
+                queue.insert(0, queue_element)
+
+                out_pointer[k] = {}
+                out_queue.insert(0, out_pointer[k])
+        else:
+            for k in pointers[0]:
+                # Previously assigned as a dictionnary in 145 or 165...
+                out_pointer[k] = []
+                # Since we are at a leaf then value is
+                # either numpy or numpy.float64
+                # or list of tensors:
+                if isinstance(pointers[0][k], list):
+                    for idx in range(len(pointers[0][k])):
+                        concat_list = [
+                            preprocess_fn(pointer[k][idx])
+                            for pointer in pointers if k in pointer
+                        ]
+                        out_pointer[k].append(
+                            concat_fn(concat_list)
+                        )
+                else:
+                    concat_list = [
+                        preprocess_fn(pointer[k])
+                        for pointer in pointers if k in pointer
+                    ]
+                    out_pointer[k] = concat_fn(concat_list)
+    return out_hd
+
+class VDNVecEnvWrapper(object):
+    def __init__(self, env, nbr_players):
+        '''
+        Value-Decomposition Network-purposed wrapper expects the action argument to
+        contain an extra dimension for the number of players.
+        It reorganises the action by separating it into a list of batched actions,
+        where each element of the list corresponds to the set of batched actions 
+        of a given player.
+        As far as the inner environment outputs are concerned, they are expected
+        to be list of batched elements. This wrapper transforms the list of elements
+        into a singleton list whose element contains an extra dimension as the player
+        dimension.
+        '''
+        self.env = env
+        self.nbr_players = nbr_players
+
+    def get_nbr_envs(self):
+        return self.env.get_nbr_envs()
+
+    def set_nbr_envs(self, nbr_envs):
+        self.env.set_nbr_envs(nbr_envs)
+
+    def reset(self, **kwargs):
+        next_obs, next_infos = self.env.reset(**kwargs)
+        
+        vdn_obs = np.concatenate(
+            next_obs,
+            axis=0
+        )
+        next_obs = [vdn_obs]
+
+        list_infos = []
+        for li in next_infos:
+            for k in range(len(li)):
+                list_infos.append(li[k])
+        """
+        next_infos = [
+            _concatenate_list_hdict(
+                lhds=list_infos, 
+                concat_fn=partial(np.stack, axis=1),   # stack on new player dimension.
+                preprocess_fn=lambda x: x,
+            )
+        ]
+        """
+        next_infos = [list_infos]
+
+        return next_obs, next_infos
+
+    def step(self, action, **kwargs):
+        assert isinstance(action, list) and len(action)==1, "action argument must be a singleton list of dictionnary (SAD) or tensor."
+        # We are transforming it into an list of dictionnary with nbr_players
+        
+        observed_batch_size : int
+        if isinstance(action[0], dict): #sad?
+            observed_batch_size = action[0]['action'].shape[0]
+        else:
+            observed_batch_size = action[0].shape[0]
+        
+        nbr_env = observed_batch_size // self.nbr_players
+        
+        env_action = []
+        if isinstance(action[0], dict): #sad?
+            for pidx in range(self.nbr_players):
+                ad = {}
+                for k, av in action[0].items():
+                    ad[k] = av[pidx*nbr_env:(pidx+1)*nbr_env, ...]
+                env_action.append(ad)
+        else:
+            for pidx in range(self.nbr_players):
+                a = action[0][pidx*nbr_env:(pidx+1)*nbr_env, ...]
+                env_action.append(a)
+
+        next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
+        
+        next_obs = [
+            np.concatenate(
+                next_obs,
+                axis=0
+            )
+        ]
+        # 1 x (batch_size*num_player, ...)
+
+        reward_shape = reward[0].shape
+        reward = [
+            np.concatenate(
+                reward,
+                axis=0
+            )
+        ]
+        # 1 x (batch_size*num_player, ...)
+        
+        list_infos = []
+        for li in next_infos:
+            for k in range(len(li)):
+                list_infos.append(li[k])
+        
+        next_infos = [list_infos]
+        """next_infos = [
+            _concatenate_list_hdict(
+                lhds=list_infos, 
+                concat_fn=partial(np.concatenate, axis=0),   # stack on new player dimension.
+                preprocess_fn=lambda x: x,
+            )
+        ]
+        # 1 x key x (batch_size*num_player, ...)
+        """
+
+        return next_obs, reward, done, next_infos
+
 
 # # Wrappers:
 # # Observation Wrappers:
@@ -1516,14 +1684,24 @@ class SADVecEnvWrapper(object):
     def get_nbr_envs(self):
         return self.env.get_nbr_envs()
 
-    def reset(self, **kwargs):
-        return self.env.reset(**kwargs)
+    def set_nbr_envs(self, nbr_envs):
+        self.env.set_nbr_envs(nbr_envs)
 
-    def step(self, action):
-        assert isinstance(action, list), "action argument must be a list of dictionnary."
+    def reset(self, **kwargs):
+        next_obs, next_infos = self.env.reset(**kwargs)
+        
+        for player_idx in range(2):
+            other_idx = (player_idx+1)%2
+            for env_idx in range(len(next_infos[player_idx])):
+                ohe_ga = np.zeros((1,self.nbr_actions), dtype=np.float32)
+                next_infos[player_idx][env_idx]["greedy_action"] = ohe_ga
+
+        return next_obs, next_infos
+
+    def step(self, action, **kwargs):
+        assert isinstance(action, list), "action argument must be a list of dictionnary (or tensors if test-time...)."
         assert len(action)==2, "not implemented yet for more than 2 players..."
         
-
         env_action = []
         if isinstance(action[0], dict):
             for a in action:
@@ -1531,12 +1709,15 @@ class SADVecEnvWrapper(object):
         else:
             env_action = action
 
-        next_obs, reward, done, next_infos = self.env.step(env_action)
+        next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
         
         for player_idx in range(2):
             other_idx = (player_idx+1)%2
             for env_idx in range(len(next_infos[player_idx])):
-                ga = action[other_idx]["greedy_action"][env_idx]
+                if isinstance(action[0], dict):
+                    ga = action[other_idx]["greedy_action"][env_idx]
+                else:
+                    ga = action[other_idx][env_idx]
                 ohe_ga = np.zeros((1,self.nbr_actions), dtype=np.float32)
                 ohe_ga[0,ga] = 1
                 next_infos[player_idx][env_idx]["greedy_action"] = ohe_ga

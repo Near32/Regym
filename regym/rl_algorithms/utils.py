@@ -250,3 +250,42 @@ def _concatenate_list_hdict(
                     ]
                     out_pointer[k] = concat_fn(concat_list)
     return out_hd
+
+
+def apply_on_hdict(
+    hdict: Dict,
+    fn: Optional[Callable] = lambda x: x,
+    ):
+    out_hd = {key: {} for key in hdict}
+
+    queue = [hdict]
+    pointer = None
+
+    out_queue = [out_hd]
+    out_pointer = None
+
+    while len(queue):
+        pointer = queue.pop(0)
+        out_pointer = out_queue.pop(0)
+
+        if not is_leaf(pointer):
+            for k in pointer:
+                queue_element = pointer[k]
+                queue.insert(0, queue_element)
+
+                out_pointer[k] = {}
+                out_queue.insert(0, out_pointer[k])
+        else:
+            for k in pointer:
+                out_pointer[k] = []
+                # Since we are at a leaf then value is
+                # either numpy or numpy.float64
+                # or list of tensors:
+                if isinstance(pointer[k], list):
+                    for idx in range(len(pointer[k])):
+                        out_pointer[k].append(
+                            fn(pointer[k][idx])
+                        )
+                else:
+                    out_pointer[k] = fn(pointer[k])
+    return out_hd

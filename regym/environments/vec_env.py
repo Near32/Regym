@@ -125,16 +125,25 @@ class VecEnv():
         
         if env_configs is not None: 
             self.worker_ids = [ env_config.pop('worker_id', None) for env_config in env_configs]
-         
+        
+        # Reset environments: 
         for idx in env_indices:
             self.check_update_reset_env_process(idx, env_configs=env_configs, reset=True)
 
         observations = []
         infos = []
-        for idx in env_indices:
+        #for idx in env_indices:
+        for idx in range(self.nbr_parallel_env):
             data = self.get_from_queue(idx) 
             if isinstance(data, tuple):
-                obs, info = data
+                if len(data) == 2:
+                    obs, info = data
+                elif len(data) == 4:
+                    # not an environment that have just been resetted:
+                    # obs, reward, done, info:
+                    obs, reward, done, info = data
+                else:
+                    raise NotImplementedError
             else:
                 obs, info = data, None 
             
@@ -143,6 +152,10 @@ class VecEnv():
 
         
         if self.single_agent:
+            raise NotImplementedError
+            # see above line 135
+            # need to regularise the rl loop per-actor reset to expect full obs and info,
+            # instead of only for the resetted envs...
             per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
             per_env_infos = infos
         else:

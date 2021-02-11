@@ -7,7 +7,7 @@ from collections.abc import Iterable
 
 from ..algorithms.DQN import DQNAlgorithm, dqn_loss, ddqn_loss
 from ..networks import CategoricalQNet
-from ..networks import FCBody, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
+from ..networks import FCBody, FCBody2, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
 from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
 from ..networks import LinearLinearBody, LinearLstmBody
 from ..networks import NoisyLinear
@@ -25,6 +25,7 @@ from .wrappers import DictHandlingAgentWrapper
 from gym.spaces import Dict
 from ..algorithms.wrappers import HERAlgorithmWrapper
 from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
+from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
 
 
 class DQNAgent(Agent):
@@ -81,12 +82,84 @@ class DQNAgent(Agent):
         a = torch.from_numpy(a)
         # batch x ...
 
+        batch_size = a.shape[0]
+
+        if "vdn" in self.kwargs \
+        and self.kwargs["vdn"]:
+            # Add a player dimension to each element:
+            # Assume inputs have shape : [batch_size*nbr_players, ...]
+            nbr_players = self.kwargs["vdn_nbr_players"]
+            batch_size = state.shape[0] // nbr_players
+            
+            new_state = []
+            for bidx in range(batch_size):
+                bidx_states = torch.stack([state[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                new_state.append(bidx_states)
+            state = torch.cat(new_state, dim=0)
+            
+            new_a = []
+            for bidx in range(batch_size):
+                bidx_as = torch.stack([a[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                new_a.append(bidx_as)
+            a = torch.cat(new_a, dim=0)
+
+            new_r = []
+            for bidx in range(batch_size):
+                bidx_rs = torch.stack([r[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                new_r.append(bidx_rs)
+            r = torch.cat(new_r, dim=0)
+
+            """
+            non_terminal = torch.cat([non_terminal]*2, dim=0)
+            new_nt = []
+            for bidx in range(batch_size):
+                bidx_nts = torch.stack([non_terminal[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                new_nt.append(bidx_nts)
+            non_terminal = torch.cat(new_nt, dim=0)            
+            """
+
+            new_succ_state = []
+            for bidx in range(batch_size):
+                bidx_succ_states = torch.stack([succ_state[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                new_succ_state.append(bidx_succ_states)
+            succ_state = torch.cat(new_succ_state, dim=0)
+            
+            hdict_reshape_fn = lambda x: x.reshape(batch_size, nbr_players, *x.shape[1:])
+            
+            for k, t in prediction.items():
+                if isinstance(t, torch.Tensor):
+                    prediction[k] = t.reshape(batch_size, nbr_players, *t.shape[1:])
+                elif isinstance(t, dict):
+                    prediction[k] = apply_on_hdict(
+                        hdict=t,
+                        fn=hdict_reshape_fn,
+                    )
+                else:
+                    raise NotImplementedError
+            
+            # Infos: list of batch_size * nbr_players dictionnaries:
+            new_infos = []
+            for bidx in range(batch_size):
+                bidx_infos = [infos[pidx*batch_size+bidx] for pidx in range(nbr_players)]
+                bidx_info = _concatenate_list_hdict(
+                    lhds=bidx_infos,
+                    concat_fn=partial(np.stack, axis=1),   #new player dimension
+                    preprocess_fn=(lambda x: x),
+                )
+                new_infos.append(bidx_info)
+            infos = new_infos
+            
+            # Goals:
+            if self.goal_oriented:
+                raise NotImplementedError
+
         # We assume that this function has been called directly after take_action:
         # therefore the current prediction correspond to this experience.
 
         batch_index = -1
         done_actors_among_notdone = []
-        for actor_index in range(self.nbr_actor):
+        #for actor_index in range(self.nbr_actor):
+        for actor_index in range(batch_size):
             # If this actor is already done with its episode:
             if self.previously_done_actors[actor_index]:
                 continue
@@ -111,8 +184,12 @@ class DQNAgent(Agent):
             if infos is not None:
                 exp_dict['info'] = infos[actor_index]
 
+            #########################################################################
+            #########################################################################
             exp_dict.update(Agent._extract_from_prediction(prediction, batch_index))
-
+            #########################################################################
+            #########################################################################
+            
 
             if self.recurrent:
                 exp_dict['rnn_states'] = _extract_from_rnn_states(
@@ -132,19 +209,6 @@ class DQNAgent(Agent):
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
             self.handled_experiences +=1
-
-        if len(done_actors_among_notdone):
-            """
-            DEPRECATED: will be removed soon:
-            see update_actors method of agent interface...
-            """
-            pass
-            """
-            # Regularization of the agents' actors:
-            done_actors_among_notdone.sort(reverse=True)
-            for batch_idx in done_actors_among_notdone:
-                self.update_actors(batch_idx=batch_idx)
-            """
 
         self.replay_period_count += 1
         if self.nbr_episode_per_cycle is not None:
@@ -241,6 +305,9 @@ class DQNAgent(Agent):
         if self.training:
             self.nbr_steps += state.shape[0]
         self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
+        if "vdn" in self.kwargs \
+        and self.kwargs["vdn"]:
+            self.eps = np.concatenate([self.eps]*self.kwargs["vdn_nbr_players"], axis=0)
 
         state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
         goal = None
@@ -403,7 +470,30 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
         elif kwargs['phi_arch'] == 'MLP':
             hidden_units=kwargs['phi_arch_hidden_units']
             hidden_units += [output_dim]
-            phi_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
+            
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_phi_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
+                    if 'phi_body' in tl:
+                        extra_inputs_infos_phi_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
+            if extra_inputs_infos_phi_body == {}:
+                phi_body = FCBody(
+                    input_dim, 
+                    hidden_units=hidden_units,
+                )
+            else:
+                phi_body = FCBody2(
+                    input_dim, 
+                    hidden_units=hidden_units,
+                    extra_inputs_infos=extra_inputs_infos_phi_body
+                )
+
         elif kwargs['phi_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             if isinstance(kwargs['observation_resize_dim'], int):

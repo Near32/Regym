@@ -46,7 +46,9 @@ def train_and_evaluate(agents: List[object],
                        test_obs_interval: int = 1e4,
                        test_nbr_episode: int = 10,
                        benchmarking_record_episode_interval: int = None,
-                       step_hooks=[]):
+                       step_hooks=[],
+                       sad=False,
+                       vdn=False):
     
     async = False
     if len(sys.argv) > 2:
@@ -66,7 +68,9 @@ def train_and_evaluate(agents: List[object],
         test_obs_interval=test_obs_interval,
         test_nbr_episode=test_nbr_episode,
         benchmarking_record_episode_interval=benchmarking_record_episode_interval,
-        step_hooks=step_hooks
+        step_hooks=step_hooks,
+        sad=sad,
+        vdn=vdn,
       )
     else: 
       trained_agents = marl_loop.gather_experience_parallel(
@@ -81,7 +85,9 @@ def train_and_evaluate(agents: List[object],
         test_obs_interval=test_obs_interval,
         test_nbr_episode=test_nbr_episode,
         benchmarking_record_episode_interval=benchmarking_record_episode_interval,
-        step_hooks=step_hooks
+        step_hooks=step_hooks,
+        sad=sad,
+        vdn=vdn,
       )
 
     save_replay_buffer = False
@@ -115,9 +121,11 @@ def training_process(agent_config: Dict,
       torch.backends.cudnn.deterministic = True
       torch.backends.cudnn.benchmark = False
 
+    # SAD is dealt with at the level of VecEnv!
+    # Wrapping happens in the marl loop.
     pixel_wrapping_fn = partial(
       hanabi_wrap,
-      sad=task_config["sad"],
+      sad=False,
       clip_reward=task_config.get('clip_reward', False),
       previous_reward_action=task_config.get('previous_reward_action', False)
     )
@@ -171,17 +179,23 @@ def training_process(agent_config: Dict,
 
     #agents = [agent, agent2]
 
-    player2_harvest = False
-    import ipdb; ipdb.set_trace()
-    if len(sys.argv) > 2:
-      player2_harvest = any(['player2_harvest' in arg for arg in sys.argv])
+    if "vdn" in agent_config \
+    and agent_config["vdn"]:
+      import ipdb; ipdb.set_trace()
+      agents = [agent]
+    else:
+      player2_harvest = False
+      if len(sys.argv) > 2:
+        player2_harvest = any(['player2_harvest' in arg for arg in sys.argv])
 
-    agents = [agent, agent.get_async_actor(training=player2_harvest)]
-    # We can create non-training or training async actors.
-    # If traininging, then their experience is added to the replay buffer
-    # of the main agent, which might have some advantanges
-    # -given that it proposes decorrelated data-, but it may
-    # also have unknown disadvantages. Needs proper investigation.
+      assert player2_harvest, "selfplay with player2harvesting makes more sense."
+      import ipdb; ipdb.set_trace()
+      agents = [agent, agent.get_async_actor(training=player2_harvest)]
+      # We can create non-training or training async actors.
+      # If traininging, then their experience is added to the replay buffer
+      # of the main agent, which might have some advantanges
+      # -given that it proposes decorrelated data-, but it may
+      # also have unknown disadvantages. Needs proper investigation.
 
     trained_agents = train_and_evaluate(
       agents=agents,
@@ -194,6 +208,8 @@ def training_process(agent_config: Dict,
       test_obs_interval=benchmarking_interval,
       test_nbr_episode=benchmarking_episodes,
       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+      sad=task_config["sad"],
+      vdn=task_config["vdn"],
     )
 
     return trained_agents, task 

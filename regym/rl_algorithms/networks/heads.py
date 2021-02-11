@@ -13,7 +13,7 @@ EPS = 1e-8
 
 
 class DuelingLayer(nn.Module):
-    def __init__(self, input_dim, action_dim, layer_fn=nn.Linear, layer_init_fn=None):
+    def __init__(self, input_dim, action_dim, layer_fn=nn.Linear, layer_init_fn=layer_init):
         super(DuelingLayer, self).__init__()
         self.input_dim = input_dim
         self.action_dim = action_dim
@@ -61,7 +61,7 @@ class CategoricalQNet(nn.Module):
         goal_oriented=False,
         goal_shape=None,
         goal_phi_body=None,
-        layer_init_fn=None,
+        layer_init_fn=layer_init,
         extra_inputs_infos: Dict={}):
         """
         :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
@@ -174,12 +174,17 @@ class CategoricalQNet(nn.Module):
             legal_actions = rnn_states['head']['extra_inputs']['legal_actions'][0]
             next_rnn_states['head'] = rnn_states['head']
         legal_actions = legal_actions.to(qa.device)
-        legal_qa = (1+qa-qa.min()) * legal_actions
+        
+        # The following accounts for player dimension if VDN:
+        legal_qa = (1+qa-qa.min(dim=-1, keepdim=True)[0]) * legal_actions
+        
         if action is None:
             if self.greedy:
-                action  = legal_qa.max(dim=-1)[1]
+                action  = legal_qa.max(dim=-1, keepdim=True)[1]
             else:
-                action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1).reshape((batch_size,))
+                action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1) #.reshape((batch_size,))
+        # batch #x 1
+        
         # batch #x 1
         
         probs = F.softmax( qa, dim=-1 )
@@ -256,18 +261,20 @@ class CategoricalQNet(nn.Module):
             
             qa = self.fc_critic(phi_features)     
             # batch x action_dim
-
+            
             legal_actions = torch.ones_like(qa)
             if 'head' in rnn_states and 'extra_inputs' in rnn_states['head'] and 'legal_actions' in rnn_states['head']['extra_inputs']:
                 legal_actions = rnn_states['head']['extra_inputs']['legal_actions'][0]
                 next_rnn_states['head'] = rnn_states['head']
-            legal_qa = (1+qa-qa.min()) * legal_actions
+            
+            # The following accounts for player dimension if VDN:
+            legal_qa = (1+qa-qa.min(dim=-1, keepdim=True)[0]) * legal_actions
             
             if action is None:
                 if self.greedy:
-                    action  = legal_qa.max(dim=-1)[1]
+                    action  = legal_qa.max(dim=-1, keepdim=True)[1]
                 else:
-                    action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1).reshape((batch_size,))
+                    action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1) #.reshape((batch_size,))
             # batch #x 1
             
             probs = F.softmax( qa, dim=-1 )
@@ -301,7 +308,7 @@ class QNet(nn.Module):
                  goal_oriented=False,
                  goal_shape=None,
                  goal_phi_body=None,
-                 layer_init_fn=None,
+                 layer_init_fn=layer_init,
                  init_w=3e-3):
         super(QNet, self).__init__()
         self.state_dim = state_dim
@@ -408,7 +415,7 @@ class EnsembleQNet(nn.Module):
                  goal_shape=None,
                  goal_phi_body=None,
                  nbr_models=2,
-                 layer_init_fn=None):
+                 layer_init_fn=layer_init):
         super(EnsembleQNet, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -503,7 +510,7 @@ class GaussianActorNet(nn.Module):
                  goal_phi_body=None,
                  deterministic=False,
                  action_scaler=1.0,
-                 layer_init_fn=None,
+                 layer_init_fn=layer_init,
                  init_w=3e-3):
         super(GaussianActorNet, self).__init__()
 
@@ -626,7 +633,7 @@ class SquashedGaussianActorNet(nn.Module):
                  goal_shape=None,
                  goal_phi_body=None,
                  action_scaler=1.0,
-                 layer_init_fn=None,
+                 layer_init_fn=layer_init,
                  init_w=3e-3):
         super(SquashedGaussianActorNet, self).__init__()
 
@@ -747,7 +754,7 @@ class SquashedGaussianActorNet(nn.Module):
 
 
 class ActorCriticNet(nn.Module):
-    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, use_intrinsic_critic=False, layer_init_fn=None):
+    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, use_intrinsic_critic=False, layer_init_fn=layer_init):
         super(ActorCriticNet, self).__init__()
         if phi_body is None: phi_body = DummyBody(state_dim)
         if actor_body is None: actor_body = DummyBody(phi_body.get_feature_shape())

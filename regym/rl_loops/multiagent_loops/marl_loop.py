@@ -8,6 +8,7 @@ import numpy as np
 import regym
 from tensorboardX import SummaryWriter
 from regym.util import save_traj_with_graph
+from regym.util.wrappers import VDNVecEnvWrapper
 from regym.util.wrappers import SADVecEnvWrapper as SADEnvWrapper
 
 from torch.multiprocessing import Process 
@@ -403,6 +404,8 @@ def gather_experience_parallel(
     benchmarking_record_episode_interval=None,
     step_hooks=[],
     sad=False,
+    vdn=False,
+    nbr_players=2,
     ):
     '''
     Runs a self-play multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
@@ -422,16 +425,27 @@ def gather_experience_parallel(
 
     N.B.: only logs agent 0's trajectory.
     '''
+    assert nbr_players==2, "Not implemented with more than 2 players..."
+
     env = task.env
     if sad:
         env = SADEnvWrapper(env, nbr_actions=task.action_dim)
-    test_env = task.test_env
+    if vdn:
+        env = VDNVecEnvWrapper(env, nbr_players=nbr_players)
 
+    test_env = task.test_env
+    if sad:
+        test_env = SADEnvWrapper(test_env, nbr_actions=task.action_dim)
+    if vdn:
+        test_env = VDNVecEnvWrapper(test_env, nbr_players=nbr_players)
+    
     observations, info = env.reset(env_configs=env_configs)
     
     nbr_actors = env.get_nbr_envs()
+    """
     for agent in agents:
         agent.set_nbr_actor(nbr_actors)
+    """
     done = [False]*nbr_actors
     
     per_actor_trajectories = [list() for i in range(nbr_actors)]
@@ -464,7 +478,7 @@ def gather_experience_parallel(
             )
             for agent_idx, agent in enumerate(agents)
         ]
-
+        
         succ_observations, reward, done, succ_info = env.step(actions)
 
         if training:
@@ -499,13 +513,10 @@ def gather_experience_parallel(
             if done_condition:
                 update_count = agents[0].get_update_count()
                 episode_count += 1
-                per_agent_per_actor_next_s, per_agent_per_actor_succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 for agent_idx, agent in enumerate(agents):
-                    # taking index 0 because there is only one element in the list of resetted env's observations:
-                    succ_observations[agent_idx][actor_index] = per_agent_per_actor_next_s[agent_idx][0]
-                    succ_info[agent_idx][actor_index] = per_agent_per_actor_succ_info[agent_idx][0] 
                     agent.reset_actors(indices=[actor_index])
-
+                
                 # Logging:
                 trajectories.append(per_actor_trajectories[actor_index])
                 total_returns.append(sum([ exp[2] for exp in trajectories[-1]]))
@@ -518,9 +529,9 @@ def gather_experience_parallel(
                     sum_writer.add_scalar('PerUpdate/TotalReturn', total_returns[-1], update_count)
                     if actor_index == 0:
                         sample_episode_count += 1
-                    sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
+                    #sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
                     sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
-                    sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], update_count)
+                    #sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], update_count)
                     sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
                     sum_writer.flush()
 

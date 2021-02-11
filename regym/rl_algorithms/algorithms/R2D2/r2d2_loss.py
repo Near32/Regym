@@ -9,7 +9,7 @@ import torch
 import ray
 
 from regym.rl_algorithms.algorithms import Algorithm 
-from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdict, recursive_inplace_update
+from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdict, recursive_inplace_update, apply_on_hdict
 
 
 eps = 1e-3
@@ -43,14 +43,13 @@ def value_function_rescaling(x):
     '''
     Value function rescaling (table 2).
     '''
-    #return x
-    return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
+    return x
+    #return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
 
 
 def inverse_value_function_rescaling(x):
     '''
     See Proposition A.2 in paper "Observe and Look Further".
-    '''
     '''
     return x
     '''
@@ -59,6 +58,7 @@ def inverse_value_function_rescaling(x):
             (torch.sqrt(1. + 4. * eps * (torch.abs(x) + 1. + eps)) - 1.) / (2. * eps)
         ).pow(2.0) - 1.
     )
+    '''
     
 
 def extract_rnn_states_from_time_indices(
@@ -146,13 +146,12 @@ def roll_sequences(unrolled_sequences:List[Dict[str, torch.Tensor]], batch_size:
             value = _concatenate_list_hdict(
                 lhds=values, 
                 concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
-                preprocess_fn=(lambda x: x.reshape(batch_size, 1, -1)), # backpropagate through time
-                #preprocess_fn=(lambda x: x.reshape(batch_size, 1, -1).detach()),   # truncated?
+                preprocess_fn=(lambda x: x.unsqueeze(1)), #.reshape(batch_size, 1, *x.shape[1:])),
             )
         else: 
             value = torch.cat(
                 [
-                    unrolled_sequences[i][key].reshape(batch_size, 1, -1)    # add unroll dim 
+                    unrolled_sequences[i][key].unsqueeze(1) #.reshape(batch_size, 1, *unrolled_sequences[i][key].shape[1:])    # add unroll dim 
                     for i in range(len(unrolled_sequences)) 
                 ],
                 dim=1
@@ -298,28 +297,46 @@ def batched_unrolled_inferences(
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
 
-    assert rnn_states is None or 'phi_body' not in rnn_states, "The recurrent module must be in the critic_arch."
+    recurrent_module_in_phi_body = 'phi_body' in rnn_states and ('lstm' in rnn_states['phi_body'] or 'gru' in rnn_states['phi_body']) 
+    extra_inputs_in_phi_body = 'phi_body' in rnn_states and 'extra_inputs' in rnn_states['phi_body']
+    if rnn_states is None or not(recurrent_module_in_phi_body):
+        # "The recurrent module must be in the critic_arch."
 
-    model_torso = model.get_torso()
-    model_head = model.get_head()
+        model_torso = model.get_torso()
+        model_head = model.get_head()
 
-    begin = time.time()
-    torso_input = states.reshape((batch_size*unroll_length, *states.shape[2:]))
-    torso_output, _ = model_torso(torso_input)
+        begin = time.time()
+        torso_input = states.reshape((batch_size*unroll_length, *states.shape[2:]))
+        with torch.set_grad_enabled(grad_enabler):
+            if extra_inputs_in_phi_body:
+                batching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size*unroll_length, *x.shape[2:])))
+                rnn_states_batched = {}
+                rnn_states_batched['phi_body'] = apply_on_hdict(
+                    hdict=rnn_states['phi_body'],
+                    fn=batching_time_dim_lambda_fn,
+                )
+                torso_output, _ = model_torso(torso_input, rnn_states=rnn_states_batched)
+            else:
+                torso_output, _ = model_torso(torso_input)
 
-    head_input = torso_output.reshape((batch_size, unroll_length, -1))
-    end = time.time()
+        head_input = torso_output.reshape((batch_size, unroll_length, *torso_output.shape[1:]))
+        end = time.time()
 
-    #print(f"Batched Forward: {end-begin} sec.")
+        #print(f"Batched Forward: {end-begin} sec.")
 
-    if rnn_states is None:
-        head_input = head_input.reshape((batch_size*unroll_length, *head_input.shape[2:]))
-        burn_in_prediction = model_head(head_input, rnn_states=None)
-        for key in burn_in_prediction:
-            if burn_in_prediction[key] is None: continue
-            burn_in_prediction[key] = burn_in_prediction[key].reshape((batch_size, unroll_length, -1))
-        return burn_in_prediction, burn_in_prediction, None 
-            
+        if rnn_states is None:
+            head_input = head_input.reshape((batch_size*unroll_length, *head_input.shape[2:]))
+            with torch.set_grad_enabled(grad_enabler):
+                burn_in_prediction = model_head(head_input, rnn_states=None)
+            for key in burn_in_prediction:
+                if burn_in_prediction[key] is None: continue
+                shape = burn_in_prediction[key]
+                burn_in_prediction[key] = burn_in_prediction[key].reshape((batch_size, unroll_length, *shape[1:]))
+            return burn_in_prediction, burn_in_prediction, None 
+    else:
+        model_head = model 
+        head_input = states 
+
     init_rnn_states_inputs = None
     preprocess_fn = None if use_BPTT else (lambda x:x.detach())
     if use_zero_initial_states: 
@@ -564,6 +581,43 @@ def compute_n_step_bellman_target(
     # (batch_size, training_length, 1)
     return unscaled_bellman_target_Si_onlineGreedyAction
 
+def compute_n_step_bellman_target_sad(
+    training_rewards,
+    training_non_terminals,
+    unscaled_targetQ_Si_onlineGreedyAction, 
+    gamma, 
+    kwargs):
+    batch_size = training_rewards.shape[0]
+
+    unscaled_targetQ_Si_onlineGreedyAction = torch.cat(
+        [
+            unscaled_targetQ_Si_onlineGreedyAction[:, kwargs['n_step']:, ...]
+        ]+[
+            unscaled_targetQ_Si_onlineGreedyAction[:, :kwargs['n_step'], ...]       #will be zeroed-out
+        ],
+        dim=1,
+    )
+    unscaled_targetQ_Si_onlineGreedyAction[:, -kwargs['n_step']:, ...] = 0
+    # (batch_size, training_length, /player_dim,/ 1)
+    
+    bootstrap = torch.cat(
+        [   
+            training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).unsqueeze(1) #reshape(batch_size, 1, -1)
+            for k in range(training_non_terminals.shape[1])
+        ],
+        dim=1,
+    )
+    if len(training_rewards.shape) >= 3: #VDN
+        bootstrap = bootstrap.unsqueeze(-1)
+    # (batch_size, training_length, /player_dim,/ 1)
+    
+    # Compute the Bellman Target for Q values at Si,Ai: with gamma
+    unscaled_bellman_target_Si_onlineGreedyAction = training_rewards \
+        + (gamma**kwargs['n_step']) * bootstrap * unscaled_targetQ_Si_onlineGreedyAction 
+    
+    # (batch_size, training_length, /player_dim,/ 1)
+    return unscaled_bellman_target_Si_onlineGreedyAction
+
 # Adapted from: https://github.com/google-research/seed_rl/blob/34fb2874d41241eb4d5a03344619fb4e34dd9be6/agents/r2d2/learner.py#L333
 def compute_loss(states: torch.Tensor,
                  actions: torch.Tensor,
@@ -701,6 +755,8 @@ def compute_loss(states: torch.Tensor,
 
     training_next_states = next_states
 
+    # Unrolled predictions is using the stored RNN states.
+    # burned_in_predictions is using the online RNN states computed in the function loop.
     training_burned_in_predictions, \
     training_unrolled_predictions, _ = batched_unrolled_inferences(
         model=model, 
@@ -736,32 +792,28 @@ def compute_loss(states: torch.Tensor,
         training_target_predictions = training_unrolled_target_predictions
     
     qa_values_key = "qa"
-    if "vdn" in kwargs\
-    and kwargs["vdn"]:
-        qa_values_key = "joint_qa"
-
+    
     Q_Si_values = training_predictions[qa_values_key]
     # (batch_size, unroll_dim, ...)
-    #online_greedy_action = training_predictions["a"].reshape(batch_size, training_length, -1)
-    online_greedy_action = Q_Si_values.max(dim=-1)[1].reshape(batch_size, training_length, -1)
+    online_greedy_action = Q_Si_values.max(dim=-1, keepdim=True)[1]#.reshape(batch_size, training_length, Q_Si_values.shape[])
     # (batch_size, unroll_dim, ...)
     
     # Stable training: crucial: cf loss equation of Ape-X paper in section 3.1 Ape-X DQN:
     Q_Si_Ai_value = Q_Si_values.gather(
         dim=-1, 
-        index=training_actions.reshape(batch_size, training_length,-1)
-    ).reshape(batch_size, training_length, -1)
-    # (batch_size, unroll_dim, 1)
+        index=training_actions
+    )
+    # (batch_size, unroll_dim, /player_dim,/ 1)
     
     unscaled_targetQ_Si_A_values = inverse_value_function_rescaling(training_target_predictions[qa_values_key])
-    # (batch_size, training_length, num_actions)
+    # (batch_size, training_length, /player_dim,/ num_actions)
     
     # Double Q learning target:
     unscaled_targetQ_Si_onlineGreedyAction = unscaled_targetQ_Si_A_values.gather(
         dim=-1, 
         index=online_greedy_action
-    ).reshape(batch_size, training_length, -1)
-    # (batch_size, training_length, 1)
+    )
+    # (batch_size, training_length, /player_dim,/ 1)
 
     """
     # Assumes training_rewards is actually n-step returns...
@@ -773,15 +825,30 @@ def compute_loss(states: torch.Tensor,
         kwargs=kwargs
     )
     """
-    unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
-        training_rewards=training_rewards,
-        training_non_terminals=training_non_terminals,
-        unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction,
-        gamma=gamma,
-        kwargs=kwargs
-    )
+    assert kwargs["r2d2_bellman_target_SAD"], "debugging of SAD bellman in progress..."
+    if kwargs["r2d2_bellman_target_SAD"]:
+        unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target_sad(
+            training_rewards=training_rewards,
+            training_non_terminals=training_non_terminals,
+            unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction,
+            gamma=gamma,
+            kwargs=kwargs
+        )
+    else:
+        unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
+            training_rewards=training_rewards,
+            training_non_terminals=training_non_terminals,
+            unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction,
+            gamma=gamma,
+            kwargs=kwargs
+        )
 
     # (batch_size, training_length, ...)
+    if "vdn" in kwargs\
+    and kwargs["vdn"]:
+        # Summing on the player dimension:
+        unscaled_bellman_target_Sipn_onlineGreedyAction = unscaled_bellman_target_Sipn_onlineGreedyAction.sum(dim=2)
+        
     scaled_bellman_target_Sipn_onlineGreedyAction = value_function_rescaling(unscaled_bellman_target_Sipn_onlineGreedyAction)
 
     '''
@@ -792,12 +859,19 @@ def compute_loss(states: torch.Tensor,
     '''
 
     # Compute loss:
-    Q_Si_Ai_value = Q_Si_Ai_value.reshape(scaled_bellman_target_Sipn_onlineGreedyAction.shape)
     unscaled_Q_Si_Ai_value = inverse_value_function_rescaling(Q_Si_Ai_value)
 
+    if "vdn" in kwargs\
+    and kwargs["vdn"]:
+        # Summing on the player dimension:
+        unscaled_Q_Si_Ai_value = unscaled_Q_Si_Ai_value.sum(dim=2)
+    
+    Q_Si_Ai_value = value_function_rescaling(unscaled_Q_Si_Ai_value).reshape(scaled_bellman_target_Sipn_onlineGreedyAction.shape)
+    
     td_error = torch.abs(unscaled_bellman_target_Sipn_onlineGreedyAction.detach() - unscaled_Q_Si_Ai_value)
     scaled_td_error = torch.abs(scaled_bellman_target_Sipn_onlineGreedyAction.detach() - Q_Si_Ai_value)
     
+    # Hanabi_SAD repo does not use the scaled values:
     loss_per_item = td_error
     diff_squared = td_error.pow(2.0)
     # SEED RL repo uses the scaled td error for priorities:
@@ -814,9 +888,7 @@ def compute_loss(states: torch.Tensor,
     if kwargs["r2d2_loss_masking"]:
         mask = torch.ones_like(diff_squared)
         mask[:,-1, ...] = (1-training_non_terminals[:,-1,...])
-        #if torch.any(training_non_terminals[:,-1,...]==0):
-        #    import ipdb; ipdb.set_trace()
-
+        
         assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
         if kwargs['r2d2_loss_masking_n_step_regularisation']:
             mask[:, -kwargs["n_step"]:, ...] = 0

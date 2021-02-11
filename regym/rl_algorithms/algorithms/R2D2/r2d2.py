@@ -174,7 +174,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 value = _concatenate_list_hdict(
                     lhds=values, 
                     concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
-                    preprocess_fn=lambda x: x.clone().reshape(1, 1, -1),
+                    preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
                 )
             else:
                 value = torch.cat(
@@ -207,8 +207,8 @@ class R2D2Algorithm(DQNAlgorithm):
                 Put the experience dict into a buffer until we have enough
                 to compute td_errors in batch.
                 """
-                if len(self.pre_storage_sequence_exp_dict)<self.batch_size:
-                    self.pre_storage_sequence_exp_dict.append(current_sequence_exp_dict)
+                self.pre_storage_sequence_exp_dict.append(current_sequence_exp_dict)
+                if len(self.pre_storage_sequence_exp_dict) < self.batch_size//self.sequence_replay_unroll_length:
                     return 
 
                 samples = {}
@@ -284,7 +284,10 @@ class R2D2Algorithm(DQNAlgorithm):
             if len(self.n_step_buffers[actor_index]) < self.n_step:
                 return
         
-        reached_end_of_episode = not(exp_dict['non_terminal'])
+        # We assume non_terminal are the same for all players ==> torch.all :
+        assert torch.all(exp_dict['non_terminal'].bool()) == torch.any(exp_dict['non_terminal'].bool())
+
+        reached_end_of_episode = not(torch.all(exp_dict['non_terminal'].bool()))
         nbr_experience_to_handle = 1
         if False: #self.n_step > 1 and reached_end_of_episode:
             raise NotImplementedError
