@@ -473,11 +473,20 @@ def gather_experience_parallel(task,
             if done_condition:
                 update_count = agent.get_update_count()
                 episode_count += 1
-                succ_observations[actor_index], succ_info[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                #################
+                # Previously:
+                #################
+                #succ_observations[actor_index], succ_info[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 # account for list formatting of infos:
-                succ_info[actor_index] = succ_info[actor_index][0]
+                #succ_info[actor_index] = succ_info[actor_index][0]
+                #agent.reset_actors(indices=[actor_index])
+                #################
+                # New:
+                #################
+                succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
                 agent.reset_actors(indices=[actor_index])
-
+                #################
+                
                 # Logging:
                 trajectories.append(per_actor_trajectories[actor_index])
                 total_returns.append(sum([ exp[2] for exp in trajectories[-1]]))

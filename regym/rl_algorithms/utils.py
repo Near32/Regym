@@ -248,7 +248,12 @@ def _concatenate_list_hdict(
                         preprocess_fn(pointer[k])
                         for pointer in pointers if k in pointer
                     ]
-                    out_pointer[k] = concat_fn(concat_list)
+                    try:
+                        out_pointer[k] = concat_fn(concat_list)
+                    except Exception as e:
+                        # the concat_fn may fail, silently...
+                        # e.g.: shape of elements are not all the same...
+                        pass
     return out_hd
 
 

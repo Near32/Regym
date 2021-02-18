@@ -99,8 +99,10 @@ class R2D2Algorithm(DQNAlgorithm):
             circular_keys.update({'next_rnn_states':'rnn_states'})
             circular_offsets.update({'next_rnn_states':1})
 
-        beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  if 'PER_beta_increase_interval' in self.kwargs else 1e4
-        
+        beta_increase_interval = None
+        if 'PER_beta_increase_interval' in self.kwargs and self.kwargs['PER_beta_increase_interval']!='None':
+            beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
+
         self.pre_storage_sequence_exp_dict = []
 
         for i in range(nbr_storages):

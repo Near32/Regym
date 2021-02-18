@@ -426,7 +426,8 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
     def _update_beta(self, iteration=None):
         #if iteration is None:   iteration = self.length
         if iteration is None:   iteration = self.iteration
-        self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
+        if self.beta_increase_interval is not None:
+            self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
 
     def total(self):
         return self.tree[0]
@@ -546,9 +547,9 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
 class PrioritizedReplayStorage(ReplayStorage):
     def __init__(self,
                  capacity,
-                 alpha=0.2,
-                 beta=1.0,
-                 beta_increase_interval=1e4,
+                 alpha=0.9,
+                 beta=0.6,
+                 beta_increase_interval=None,
                  eta=0.9,
                  keys=None,
                  circular_keys={'succ_s':'s'},
@@ -656,7 +657,8 @@ class PrioritizedReplayStorage(ReplayStorage):
     def _update_beta(self, iteration=None):
         #if iteration is None:   iteration = self.length
         if iteration is None:   iteration = self.iteration
-        self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
+        if self.beta_increase_interval is not None:
+            self.beta = min(1.0, self.beta_start+iteration*(1.0-self.beta_start)/self.beta_increase_interval)
 
     def total(self):
         return self.tree[0]
@@ -781,9 +783,9 @@ class PrioritizedReplayStorage(ReplayStorage):
 class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
     def __init__(self,
                  capacity,
-                 alpha=0.2,
-                 beta=1.0,
-                 beta_increase_interval=1e4,
+                 alpha=0.9,
+                 beta=0.6,
+                 beta_increase_interval=None,
                  keys=None,
                  circular_keys={'succ_s':'s'},
                  circular_offsets={'succ_s':1},

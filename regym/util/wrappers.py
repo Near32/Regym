@@ -1671,7 +1671,7 @@ class SADEnvWrapper(gym.Wrapper):
 class SADVecEnvWrapper(object):
     def __init__(self, env, nbr_actions):
         """
-        Simplified Action Decoder wrapper expects the action argument to
+        Simplified Action Decoder wrapper expects the action argument for
         the step method to be a list of dictionnary containing the following keys:
         - "action": the actual action to execute in the environment.
         - "greedy_action": the greedy action that the agent would have used at test time.

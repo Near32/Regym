@@ -152,10 +152,6 @@ class VecEnv():
 
         
         if self.single_agent:
-            raise NotImplementedError
-            # see above line 135
-            # need to regularise the rl loop per-actor reset to expect full obs and info,
-            # instead of only for the resetted envs...
             per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
             per_env_infos = infos
         else:

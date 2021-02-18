@@ -136,6 +136,7 @@ class ConvolutionalBody(nn.Module):
         self.fcs = nn.ModuleList()
         for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
             self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))
+            self.fcs.append(self.non_linearities[-1](inplace=True))
             if self.dropout:
                 self.fcs.append( nn.Dropout(p=self.dropout))
 
@@ -1408,8 +1409,8 @@ class LSTMBody(nn.Module):
         :param state_dim: dimensions of the input.
         :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
         '''
-        assert gate is None, "It is not recommended to use a gating function..."
-
+        import ipdb; ipdb.set_trace()
+        #assert gate is None, "It is not recommended to use a gating function..."
         super(LSTMBody, self).__init__()
         self.state_dim = state_dim
         self.hidden_units = hidden_units

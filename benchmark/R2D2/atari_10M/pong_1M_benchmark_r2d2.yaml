@@ -4,7 +4,19 @@ extra_hyperparameters: &extra_hyperparameters
     weights_entropy_lambda: 0.0 #01
     use_target_to_gather_data:    False
 
-    sequence_replay_use_zero_initial_states: False
+    #sequence_replay_use_zero_initial_states: False
+    
+    # New hyperparameters:
+    vdn: False 
+    vdn_nbr_players: 2
+    sequence_replay_use_online_states: True
+    sequence_replay_use_zero_initial_states: True
+    sequence_replay_store_on_terminal: True 
+    
+    r2d2_loss_masking: True
+    r2d2_loss_masking_n_step_regularisation: True
+    r2d2_bellman_target_SAD: True 
+
     burn_in: True 
     sequence_replay_unroll_length: 80
     sequence_replay_overlap_length: 40
@@ -311,7 +323,7 @@ experiment:
         # layer init allows for similar entropy behaviour than DQN implementation...
         #'run-id': 'test/serial/WithoutExtraInputs/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
         # Adding ExtraInputs back:
-        'run-id': 'test/async/debugNewFeatures2/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        'run-id': 'test/async/debugNewFeatures2/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/SeedRep1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
         
         #####
         #solves the simple env:
@@ -362,7 +374,12 @@ experiment:
         #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
         ## GOOD ONE above...
         # let us increase the unroll length: l=8->20 (increase PER alpha 0.6 to 0.9, and gamme=0.99->0.997 like in r2d2 paper...)
-        'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0',
+        
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0',
+        
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_NOTermStore_NOZeroInit_OnlineSt_RegMaskLoss',
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_NOTermStore_NOZeroInit_NOOnlineSt_RegMaskLoss',
+        'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_TermStore_NOZeroInit_NOOnlineSt_RegMaskLoss_NOBsad',
         
         #####
         # (PREVIOUSLY)now trying to solve pong (breakout):
@@ -823,7 +840,7 @@ agents:
         # with base_eps=0.4 and \alpha = 7...
         eps_greedy_alpha: 7.0
     
-    paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0:
+    paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0: &paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0
         <<: *r2d2_LargeCNNLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
         actor_models_update_steps_interval: 32 #considering only 1 actor's steps.
 
@@ -866,6 +883,22 @@ agents:
         # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
         # with base_eps=0.4 and \alpha = 7...
         eps_greedy_alpha: 7.0
+
+    paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_TermStore_NOZeroInit_NOOnlineSt_RegMaskLoss_NOBsad:
+        <<: *paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0
+        #sequence_replay_use_online_states: True
+        sequence_replay_use_online_states: False
+        
+        sequence_replay_use_zero_initial_states: False
+        #sequence_replay_store_on_terminal: False 
+        sequence_replay_store_on_terminal: True 
+        
+        # should be True, but in doubt:
+        r2d2_loss_masking: True
+        r2d2_loss_masking_n_step_regularisation: True
+        #r2d2_bellman_target_SAD: True
+        r2d2_bellman_target_SAD: False
+
         
     paper_3step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0:
         <<: *r2d2_LargeCNNMLP_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20

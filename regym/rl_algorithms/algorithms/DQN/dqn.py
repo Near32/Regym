@@ -217,11 +217,9 @@ class DQNAlgorithm(Algorithm):
         else:
             self.eps = self.epsend + max(0, (self.epsstart-self.epsend)/((float(nbr_steps)/self.epsdecay)+1))
 
-        """
         if self.summary_writer is not None:
             for actor_i in range(self.eps.shape[0]):
                 self.summary_writer.add_scalar(f'Training/Eps_Actor_{actor_i}', self.eps[actor_i], nbr_steps)
-        """
         
         return self.eps 
 
@@ -246,8 +244,10 @@ class DQNAlgorithm(Algorithm):
             circular_keys.update({'next_rnn_states':'rnn_states'})
             circular_offsets.update({'next_rnn_states':1})
 
-        beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  if 'PER_beta_increase_interval' in self.kwargs else 1e4
-        
+        beta_increase_interval = None
+        if 'PER_beta_increase_interval' in self.kwargs and self.kwargs['PER_beta_increase_interval']!='None':
+            beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
+
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
                 self.storages.append(

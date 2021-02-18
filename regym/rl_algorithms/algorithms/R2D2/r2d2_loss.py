@@ -293,9 +293,14 @@ def batched_unrolled_inferences(
                                         submodules contained in :param model:, with shape (batch_size, unroll_dim=1, ...).
     '''
     #torch.autograd.set_detect_anomaly(True)
-
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
+
+    vdn = False 
+    if len(states.shape)==4 or len(states.shape)==6:
+        vdn = True 
+        num_players = states.shape[2]
+
 
     recurrent_module_in_phi_body = 'phi_body' in rnn_states and ('lstm' in rnn_states['phi_body'] or 'gru' in rnn_states['phi_body']) 
     extra_inputs_in_phi_body = 'phi_body' in rnn_states and 'extra_inputs' in rnn_states['phi_body']
@@ -306,10 +311,17 @@ def batched_unrolled_inferences(
         model_head = model.get_head()
 
         begin = time.time()
-        torso_input = states.reshape((batch_size*unroll_length, *states.shape[2:]))
+        if vdn:
+            torso_input = states.reshape((batch_size*unroll_length*num_players, *states.shape[3:]))
+        else:
+            torso_input = states.reshape((batch_size*unroll_length, *states.shape[2:]))
+
         with torch.set_grad_enabled(grad_enabler):
             if extra_inputs_in_phi_body:
-                batching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size*unroll_length, *x.shape[2:])))
+                if vdn:
+                    batching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
+                else:
+                    batching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size*unroll_length, *x.shape[2:])))
                 rnn_states_batched = {}
                 rnn_states_batched['phi_body'] = apply_on_hdict(
                     hdict=rnn_states['phi_body'],
@@ -319,7 +331,10 @@ def batched_unrolled_inferences(
             else:
                 torso_output, _ = model_torso(torso_input)
 
-        head_input = torso_output.reshape((batch_size, unroll_length, *torso_output.shape[1:]))
+        if vdn:
+            head_input = torso_output.reshape((batch_size, unroll_length, num_players, *torso_output.shape[1:]))
+        else:
+            head_input = torso_output.reshape((batch_size, unroll_length, *torso_output.shape[1:]))
         end = time.time()
 
         #print(f"Batched Forward: {end-begin} sec.")
@@ -607,7 +622,8 @@ def compute_n_step_bellman_target_sad(
         ],
         dim=1,
     )
-    if len(training_rewards.shape) >= 3: #VDN
+    
+    if len(training_rewards.shape) > 3: #VDN
         bootstrap = bootstrap.unsqueeze(-1)
     # (batch_size, training_length, /player_dim,/ 1)
     
@@ -765,7 +781,7 @@ def compute_loss(states: torch.Tensor,
         rnn_states=training_rnn_states,
         grad_enabler=True,
         use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'] if not(kwargs['burn_in']) else False,
-        extras=not(kwargs['burn_in']) or study_qa_values_discrepancy,
+        extras=not(kwargs['burn_in']) or study_qa_values_discrepancy or not(kwargs['sequence_replay_use_online_states']),
         map_keys=map_keys,
     )
 
@@ -780,11 +796,11 @@ def compute_loss(states: torch.Tensor,
         grad_enabler=False,
         use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states']\
         if kwargs['sequence_replay_use_zero_initial_states'] else use_zero_initial_states_for_target,
-        extras=not(kwargs['burn_in']),
+        extras=not(kwargs['burn_in']) or not(kwargs['sequence_replay_use_online_states']),
         map_keys=map_keys,
     )
 
-    if kwargs['burn_in']:
+    if kwargs['burn_in'] or kwargs['sequence_replay_use_online_states']:
         training_predictions = training_burned_in_predictions
         training_target_predictions = training_burned_in_target_predictions
     else:
@@ -825,7 +841,7 @@ def compute_loss(states: torch.Tensor,
         kwargs=kwargs
     )
     """
-    assert kwargs["r2d2_bellman_target_SAD"], "debugging of SAD bellman in progress..."
+    #assert kwargs["r2d2_bellman_target_SAD"], "debugging of SAD bellman in progress..."
     if kwargs["r2d2_bellman_target_SAD"]:
         unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target_sad(
             training_rewards=training_rewards,
