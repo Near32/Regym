@@ -1,3 +1,4 @@
+from typing import Dict, Any, Optional, List
 import os
 import math
 import copy
@@ -148,7 +149,22 @@ def run_episode_parallel(env,
 
     return per_actor_trajectories
 
-def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1, save_traj=False):
+
+def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1, save_traj=False,
+               requested_metrics: List[str] = []) -> Optional[Dict]:
+    '''
+    Available metrics to be requested:
+    - 'total_return',
+    - 'mean_total_return',
+    - 'std_ext_return',
+    - 'total_int_return',
+    - 'mean_total_int_return',
+    - 'std_int_return',
+    - 'episode_lengths',
+    - 'mean_episode_length',
+    - 'episode_lengths',
+    :returns: Dictionary containing values specified in :param: requested_metrics
+    '''
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
 
@@ -185,6 +201,12 @@ def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, ba
     mean_episode_length = sum( episode_lengths) / len(trajectory)
     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in episode_lengths]) / len(trajectory) )
 
+    trajectory_metrics = populate_metrics_dictionary(
+        total_return, mean_total_return, std_ext_return,
+        total_int_return, mean_total_int_return, std_int_return,
+        episode_lengths, mean_episode_length, std_episode_length
+    )
+
     if sum_writer is not None:
         sum_writer.add_scalar('PerObservation/Testing/MeanTotalReturn', mean_total_return, iteration)
         sum_writer.add_scalar('PerObservation/Testing/MeanTotalIntReturn', mean_total_int_return, iteration)
@@ -207,6 +229,36 @@ def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, ba
             end = time.time()
             eta = end-begin
             print(f'{actor_idx+1} / {nbr_save_traj} :: Time: {eta} sec.')
+    return trajectory_metrics
+
+
+def populate_metrics_dictionary(total_return, mean_total_return, std_ext_return,
+                                total_int_return, mean_total_int_return, std_int_return,
+                                episode_lengths, mean_episode_length, std_episode_length,
+                                requested_metrics: List[str]) -> Dict[str, Any]:
+    trajectory_metrics = {}
+    if 'total_return' in trajectory_metrics:
+        trajectory_metrics['total_return'] = total_return
+    if 'mean_total_return' in trajectory_metrics:
+        trajectory_metrics['mean_total_return'] = mean_total_return
+    if 'std_ext_return' in trajectory_metrics:
+        trajectory_metrics['std_ext_return'] = std_ext_return
+
+    if 'total_int_return' in trajectory_metrics:
+        trajectory_metrics['total_int_return'] = total_return
+    if 'mean_total_int_return' in trajectory_metrics:
+        trajectory_metrics['mean_total_int_return'] = mean_total_int_return
+    if 'std_int_return' in trajectory_metrics:
+        trajectory_metrics['std_int_return'] = std_int_return
+
+    if 'episode_lengths' in trajectory_metrics:
+        trajectory_metrics['episode_lengths'] = episode_lengths
+    if 'mean_episode_length' in trajectory_metrics:
+        trajectory_metrics['mean_episode_length'] = mean_episode_length
+    if 'episode_lengths' in trajectory_metrics:
+        trajectory_metrics['std_episode_length'] = std_episode_length
+    return trajectory_metrics
+
 
 
 def async_gather_experience_parallel(
