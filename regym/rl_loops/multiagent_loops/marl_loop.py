@@ -204,7 +204,8 @@ def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, ba
     trajectory_metrics = populate_metrics_dictionary(
         total_return, mean_total_return, std_ext_return,
         total_int_return, mean_total_int_return, std_int_return,
-        episode_lengths, mean_episode_length, std_episode_length
+        episode_lengths, mean_episode_length, std_episode_length,
+        requested_metrics
     )
 
     if sum_writer is not None:
@@ -235,30 +236,29 @@ def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, ba
 def populate_metrics_dictionary(total_return, mean_total_return, std_ext_return,
                                 total_int_return, mean_total_int_return, std_int_return,
                                 episode_lengths, mean_episode_length, std_episode_length,
-                                requested_metrics: List[str]) -> Dict[str, Any]:
+                                requested_metrics: List[str] = []) -> Dict[str, Any]:
     trajectory_metrics = {}
-    if 'total_return' in trajectory_metrics:
+    if 'total_return' in requested_metrics:
         trajectory_metrics['total_return'] = total_return
-    if 'mean_total_return' in trajectory_metrics:
+    if 'mean_total_return' in requested_metrics:
         trajectory_metrics['mean_total_return'] = mean_total_return
-    if 'std_ext_return' in trajectory_metrics:
+    if 'std_ext_return' in requested_metrics:
         trajectory_metrics['std_ext_return'] = std_ext_return
 
-    if 'total_int_return' in trajectory_metrics:
+    if 'total_int_return' in requested_metrics:
         trajectory_metrics['total_int_return'] = total_return
-    if 'mean_total_int_return' in trajectory_metrics:
+    if 'mean_total_int_return' in requested_metrics:
         trajectory_metrics['mean_total_int_return'] = mean_total_int_return
-    if 'std_int_return' in trajectory_metrics:
+    if 'std_int_return' in requested_metrics:
         trajectory_metrics['std_int_return'] = std_int_return
 
-    if 'episode_lengths' in trajectory_metrics:
+    if 'episode_lengths' in requested_metrics:
         trajectory_metrics['episode_lengths'] = episode_lengths
-    if 'mean_episode_length' in trajectory_metrics:
+    if 'mean_episode_length' in requested_metrics:
         trajectory_metrics['mean_episode_length'] = mean_episode_length
-    if 'episode_lengths' in trajectory_metrics:
+    if 'episode_lengths' in requested_metrics:
         trajectory_metrics['std_episode_length'] = std_episode_length
     return trajectory_metrics
-
 
 
 def async_gather_experience_parallel(
