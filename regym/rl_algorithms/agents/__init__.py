@@ -12,6 +12,7 @@ from .td3_agent import build_TD3_Agent, TD3Agent
 from .sac_agent import build_SAC_Agent, SACAgent
 from .i2a_agent import build_I2A_Agent, I2AAgent
 from .deterministic_agent import build_Deterministic_Agent, DeterministicAgent
+from .random_agent import build_Random_Agent, RandomAgent
 
 rockAgent     = MixedStrategyAgent(support_vector=[1, 0, 0], name='RockAgent')
 paperAgent    = MixedStrategyAgent(support_vector=[0, 1, 0], name='PaperAgent')
