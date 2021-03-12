@@ -9,7 +9,7 @@ from ..algorithms.DQN import DQNAlgorithm, dqn_loss, ddqn_loss
 from ..networks import CategoricalQNet
 from ..networks import FCBody, FCBody2, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
 from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
-from ..networks import LinearLinearBody, LinearLstmBody
+from ..networks import LinearLinearBody, LinearLstmBody, LinearLstmBody2
 from ..networks import NoisyLinear
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
@@ -76,7 +76,7 @@ class DQNAgent(Agent):
         and self.kwargs["sad"]:
             a = a["action"]
 
-        if prediction is None:  prediction = self.current_prediction
+        if prediction is None:  prediction = deepcopy(self.current_prediction)
 
         state, r, succ_state, non_terminal = self.preprocess_environment_signals(s, r, succ_s, done)
         a = torch.from_numpy(a)
@@ -87,56 +87,100 @@ class DQNAgent(Agent):
         if "vdn" in self.kwargs \
         and self.kwargs["vdn"]:
             # Add a player dimension to each element:
-            # Assume inputs have shape : [batch_size*nbr_players, ...]
+            # Assume inputs have shape : [batch_size*nbr_players, ...],
+            # i.e. [batch_for_p0; batch_for_p1, ...]
             nbr_players = self.kwargs["vdn_nbr_players"]
             batch_size = state.shape[0] // nbr_players
             
             new_state = []
             for bidx in range(batch_size):
-                bidx_states = torch.stack([state[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_states = torch.stack(
+                    [
+                        state[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_state.append(bidx_states)
             state = torch.cat(new_state, dim=0)
             
             new_a = []
             for bidx in range(batch_size):
-                bidx_as = torch.stack([a[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_as = torch.stack(
+                    [
+                        a[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_a.append(bidx_as)
             a = torch.cat(new_a, dim=0)
 
             new_r = []
             for bidx in range(batch_size):
-                bidx_rs = torch.stack([r[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_rs = torch.stack(
+                    [
+                        r[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_r.append(bidx_rs)
             r = torch.cat(new_r, dim=0)
 
-            """
+            '''
             non_terminal = torch.cat([non_terminal]*2, dim=0)
             new_nt = []
             for bidx in range(batch_size):
                 bidx_nts = torch.stack([non_terminal[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
                 new_nt.append(bidx_nts)
             non_terminal = torch.cat(new_nt, dim=0)            
-            """
-
+            '''
+            
             new_succ_state = []
             for bidx in range(batch_size):
-                bidx_succ_states = torch.stack([succ_state[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_succ_states = torch.stack(
+                    [
+                        succ_state[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_succ_state.append(bidx_succ_states)
             succ_state = torch.cat(new_succ_state, dim=0)
             
-            hdict_reshape_fn = lambda x: x.reshape(batch_size, nbr_players, *x.shape[1:])
-            
+            # BEWARE: reshaping might not give the expected ordering due to the dimensions' ordering...
+            #hdict_reshape_fn = lambda x: x.reshape(batch_size, nbr_players, *x.shape[1:])
+            # The above fails to capture the correct ordering:
+            # [ batch0=[p0_exp1, p0_exp2 ; .. ]] instead of 
+            # [ batch0=[p0_exp1, p1_exp1 ; .. ]], if only two players are considered...  
+            def reshape_fn(x):
+                new_x = []
+                for bidx in range(batch_size):
+                    bidx_x = torch.stack(
+                        [
+                            x[pidx*batch_size+bidx].unsqueeze(0) 
+                            for pidx in range(nbr_players)
+                        ], 
+                        dim=1
+                    )
+                    new_x.append(bidx_x)
+                return torch.cat(new_x, dim=0)
+                
             for k, t in prediction.items():
                 if isinstance(t, torch.Tensor):
-                    prediction[k] = t.reshape(batch_size, nbr_players, *t.shape[1:])
+                    #prediction[k] = t.reshape(batch_size, nbr_players, *t.shape[1:])
+                    prediction[k] = reshape_fn(prediction[k])
                 elif isinstance(t, dict):
                     prediction[k] = apply_on_hdict(
                         hdict=t,
-                        fn=hdict_reshape_fn,
+                        fn=reshape_fn, #hdict_reshape_fn,
                     )
                 else:
                     raise NotImplementedError
             
+            """
+            # not used...
             # Infos: list of batch_size * nbr_players dictionnaries:
             new_infos = []
             for bidx in range(batch_size):
@@ -152,6 +196,7 @@ class DQNAgent(Agent):
             # Goals:
             if self.goal_oriented:
                 raise NotImplementedError
+            """
 
         # We assume that this function has been called directly after take_action:
         # therefore the current prediction correspond to this experience.
@@ -186,11 +231,13 @@ class DQNAgent(Agent):
 
             #########################################################################
             #########################################################################
+            # Exctracts tensors at root level:
             exp_dict.update(Agent._extract_from_prediction(prediction, batch_index))
             #########################################################################
             #########################################################################
             
 
+            # Extracts remaining info:
             if self.recurrent:
                 exp_dict['rnn_states'] = _extract_from_rnn_states(
                     prediction['rnn_states'],
@@ -204,7 +251,12 @@ class DQNAgent(Agent):
                 )
 
             if self.goal_oriented:
-                exp_dict['goals'] = Agent._extract_from_hdict(goals, batch_index, goal_preprocessing_fn=self.goal_preprocessing)
+                raise NotImplementedError
+                exp_dict['goals'] = Agent._extract_from_hdict(
+                    goals, 
+                    batch_index, 
+                    goal_preprocessing_fn=self.goal_preprocessing
+                )
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
@@ -307,7 +359,11 @@ class DQNAgent(Agent):
         self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
         if "vdn" in self.kwargs \
         and self.kwargs["vdn"]:
-            self.eps = np.concatenate([self.eps]*self.kwargs["vdn_nbr_players"], axis=0)
+            # The following will not make same values contiguous:
+            #self.eps = np.concatenate([self.eps]*self.kwargs["vdn_nbr_players"], axis=0)
+            # whereas the following will, and thus players in the same environment will explore similarly:
+            self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
+
 
         state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
         goal = None
@@ -678,10 +734,16 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                             'target_location':tl
                         }
 
+            gate = None 
+            if 'use_relu_after_rnn' in kwargs \
+            and kwargs['use_relu_after_rnn']:
+                import ipdb; ipdb.set_trace()
+                gate = F.relu
+
             critic_body = LSTMBody(
                 state_dim=state_dim,
                 hidden_units=critic_arch_hidden_units, 
-                gate=None,
+                gate=gate,
                 extra_inputs_infos=extra_inputs_infos_critic_body,
             )
         elif kwargs['critic_arch'] == 'GRU-RNN':
@@ -701,10 +763,16 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                             'target_location':tl
                         }
             
+            gate = None 
+            if 'use_relu_after_rnn' in kwargs \
+            and kwargs['use_relu_after_rnn']:
+                import ipdb; ipdb.set_trace()
+                gate = F.relu
+
             critic_body = GRUBody(
                 state_dim=state_dim,
                 hidden_units=critic_arch_hidden_units, 
-                gate=None,
+                gate=gate,
                 extra_inputs_infos=extra_inputs_infos_critic_body,
             )
         elif kwargs['critic_arch'] == 'MLP':
@@ -751,12 +819,18 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                             'target_location':tl
                         }
             
+            gate = None 
+            if 'use_relu_after_rnn' in kwargs \
+            and kwargs['use_relu_after_rnn']:
+                import ipdb; ipdb.set_trace()
+                gate = F.relu
+
             critic_body = LinearLstmBody(
                 state_dim=state_dim,
                 feature_dim=critic_arch_feature_dim, 
                 hidden_units=critic_arch_hidden_units, 
                 non_linearities=[nn.ReLU], 
-                gate=F.relu,
+                gate=gate,
                 dropout=0.0,
                 add_non_lin_final_layer=True,
                 layer_init_fn=None,
@@ -794,6 +868,50 @@ def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
                 layer_init_fn=None,
                 extra_inputs_infos=extra_inputs_infos_critic_body,
             )
+        elif kwargs['critic_arch'] == 'MLP-LSTM-RNN2':
+            # Assuming flatten input:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            state_dim = input_dim
+            critic_arch_feature_dim = kwargs['critic_arch_feature_dim']
+            critic_arch_linear_hidden_units = kwargs['critic_arch_linear_hidden_units']
+            critic_arch_linear_post_hidden_units = None
+            if 'critic_arch_linear_post_hidden_units' in kwargs:
+                critic_arch_linear_post_hidden_units = kwargs['critic_arch_linear_post_hidden_units']
+            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
+
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_critic_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tl = extra_inputs_infos[key]['target_location']
+                    if 'critic_body' in tl:
+                        extra_inputs_infos_critic_body[key] = {
+                            'shape':shape, 
+                            'target_location':tl
+                        }
+            
+            gate = None 
+            if 'use_relu_after_rnn' in kwargs \
+            and kwargs['use_relu_after_rnn']:
+                import ipdb; ipdb.set_trace()
+                gate = F.relu
+
+            critic_body = LinearLstmBody2(
+                state_dim=state_dim,
+                feature_dim=critic_arch_feature_dim, 
+                linear_hidden_units=critic_arch_linear_hidden_units,
+                linear_post_hidden_units=critic_arch_linear_post_hidden_units,
+                hidden_units=critic_arch_hidden_units, 
+                non_linearities=[nn.ReLU], 
+                gate=gate,
+                dropout=0.0,
+                add_non_lin_final_layer=True,
+                layer_init_fn=None,
+                extra_inputs_infos=extra_inputs_infos_critic_body,
+            )
+
 
 
 

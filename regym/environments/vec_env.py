@@ -15,10 +15,13 @@ class VecEnv():
                  gathering=True,
                  video_recording_episode_period=None,
                  video_recording_dirpath='./tmp/regym/video_recording/',
+                 video_recording_render_mode='rgb_array',
                  initial_env=None):
         
         self.video_recording_episode_period = video_recording_episode_period
         self.video_recording_dirpath = video_recording_dirpath
+        self.video_recording_render_mode = video_recording_render_mode
+
         self.gathering = gathering
         self.seed = seed
         self.env_creator = env_creator
@@ -80,12 +83,12 @@ class VecEnv():
             self.initial_env = None
         self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
         
-        
         if idx==0 and self.video_recording_episode_period is not None:
             self.env_processes[idx] = PeriodicVideoRecorderWrapper(
                 env=self.env_processes[idx], 
                 base_dirpath=self.video_recording_dirpath,
-                video_recording_episode_period=self.video_recording_episode_period
+                video_recording_episode_period=self.video_recording_episode_period,
+                render_mode=self.video_recording_render_mode,
             )
 
     def sample(self):

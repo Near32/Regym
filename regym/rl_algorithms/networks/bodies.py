@@ -967,15 +967,11 @@ class FCBody(nn.Module):
         state_dim, 
         hidden_units, 
         non_linearities=None, 
-        gate=None,
         dropout=0.0,
         use_cuda=False,
         add_non_lin_final_layer=True,
         layer_init_fn=layer_init,
         ):
-        """
-        TODO: gate / nonlinearities hyperparameters...
-        """
         super(FCBody, self).__init__()
         
         if isinstance(state_dim,int): state_dim = [state_dim]
@@ -1214,7 +1210,6 @@ class LinearLinearBody(nn.Module):
         feature_dim=256, 
         hidden_units=(256,), 
         non_linearities=[nn.ReLU], 
-        gate=F.relu,
         dropout=0.0,
         add_non_lin_final_layer=False,
         layer_init_fn=layer_init,
@@ -1241,7 +1236,6 @@ class LinearLinearBody(nn.Module):
                 state_dim=state_dim,
                 hidden_units=[feature_dim],
                 non_linearities=non_linearities,
-                gate=gate,
                 dropout=dropout,
                 add_non_lin_final_layer=add_non_lin_final_layer,
                 layer_init_fn=layer_init_fn
@@ -1260,14 +1254,13 @@ class LinearLinearBody(nn.Module):
         self.final_linear_body = FCBody( 
             state_dim=final_linear_input_dim, 
             hidden_units=hidden_units, 
-            gate=gate,
             non_linearities=non_linearities,
             dropout=dropout,
             add_non_lin_final_layer=True,
             layer_init_fn=layer_init_fn,
         )
 
-        self.dummy_lstm_body = LSTMBody( state_dim=final_linear_input_dim, hidden_units=hidden_units, gate=gate)
+        self.dummy_lstm_body = LSTMBody( state_dim=final_linear_input_dim, hidden_units=hidden_units, gate=None)
 
 
     def forward(self, inputs):
@@ -1342,7 +1335,6 @@ class LinearLstmBody(nn.Module):
             state_dim=state_dim,
             hidden_units=[feature_dim],
             non_linearities=non_linearities,
-            gate=gate,
             dropout=dropout,
             add_non_lin_final_layer=add_non_lin_final_layer,
             layer_init_fn=layer_init_fn
@@ -1397,6 +1389,129 @@ class LinearLstmBody(nn.Module):
     def get_feature_shape(self):
         return self.lstm_body.get_feature_shape()
 
+
+class LinearLstmBody2(nn.Module):
+    def __init__(
+        self, 
+        state_dim, 
+        feature_dim=256, 
+        linear_hidden_units=None,
+        linear_post_hidden_units=None,
+        hidden_units=(256,), 
+        non_linearities=[nn.ReLU], 
+        gate=F.relu,
+        dropout=0.0,
+        add_non_lin_final_layer=False,
+        layer_init_fn=layer_init,
+        extra_inputs_infos: Dict={},
+        ):
+        '''
+        
+        :param state_dim: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param channels: list of number of channels for each convolutional layer,
+                with the initial value being the number of channels of the input.
+        :param kernel_sizes: list of kernel sizes for each convolutional layer.
+        :param strides: list of strides for each convolutional layer.
+        :param paddings: list of paddings for each convolutional layer.
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                after each convolutional layer.
+        '''
+        super(LinearLstmBody2, self).__init__()
+        self.state_dim = state_dim
+
+        # verify featureshape = feature_dim
+        linear_input_dim = self.state_dim
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            linear_input_dim += shape[-1]
+
+        self.linear_hidden_units = linear_hidden_units
+        self.linear_post_hidden_units = linear_post_hidden_units
+        
+        if self.linear_hidden_units is None:
+            raise NotImplementedError
+        else:
+            if isinstance(self.linear_hidden_units, tuple):
+                self.linear_hidden_units = list(self.linear_hidden_units)
+            if self.linear_post_hidden_units is None:
+                self.linear_hidden_units = self.linear_hidden_units + [feature_dim]
+
+        self.linear_body = FCBody(
+            state_dim=linear_input_dim,
+            hidden_units=self.linear_hidden_units,
+            non_linearities=non_linearities,
+            dropout=dropout,
+            add_non_lin_final_layer=add_non_lin_final_layer,
+            layer_init_fn=layer_init_fn
+        )
+
+        lstm_input_dim = self.linear_body.get_feature_shape() # lstm_input_dim if lstm_input_dim != -1 else self.cnn_body.get_feature_shape()
+        self.lstm_body = LSTMBody( state_dim=lstm_input_dim, hidden_units=hidden_units, gate=gate)
+
+        if self.linear_post_hidden_units is not None:
+            if isinstance(self.linear_post_hidden_units, tuple):
+                self.linear_post_hidden_units = list(self.linear_post_hidden_units)
+            self.linear_post_hidden_units = self.linear_post_hidden_units + [feature_dim]
+
+            linear_post_input_dim = self.lstm_body.get_feature_shape()    
+            self.linear_body_post = FCBody(
+                state_dim=linear_post_input_dim,
+                hidden_units=self.linear_post_hidden_units,
+                non_linearities=non_linearities,
+                dropout=dropout,
+                add_non_lin_final_layer=add_non_lin_final_layer,
+                layer_init_fn=layer_init_fn
+            )
+
+    def forward(self, inputs):
+        '''
+        :param inputs: input to LSTM cells. Structured as (feed_forward_input, {hidden: hidden_states, cell: cell_states}).
+        hidden_states: list of hidden_state(s) one for each self.layers.
+        cell_states: list of hidden_state(s) one for each self.layers.
+        '''
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
+        
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
+        
+        extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+        if len(extra_inputs): x = torch.cat([x]+extra_inputs, dim=-1)
+
+        features = self.linear_body(x)
+        
+        recurrent_neurons = _extract_from_rnn_states(
+            rnn_states_batched=frame_states,
+            batch_idx=None,
+            map_keys=['hidden', 'cell'],
+        )
+        
+        x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
+
+        if self.linear_post_hidden_units is not None:
+            x = self.linear_body_post(x)
+
+        return x, recurrent_neurons
+
+    def get_reset_states(self, cuda=False, repeat=1):
+        return self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
+    
+    def get_input_shape(self):
+        return self.state_dim
+
+    def get_feature_shape(self):
+        if self.linear_post_hidden_units is None:
+            return self.lstm_body.get_feature_shape()
+        else:
+            return self.linear_body_post.get_feature_shape()
+
 class LSTMBody(nn.Module):
     def __init__(
         self, 
@@ -1409,8 +1524,9 @@ class LSTMBody(nn.Module):
         :param state_dim: dimensions of the input.
         :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
         '''
-        import ipdb; ipdb.set_trace()
-        #assert gate is None, "It is not recommended to use a gating function..."
+        if gate is not None:
+            print("WARNING :: bodies.py :: LSTMBody :: It is not recommended to use a gating function...")
+        
         super(LSTMBody, self).__init__()
         self.state_dim = state_dim
         self.hidden_units = hidden_units
@@ -1484,6 +1600,7 @@ class LSTMBody(nn.Module):
             """
             # VDN:
             if len(x.shape)==3:
+                raise NotImplementedError
                 shapex = x.shape
                 shapehx = hx.shape
                 shapecx = cx.shape 

@@ -29,7 +29,8 @@ def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', di
     for idx, img in enumerate(imgs):
         if idx%divider: continue
         plt.subplot(211, label=f"frame{idx}-image")
-        gifimg = plt.imshow(img, animated=True)
+        #gifimg = plt.imshow(img, animated=True)
+        gifimg = plt.imshow(img)
         ax = plt.subplot(212, label=f"frame{idx}-data")
         
         frame = [gifimg]
@@ -37,9 +38,20 @@ def save_traj_with_graph(trajectory, data, episode=0, actor_idx=0, path='./', di
             x = np.arange(0,idx,1)
             y = np.asarray(d[:idx])
             ax.set_xlim(left=0,right=idx+10)
-            frame.append( ax.plot(x, y, color=colors[didx%len(colors)], marker=markers[didx%len(markers)], linestyle='dashed',linewidth=1, markersize=2)[0])
+            frame.append( 
+                ax.plot(
+                    x, 
+                    y, 
+                    color=colors[didx%len(colors)], 
+                    marker=markers[didx%len(markers)], 
+                    linestyle='dashed',
+                    linewidth=1, 
+                    markersize=2
+                )[0]
+            )
         gifimgs.append(frame)
         
+    import ipdb; ipdb.set_trace()
     gif = anim.ArtistAnimation(fig, gifimgs, interval=200, blit=True, repeat_delay=None)
     path = os.path.join(path, f'./traj_ep{episode}_actor{actor_idx}.mp4')
     try:

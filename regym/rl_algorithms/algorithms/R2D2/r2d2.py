@@ -104,6 +104,7 @@ class R2D2Algorithm(DQNAlgorithm):
             beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
 
         self.pre_storage_sequence_exp_dict = []
+        self.pre_storage_sequence_storage_idx = []
 
         for i in range(nbr_storages):
             if self.kwargs['use_PER']:
@@ -205,51 +206,70 @@ class R2D2Algorithm(DQNAlgorithm):
 
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
             if self.use_PER:
-                """
-                Put the experience dict into a buffer until we have enough
-                to compute td_errors in batch.
-                """
-                self.pre_storage_sequence_exp_dict.append(current_sequence_exp_dict)
-                if len(self.pre_storage_sequence_exp_dict) < self.batch_size//self.sequence_replay_unroll_length:
-                    return 
+                if self.kwargs['PER_compute_initial_priority']:
+                    """
+                    Put the experience dict into a buffer until we have enough
+                    to compute td_errors in batch.
+                    """
+                    self.pre_storage_sequence_exp_dict.append(current_sequence_exp_dict)
+                    self.pre_storage_sequence_storage_idx.append(storage_index)
+                    if len(self.pre_storage_sequence_exp_dict) < self.batch_size//self.sequence_replay_unroll_length:
+                        return 
 
-                samples = {}
-                for exp_dict in self.pre_storage_sequence_exp_dict:
-                    for key, value in exp_dict.items():
-                        if key not in samples:  samples[key] = []
-                        samples[key].append(value)
+                    samples = {}
+                    for exp_dict in self.pre_storage_sequence_exp_dict:
+                        for key, value in exp_dict.items():
+                            if key not in samples:  samples[key] = []
+                            samples[key].append(value)
 
-                for key, value_list in samples.items():
-                    if len(value_list) >1:
-                        if isinstance(value_list[0], dict):
-                            batched_values = _concatenate_list_hdict(
-                                lhds=value_list, 
-                                concat_fn=partial(torch.cat, dim=0),   # concatenate on the batch dimension (axis=0).
-                                preprocess_fn=(lambda x:x),
+                    for key, value_list in samples.items():
+                        if len(value_list) >1:
+                            if isinstance(value_list[0], dict):
+                                batched_values = _concatenate_list_hdict(
+                                    lhds=value_list, 
+                                    concat_fn=partial(torch.cat, dim=0),   # concatenate on the batch dimension (axis=0).
+                                    preprocess_fn=(lambda x:x),
+                                )
+                            else:
+                                batched_values = torch.cat(value_list, dim=0)
+                        else:
+                            batched_values = value_list[0]
+
+                        samples[key] = batched_values
+
+                    with torch.no_grad():
+                        td_error_per_item = self.compute_td_error(samples=samples)[-1].cpu().detach().numpy()
+                    
+                    unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
+                    for exp_dict_idx, (csed, cs_storage_idx) in enumerate(zip(self.pre_storage_sequence_exp_dict, self.pre_storage_sequence_storage_idx)):
+                        if isinstance(self.storages[0], ray.actor.ActorHandle):
+                            new_priority = ray.get(
+                                self.storages[cs_storage_idx].sequence_priority.remote(
+                                    td_error_per_item[exp_dict_idx].reshape(unroll_length,)
+                                )
                             )
                         else:
-                            batched_values = torch.cat(value_list, dim=0)
-                    else:
-                        batched_values = value_list[0]
-
-                    samples[key] = batched_values
-
-                with torch.no_grad():
-                    td_error_per_item = self.compute_td_error(samples=samples)[-1].cpu().detach().numpy()
-                
-                unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
-                for exp_dict_idx, current_sequence_exp_dict in enumerate(self.pre_storage_sequence_exp_dict):
-                    if isinstance(self.storages[0], ray.actor.ActorHandle):
-                        new_priority = ray.get(
-                            self.storages[storage_index].sequence_priority.remote(
+                            new_priority = self.storages[cs_storage_idx].sequence_priority(
                                 td_error_per_item[exp_dict_idx].reshape(unroll_length,)
                             )
-                        )
-                    else:
-                        new_priority = self.storages[storage_index].sequence_priority(
-                            td_error_per_item[exp_dict_idx].reshape(unroll_length,)
-                        )
-                    
+                        
+                        if isinstance(self.storages[cs_storage_idx], ray.actor.ActorHandle):
+                            ray.get(
+                                self.storages[cs_storage_idx].add.remote(
+                                    csed, 
+                                    priority=new_priority
+                                )
+                            )
+                        else:
+                            self.storages[cs_storage_idx].add(
+                                csed, 
+                                priority=new_priority
+                            )
+
+                    self.pre_storage_sequence_exp_dict = []
+                    self.pre_storage_sequence_storage_idx = []
+                else:
+                    new_priority = None 
                     if isinstance(self.storages[storage_index], ray.actor.ActorHandle):
                         ray.get(
                             self.storages[storage_index].add.remote(
@@ -262,8 +282,6 @@ class R2D2Algorithm(DQNAlgorithm):
                             current_sequence_exp_dict, 
                             priority=new_priority
                         )
-
-                self.pre_storage_sequence_exp_dict = []
             else:
                 self.storages[storage_index].add(current_sequence_exp_dict)
 

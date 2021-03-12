@@ -148,7 +148,17 @@ def run_episode_parallel(env,
 
     return per_actor_trajectories
 
-def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1, save_traj=False):
+def test_agent(
+    env, 
+    agents, 
+    update_count, 
+    nbr_episode, 
+    sum_writer, 
+    iteration, 
+    base_path, 
+    nbr_save_traj=1, 
+    save_traj=False,
+    save_traj_length_divider=1):
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
 
@@ -203,7 +213,14 @@ def test_agent(env, agents, update_count, nbr_episode, sum_writer, iteration, ba
             gif_traj = [ exp[0] for exp in trajectory[actor_idx]]
             gif_data = [np.cumsum([ exp[2] for exp in trajectory[actor_idx]])]
             begin = time.time()
-            save_traj_with_graph(gif_traj, gif_data, episode=iteration, actor_idx=actor_idx, path=base_path)
+            save_traj_with_graph(
+                gif_traj, 
+                gif_data, 
+                divider=save_traj_length_divider,
+                episode=iteration, 
+                actor_idx=actor_idx, 
+                path=base_path
+            )
             end = time.time()
             eta = end-begin
             print(f'{actor_idx+1} / {nbr_save_traj} :: Time: {eta} sec.')
@@ -221,6 +238,7 @@ def async_gather_experience_parallel(
     sum_writer=None,
     base_path='./',
     benchmarking_record_episode_interval=None,
+    save_traj_length_divider=1,
     step_hooks=[],
     sad=False):
     '''
@@ -269,6 +287,7 @@ def async_gather_experience_parallel(
         sum_writer=sum_writer,
         base_path=base_path,
         benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+        save_traj_length_divider=save_traj_length_divider,
         step_hooks=step_hooks,
         sad=sad,
     )
@@ -308,6 +327,7 @@ def async_gather_experience_parallel1(
     sum_writer=None,
     base_path='./',
     benchmarking_record_episode_interval=None,
+    save_traj_length_divider=1,
     step_hooks=[],
     sad=False):
     '''
@@ -354,6 +374,7 @@ def async_gather_experience_parallel1(
         "sum_writer":sum_writer,
         "base_path":base_path,
         "benchmarking_record_episode_interval":benchmarking_record_episode_interval,
+        "save_traj_length_divider":save_traj_length_divider,
         "step_hooks":step_hooks,
         "sad":sad
     }
@@ -402,6 +423,7 @@ def gather_experience_parallel(
     sum_writer=None,
     base_path='./',
     benchmarking_record_episode_interval=None,
+    save_traj_length_divider=1,
     step_hooks=[],
     sad=False,
     vdn=False,
@@ -591,14 +613,17 @@ def gather_experience_parallel(
                     save_traj = (obs_count%benchmarking_record_episode_interval==0)
                 # TECHNICAL DEBT: clone_agent.get_update_count is failing because the update count param is None
                 # haven't figured out why is the cloning function making it None...
-                test_agent(env=test_env,
-                            agents=[agent.clone(training=False) for agent in agents],
-                            update_count=agent.get_update_count(),
-                            nbr_episode=test_nbr_episode,
-                            sum_writer=sum_writer,
-                            iteration=obs_count,
-                            base_path=base_path,
-                            save_traj=save_traj)
+                test_agent(
+                    env=test_env,
+                    agents=[agent.clone(training=False) for agent in agents],
+                    update_count=agent.get_update_count(),
+                    nbr_episode=test_nbr_episode,
+                    sum_writer=sum_writer,
+                    iteration=obs_count,
+                    base_path=base_path,
+                    save_traj=save_traj,
+                    save_traj_length_divider=save_traj_length_divider
+                )
 
         observations = copy.deepcopy(succ_observations)
         info = copy.deepcopy(succ_info)
