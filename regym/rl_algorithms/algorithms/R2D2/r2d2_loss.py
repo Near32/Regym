@@ -937,8 +937,6 @@ def compute_loss(states: torch.Tensor,
                 kwargs=kwargs
             )
         # (batch_size, training_length, ...)
-        
-        
     else:
         if len(training_rewards.shape) > 3:
             assert ("vdn" in kwargs and kwargs["vdn"])
@@ -951,18 +949,22 @@ def compute_loss(states: torch.Tensor,
                     gamma=gamma,
                     kwargs=kwargs
                 )
+            unscaled_Q_Si_Ai_value = unscaled_Q_Si_Ai_value.sum(dim=2)
         else:
-            raise NotImplementedError
-
+            unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
+                training_rewards=training_rewards,
+                training_non_terminals=training_non_terminals,
+                unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction,
+                gamma=gamma,
+                kwargs=kwargs
+            )
         # (batch_size, training_length, ...)
         
         #unscaled_bellman_target_Sipn_onlineGreedyAction = unscaled_bellman_target_Sipn_onlineGreedyAction.sum(dim=2)
-        assert len(unscaled_bellman_target_Sipn_onlineGreedyAction.shape) == 3
-        unscaled_Q_Si_Ai_value = unscaled_Q_Si_Ai_value.sum(dim=2)
+        assert len(unscaled_bellman_target_Sipn_onlineGreedyAction.shape) == 3  
     
     Q_Si_Ai_value = value_function_rescaling(unscaled_Q_Si_Ai_value)    
     scaled_bellman_target_Sipn_onlineGreedyAction = value_function_rescaling(unscaled_bellman_target_Sipn_onlineGreedyAction)
-
     '''
     # TODO: decide how to handle HER augmentation...
     if HER_target_clamping:
@@ -998,6 +1000,7 @@ def compute_loss(states: torch.Tensor,
 
     if use_PER and importanceSamplingWeights is not None:
       diff_squared = importanceSamplingWeights.reshape((batch_size, 1, 1)) * diff_squared
+      assert list(diff_squared.shape) == [batch_size, training_length, 1]
 
     # not sure where this masking strategy comes from, maybe forget about it
     # since the distribution of qa values is more expressive without it...
@@ -1005,12 +1008,14 @@ def compute_loss(states: torch.Tensor,
     assert kwargs["r2d2_loss_masking"], "r2d2_loss_masking must be True for this test."
     if kwargs["r2d2_loss_masking"]:
         mask = torch.ones_like(diff_squared)
-        mask[:,-1, ...] = (1-training_non_terminals[:,-1,...])
         
         assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
         if kwargs['r2d2_loss_masking_n_step_regularisation']:
             mask[:, -kwargs["n_step"]:, ...] = 0
 
+        # maybe but 1 back:
+        mask[:,-1, ...] = (1-training_non_terminals[:,-1,...])
+        
         loss_per_item = loss_per_item*mask
         loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
     else:

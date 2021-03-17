@@ -28,9 +28,10 @@ import ray
 def comaze_r2d2_wrap(
     env, 
     clip_reward=False,
-    previous_reward_action=True
+    previous_reward_action=True,
+    otherplay=False
     ):
-    env = comaze_wrap(env)
+    env = comaze_wrap(env, op=otherplay)
 
     if clip_reward:
         env = ClipRewardEnv(env)
@@ -144,7 +145,8 @@ def training_process(agent_config: Dict,
     pixel_wrapping_fn = partial(
       comaze_r2d2_wrap,
       clip_reward=task_config['clip_reward'],
-      previous_reward_action=task_config.get('previous_reward_action', False)
+      previous_reward_action=task_config.get('previous_reward_action', False),
+      otherplay=task_config.get("otherplay", False),
     )
     
     test_pixel_wrapping_fn = pixel_wrapping_fn
