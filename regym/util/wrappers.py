@@ -100,6 +100,9 @@ class VDNVecEnvWrapper(object):
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
 
+    def render(self, render_mode="rgb_array", env_indices=None) :
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+
     def reset(self, **kwargs):
         next_obs, next_infos = self.env.reset(**kwargs)
         
@@ -1687,6 +1690,9 @@ class SADVecEnvWrapper_depr(object):
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
 
+    def render(self, render_mode="rgb_array", env_indices=None):
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+    
     def reset(self, **kwargs):
         next_obs, next_infos = self.env.reset(**kwargs)
         
@@ -1748,6 +1754,9 @@ class SADVecEnvWrapper(object):
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
 
+    def render(self, render_mode="rgb_array", env_indices=None):
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+    
     def reset(self, **kwargs):
         next_obs, next_infos = self.env.reset(**kwargs)
         

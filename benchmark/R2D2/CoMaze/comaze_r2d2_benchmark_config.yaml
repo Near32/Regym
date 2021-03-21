@@ -244,7 +244,8 @@ r2d2_LargeCNNLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeCNN
 experiment:
     tasks: [{
         #'env-id': 'CoMaze-7x7-Dense-v0',
-        'env-id': 'CoMaze-7x7-Dense-Level4-v0',
+        #'env-id': 'CoMaze-7x7-Dense-Level4-v0',
+        'env-id': 'CoMaze-7x7-Dense-Level5-v0',
         #'env-id': 'CoMaze-7x7-Dense-SinglePlayerReward-v0',
         #'env-id': 'CoMaze-7x7-Dense-SinglePlayerReward-Level4-v0',
         #'env-id': 'CoMaze-7x7-Dense-SinglePlayerReward-Level4-FixedSecretGoalRules-v0',
@@ -271,7 +272,7 @@ experiment:
         
         #'run-id': 'serial/selfplay/EnvWithSymmetricalTimeBonuses/EnvWithBlackReachedGoals/NOSAD/debugVDN23-debug1VDNLoss-VDNExpHandling-RandomizedStartPlayerActionSet/NoBN/WithReLUonFC/NOScalingFN_EPS1m3/Seed2_venv64_r2d2_Obs56_EntropyReg0_WeightDecayReg0/',
         #'run-id': 'serial/selfplay/400MaxSteps/NOSAD/debugVDNLoss+SumBeforeLoss-VDNExpHandling-RandomizedStartPlayerActionSet/NoBN/WithReLUonRNN/NOScalingFN_EPS1m3/Seed2_venv64_r2d2_Obs56_EntropyReg0_WeightDecayReg0/',
-        'run-id': 'serial/selfplay/100MaxSteps/PenalizeSecretGoalRuleBreaching-1/debugOP/debugSAD/debugVDNLoss+SumBeforeLoss-LossTermReg/NoBN/WithReLUonRNN/NOScalingFN_EPS1m3/Seed2_venv64_r2d2_Obs56_EntropyReg0_WeightDecayReg0/',
+        'run-id': 'serial/selfplay/REPVecEnvInitRZeroed/50MaxSteps/PenalizeSecretGoalRuleBreaching-10-Reward1-NoGameOver-debugConflictRule+Check/Penalty+Vocab20/NOOP/debugSAD/debugVDNLoss+SumBeforeLoss-LossTermCombReg/NoBN/WithOUTReLUonRNN/NOScalingFN_EPS1m3/Seed2_venv64_r2d2_Obs56_EntropyReg0_WeightDecayReg0/',
         
         #'run-id': 'serial/selfplay/EnvWithSymmetricalTimeBonuses/EnvWithBlackReachedGoals/400MaxSteps/NOSAD/debugNOVDNLoss+NOSumBeforeLoss-VDNExpHandling-RandomizedStartPlayerActionSet/NoBN/WithReLUonFC/NOScalingFN_EPS1m3/Seed2_venv64_r2d2_Obs56_EntropyReg0_WeightDecayReg0/',
         
@@ -331,8 +332,12 @@ experiment:
         # seq 100:
         #'agent-id': '3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L100_O50_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
         # seq 20:
-        'agent-id': '3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
-        # SAD+VDN: plateauing at 8 in singleplayerreward
+        #'agent-id': '3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
+        # arch 2:
+        #'agent-id': '3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM2_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
+        # + res con :
+        'agent-id': '3step_SAD_VDN_aID_1m1Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM2Res_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
+        #SAD+VDN: plateauing at 8 in singleplayerreward
         #'agent-id': '3step_SAD_VDN_1m1Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
         
         # + agent id: does not provide any help compared to SAD:
@@ -375,8 +380,8 @@ experiment:
         'sad': True,
         #'vdn': False, 
         'vdn': True,
-        "otherplay": True,
-        #"otherplay": False,
+        #"otherplay": True,
+        "otherplay": False,
         'clip_reward': False,
         'previous_reward_action': True,
         #'observation_resize_dim': (21,21), #(56,56),
@@ -513,7 +518,11 @@ agents:
     #3step_VDN_1m1Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L100_O50_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
     #3step_SAD_VDN_1m1Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
     # With agent id:
-    3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
+    #3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
+    # arch 2:
+    #3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM2_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
+    # arch 2 + res. con.:
+    3step_SAD_VDN_aID_1m1Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM2Res_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
     # seq 100
     #3step_SAD_VDN_aID_NOEnt_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L100_O50_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
     #3step_SAD_VDN_aID_1m1Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeCNN_MLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_ovrN_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
@@ -534,8 +543,8 @@ agents:
         <<: *SAD_VDN_3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone
         # DEBUG:
         min_capacity: 1e3    
-        weights_entropy_lambda: 0.0 
-        #weights_entropy_lambda: 0.1
+        #weights_entropy_lambda: 0.0 
+        weights_entropy_lambda: 0.1
         #weights_entropy_lambda: 0.001 #01
     
         #vdn: False 
@@ -586,18 +595,19 @@ agents:
         #use_relu_after_rnn: False 
 
         # normal arch:
-        critic_arch: 'MLP-LSTM-RNN'
-        use_relu_after_rnn: True 
-        #use_relu_after_rnn: False 
-        critic_arch_feature_dim: 512
-        critic_arch_hidden_units: [512]
+        # critic_arch: 'MLP-LSTM-RNN'
+        # use_relu_after_rnn: True 
+        # #use_relu_after_rnn: False 
+        # critic_arch_feature_dim: 512
+        # critic_arch_hidden_units: [512]
 
         # Arch2:
-        # critic_arch: 'MLP-LSTM-RNN2'
-        # use_relu_after_rnn: True 
-        # critic_arch_linear_hidden_units: [512, 256]
-        # critic_arch_feature_dim: 128
-        # critic_arch_hidden_units: [128]
+        critic_arch: 'MLP-LSTM-RNN2'
+        use_relu_after_rnn: False #True 
+        use_residual_connection: True 
+        critic_arch_linear_hidden_units: [512, 256]
+        critic_arch_feature_dim: 128
+        critic_arch_hidden_units: [128, 128]
 
         # Arch 3:
         # critic_arch: 'MLP-LSTM-RNN2'
@@ -628,7 +638,7 @@ agents:
                 target_location: ['critic_body', 'extra_inputs']
             },
             'communication_channel':{
-                shape: [11,], 
+                shape: [21], #[8], #[4], #[11,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             'secret_goal_rule':{
@@ -648,7 +658,7 @@ agents:
             # WITH SAD:
             ########################
             'greedy_action':{
-                shape: [58,], 
+                shape: [108], #[43], #[23], #[58,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             ########################

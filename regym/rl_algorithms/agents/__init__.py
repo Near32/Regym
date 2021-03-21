@@ -13,6 +13,8 @@ from .sac_agent import build_SAC_Agent, SACAgent
 from .i2a_agent import build_I2A_Agent, I2AAgent
 from .deterministic_agent import build_Deterministic_Agent, DeterministicAgent
 
+from .utils import generate_model
+
 rockAgent     = MixedStrategyAgent(support_vector=[1, 0, 0], name='RockAgent')
 paperAgent    = MixedStrategyAgent(support_vector=[0, 1, 0], name='PaperAgent')
 scissorsAgent = MixedStrategyAgent(support_vector=[0, 0, 1], name='ScissorsAgent')

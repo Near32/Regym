@@ -754,25 +754,60 @@ class SquashedGaussianActorNet(nn.Module):
 
 
 class ActorCriticNet(nn.Module):
-    def __init__(self, state_dim, action_dim, phi_body, actor_body, critic_body, use_intrinsic_critic=False, layer_init_fn=layer_init):
+    def __init__(
+        self, 
+        state_dim, 
+        action_dim, 
+        phi_body, 
+        actor_body, 
+        critic_body, 
+        use_intrinsic_critic=False, 
+        extra_inputs_infos: Dict={},
+        layer_init_fn=layer_init):
+        """
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        """
         super(ActorCriticNet, self).__init__()
+        
         if phi_body is None: phi_body = DummyBody(state_dim)
         if actor_body is None: actor_body = DummyBody(phi_body.get_feature_shape())
         if critic_body is None: critic_body = DummyBody(phi_body.get_feature_shape())
+        
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
-        self.fc_action = nn.Linear(actor_body.get_feature_shape(), action_dim)
+        
+        fc_critic_input_shape = self.critic_body.get_feature_shape()
+        fc_actor_input_shape = self.actor_body.get_feature_shape()
+        
+        if isinstance(fc_critic_input_shape, list):
+            fc_critic_input_shape = fc_critic_input_shape[-1]
+        if isinstance(fc_actor_input_shape, list):
+            fc_actor_input_shape = fc_actor_input_shape[-1]
+
+        for key in extra_inputs_infos['critic']:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            fc_critic_input_shape += shape[-1]
+        for key in extra_inputs_infos['actor']:
+            shape = extra_inputs_infos[key]['shape']
+            assert len(shape) == 1 
+            fc_actor_input_shape += shape[-1]
+        
+        #self.fc_action = nn.Linear(actor_body.get_feature_shape(), action_dim)
+        self.fc_action = nn.Linear(fc_actor_input_shape, action_dim)
         if layer_init_fn is not None:
             self.fc_action = layer_init_fn(self.fc_action, 1e-3)
-        self.fc_critic = nn.Linear(critic_body.get_feature_shape(), 1)
+        #self.fc_critic = nn.Linear(critic_body.get_feature_shape(), 1)
+        self.fc_critic = nn.Linear(fc_critic_input_shape, 1)
         if layer_init_fn is not None:
             self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
 
         self.use_intrinsic_critic = use_intrinsic_critic
         self.fc_int_critic = None
         if self.use_intrinsic_critic: 
-            self.fc_int_critic = nn.Linear(critic_body.get_feature_shape(), 1)
+            #self.fc_int_critic = nn.Linear(critic_body.get_feature_shape(), 1)
+            self.fc_int_critic = nn.Linear(fc_critic_input_shape, 1)
             if layer_init_fn is not None:
                 self.fc_int_critic = layer_init_fn(self.fc_int_critic, 1e-3)
 
@@ -782,6 +817,7 @@ class ActorCriticNet(nn.Module):
         self.phi_params = list(self.phi_body.parameters())
 
         print(self)
+
         for name, param in self.named_parameters():
             print(name, param.shape)
 
@@ -849,54 +885,78 @@ class GaussianActorCriticNet(nn.Module):
         return prediction
 
 
-class CategoricalActorCriticNet(nn.Module):
-    def __init__(self,
-                 state_dim,
-                 action_dim,
-                 phi_body=None,
-                 actor_body=None,
-                 critic_body=None,
-                 use_intrinsic_critic=False):
-        super(CategoricalActorCriticNet, self).__init__()
-        self.use_intrinsic_critic = use_intrinsic_critic
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.network = ActorCriticNet(state_dim, action_dim, phi_body, actor_body, critic_body,use_intrinsic_critic)
+class CategoricalActorCriticNet(ActorCriticNet):
+    def __init__(
+        self,
+        state_dim,
+        action_dim,
+        phi_body=None,
+        actor_body=None,
+        critic_body=None,
+        use_intrinsic_critic=False,
+        extra_inputs_infos: Dict={}):
+        """
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        """
+        
+        super(CategoricalActorCriticNet, self).__init__(
+            state_dim=state_dim, 
+            action_dim=action_dim, 
+            phi_body=phi_body, 
+            actor_body=actor_body, 
+            critic_body=critic_body,
+            use_intrinsic_critic=use_intrinsic_critic,
+            extra_inputs_infos=extra_inputs_infos,
+        )
 
     def forward(self, obs, action=None, rnn_states=None):
         global EPS
+        batch_size = obs.shape[0]
+
         next_rnn_states = None 
         if rnn_states is not None:
             next_rnn_states = {k: None for k in rnn_states}
 
         if rnn_states is not None and 'phi_body' in rnn_states:
-            phi, next_rnn_states['phi_body'] = self.network.phi_body( (obs, rnn_states['phi_body']) )
+            phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
         else:
-            phi = self.network.phi_body(obs)
+            phi = self.phi_body(obs)
 
         if rnn_states is not None and 'actor_body' in rnn_states:
-            phi_a, next_rnn_states['actor_body'] = self.network.actor_body( (phi, rnn_states['actor_body']) )
+            phi_a, next_rnn_states['actor_body'] = self.actor_body( (phi, rnn_states['actor_body']) )
         else:
-            phi_a = self.network.actor_body(phi)
+            phi_a = self.actor_body(phi)
 
-        if rnn_states is not None and 'critic_body' in rnn_states:
-            phi_v, next_rnn_states['critic_body'] = self.network.critic_body( (phi, rnn_states['critic_body']) )
-        else:
-            phi_v = self.network.critic_body(phi)
-
-        logits = self.network.fc_action(phi_a)
-        probs = F.softmax( logits, dim=-1 )
-        #https://github.com/pytorch/pytorch/issues/7014
-        #probs = torch.clamp(probs, -1e10, 1e10)
+        if 'final_actor_layer' in rnn_states:
+            extra_inputs = extract_subtree(
+                in_dict=rnn_states['final_actor_layer'],
+                node_id='extra_inputs',
+            )
+            
+            extra_inputs = [v[0].to(phi_a.dtype).to(phi_a.device) for v in extra_inputs.values()]
+            if len(extra_inputs): phi_a = torch.cat([phi_a]+extra_inputs, dim=-1)
         
+        if rnn_states is not None and 'critic_body' in rnn_states:
+            phi_v, next_rnn_states['critic_body'] = self.critic_body( (phi, rnn_states['critic_body']) )
+        else:
+            phi_v = self.critic_body(phi)
+
+        if 'final_critic_layer' in rnn_states:
+            extra_inputs = extract_subtree(
+                in_dict=rnn_states['final_critic_layer'],
+                node_id='extra_inputs',
+            )
+            
+            extra_inputs = [v[0].to(phi_v.dtype).to(phi_v.device) for v in extra_inputs.values()]
+            if len(extra_inputs): phi_v = torch.cat([phi_v]+extra_inputs, dim=-1)
+        
+
         # batch x action_dim
-        v = self.network.fc_critic(phi_v)
+        v = self.fc_critic(phi_v)
         if self.use_intrinsic_critic:
-            int_v = self.network.fc_int_critic(phi_v)
+            int_v = self.fc_int_critic(phi_v)
         # batch x 1
 
-        batch_size = logits.size(0)
-        
         '''
         # RND1
         # probs:
@@ -914,16 +974,34 @@ class CategoricalActorCriticNet(nn.Module):
         '''
         '''
         # NORMAL:
+        logits = self.fc_action(phi_a)
+        probs = F.softmax( logits, dim=-1 )
+        #https://github.com/pytorch/pytorch/issues/7014
+        #probs = torch.clamp(probs, -1e10, 1e10)
         #log_probs = F.log_softmax(logits, dim=-1)
         log_probs = torch.log(probs+EPS)
         entropy = -torch.sum(probs*log_probs, dim=-1)#, keepdim=True)
         # batch #x 1
         
+        legal_actions = torch.ones_like(logits)
+        if 'head' in rnn_states \
+        and 'extra_inputs' in rnn_states['head'] \
+        and 'legal_actions' in rnn_states['head']['extra_inputs']:
+            legal_actions = rnn_states['head']['extra_inputs']['legal_actions'][0]
+            next_rnn_states['head'] = rnn_states['head']
+        legal_actions = legal_actions.to(logits.device)
+        
+        # The following accounts for player dimension if VDN:
+        legal_qa = (1+logits-logits.min(dim=-1, keepdim=True)[0]) * legal_actions
+        
+        greedy_action = legal_qa.max(dim=-1, keepdim=True)[1]
         if action is None:
             #action = (probs+EPS).multinomial(num_samples=1).squeeze(1)
-            action = torch.multinomial( probs, num_samples=1).squeeze(1)
+            #action = torch.multinomial( probs, num_samples=1).squeeze(1)
+            action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1)#.reshape((batch_size,))
             # batch #x 1
-        log_probs = log_probs.gather(1, action.unsqueeze(1)).squeeze(1)
+        #log_probs = log_probs.gather(1, action.unsqueeze(1)).squeeze(1)
+        log_probs = log_probs.gather(1, action).squeeze(1)
         # batch #x 1
         '''
         '''
@@ -947,17 +1025,22 @@ class CategoricalActorCriticNet(nn.Module):
         # batch #x 1
         '''
 
-        prediction = {'a': action,
-                    'log_pi_a': log_probs,
-                    'action_logits': logits,
-                    'ent': entropy,
-                    'v': v}
+        prediction = {
+            'a': action,
+            'greedy_action': greedy_action,
+            'log_pi_a': log_probs,
+            'action_logits': logits,
+            'ent': entropy,
+            'v': v
+        }
         
         if self.use_intrinsic_critic:
             prediction['int_v'] = int_v
 
-        prediction.update({'rnn_states': rnn_states,
-                               'next_rnn_states': next_rnn_states})
+        prediction.update({
+            'rnn_states': rnn_states,
+            'next_rnn_states': next_rnn_states}
+        )
 
         return prediction
 

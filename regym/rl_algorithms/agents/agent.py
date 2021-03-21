@@ -430,12 +430,15 @@ class ExtraInputsHandlingAgent(Agent):
         hdict = {}
         for key in self.extra_inputs_infos:
             value = init.get(key, torch.cat([self.dummies[key]]*self.nbr_actor, dim=0))
-            pointer = hdict
-            for child_node in self.extra_inputs_infos[key]['target_location']:
-                if child_node not in pointer:
-                    pointer[child_node] = {}
-                pointer = pointer[child_node]
-            pointer[key] = [value]
+            if not isinstance(self.extra_inputs_infos[key]['target_location'][0], list):
+                self.extra_inputs_infos[key]['target_location'] = [self.extra_inputs_infos[key]['target_location']]
+            for tl in self.extra_inputs_infos[key]['target_location']:
+                pointer = hdict
+                for child_node in tl:
+                    if child_node not in pointer:
+                        pointer[child_node] = {}
+                    pointer = pointer[child_node]
+                pointer[key] = [value]
         return hdict
     
     def _build_dict_from(self, lhdict: Dict):

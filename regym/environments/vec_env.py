@@ -123,6 +123,16 @@ class VecEnv():
     def put_action_in_queue(self, action, idx):
         self.env_queues[idx]['out'] = self.env_processes[idx].step(action)
 
+    def render(self, render_mode="rgb_array", env_indices=None) :
+        if env_indices is None: env_indices = range(self.nbr_parallel_env)
+        
+        observations = []
+        for idx in env_indices:
+            obs = self.env_processes[idx].render(render_mode)
+            observations.append(obs)
+
+        return observations
+
     def reset(self, env_configs=None, env_indices=None) :
         if env_indices is None: env_indices = range(self.nbr_parallel_env)
         
@@ -213,7 +223,12 @@ class VecEnv():
             obs, r, done, info = experience
 
             if len(self.init_reward)<len(self.env_queues):
-                self.init_reward.append(r)
+                # Zero-out this initial reward:
+                init_r = copy.deepcopy(r)
+                if isinstance(init_r, list):
+                    for ridx in range(len(init_r)):
+                        init_r[ridx] = 0*init_r[ridx]  
+                self.init_reward.append(init_r)
 
             observations.append( obs )
             rewards.append( r )

@@ -55,7 +55,7 @@ class DQNAlgorithm(Algorithm):
 
         assert (self.use_HER and self.goal_oriented) or not(self.goal_oriented)
 
-        self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
+        self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda']) if 'weights_decay_lambda' in self.kwargs else 0.0
         self.weights_entropy_lambda = float(self.kwargs['weights_entropy_lambda']) if 'weights_entropy_lambda' in self.kwargs else 0.0
         
         

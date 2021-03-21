@@ -1402,6 +1402,7 @@ class LinearLstmBody2(nn.Module):
         gate=F.relu,
         dropout=0.0,
         add_non_lin_final_layer=False,
+        use_residual_connection=False,
         layer_init_fn=layer_init,
         extra_inputs_infos: Dict={},
         ):
@@ -1420,6 +1421,7 @@ class LinearLstmBody2(nn.Module):
         '''
         super(LinearLstmBody2, self).__init__()
         self.state_dim = state_dim
+        self.use_residual_connection = use_residual_connection
 
         # verify featureshape = feature_dim
         linear_input_dim = self.state_dim
@@ -1433,6 +1435,7 @@ class LinearLstmBody2(nn.Module):
         
         if self.linear_hidden_units is None:
             raise NotImplementedError
+            # DummyBody?
         else:
             if isinstance(self.linear_hidden_units, tuple):
                 self.linear_hidden_units = list(self.linear_hidden_units)
@@ -1457,6 +1460,8 @@ class LinearLstmBody2(nn.Module):
             self.linear_post_hidden_units = self.linear_post_hidden_units + [feature_dim]
 
             linear_post_input_dim = self.lstm_body.get_feature_shape()    
+            if self.use_residual_connection: linear_post_input_dim += self.linear_body.get_feature_shape()
+
             self.linear_body_post = FCBody(
                 state_dim=linear_post_input_dim,
                 hidden_units=self.linear_post_hidden_units,
@@ -1495,6 +1500,9 @@ class LinearLstmBody2(nn.Module):
         
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
 
+        if self.use_residual_connection:
+            x = torch.cat([features, x], dim=-1)
+
         if self.linear_post_hidden_units is not None:
             x = self.linear_body_post(x)
 
@@ -1507,10 +1515,17 @@ class LinearLstmBody2(nn.Module):
         return self.state_dim
 
     def get_feature_shape(self):
+        fs = 0
+        if self.use_residual_connection:
+            fs += self.linear_body.get_feature_shape()
+
         if self.linear_post_hidden_units is None:
-            return self.lstm_body.get_feature_shape()
+            fs += self.lstm_body.get_feature_shape()
         else:
-            return self.linear_body_post.get_feature_shape()
+            fs += self.linear_body_post.get_feature_shape()
+
+        return fs
+
 
 class LSTMBody(nn.Module):
     def __init__(

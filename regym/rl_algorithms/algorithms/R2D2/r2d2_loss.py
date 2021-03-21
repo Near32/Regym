@@ -684,8 +684,8 @@ def compute_loss(states: torch.Tensor,
                  model: torch.nn.Module,
                  target_model: torch.nn.Module,
                  gamma: float = 0.99,
-                 weights_decay_lambda: float = 1.0,
-                 weights_entropy_lambda: float = 0.1,
+                 weights_decay_lambda: float = 0.0,
+                 weights_entropy_lambda: float = 0.0,
                  use_PER: bool = False,
                  PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
@@ -1008,14 +1008,19 @@ def compute_loss(states: torch.Tensor,
     assert kwargs["r2d2_loss_masking"], "r2d2_loss_masking must be True for this test."
     if kwargs["r2d2_loss_masking"]:
         mask = torch.ones_like(diff_squared)
-        
+        """
         assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
         if kwargs['r2d2_loss_masking_n_step_regularisation']:
             mask[:, -kwargs["n_step"]:, ...] = 0
 
         # maybe but 1 back:
         mask[:,-1, ...] = (1-training_non_terminals[:,-1,...])
-        
+        """
+        # Combined:
+        assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
+        if kwargs['r2d2_loss_masking_n_step_regularisation']:
+            mask[:, -kwargs["n_step"]:, ...] = (1-training_non_terminals[:,-kwargs['n_step']:,...])
+
         loss_per_item = loss_per_item*mask
         loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
     else:

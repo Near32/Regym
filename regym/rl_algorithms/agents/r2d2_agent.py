@@ -6,7 +6,8 @@ import torch
 import ray
 
 from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
-from regym.rl_algorithms.agents.dqn_agent import DQNAgent, generate_model
+from regym.rl_algorithms.agents.dqn_agent import DQNAgent
+from regym.rl_algorithms.agents.utils import generate_model, parse_and_check
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
@@ -139,44 +140,6 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         clone.nbr_steps = self.nbr_steps
         return clone
 
-
-def parse_and_check(kwargs: Dict,
-                    task: 'regym.environments.Task'):
-
-    # Extra Inputs:
-    kwargs['task'] = task
-
-    extra_inputs = kwargs['extra_inputs_infos']
-    for key in extra_inputs:
-        shape = extra_inputs[key]['shape']
-        for idxdim, dimvalue in enumerate(shape):
-            if isinstance(dimvalue, str):
-                path = dimvalue.split('.')
-                if len(path) > 1:
-                    pointer = kwargs
-                    for el in path:
-                        try:
-                            if hasattr(pointer, el):
-                                pointer = getattr(pointer, el)
-                            elif el in pointer:
-                                pointer = pointer[el]
-                            else:
-                                raise RuntimeError
-                        except:
-                            raise RuntimeError
-                else:
-                    pointer = path
-
-                try:
-                    pointer = int(pointer)
-                except Exception as e:
-                    print('Exception during parsing and checking:', e)
-                    raise e
-                shape[idxdim] = pointer
-
-    kwargs['task'] = None
-    
-    return kwargs
 
 def build_R2D2_Agent(task: 'regym.environments.Task',
                      config: Dict,
