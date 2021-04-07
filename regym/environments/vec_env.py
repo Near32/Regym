@@ -233,8 +233,7 @@ class VecEnv():
             observations.append( obs )
             rewards.append( r )
 
-            if only_progress_non_terminated and self.dones[env_index] and not(all(self.dones)):
-                done=False
+            if only_progress_non_terminated and self.dones[env_index]:
                 rewards[-1] = self.init_reward[env_index]
             else:
                 self.dones[env_index] = done 

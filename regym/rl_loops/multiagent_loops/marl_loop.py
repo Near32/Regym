@@ -93,7 +93,9 @@ def run_episode_parallel(
         for actor_index in range(nbr_actors):
             if previous_done[actor_index]:
                 continue
-            batch_index +=1
+            #batch_index +=1
+            # since `only_progress_non_terminated=True`:
+            batch_index = actor_index 
 
             # Bookkeeping of the actors whose episode just ended:
             d = done[actor_index]
@@ -195,6 +197,8 @@ def test_agent(
     if sum_writer is not None:
         for idx, (ext_ret, ext_pos_ret, int_ret) in enumerate(zip(total_return, positive_total_return, total_int_return)):
             sum_writer.add_scalar('PerObservation/Testing/TotalReturn', ext_ret, iteration*len(trajectory)+idx)
+            if ext_pos_ret > 4:
+                import ipdb; ipdb.set_trace()
             sum_writer.add_scalar('PerObservation/Testing/PositiveTotalReturn', ext_pos_ret, iteration*len(trajectory)+idx)
             sum_writer.add_scalar('PerObservation/Testing/TotalIntReturn', int_ret, iteration*len(trajectory)+idx)
             sum_writer.add_scalar('PerUpdate/Testing/TotalReturn', ext_ret, update_count)
