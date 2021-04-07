@@ -105,7 +105,7 @@ def build_THER_Agent(task, config, agent_name):
                                          kernel_sizes=kernels,
                                          strides=strides,
                                          paddings=paddings)
-        elif kwargs['phi_arch'] == 'CNN-GRU-RNN':
+        else:
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
             kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=False)
@@ -118,33 +118,29 @@ def build_THER_Agent(task, config, agent_name):
             strides = kwargs['phi_arch_strides']
             paddings = kwargs['phi_arch_paddings']
             output_dim = kwargs['phi_arch_hidden_units'][-1]
-            phi_body = ConvolutionalGruBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings,
-                                         hidden_units=kwargs['phi_arch_hidden_units'])
-        elif kwargs['phi_arch'] == 'CNN-LSTM-RNN':
-            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=False)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
-            if 'nbr_frame_stacking' in kwargs:
-                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
-            input_shape = kwargs['preprocessed_observation_shape']
-            channels = [input_shape[0]] + kwargs['phi_arch_channels']
-            kernels = kwargs['phi_arch_kernels']
-            strides = kwargs['phi_arch_strides']
-            paddings = kwargs['phi_arch_paddings']
-            output_dim = kwargs['phi_arch_hidden_units'][-1]
-            phi_body = ConvolutionalLstmBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings,
-                                         hidden_units=kwargs['phi_arch_hidden_units'])
+            if kwargs['phi_arch'] == 'CNN-GRU-RNN':
+                phi_body = ConvolutionalGruBody(
+                    input_shape=input_shape,
+                    feature_dim=output_dim,
+                    channels=channels,
+                    kernel_sizes=kernels,
+                    strides=strides,
+                    paddings=paddings,
+                    hidden_units=kwargs['phi_arch_hidden_units']
+                )
+            elif kwargs['phi_arch'] == 'CNN-LSTM-RNN':
+                phi_body = ConvolutionalLstmBody(
+                    input_shape=input_shape,
+                    feature_dim=output_dim,
+                    channels=channels,
+                    kernel_sizes=kernels,
+                    strides=strides,
+                    paddings=paddings,
+                    hidden_units=kwargs['phi_arch_hidden_units']
+                )
+            else :
+                raise NotImplementedError
+        
         input_dim = output_dim
 
 
@@ -297,30 +293,39 @@ def build_THER_Agent(task, config, agent_name):
                                          strides=strides,
                                          paddings=paddings)
 
-    predictor_decoder = CaptionRNNBody(vocabulary=kwargs['THER_vocabulary'],
-                                max_sentence_length=kwargs['THER_max_sentence_length'],
-                                embedding_size=kwargs['predictor_decoder_embedding_size'], 
-                                hidden_units=kwargs['predictor_decoder_arch_hidden_units'], 
-                                num_layers=1, 
-                                gate=F.relu, 
-                                dropout=0.0, 
-                                rnn_fn=nn.GRU)
+    predictor_decoder = CaptionRNNBody(
+        vocabulary=kwargs['THER_vocabulary'],
+        max_sentence_length=kwargs['THER_max_sentence_length'],
+        embedding_size=kwargs['predictor_decoder_embedding_size'], 
+        hidden_units=kwargs['predictor_decoder_arch_hidden_units'], 
+        num_layers=1, 
+        gate=F.relu, 
+        dropout=0.0, 
+        rnn_fn=nn.GRU
+    )
+    predictor_decoder.share_memory()
 
-    predictor = InstructionPredictor(encoder=predictor_encoder, decoder=predictor_decoder)
-    
+    predictor = InstructionPredictor(
+        encoder=predictor_encoder, 
+        decoder=predictor_decoder
+    )
     predictor.share_memory()
 
     loss_fn = dqn_ther_loss.compute_loss
     if kwargs['double'] or kwargs['dueling']:
         loss_fn = ddqn_ther_loss.compute_loss
 
-    dqn_algorithm = DQNAlgorithm(kwargs, model, loss_fn=loss_fn)
+    dqn_algorithm = DQNAlgorithm(
+        kwargs=kwargs, 
+        model=model, 
+        loss_fn=loss_fn
+    )
 
     assert('use_HER' in kwargs and kwargs['use_HER'])
 
-    from ..algorithms.wrappers import latent_based_goal_predicated_reward_fn
     goal_predicated_reward_fn = None 
     if 'HER_use_latent' in kwargs and kwargs['HER_use_latent']:
+        from ..algorithms.wrappers import latent_based_goal_predicated_reward_fn
         goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn
 
     if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
