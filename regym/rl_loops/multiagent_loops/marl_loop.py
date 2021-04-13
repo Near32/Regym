@@ -586,10 +586,10 @@ def gather_experience_parallel(
                     if actor_index == 0:
                         sample_episode_count += 1
                     #sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
-                    sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
-                    sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_PositiveReward', positive_total_returns[-1], obs_count)
+                    #sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
+                    #sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_PositiveReward', positive_total_returns[-1], obs_count)
                     #sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], update_count)
-                    sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
+                    #sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
                     sum_writer.flush()
 
                 if len(trajectories) >= nbr_actors:
