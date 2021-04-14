@@ -26,3 +26,4 @@ from . import training_schemes
 from . import rl_loops
 from . import rl_algorithms
 from . import logging_server
+from . import pubsub_manager

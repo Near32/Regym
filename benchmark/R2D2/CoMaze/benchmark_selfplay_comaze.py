@@ -25,6 +25,66 @@ from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgen
 
 import ray
 
+from regym.modules import EnvironmentModule, CurrentAgentsModule
+from regym.pubsub_manager import PubSubManager
+
+def make_rl_pubsubmanager(
+    agents,
+    config, 
+    load_path=None,
+    save_path=None):
+    """
+    Create a PubSubManager.
+    :param agents: List of Agents to use in the rl loop.
+    :param config: Dict that specifies all the important hyperparameters of the network.
+        - "task"
+        - "sad"
+        - "vdn"
+        - "max_obs_count"
+        - "sum_writer": str where to save the summary...
+
+    """
+
+    modules = config.pop("modules")
+
+    cam_id = "current_agents"
+    modules[cam_id] = CurrentAgentsModule(
+        id=cam_id,
+        agents=agents
+    )
+
+    envm_id = "EnvironmentModule_0"
+    envm_input_stream_ids = {
+        #"logger":"modules:logger:ref",
+        #"logs_dict":"logs_dict",
+        
+        "iteration":"signals:iteration",
+
+        "current_agents":f"modules:{cam_id}:ref",
+    }
+    modules[envm_id] = EnvironmentModule(
+        id=envm_id,
+        config=config,
+        input_stream_ids=envm_input_stream_ids
+    )
+
+    pipelines = config.pop("pipelines")
+    
+    pipelines["rl_loop_0"] = [
+        envm_id
+    ]
+    
+    pbm = PubSubManager(
+        config=config,
+        modules=modules,
+        pipelines=pipelines,
+        load_path=load_path,
+        save_path=save_path,
+    )
+    
+    return pbm
+
+
 def comaze_r2d2_wrap(
     env, 
     clip_reward=False,
@@ -69,50 +129,86 @@ def train_and_evaluate(agents: List[object],
                        step_hooks=[],
                        sad=False,
                        vdn=False):
-    
-    async = False
+    pubsub = False
     if len(sys.argv) > 2:
-      async = any(['async' in arg for arg in sys.argv])
+      pubsub = any(['pubsub' in arg for arg in sys.argv])
 
-    if async:
-      trained_agent = marl_loop.async_gather_experience_parallel1(
-      #trained_agents = marl_loop.async_gather_experience_parallel(
-        task,
-        agents,
-        training=True,
-        #nbr_pretraining_steps=nbr_pretraining_steps,
-        max_obs_count=nbr_max_observations,
-        env_configs=None,
-        sum_writer=sum_writer,
-        base_path=base_path,
-        test_obs_interval=test_obs_interval,
-        test_nbr_episode=test_nbr_episode,
-        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
-        save_traj_length_divider=1,
-        render_mode=render_mode,
-        step_hooks=step_hooks,
-        sad=sad,
-        vdn=vdn,
+    if pubsub:
+      import ipdb; ipdb.set_trace()
+      config = {
+        "modules": {},
+        "pipelines": {},
+      }
+
+      config['training'] = True
+      config['env_configs'] = None
+      config['task'] = task 
+      config['sum_writer'] = sum_writer
+      config['base_path'] = base_path 
+      config['offset_episode_count'] = offset_episode_count
+      config['nbr_pretraining_steps'] = nbr_pretraining_steps 
+      config['max_obs_count'] = nbr_max_observations
+      config['test_obs_interval'] = test_obs_interval
+      config['test_nbr_episode'] = test_nbr_episode
+      config['benchmarking_record_episode_interval'] = benchmarking_record_episode_interval
+      config['render_mode'] = render_mode
+      config['step_hooks'] = step_hooks
+      config['save_traj_length_divider'] =1
+      config['sad'] = sad 
+      config['vdn'] = vdn
+      
+      pubsubmanager = make_rl_pubsubmanager(
+        agents=agents,
+        config=config 
       )
-    else: 
-      trained_agents = marl_loop.gather_experience_parallel(
-        task,
-        agents,
-        training=True,
-        #nbr_pretraining_steps=nbr_pretraining_steps,
-        max_obs_count=nbr_max_observations,
-        env_configs=None,
-        sum_writer=sum_writer,
-        base_path=base_path,
-        test_obs_interval=test_obs_interval,
-        test_nbr_episode=test_nbr_episode,
-        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
-        save_traj_length_divider=1,
-        render_mode=render_mode,
-        step_hooks=step_hooks,
-        sad=sad,
-        vdn=vdn,
-      )
+
+      pubsubmanager.train() 
+
+      trained_agents = agents 
+    else:
+      async = False
+      if len(sys.argv) > 2:
+        async = any(['async' in arg for arg in sys.argv])
+
+      if async:
+        trained_agent = marl_loop.async_gather_experience_parallel1(
+        #trained_agents = marl_loop.async_gather_experience_parallel(
+          task,
+          agents,
+          training=True,
+          #nbr_pretraining_steps=nbr_pretraining_steps,
+          max_obs_count=nbr_max_observations,
+          env_configs=None,
+          sum_writer=sum_writer,
+          base_path=base_path,
+          test_obs_interval=test_obs_interval,
+          test_nbr_episode=test_nbr_episode,
+          benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+          save_traj_length_divider=1,
+          render_mode=render_mode,
+          step_hooks=step_hooks,
+          sad=sad,
+          vdn=vdn,
+        )
+      else: 
+        trained_agents = marl_loop.gather_experience_parallel(
+          task,
+          agents,
+          training=True,
+          #nbr_pretraining_steps=nbr_pretraining_steps,
+          max_obs_count=nbr_max_observations,
+          env_configs=None,
+          sum_writer=sum_writer,
+          base_path=base_path,
+          test_obs_interval=test_obs_interval,
+          test_nbr_episode=test_nbr_episode,
+          benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+          save_traj_length_divider=1,
+          render_mode=render_mode,
+          step_hooks=step_hooks,
+          sad=sad,
+          vdn=vdn,
+        )
 
     save_replay_buffer = False
     if len(sys.argv) > 2:
