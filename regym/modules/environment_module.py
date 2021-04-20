@@ -10,7 +10,7 @@ import numpy as np
 import regym
 from tensorboardX import SummaryWriter
 from regym.util.wrappers import VDNVecEnvWrapper
-from regym.util.wrappers import SADVecEnvWrapper as SADEnvWrapper
+from regym.util.wrappers import SADVecEnvWrapper
 
 from torch.multiprocessing import Process 
 import ray 
@@ -79,13 +79,13 @@ class EnvironmentModule(Module):
         self.env = self.task.env
 
         if self.config.get('sad', False):
-            self.env = SADEnvWrapper(self.env, nbr_actions=self.task.action_dim)
+            self.env = SADVecEnvWrapper(self.env, nbr_actions=self.task.action_dim)
         if self.config.get('vdn', False):
             self.env = VDNVecEnvWrapper(self.env, nbr_players=self.config['nbr_players'])
 
         self.test_env = self.task.test_env
         if self.config.get('sad', False):
-            self.test_env = SADEnvWrapper(self.test_env, nbr_actions=self.task.action_dim)
+            self.test_env = SADVecEnvWrapper(self.test_env, nbr_actions=self.task.action_dim)
         if self.config.get('vdn', False):
             self.test_env = VDNVecEnvWrapper(self.test_env, nbr_players=self.config['nbr_players'])
         
@@ -301,7 +301,7 @@ class EnvironmentModule(Module):
             outputs_stream_dict["succ_observations"] = succ_observations
             outputs_stream_dict["succ_info"] = succ_info
 
-            yield outputs_stream_dict
+            yield copy.deepcopy(outputs_stream_dict)
 
             observations = copy.deepcopy(succ_observations)
             info = copy.deepcopy(succ_info)

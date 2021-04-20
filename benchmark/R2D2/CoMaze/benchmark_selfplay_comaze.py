@@ -156,7 +156,7 @@ def train_and_evaluate(agents: List[object],
       config['save_traj_length_divider'] =1
       config['sad'] = sad 
       config['vdn'] = vdn
-      
+      config['nbr_players'] = 2      
       pubsubmanager = make_rl_pubsubmanager(
         agents=agents,
         config=config 
@@ -326,6 +326,29 @@ def training_process(agent_config: Dict,
       # of the main agent, which might have some advantanges
       # -given that it proposes decorrelated data-, but it may
       # also have unknown disadvantages. Needs proper investigation.
+
+      rule_based = False
+      communicating = False
+      if len(sys.argv) > 2:
+        rule_based = any(['rule_based' in arg for arg in sys.argv])
+        communicating = any(['communicating_rule_based' in arg for arg in sys.argv])
+      
+      if rule_based:
+        del agent
+        import ipdb; ipdb.set_trace()
+        assert agent_config.get("sad", False)==False, "rule-based agents do not usee SAD..."
+        import importlib  
+        comaze_gym = importlib.import_module("regym.environments.envs.CoMaze.comaze-gym.comaze_gym")
+        from comaze_gym import build_WrappedActionOnlyRuleBasedAgent, build_WrappedCommunicatingRuleBasedAgent 
+        build_fn = build_WrappedActionOnlyRuleBasedAgent
+        if communicating:
+          build_fn = build_WrappedCommunicatingRuleBasedAgent
+        agents = [
+          build_fn(
+            player_idx=pidx,
+            action_space_dim=task.action_dim,
+          ) for pidx in range(2)
+        ]
 
     trained_agents = train_and_evaluate(
       agents=agents,
