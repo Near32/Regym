@@ -23,5 +23,8 @@ class Algorithm(object):
     def get_update_count(self):
         raise NotImplementedError
 
+    def parameters(self):
+        raise NotImplementedError
+        
     def clone(self, with_replay_buffer=False):
         raise NotImplementedError

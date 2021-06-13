@@ -90,6 +90,10 @@ class Agent(object):
         if len(self.rnn_keys):
             self.recurrent = True
         """
+
+    def parameters(self):
+        return self.algorithm.parameters()
+        
     @property
     def handled_experiences(self):
         if isinstance(self._handled_experiences, ray.actor.ActorHandle):
@@ -110,12 +114,15 @@ class Agent(object):
     def get_update_count(self):
         raise NotImplementedError
 
+    def get_nbr_actor(self):
+        return self.nbr_actor
+
     def set_nbr_actor(self, nbr_actor:int):
         if nbr_actor != self.nbr_actor:
             self.nbr_actor = nbr_actor
-            self.reset_actors(init=True)
             self.algorithm.set_nbr_actor(nbr_actor=self.nbr_actor)
             self.algorithm.reset_storages(nbr_actor=self.nbr_actor)
+        self.reset_actors(init=True)
 
     def reset_actors(self, indices:Optional[List]=[], init:Optional[bool]=False):
         '''
@@ -363,7 +370,7 @@ class Agent(object):
     def train(self):
         raise NotImplementedError
 
-    def take_action(self, state):
+    def take_action(self, state, as_logit=False):
         raise NotImplementedError
 
     def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
@@ -452,13 +459,13 @@ class ExtraInputsHandlingAgent(Agent):
 
         return out_hdict
 
-    def take_action(self, state, infos=None):
+    def take_action(self, state, infos=None, as_logit=False):
         hdict = None
         if infos:# and not self.training:
             agent_infos = [info for info in infos if info is not None]
             hdict = self._build_dict_from(lhdict=agent_infos)
             recursive_inplace_update(self.rnn_states, hdict)
-        return self._take_action(state, infos=hdict)
+        return self._take_action(state, infos=hdict, as_logit=as_logit)
 
     def _take_action(self, state, infos=None):
         raise NotImplementedError

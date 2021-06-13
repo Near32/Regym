@@ -22,6 +22,7 @@ class PubSubManager(object):
                  load_path=None, 
                  save_path=None,
                  verbose=False,
+                 logger=None,
                  save_epoch_interval=None):
         self.verbose = verbose
         self.save_epoch_interval = save_epoch_interval
@@ -50,6 +51,9 @@ class PubSubManager(object):
         for k,m in self.modules.items():
             self.stream_handler.update(f"modules:{m.get_id()}:ref", m)
 
+        if logger is not None:
+            self.stream_handler.update("modules:logger:ref", logger)
+        
         # Register pipelines:
         self.pipelines = pipelines
         if load_path is not None:
@@ -168,6 +172,7 @@ class PubSubManager(object):
             pbar.update(1)
 
             self.stream_handler.update("signals:iteration", iteration)
+            self.stream_handler.update("signals:global_it_step", iteration)
         
             for pipe_id, pipeline in self.pipelines.items():
                 self.stream_handler.serve(pipeline)

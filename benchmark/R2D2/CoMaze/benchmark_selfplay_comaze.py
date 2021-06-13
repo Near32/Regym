@@ -6,6 +6,8 @@ import sys
 from typing import Dict
 
 import torch.multiprocessing
+
+from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from functools import partial
 
@@ -26,11 +28,18 @@ from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgen
 import ray
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
+
+from regym.modules import MultiStepCICMetricModule
+from rl_action_policy import RLActionPolicy
+from comaze_gym.metrics import MultiStepCIC, RuleBasedActionPolicy
+
 from regym.pubsub_manager import PubSubManager
 
 def make_rl_pubsubmanager(
     agents,
     config, 
+    ms_cic_metric=None,
+    logger=None,
     load_path=None,
     save_path=None):
     """
@@ -44,7 +53,6 @@ def make_rl_pubsubmanager(
         - "sum_writer": str where to save the summary...
 
     """
-
     modules = config.pop("modules")
 
     cam_id = "current_agents"
@@ -68,16 +76,72 @@ def make_rl_pubsubmanager(
         input_stream_ids=envm_input_stream_ids
     )
 
+    ms_cic_id = "MultiStepCIC_player0"
+    ms_cic_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "vocab_size":"config:vocab_size",
+      "max_sentence_length":"config:max_sentence_length",
+      
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    ms_cic_config = {
+      "biasing":False,
+      "nbr_players":len(agents),
+      "player_id":0,
+      "metric":ms_cic_metric, #if None: default constr. for rule based agent...
+      #"message_zeroing_out_fn"= ...
+    }
+    modules[ms_cic_id] = MultiStepCICMetricModule(
+      id=ms_cic_id,
+      config=ms_cic_config,
+      input_stream_ids=ms_cic_input_stream_ids,
+    )
+
     pipelines = config.pop("pipelines")
     
     pipelines["rl_loop_0"] = [
-        envm_id
+        envm_id,
     ]
+
+    if ms_cic_metric is not None:
+      pipelines["rl_loop_0"].append(ms_cic_id)
     
+    optim_id = "global_optim"
+    optim_config = {
+      "modules":modules,
+      "learning_rate":3e-4,
+      "optimizer_type":'adam',
+      "with_gradient_clip":False,
+      "adam_eps":1e-8,
+    }
+
+    optim_module = regym.modules.build_OptimizationModule(
+      id=optim_id,
+      config=optim_config,
+    )
+    modules[optim_id] = optim_module
+
+    logger_id = "per_epoch_logger"
+    logger_module = regym.modules.build_PerEpochLoggerModule(id=logger_id)
+    modules[logger_id] = logger_module
+    
+    pipelines[optim_id] = []
+    pipelines[optim_id].append(optim_id)
+    pipelines[optim_id].append(logger_id)
+
     pbm = PubSubManager(
         config=config,
         modules=modules,
         pipelines=pipelines,
+        logger=logger,
         load_path=load_path,
         save_path=save_path,
     )
@@ -128,7 +192,8 @@ def train_and_evaluate(agents: List[object],
                        render_mode="rgb_array",
                        step_hooks=[],
                        sad=False,
-                       vdn=False):
+                       vdn=False,
+                       ms_cic_metric=None):
     pubsub = False
     if len(sys.argv) > 2:
       pubsub = any(['pubsub' in arg for arg in sys.argv])
@@ -143,7 +208,10 @@ def train_and_evaluate(agents: List[object],
       config['training'] = True
       config['env_configs'] = None
       config['task'] = task 
-      config['sum_writer'] = sum_writer
+      
+      sum_writer_path = os.path.join(sum_writer, 'actor.log')
+      sum_writer = config['sum_writer'] = SummaryWriter(sum_writer_path, flush_secs=1)
+
       config['base_path'] = base_path 
       config['offset_episode_count'] = offset_episode_count
       config['nbr_pretraining_steps'] = nbr_pretraining_steps 
@@ -159,7 +227,9 @@ def train_and_evaluate(agents: List[object],
       config['nbr_players'] = 2      
       pubsubmanager = make_rl_pubsubmanager(
         agents=agents,
-        config=config 
+        config=config,
+        ms_cic_metric=ms_cic_metric,
+        logger=sum_writer,
       )
 
       pubsubmanager.train() 
@@ -280,7 +350,7 @@ def training_process(agent_config: Dict,
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
     regym.RegymSummaryWriterPath = base_path #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
-    sum_writer =  base_path
+    sum_writer = base_path
     
     #base_path1 = os.path.join(base_path,"1")
     #save_path1 = os.path.join(base_path1,f"./{task_config['agent-id']}.agent")
@@ -309,6 +379,11 @@ def training_process(agent_config: Dict,
 
     #agents = [agent, agent2]
 
+    use_ms_cic = False
+    if len(sys.argv) > 2:
+      use_ms_cic = any(['ms_cic' in arg for arg in sys.argv])
+    ms_cic_metric = None
+
     if "vdn" in agent_config \
     and agent_config["vdn"]:
       import ipdb; ipdb.set_trace()
@@ -327,14 +402,20 @@ def training_process(agent_config: Dict,
       # -given that it proposes decorrelated data-, but it may
       # also have unknown disadvantages. Needs proper investigation.
 
+      if use_ms_cic:
+        action_policy = RLActionPolicy(
+          agent=agent,
+          combined_action_space=False,
+        )
+      
+      
       rule_based = False
       communicating = False
       if len(sys.argv) > 2:
-        rule_based = any(['rule_based' in arg for arg in sys.argv])
-        communicating = any(['communicating_rule_based' in arg for arg in sys.argv])
+        rule_based = any(['rule_based' in arg for arg in sys.argv[2:]])
+        communicating = any(['communicating_rule_based' in arg for arg in sys.argv[2:]])
       
       if rule_based:
-        del agent
         import ipdb; ipdb.set_trace()
         assert agent_config.get("sad", False)==False, "rule-based agents do not usee SAD..."
         import importlib  
@@ -349,6 +430,21 @@ def training_process(agent_config: Dict,
             action_space_dim=task.action_dim,
           ) for pidx in range(2)
         ]
+
+        if use_ms_cic:
+          action_policy = RuleBasedActionPolicy( 
+              wrapped_rule_based_agent=agents[0],
+              combined_action_space=False,
+          )
+      
+      if use_ms_cic:  
+        ms_cic_metric = MultiStepCIC(
+            action_policy=action_policy,
+            action_policy_bar=RLActionPolicy(
+              agent=agent,
+              combined_action_space=False,
+            )
+        )
 
     trained_agents = train_and_evaluate(
       agents=agents,
@@ -365,6 +461,7 @@ def training_process(agent_config: Dict,
       render_mode="human_comm",
       sad=task_config["sad"],
       vdn=task_config["vdn"],
+      ms_cic_metric=ms_cic_metric,
     )
 
     return trained_agents, task 

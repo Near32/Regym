@@ -3,3 +3,6 @@ from .module import Module
 from .current_agents_module import CurrentAgentsModule
 from .environment_module import EnvironmentModule
 
+from .multi_step_cic_metric_module import MultiStepCICMetricModule
+from .per_epoch_logger_module import PerEpochLoggerModule, build_PerEpochLoggerModule
+from .optimization_module import OptimizationModule, build_OptimizationModule 

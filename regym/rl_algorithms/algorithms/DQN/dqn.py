@@ -136,6 +136,9 @@ class DQNAlgorithm(Algorithm):
             from regym import SharedVariable
             self._param_update_counter = SharedVariable(0)
 
+    def parameters(self):
+        return self.model.parameters()
+        
     @property
     def param_update_counter(self):
         if isinstance(self._param_update_counter, ray.actor.ActorHandle):

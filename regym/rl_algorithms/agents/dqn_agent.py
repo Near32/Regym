@@ -329,7 +329,7 @@ class DQNAgent(Agent):
 
         return nbr_updates
 
-    def take_action(self, state, infos=None):
+    def take_action(self, state, infos=None, as_logit=False):
         if self.async_actor:
             # Update the algorithm's model if needs be:
             if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
@@ -373,6 +373,9 @@ class DQNAgent(Agent):
 
         self.current_prediction = self.query_model(model, state, goal)
         
+        if as_logit:
+            return self.current_prediction['log_a']
+
         # Post-process and update the rnn_states from the current prediction:
         # self.rnn_states <-- self.current_prediction['next_rnn_states']
         # WARNING: _post_process affects self.rnn_states. It is imperative to
@@ -381,6 +384,7 @@ class DQNAgent(Agent):
         self.current_prediction = self._post_process(self.current_prediction)
 
         greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
+
         if self.noisy or not(self.training):
             return greedy_action
 

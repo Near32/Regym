@@ -26,6 +26,12 @@ class CurrentAgentsModule(Module):
     def set_agents(self, agents):
         self.agents = agents
 
+    def parameters(self):
+        params = []
+        for agent in self.agents:
+            params += agent.parameters()
+        return params 
+        
     def get_input_stream_ids(self):
         raise NotImplementedError 
 
