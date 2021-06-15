@@ -3,9 +3,9 @@ from typing import List, Dict
 import torch
 
 from regym.rl_algorithms.agents.agent import Agent
-from comaze_gym.metrics import ActionPolicy
+from comaze_gym.metrics import MessagePolicy
 
-class RLActionPolicy(ActionPolicy):
+class RLMessagePolicy(MessagePolicy):
     def __init__(
         self, 
         agent:Agent,
@@ -19,13 +19,13 @@ class RLActionPolicy(ActionPolicy):
             n= #messages * #actions.
             Else, n = # actions : directional actions.
         """
-        super(RLActionPolicy, self).__init__(
+        super(RLMessagePolicy, self).__init__(
             model=agent
         )
         self.combined_action_space = combined_action_space
     
     def clone(self, training=False):
-        return RLActionPolicy(
+        return RLMessagePolicy(
             agent=self.model.clone(training=training), 
             combined_action_space=self.combined_action_space
         )
@@ -54,12 +54,12 @@ class RLActionPolicy(ActionPolicy):
             -'infos': Dict containing the entry 'abstract_repr' that is
                 actually used by the :param model:RuleBasedAgentWrapper.
         
-        :return log_a:
-            torch.Tensor of logits over actions 
+        :return log_m:
+            torch.Tensor of logits over messages 
             (as a Discrete OpenAI's action space).
 
             Here, depending on :attr combined_action_space:,
-            we either marginalized over possible messages or not.
+            we either marginalized over possible actions or not.
         """
 
         log_p_a = self.model.take_action(**x)
@@ -74,8 +74,7 @@ class RLActionPolicy(ActionPolicy):
         # Otherwise, we sum over the messages dimension (excluding the NOOP action):
         self.vocab_size = (action_space_dim-1)//5
         # There are 5 possible directional actions:
-        #log_p_a = log_p_a[...,:-1].reshape((batch_size, 5, self.vocab_size)).sum(dim=-1).log_softmax(dim=1)
-        log_p_a = log_p_a[...,:-1].reshape((batch_size, 5, self.vocab_size)).exp().sum(dim=-1).log_softmax(dim=1)
-        # batch_size x 5
+        log_p_m = log_p_a[...,:-1].reshape((batch_size, 5, self.vocab_size)).exp().sum(dim=1).log_softmax(dim=1)
+        # batch_size x vocab_size
 
-        return log_p_a
+        return log_p_m

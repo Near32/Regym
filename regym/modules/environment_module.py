@@ -105,6 +105,23 @@ class EnvironmentModule(Module):
         self.sad = self.config.get('sad', False)
         self.vdn = self.config.get('vdn', False)
 
+
+        self.obs_key = "observations"
+        self.info_key = "info"
+        self.action_key = "actions"
+        self.reward_key = "reward" 
+        self.done_key = "done" 
+        self.succ_obs_key = "succ_observations"
+        self.succ_info_key = "succ_info"
+        if self.vdn:
+            self.obs_key = "vdn_observations"
+            self.info_key = "vdn_info"
+            self.action_key = "vdn_actions"
+            self.reward_key = "vdn_reward" 
+            self.done_key = "vdn_done" 
+            self.succ_obs_key = "vdn_succ_observations"
+            self.succ_info_key = "vdn_succ_info"
+
         self.nbr_actors = self.env.get_nbr_envs()
         self.nbr_players = self.config['nbr_players']
 
@@ -158,8 +175,13 @@ class EnvironmentModule(Module):
             self.initialisation(input_streams_dict)
 
         if self.observations is None:
-            self.observations, self.info = self.env.reset(env_configs=self.config.get('env_configs', None))
-    
+            env_reset_output_dict = self.env.reset(env_configs=self.config.get('env_configs', None))
+            self.observations = env_reset_output_dict[self.obs_key]
+            self.info = env_reset_output_dict[self.info_key]
+            if self.vdn:
+                self.nonvdn_observations = env_reset_output_dict["observations"]
+                self.nonvdn_info = env_reset_output_dict["info"]
+                    
         actions = [
             agent.take_action(
                 state=self.observations[agent_idx],
@@ -168,8 +190,18 @@ class EnvironmentModule(Module):
             for agent_idx, agent in enumerate(self.agents)
         ]
         
-        succ_observations, reward, done, succ_info = self.env.step(actions)
+        env_output_dict = self.env.step(actions)
+        succ_observations = env_output_dict[self.succ_obs_key]
+        reward = env_output_dict[self.reward_key]
+        done = env_output_dict[self.done_key]
+        succ_info = env_output_dict[self.succ_info_key]
 
+        if self.vdn:
+            nonvdn_actions = env_output_dict['actions']
+            nonvdn_succ_observations = env_output_dict['succ_observations']
+            nonvdn_reward = env_output_dict['reward']
+            nonvdn_done = env_output_dict['done']
+            nonvdn_succ_info = env_output_dict['succ_info']
 
         if self.config['training']:
             for agent_idx, agent in enumerate(self.agents):
@@ -206,7 +238,13 @@ class EnvironmentModule(Module):
                 self.update_count = self.agents[0].get_update_count()
                 self.episode_count += 1
                 self.episode_count_record += 1
-                succ_observations, succ_info = self.env.reset(env_configs=self.config.get('env_configs', None), env_indices=[actor_index])
+                env_reset_output_dict = self.env.reset(env_configs=self.config.get('env_configs', None), env_indices=[actor_index])
+                succ_observations = env_reset_output_dict[self.obs_key]
+                succ_info = env_reset_output_dict[self.info_key]
+                if self.vdn:
+                    nonvdn_succ_observations = env_reset_output_dict['observations']
+                    nonvdn_succ_info = env_reset_output_dict['info']
+
                 for agent_idx, agent in enumerate(self.agents):
                     agent.reset_actors(indices=[actor_index])
                 
@@ -285,13 +323,27 @@ class EnvironmentModule(Module):
                     list() for p in range(self.nbr_players)
                 ]
 
+            if self.vdn:
+                obs = self.nonvdn_observations
+                act = nonvdn_actions
+                succ_obs = nonvdn_succ_observations
+                rew = nonvdn_reward
+                d = nonvdn_done
+                info = self.nonvdn_info
+            else:
+                obs = self.observations
+                act = actions
+                succ_obs = succ_observations
+                rew = reward
+                d = done
+                info = self.info
             
             for player_index in range(self.nbr_players):
-                pa_obs = self.observations[player_index][actor_index:actor_index+1]
-                pa_a = actions[player_index][actor_index:actor_index+1]
-                pa_r = reward[player_index][actor_index:actor_index+1]
-                pa_succ_obs = succ_observations[player_index][actor_index:actor_index+1]
-                pa_done = done[actor_index:actor_index+1]
+                pa_obs = obs[player_index][actor_index:actor_index+1]
+                pa_a = act[player_index][actor_index:actor_index+1]
+                pa_r = rew[player_index][actor_index:actor_index+1]
+                pa_succ_obs = succ_obs[player_index][actor_index:actor_index+1]
+                pa_done = d[actor_index:actor_index+1]
                 pa_int_r = 0.0
                 
                 """
@@ -301,7 +353,7 @@ class EnvironmentModule(Module):
                     post_process_fn=None
                 )
                 """
-                pa_info = self.info[player_index][actor_index]
+                pa_info = info[player_index][actor_index]
 
                 """
                 if getattr(agent.algorithm, "use_rnd", False):
@@ -337,22 +389,42 @@ class EnvironmentModule(Module):
                     save_traj=save_traj,
                     render_mode=self.config['render_mode'],
                     save_traj_length_divider=self.config['save_traj_length_divider'],
+                    obs_key=self.obs_key,
+                    succ_obs_key=self.succ_obs_key,
+                    reward_key=self.reward_key,
+                    done_key=self.done_key,
+                    info_key=self.info_key,
+                    succ_info_key=self.succ_info_key,
                 )
 
-        outputs_stream_dict["observations"] = copy.deepcopy(self.observations)
-        outputs_stream_dict["info"] = copy.deepcopy(self.info)
-        outputs_stream_dict["actions"] = actions 
-        outputs_stream_dict["reward"] = reward 
-        outputs_stream_dict["done"] = done 
-        outputs_stream_dict["succ_observations"] = succ_observations
-        outputs_stream_dict["succ_info"] = succ_info
+        outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
+        outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
+        outputs_stream_dict[self.action_key] = actions 
+        outputs_stream_dict[self.reward_key] = reward 
+        outputs_stream_dict[self.done_key] = done 
+        outputs_stream_dict[self.succ_obs_key] = succ_observations
+        outputs_stream_dict[self.succ_info_key] = succ_info
+
+        if self.vdn:
+            outputs_stream_dict["observations"] = copy.deepcopy(self.nonvdn_observations)
+            outputs_stream_dict["info"] = copy.deepcopy(self.nonvdn_info)
+            outputs_stream_dict["actions"] = nonvdn_actions 
+            outputs_stream_dict["reward"] = nonvdn_reward 
+            outputs_stream_dict["done"] = nonvdn_done 
+            outputs_stream_dict["succ_observations"] = nonvdn_succ_observations
+            outputs_stream_dict["succ_info"] = nonvdn_succ_info
+
 
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)
+        if self.vdn:
+            self.nonvdn_observations = copy.deepcopy(nonvdn_succ_observations)
+            self.nonvdn_info = copy.deepcopy(nonvdn_succ_info)
+
 
         outputs_stream_dict["signals:mode"] = 'train'
         outputs_stream_dict["signals:epoch"] = self.epoch
-        
+
         if self.obs_count >= self.config["max_obs_count"]:
             outputs_stream_dict["signals:done_training"] = True 
             outputs_stream_dict["signals:trained_agents"] = self.agents 

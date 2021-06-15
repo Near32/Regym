@@ -191,7 +191,12 @@ class VecEnv():
             self.dones[idx] = False
         self.init_reward = []
 
-        return copy.deepcopy([per_env_obs, per_env_infos])
+        output_dict = {
+            "observations":per_env_obs, 
+            "info":per_env_infos
+        }
+        
+        return copy.deepcopy(output_dict)
 
     def step(self, action_vector, only_progress_non_terminated=True):
         observations = []
@@ -275,7 +280,14 @@ class VecEnv():
                 for idx_agent in range(len(infos[0])) 
             ]
 
-        return copy.deepcopy([per_env_obs, per_env_reward, dones, per_env_infos])
+        output_dict = {
+            "succ_observations":per_env_obs, 
+            "reward":per_env_reward, 
+            "done":dones, 
+            "succ_info":per_env_infos
+        }
+
+        return copy.deepcopy(output_dict)
 
     def close(self) :
         if self.env_processes is not None:

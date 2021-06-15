@@ -9,22 +9,22 @@ import copy
 
 from .module import Module
 
-from comaze_gym.metrics import MultiStepCIC, RuleBasedActionPolicy
+from comaze_gym.metrics import MessageTrajectoryMutualInformationMetric, RuleBasedMessagePolicy
 
 
-def build_MultiStepCICMetricModule(
+def build_MessageTrajectoryMutualInformationMetricModule(
     id:str,
     config:Dict[str,object],
     input_stream_ids:Dict[str,str]=None
     ) -> Module:
-    return MultiStepCICMetricModule(
+    return MessageTrajectoryMutualInformationMetricModule(
         id=id,
         config=config, 
         input_stream_ids=input_stream_ids
     )
 
 
-class MultiStepCICMetricModule(Module):
+class MessageTrajectoryMutualInformationMetricModule(Module):
     def __init__(
         self,
         id:str,
@@ -62,9 +62,9 @@ class MultiStepCICMetricModule(Module):
                 if default_id not in input_stream_ids:
                     input_stream_ids[default_id] = default_stream
 
-        super(MultiStepCICMetricModule, self).__init__(
+        super(MessageTrajectoryMutualInformationMetricModule, self).__init__(
             id=id,
-            type="MultiStepCICMetricModule",
+            type="MessageTrajectoryMutualInformationMetricModule",
             config=config,
             input_stream_ids=input_stream_ids
         )
@@ -73,34 +73,6 @@ class MultiStepCICMetricModule(Module):
         self.nbr_players = self.config.get('nbr_players', 2)
         self.player_id = self.config.get('player_id', 0)
         self.metric = self.config.get('metric', None)
-
-        def message_zeroing_out_fn(
-            x, 
-            msg_key="communication_channel", 
-            #paths_to_msg=[["infos",pidx] for pidx in range(self.nbr_players)],
-            paths_to_msg=[["infos",0]],
-            
-            ):
-            xp = copy.deepcopy(x)
-            for actor_id in range(len(xp)):
-                for t in range(len(xp[actor_id])):
-                    pointer = xp[actor_id][t]
-                    for path_to_msg in paths_to_msg:
-                        for child_node in path_to_msg:
-                            pointer = pointer[child_node]
-                        
-                        msg = pointer[msg_key]
-                        if isinstance(msg, List):
-                            zeroed_out_msg =  [np.zeros_like(item) for item in msg]
-                        else:
-                            zeroed_out_msg =  np.zeros_like(msg)
-                        pointer[msg_key] = zeroed_out_msg
-
-                        pointer = xp[actor_id][t]
-            
-            return xp
-
-        self.message_zeroing_out_fn = self.config.get('message_zeroing_out_fn', message_zeroing_out_fn)
 
         # inputs to the agents at each timestep
         self.observations = []
@@ -119,7 +91,7 @@ class MultiStepCICMetricModule(Module):
         if self.metric is None:
             self.agents = input_streams_dict["current_agents"].agents
             self.metric = MultiStepCIC(
-                action_policy=RuleBasedActionPolicy( 
+                action_policy=RuleBasedMessagePolicy( 
                     wrapped_rule_based_agent=self.agents[self.player_id],
                     combined_action_space=False,
                 ),
@@ -162,23 +134,14 @@ class MultiStepCICMetricModule(Module):
                 ]
                 # (batch_size, timestep, keys:values) 
                 
-                self.xp = self.message_zeroing_out_fn(self.x)
-                self.a = self.actions
-
                 x = self.x 
-                xp = self.xp 
-                a = self.a 
-
+                
             else:
-
-                if not hasattr(self, 'xp'):
+                if not hasattr(self, 'x'):
                     return outputs_stream_dict
 
             indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//10, replace=False)
             x = [traj for idx, traj in enumerate(self.x) if idx in indices]
-            xp = [traj for idx, traj in enumerate(self.xp) if idx in indices]
-            a = [traj for idx, traj in enumerate(self.a) if idx in indices]
-
 
             batch_size = len(x)
             T = max([len(traj) for traj in x])
@@ -189,41 +152,20 @@ class MultiStepCICMetricModule(Module):
                     mask[actor_id][t] = (x[actor_id][t]['infos'][0]["current_player"].item()==self.player_id)
             
             ## Measure:
-            L_pl = self.metric.compute_pos_lis_loss(
+            L_ps, averaged_entropy = self.metric.compute_pos_sign_loss(
                 x=x, 
-                #xp=x, #debug
-                xp=xp, 
                 mask=mask,
                 biasing=self.biasing,
             )
-
-            ms_cic = self.metric.compute_multi_step_cic(
-                x=x, 
-                #xp=x, #debug
-                xp=xp, 
-                mask=mask
-            )
-
-            ## Training:
-
-            L_ce, prediction_accuracy = self.metric.train_unconditioned_policy(
-                x=x, 
-                #xp=x, #debug
-                xp=xp, 
-                mask=mask, 
-                #a=a, #using actual action is risky given the exploration policy, if on training trajectories...
-            )
             # batch_size 
             
-            logs_dict[f"{mode}/{self.id}/multi_step_CIC/{'Eval' if filtering_signal else 'Sample'}"] = ms_cic.cpu()
-            logs_dict[f"{mode}/{self.id}/UnconditionedPolicyFitting/CrossEntropyLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_ce.cpu()
-            logs_dict[f"{mode}/{self.id}/UnconditionedPolicyFitting/PredictionAccuracy/{'Eval' if filtering_signal else 'Sample'}"] = prediction_accuracy.cpu()
-            
+            logs_dict[f"{mode}/{self.id}/AverageMessageEntropy/{'Eval' if filtering_signal else 'Sample'}"] = averaged_entropy
+
             if self.biasing:
                 losses_dict = input_streams_dict["losses_dict"]
-                losses_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_pl]
+                losses_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_ps]
             else:
-                logs_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_pl.cpu()
+                logs_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_ps.cpu()
             
         return outputs_stream_dict
     

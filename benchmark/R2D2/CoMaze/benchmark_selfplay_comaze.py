@@ -29,9 +29,11 @@ import ray
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 
-from regym.modules import MultiStepCICMetricModule
+from regym.modules import MultiStepCICMetricModule, MessageTrajectoryMutualInformationMetricModule
 from rl_action_policy import RLActionPolicy
 from comaze_gym.metrics import MultiStepCIC, RuleBasedActionPolicy
+from rl_message_policy import RLMessagePolicy
+from comaze_gym.metrics import MessageTrajectoryMutualInformationMetric, RuleBasedMessagePolicy
 
 from regym.pubsub_manager import PubSubManager
 
@@ -39,6 +41,7 @@ def make_rl_pubsubmanager(
     agents,
     config, 
     ms_cic_metric=None,
+    m_traj_mutual_info_metric=None,
     logger=None,
     load_path=None,
     save_path=None):
@@ -92,8 +95,19 @@ def make_rl_pubsubmanager(
       "current_agents":"modules:current_agents:ref",  
     }
 
+    listening_biasing = False 
+    if len(sys.argv) > 2:
+      listening_biasing = any(['listening_biasing' in arg for arg in sys.argv[2:]])
+
+    if listening_biasing:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: Biasing for positive listening.")
+    else:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: NOT biasing for positive listening.")
+    
     ms_cic_config = {
-      "biasing":False,
+      "biasing":listening_biasing,
       "nbr_players":len(agents),
       "player_id":0,
       "metric":ms_cic_metric, #if None: default constr. for rule based agent...
@@ -105,6 +119,46 @@ def make_rl_pubsubmanager(
       input_stream_ids=ms_cic_input_stream_ids,
     )
 
+    m_traj_mutinfo_id = "MessageTrajectoryMutualInforMEtric_player0"
+    m_traj_mutinfo_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "vocab_size":"config:vocab_size",
+      "max_sentence_length":"config:max_sentence_length",
+      
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    signalling_biasing = False 
+    if len(sys.argv) > 2:
+      signalling_biasing = any(['signalling_biasing' in arg for arg in sys.argv[2:]])
+
+    if signalling_biasing:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: Biasing for positive signalling.")
+    else:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: NOT biasing for positive signalling.")
+    
+    m_traj_mutinfo_config = {
+      "biasing":signalling_biasing,
+      "nbr_players":len(agents),
+      "player_id":0,
+      "metric":m_traj_mutual_info_metric, #if None: default constr. for rule based agent...
+      #"message_zeroing_out_fn"= ...
+    }
+    modules[m_traj_mutinfo_id] = MessageTrajectoryMutualInformationMetricModule(
+      id=m_traj_mutinfo_id,
+      config=m_traj_mutinfo_config,
+      input_stream_ids=m_traj_mutinfo_input_stream_ids,
+    )
+
     pipelines = config.pop("pipelines")
     
     pipelines["rl_loop_0"] = [
@@ -113,6 +167,8 @@ def make_rl_pubsubmanager(
 
     if ms_cic_metric is not None:
       pipelines["rl_loop_0"].append(ms_cic_id)
+    if m_traj_mutual_info_metric is not None:
+      pipelines["rl_loop_0"].append(m_traj_mutinfo_id)
     
     optim_id = "global_optim"
     optim_config = {
@@ -193,7 +249,8 @@ def train_and_evaluate(agents: List[object],
                        step_hooks=[],
                        sad=False,
                        vdn=False,
-                       ms_cic_metric=None):
+                       ms_cic_metric=None,
+                       m_traj_mutual_info_metric=None):
     pubsub = False
     if len(sys.argv) > 2:
       pubsub = any(['pubsub' in arg for arg in sys.argv])
@@ -229,6 +286,7 @@ def train_and_evaluate(agents: List[object],
         agents=agents,
         config=config,
         ms_cic_metric=ms_cic_metric,
+        m_traj_mutual_info_metric=m_traj_mutual_info_metric,
         logger=sum_writer,
       )
 
@@ -302,6 +360,40 @@ def training_process(agent_config: Dict,
                      train_observation_budget: int = 1e7,
                      base_path: str = './', 
                      seed: int = 0):
+    
+    use_ms_cic = False
+    use_m_traj_mutual_info = False
+    combined_action_space = False
+    if len(sys.argv) > 2:
+      use_ms_cic = any(['ms_cic' in arg for arg in sys.argv])
+      use_m_traj_mutual_info = any(['mutual_info' in arg for arg in sys.argv])
+      combined_action_space = any(['combined_action_space' in arg for arg in sys.argv])
+    ms_cic_metric = None
+    m_traj_mutual_info_metric = None
+
+    if use_ms_cic:
+      base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}")
+    if use_m_traj_mutual_info:
+      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}")
+    
+    rule_based = False
+    communicating = False
+    if len(sys.argv) > 2:
+      rule_based = any(['rule_based' in arg for arg in sys.argv[2:]])
+      communicating = any(['communicating_rule_based' in arg for arg in sys.argv[2:]])
+    if rule_based:
+      base_path = os.path.join(base_path,f"{'COMM-' if communicating else ''}RULEBASE")
+    
+    print(f"Final Path: -- {base_path} --")
+    
+    if rule_based:
+      import ipdb; ipdb.set_trace()
+      print("rule-based agents do not usee SAD nor VDN...")
+      agent_config["sad"] = False
+      agent_config["vdn"] = False
+      task_config["sad"] = False
+      task_config["vdn"] = False
+        
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     np.random.seed(seed)
@@ -352,8 +444,6 @@ def training_process(agent_config: Dict,
     regym.RegymSummaryWriterPath = base_path #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
     sum_writer = base_path
     
-    #base_path1 = os.path.join(base_path,"1")
-    #save_path1 = os.path.join(base_path1,f"./{task_config['agent-id']}.agent")
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     
     agent, offset_episode_count = check_path_for_agent(save_path1)
@@ -364,26 +454,17 @@ def training_process(agent_config: Dict,
         )[0]
     agent.save_path = save_path1
     
-    """
-    base_path2 = os.path.join(base_path,"2")
-    save_path2 = os.path.join(base_path2,f"./{task_config['agent-id']}.agent")
+    if use_ms_cic:
+      action_policy = RLActionPolicy(
+        agent=agent,
+        combined_action_space=combined_action_space,
+      )
+    if use_m_traj_mutual_info:
+      message_policy = RLMessagePolicy(
+        agent=agent,
+        combined_action_space=combined_action_space,
+      )
     
-    agent2, offset_episode_count = check_path_for_agent(save_path2)
-    if agent2 is None: 
-        agent2 = initialize_agents(
-          task=task,
-          agent_configurations={task_config['agent-id']: agent_config}
-        )[0]
-    agent2.save_path = save_path2
-    """
-
-    #agents = [agent, agent2]
-
-    use_ms_cic = False
-    if len(sys.argv) > 2:
-      use_ms_cic = any(['ms_cic' in arg for arg in sys.argv])
-    ms_cic_metric = None
-
     if "vdn" in agent_config \
     and agent_config["vdn"]:
       import ipdb; ipdb.set_trace()
@@ -402,22 +483,7 @@ def training_process(agent_config: Dict,
       # -given that it proposes decorrelated data-, but it may
       # also have unknown disadvantages. Needs proper investigation.
 
-      if use_ms_cic:
-        action_policy = RLActionPolicy(
-          agent=agent,
-          combined_action_space=False,
-        )
-      
-      
-      rule_based = False
-      communicating = False
-      if len(sys.argv) > 2:
-        rule_based = any(['rule_based' in arg for arg in sys.argv[2:]])
-        communicating = any(['communicating_rule_based' in arg for arg in sys.argv[2:]])
-      
       if rule_based:
-        import ipdb; ipdb.set_trace()
-        assert agent_config.get("sad", False)==False, "rule-based agents do not usee SAD..."
         import importlib  
         comaze_gym = importlib.import_module("regym.environments.envs.CoMaze.comaze-gym.comaze_gym")
         from comaze_gym import build_WrappedActionOnlyRuleBasedAgent, build_WrappedCommunicatingRuleBasedAgent 
@@ -434,17 +500,26 @@ def training_process(agent_config: Dict,
         if use_ms_cic:
           action_policy = RuleBasedActionPolicy( 
               wrapped_rule_based_agent=agents[0],
-              combined_action_space=False,
+              combined_action_space=combined_action_space,
+          )
+        if use_m_traj_mutual_info:
+          message_policy = RuleBasedMessagePolicy( 
+              wrapped_rule_based_agent=agents[0],
+              combined_action_space=combined_action_space,
           )
       
-      if use_ms_cic:  
-        ms_cic_metric = MultiStepCIC(
-            action_policy=action_policy,
-            action_policy_bar=RLActionPolicy(
-              agent=agent,
-              combined_action_space=False,
-            )
-        )
+    if use_ms_cic:  
+      ms_cic_metric = MultiStepCIC(
+          action_policy=action_policy,
+          action_policy_bar=RLActionPolicy(
+            agent=agent,
+            combined_action_space=combined_action_space,
+          )
+      )
+    if use_m_traj_mutual_info:  
+      m_traj_mutual_info_metric = MessageTrajectoryMutualInformationMetric(
+          message_policy=message_policy,
+      )
 
     trained_agents = train_and_evaluate(
       agents=agents,
@@ -459,9 +534,10 @@ def training_process(agent_config: Dict,
       #benchmarking_record_episode_interval=None, 
       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
       render_mode="human_comm",
-      sad=task_config["sad"],
-      vdn=task_config["vdn"],
+      sad=task_config["sad"] if not(rule_based) else False,
+      vdn=task_config["vdn"] if not(rule_based) else False,
       ms_cic_metric=ms_cic_metric,
+      m_traj_mutual_info_metric=m_traj_mutual_info_metric,
     )
 
     return trained_agents, task 
@@ -493,7 +569,7 @@ def main():
         env_name = task_config['env-id']
         run_name = task_config['run-id']
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
-        print(f"Path: -- {path} --")
+        print(f"Tentative Path: -- {path} --")
         training_process(agents_config[task_config['agent-id']], task_config,
                          benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
                          benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),

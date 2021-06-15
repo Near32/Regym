@@ -39,7 +39,13 @@ def run_episode_parallel(
     max_episode_length=1e30,
     env_configs=None,
     save_traj=False,
-    render_mode="rgb_array"):
+    render_mode="rgb_array",
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info"):
     '''
     Runs a single multi-agent rl loop until termination.
     The observations vector is of length n, where n is the number of agents
@@ -53,8 +59,11 @@ def run_episode_parallel(
     
     N.B.: only care about agent 0's trajectory.
     '''
-    observations, info = env.reset(env_configs=env_configs)
-
+    #observations, info = env.reset(env_configs=env_configs)
+    env_reset_output_dict = env.reset(env_configs=env_configs)
+    observations = env_reset_output_dict[obs_key]
+    info = env_reset_output_dict[info_key]
+        
     nbr_actors = env.get_nbr_envs()
     
     for agent in agents:
@@ -75,7 +84,12 @@ def run_episode_parallel(
             ) 
             for agent_idx, agent in enumerate(agents)
         ] 
-        succ_observations, reward, done, succ_info = env.step(actions, only_progress_non_terminated=True)
+        #succ_observations, reward, done, succ_info = env.step(actions, only_progress_non_terminated=True)
+        env_output_dict = env.step(actions, only_progress_non_terminated=True)
+        succ_observations = env_output_dict[succ_obs_key]
+        reward = env_output_dict[reward_key]
+        done = env_output_dict[done_key]
+        succ_info = env_output_dict[succ_info_key]
 
         if training:
             for agent_idx, agent in enumerate(agents):
@@ -168,7 +182,15 @@ def test_agent(
     nbr_save_traj=1, 
     save_traj=False,
     render_mode="rgb_array",
-    save_traj_length_divider=1):
+    save_traj_length_divider=1,
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info",
+    ):
+
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
 
@@ -180,6 +202,12 @@ def test_agent(
         env_configs=None,
         save_traj=save_traj,
         render_mode=render_mode,
+        obs_key=obs_key,
+        succ_obs_key=succ_obs_key,
+        reward_key=reward_key,
+        done_key=done_key,
+        info_key=info_key,
+        succ_info_key=succ_info_key,
     )
 
     total_return = [ sum([ exp[2] for exp in t]) for t in trajectory]

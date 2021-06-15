@@ -117,14 +117,20 @@ class Agent(object):
     def get_nbr_actor(self):
         return self.nbr_actor
 
-    def set_nbr_actor(self, nbr_actor:int):
+    def set_nbr_actor(self, nbr_actor:int, vdn:Optional[bool]=None):
         if nbr_actor != self.nbr_actor:
             self.nbr_actor = nbr_actor
             self.algorithm.set_nbr_actor(nbr_actor=self.nbr_actor)
             self.algorithm.reset_storages(nbr_actor=self.nbr_actor)
-        self.reset_actors(init=True)
+        self.reset_actors(init=True, vdn=vdn)
 
-    def reset_actors(self, indices:Optional[List]=[], init:Optional[bool]=False):
+    def get_rnn_states(self):
+        return self.rnn_states 
+
+    def set_rnn_states(self, rnn_states):
+        self.rnn_states = rnn_states 
+        
+    def reset_actors(self, indices:Optional[List]=[], init:Optional[bool]=False, vdn=None):
         '''
         In case of a multi-actor process, this function is called to reset
         the actors' internal values.
@@ -137,7 +143,7 @@ class Agent(object):
             for idx in indices: self.previously_done_actors[idx] = False
 
         if self.recurrent:
-            _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor, actor_indices=indices)
+            _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor, actor_indices=indices, vdn=vdn)
 
     def update_actors(self, batch_idx:int):
         """
@@ -188,9 +194,10 @@ class Agent(object):
                      self.goals[batch_idx+1:,...]],
                      axis=0)
 
-    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[]):
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[], vdn:Optional[bool]=None):
         # TODO: account for the indices in rnn states:
-        if "vdn" in self.algorithm.kwargs \
+        if ((vdn is not None and vdn) or (vdn is None))\
+        and "vdn" in self.algorithm.kwargs \
         and self.algorithm.kwargs["vdn"]:
             nbr_players = self.algorithm.kwargs["vdn_nbr_players"]
             nbr_envs = nbr_actor
@@ -251,13 +258,13 @@ class Agent(object):
                              dim=0
                         )
 
-    def _pre_process_rnn_states(self, rnn_states_dict: Optional[Dict]=None):
+    def _pre_process_rnn_states(self, rnn_states_dict: Optional[Dict]=None, vdn:Optional[bool]=None):
         '''
         :param map_keys: List of keys we map the operation to.
         '''
         if rnn_states_dict is None:
             if self.rnn_states is None:
-                _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor)
+                _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor, vdn=vdn)
             rnn_states_dict = self.rnn_states
 
     @staticmethod
@@ -415,11 +422,12 @@ class ExtraInputsHandlingAgent(Agent):
             algorithm=algorithm
         )
 
-    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=None):
+    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=None, vdn:Optional[bool]=None):
         self.rnn_keys, self.rnn_states = super()._reset_rnn_states(
             algorithm=algorithm, 
             nbr_actor=nbr_actor,
-            actor_indices=actor_indices
+            actor_indices=actor_indices,
+            vdn=vdn
         )
         
         
