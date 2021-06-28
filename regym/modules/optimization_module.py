@@ -98,7 +98,8 @@ class OptimizationModule(Module):
         parameters = []
         for k,m in self.config["modules"].items():
             parameters += m.parameters()
-
+            print(k)
+        
         if len(list(parameters)):
           if "sgd" in self.config["optimizer_type"].lower():
             self.optimizer = optim.SGD(parameters, 
@@ -162,7 +163,7 @@ class OptimizationModule(Module):
             self.optimizer.step()
             self.update_count += 1
 
-        logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Loss"] = loss
+            logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Loss"] = loss
         
         outputs_stream_dict['signals:update_count'] = self.update_count
         

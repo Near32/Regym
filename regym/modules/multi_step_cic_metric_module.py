@@ -135,7 +135,7 @@ class MultiStepCICMetricModule(Module):
         trajectories = input_streams_dict["trajectories"]
         compute = True 
 
-        if (compute and np.random.random() < 0.2) or filtering_signal:
+        if (compute and np.random.random() < 0.1) or filtering_signal:
             if filtering_signal:
                 self.actions = [
                     [
@@ -221,7 +221,7 @@ class MultiStepCICMetricModule(Module):
             
             if self.biasing:
                 losses_dict = input_streams_dict["losses_dict"]
-                losses_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_pl]
+                losses_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = [0.0001, L_pl]
             else:
                 logs_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_pl.cpu()
             

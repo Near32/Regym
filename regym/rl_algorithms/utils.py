@@ -73,11 +73,22 @@ def copy_hdict(in_dict: Dict):
     Makes a copy of :param in_dict:.
     '''
     if in_dict is None: return None
+    
     out_dict = {key: {} for key in in_dict}
+    need_reg = False
+    if isinstance(in_dict, list):
+        out_dict = {'dummy':{}}
+        in_dict = {'dummy':in_dict}
+        need_reg = True 
+
     recursive_inplace_update(
         in_dict=out_dict,
         extra_dict=in_dict,
     )
+
+    if need_reg:
+        out_dict = out_dict['dummy']
+
     return out_dict
 
 def extract_subtree(in_dict: Dict,

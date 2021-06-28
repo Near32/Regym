@@ -397,6 +397,13 @@ class EnvironmentModule(Module):
                     succ_info_key=self.succ_info_key,
                 )
 
+                if self.obs_count % 10000 == 0:
+                    for agent in self.agents:
+                      if not hasattr(agent, 'save'):    continue
+                      agent.save(minimal=True)
+                      print(f"Agent {agent} saved at: {agent.save_path}")
+                    
+
         outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
         outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
         outputs_stream_dict[self.action_key] = actions 

@@ -421,6 +421,99 @@ class DQNAgent(Agent):
 
         return actions
 
+    def query_action(self, state, infos=None, as_logit=False):
+        """
+        Query's the model in training mode...
+        """
+        if self.async_actor:
+            # Update the algorithm's model if needs be:
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            if actor_learner_shared_dict["models_update_required"][self.async_actor_idx]:
+                actor_learner_shared_dict["models_update_required"][self.async_actor_idx] = False
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+                
+                if "models" in actor_learner_shared_dict.keys():
+                    new_models = actor_learner_shared_dict["models"]
+                    self.algorithm.set_models(new_models)
+                else:
+                    raise NotImplementedError 
+
+        self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
+        if "vdn" in self.kwargs \
+        and self.kwargs["vdn"]:
+            # The following will not make same values contiguous:
+            #self.eps = np.concatenate([self.eps]*self.kwargs["vdn_nbr_players"], axis=0)
+            # whereas the following will, and thus players in the same environment will explore similarly:
+            self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
+
+
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
+        goal = None
+        if self.goal_oriented:
+            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.kwargs['use_cuda'])
+
+        model = self.algorithm.get_models()['model']
+        if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
+            model = self.algorithm.get_models()['target_model']
+        if not(model.training):  model = model.train(mode=True)
+
+        current_prediction = self.query_model(model, state, goal)
+        
+        if as_logit:
+            return current_prediction['log_a']
+
+        # Post-process and update the rnn_states from the current prediction:
+        # self.rnn_states <-- self.current_prediction['next_rnn_states']
+        # WARNING: _post_process affects self.rnn_states. It is imperative to
+        # manipulate a copy of it outside of the agent's manipulation, e.g.
+        # when feeding it to the models.
+        current_prediction = self._post_process(current_prediction)
+
+        greedy_action = current_prediction['a'].reshape((-1,1)).numpy()
+
+        if self.noisy:
+            return greedy_action
+
+        legal_actions = torch.ones_like(current_prediction['qa'])
+        if infos is not None\
+        and 'head' in infos\
+        and 'extra_inputs' in infos['head']\
+        and 'legal_actions' in infos['head']['extra_inputs']:
+            legal_actions = infos['head']['extra_inputs']['legal_actions'][0]
+            # in case there are no legal actions for this agent in this current turn:
+            for actor_idx in range(legal_actions.shape[0]):
+                if legal_actions[actor_idx].sum() == 0: 
+                    legal_actions[actor_idx, ...] = 1
+        sample = np.random.random(size=self.eps.shape)
+        greedy = (sample > self.eps)
+        greedy = np.reshape(greedy[:state.shape[0]], (state.shape[0],1))
+
+        #random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
+        random_actions = [
+            legal_actions[actor_idx].multinomial(num_samples=1).item() 
+            for actor_idx in range(legal_actions.shape[0])
+        ]
+        random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
+        
+        actions = greedy*greedy_action + (1-greedy)*random_actions
+        
+        if "sad" in self.kwargs \
+        and self.kwargs["sad"]:
+            action_dict = {
+                'action': actions,
+                'greedy_action': greedy_action,
+            }
+            return action_dict 
+
+        return actions
+
     def query_model(self, model, state, goal):
         if self.recurrent:
             self._pre_process_rnn_states()
@@ -444,7 +537,8 @@ class DQNAgent(Agent):
             minimal=minimal
         )
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
-
+        clone.save_path = self.save_path
+        
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count

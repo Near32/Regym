@@ -173,10 +173,12 @@ class PubSubManager(object):
 
             self.stream_handler.update("signals:iteration", iteration)
             self.stream_handler.update("signals:global_it_step", iteration)
-        
+            
             for pipe_id, pipeline in self.pipelines.items():
                 self.stream_handler.serve(pipeline)
             
+            self.stream_handler.reset("losses_dict")
+            self.stream_handler.reset("logs_dict")    
             # TODO: define how to stop the loop?
 
             # TODO: define how to make checkpoints:

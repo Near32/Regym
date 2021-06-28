@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import torch
 
@@ -30,9 +30,9 @@ class RLActionPolicy(ActionPolicy):
             combined_action_space=self.combined_action_space
         )
 
-    def reset(self, batch_size:int):
-        self.model.set_nbr_actor(batch_size, vdn=False)
-
+    def reset(self, batch_size:int, training:Optional[bool]=False):
+        self.model.set_nbr_actor(batch_size, vdn=False, training=training)
+    
     def save_inner_state(self):
         self.saved_inner_state = self.model.get_rnn_states()
 
@@ -62,7 +62,8 @@ class RLActionPolicy(ActionPolicy):
             we either marginalized over possible messages or not.
         """
 
-        log_p_a = self.model.take_action(**x)
+        #log_p_a = self.model.take_action(**x)
+        log_p_a = self.model.query_action(**x)
         # batch_size x action_space_dim
 
         batch_size = log_p_a.shape[0]

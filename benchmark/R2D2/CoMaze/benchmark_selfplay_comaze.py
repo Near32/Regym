@@ -29,11 +29,17 @@ import ray
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 
-from regym.modules import MultiStepCICMetricModule, MessageTrajectoryMutualInformationMetricModule
+from regym.modules import MultiStepCICMetricModule
 from rl_action_policy import RLActionPolicy
 from comaze_gym.metrics import MultiStepCIC, RuleBasedActionPolicy
+
+from regym.modules import MessageTrajectoryMutualInformationMetricModule
 from rl_message_policy import RLMessagePolicy
 from comaze_gym.metrics import MessageTrajectoryMutualInformationMetric, RuleBasedMessagePolicy
+
+from regym.modules import CoMazeGoalOrderingPredictionModule
+from rl_hiddenstate_policy import RLHiddenStatePolicy
+from comaze_gym.metrics import GoalOrderingPredictionMetric, RuleBasedHiddenStatePolicy
 
 from regym.pubsub_manager import PubSubManager
 
@@ -42,6 +48,7 @@ def make_rl_pubsubmanager(
     config, 
     ms_cic_metric=None,
     m_traj_mutual_info_metric=None,
+    goal_order_pred_metric=None,
     logger=None,
     load_path=None,
     save_path=None):
@@ -113,11 +120,13 @@ def make_rl_pubsubmanager(
       "metric":ms_cic_metric, #if None: default constr. for rule based agent...
       #"message_zeroing_out_fn"= ...
     }
-    modules[ms_cic_id] = MultiStepCICMetricModule(
-      id=ms_cic_id,
-      config=ms_cic_config,
-      input_stream_ids=ms_cic_input_stream_ids,
-    )
+
+    if ms_cic_metric is not None:
+      modules[ms_cic_id] = MultiStepCICMetricModule(
+        id=ms_cic_id,
+        config=ms_cic_config,
+        input_stream_ids=ms_cic_input_stream_ids,
+      )
 
     m_traj_mutinfo_id = "MessageTrajectoryMutualInforMEtric_player0"
     m_traj_mutinfo_input_stream_ids = {
@@ -153,11 +162,57 @@ def make_rl_pubsubmanager(
       "metric":m_traj_mutual_info_metric, #if None: default constr. for rule based agent...
       #"message_zeroing_out_fn"= ...
     }
-    modules[m_traj_mutinfo_id] = MessageTrajectoryMutualInformationMetricModule(
-      id=m_traj_mutinfo_id,
-      config=m_traj_mutinfo_config,
-      input_stream_ids=m_traj_mutinfo_input_stream_ids,
-    )
+
+    if m_traj_mutual_info_metric is not None:
+      modules[m_traj_mutinfo_id] = MessageTrajectoryMutualInformationMetricModule(
+        id=m_traj_mutinfo_id,
+        config=m_traj_mutinfo_config,
+        input_stream_ids=m_traj_mutinfo_input_stream_ids,
+      )
+
+
+    goal_order_pred_id = "GoalOrderingPred_player0"
+    goal_order_pred_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "vocab_size":"config:vocab_size",
+      "max_sentence_length":"config:max_sentence_length",
+      
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    goal_ordering_biasing = False 
+    if len(sys.argv) > 2:
+      goal_ordering_biasing = any(['goal_ordering_biasing' in arg for arg in sys.argv[2:]])
+
+    if goal_ordering_biasing:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: Biasing for Goal Ordering Prediction.")
+    else:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: NOT biasing for Goal Ordering Prediction.")
+    
+    goal_order_pred_config = {
+      "biasing":goal_ordering_biasing,
+      "nbr_players":len(agents),
+      "player_id":0,
+      "metric":goal_order_pred_metric, #if None: default constr. for rule based agent...
+    }
+    
+    if goal_order_pred_metric is not None:
+      modules[goal_order_pred_id] = CoMazeGoalOrderingPredictionModule(
+        id=goal_order_pred_id,
+        config=goal_order_pred_config,
+        input_stream_ids=goal_order_pred_input_stream_ids,
+      )
+
+
 
     pipelines = config.pop("pipelines")
     
@@ -169,6 +224,8 @@ def make_rl_pubsubmanager(
       pipelines["rl_loop_0"].append(ms_cic_id)
     if m_traj_mutual_info_metric is not None:
       pipelines["rl_loop_0"].append(m_traj_mutinfo_id)
+    if goal_order_pred_metric is not None:
+      pipelines["rl_loop_0"].append(goal_order_pred_id)
     
     optim_id = "global_optim"
     optim_config = {
@@ -176,7 +233,7 @@ def make_rl_pubsubmanager(
       "learning_rate":3e-4,
       "optimizer_type":'adam',
       "with_gradient_clip":False,
-      "adam_eps":1e-8,
+      "adam_eps":1e-16,
     }
 
     optim_module = regym.modules.build_OptimizationModule(
@@ -250,7 +307,8 @@ def train_and_evaluate(agents: List[object],
                        sad=False,
                        vdn=False,
                        ms_cic_metric=None,
-                       m_traj_mutual_info_metric=None):
+                       m_traj_mutual_info_metric=None,
+                       goal_order_pred_metric=None):
     pubsub = False
     if len(sys.argv) > 2:
       pubsub = any(['pubsub' in arg for arg in sys.argv])
@@ -287,6 +345,7 @@ def train_and_evaluate(agents: List[object],
         config=config,
         ms_cic_metric=ms_cic_metric,
         m_traj_mutual_info_metric=m_traj_mutual_info_metric,
+        goal_order_pred_metric=goal_order_pred_metric,
         logger=sum_writer,
       )
 
@@ -360,21 +419,34 @@ def training_process(agent_config: Dict,
                      train_observation_budget: int = 1e7,
                      base_path: str = './', 
                      seed: int = 0):
-    
+    test_only = False
     use_ms_cic = False
     use_m_traj_mutual_info = False
+    use_goal_order_pred = False
     combined_action_space = False
+    signalling_biasing = False 
+    listening_biasing = False 
+    goal_ordering_biasing = False
     if len(sys.argv) > 2:
+      test_only = any(['test_only' in arg for arg in sys.argv])
       use_ms_cic = any(['ms_cic' in arg for arg in sys.argv])
       use_m_traj_mutual_info = any(['mutual_info' in arg for arg in sys.argv])
+      use_goal_order_pred = any(['goal_order' in arg for arg in sys.argv])
       combined_action_space = any(['combined_action_space' in arg for arg in sys.argv])
+      signalling_biasing = any(['signalling_biasing' in arg for arg in sys.argv[2:]])
+      listening_biasing = any(['listening_biasing' in arg for arg in sys.argv[2:]])
+      goal_ordering_biasing = any(['goal_ordering_biasing' in arg for arg in sys.argv[2:]])
+      
     ms_cic_metric = None
     m_traj_mutual_info_metric = None
+    goal_order_pred_metric = None 
 
     if use_ms_cic:
-      base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}")
+      base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if listening_biasing else ''}")
     if use_m_traj_mutual_info:
-      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}")
+      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if signalling_biasing else ''}")
+    if use_goal_order_pred:
+      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1p3' if goal_ordering_biasing else ''}-NoDropout+RulesPrediction+BigArch")
     
     rule_based = False
     communicating = False
@@ -454,6 +526,13 @@ def training_process(agent_config: Dict,
         )[0]
     agent.save_path = save_path1
     
+    if test_only:
+      print(save_path1)
+      import ipdb; ipdb.set_trace()
+      agent.training = False
+    else:
+      import ipdb; ipdb.set_trace()
+
     if use_ms_cic:
       action_policy = RLActionPolicy(
         agent=agent,
@@ -463,6 +542,11 @@ def training_process(agent_config: Dict,
       message_policy = RLMessagePolicy(
         agent=agent,
         combined_action_space=combined_action_space,
+      )
+    
+    if use_goal_order_pred:
+      hiddenstate_policy = RLHiddenStatePolicy(
+        agent=agent,
       )
     
     if "vdn" in agent_config \
@@ -507,6 +591,10 @@ def training_process(agent_config: Dict,
               wrapped_rule_based_agent=agents[0],
               combined_action_space=combined_action_space,
           )
+        if use_goal_order_pred:
+          hiddenstate_policy = RuleBasedHiddenStatePolicy( 
+              wrapped_rule_based_agent=agents[0],
+          )
       
     if use_ms_cic:  
       ms_cic_metric = MultiStepCIC(
@@ -519,6 +607,11 @@ def training_process(agent_config: Dict,
     if use_m_traj_mutual_info:  
       m_traj_mutual_info_metric = MessageTrajectoryMutualInformationMetric(
           message_policy=message_policy,
+      )
+    if use_goal_order_pred:  
+      goal_order_pred_metric = GoalOrderingPredictionMetric(
+          hiddenstate_policy=hiddenstate_policy,
+          label_dim=4*5,
       )
 
     trained_agents = train_and_evaluate(
@@ -538,6 +631,7 @@ def training_process(agent_config: Dict,
       vdn=task_config["vdn"] if not(rule_based) else False,
       ms_cic_metric=ms_cic_metric,
       m_traj_mutual_info_metric=m_traj_mutual_info_metric,
+      goal_order_pred_metric=goal_order_pred_metric,
     )
 
     return trained_agents, task 

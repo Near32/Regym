@@ -117,11 +117,14 @@ class Agent(object):
     def get_nbr_actor(self):
         return self.nbr_actor
 
-    def set_nbr_actor(self, nbr_actor:int, vdn:Optional[bool]=None):
+    def set_nbr_actor(self, nbr_actor:int, vdn:Optional[bool]=None, training:Optional[bool]=None):
         if nbr_actor != self.nbr_actor:
             self.nbr_actor = nbr_actor
             self.algorithm.set_nbr_actor(nbr_actor=self.nbr_actor)
-            self.algorithm.reset_storages(nbr_actor=self.nbr_actor)
+            if training is None:
+                self.algorithm.reset_storages(nbr_actor=self.nbr_actor)
+            else:
+                self.training = training
         self.reset_actors(init=True, vdn=vdn)
 
     def get_rnn_states(self):
@@ -475,7 +478,18 @@ class ExtraInputsHandlingAgent(Agent):
             recursive_inplace_update(self.rnn_states, hdict)
         return self._take_action(state, infos=hdict, as_logit=as_logit)
 
+    def query_action(self, state, infos=None, as_logit=False):
+        hdict = None
+        if infos:# and not self.training:
+            agent_infos = [info for info in infos if info is not None]
+            hdict = self._build_dict_from(lhdict=agent_infos)
+            recursive_inplace_update(self.rnn_states, hdict)
+        return self._query_action(state, infos=hdict, as_logit=as_logit)
+
     def _take_action(self, state, infos=None):
+        raise NotImplementedError
+
+    def _query_action(self, state, infos=None):
         raise NotImplementedError
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
