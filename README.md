@@ -1,6 +1,6 @@
-# Regym: Reinforcement learning Framework research framework
+# Regym: Deep (Multi-Agent) Reinforcement learning Framework
 
-Framework to carry out both Single-Agent and Multi-Agent Reinforcement Learning experiments. Developed by PhD heros at the University of York. This framework has been in constant development since December 2018, and will continue to evolve to add new features and algorithms for many more years!
+Framework to carry out both Single-Agent and Multi-Agent Reinforcement Learning experiments. This framework has been in constant development since December 2018, and will continue to evolve to add new features and algorithms for many more years!
 
 ## Features
 
@@ -8,8 +8,8 @@ Framework to carry out both Single-Agent and Multi-Agent Reinforcement Learning 
 + Every implementation is compatible with [OpenAI gym](https://github.com/openai/gym) and [Unity](https://github.com/Unity-Technologies/ml-agents) environments.
 + Self-Play training scheme for Multi-Agent environments, as introduced [here](https://danielhp95.github.io/assets/pdfs/COG-2019-submission.pdf).
 + Emphasis on cross-compatibility and clear interfaces to add new algorithms. See [Adding a new algorithm](docs/adding-a-new-algorithm.md).
-+ (In development) Test suite to test and benchmark each algorithm on: compatibility on Discrete / Continuous observation / action spaces. Proof of learning, proof of reproducability.
-+ (In development) Parallel actors per algorithm.
++ Test suite to test and benchmark each algorithm on: compatibility on Discrete / Continuous observation / action spaces. Proof of learning, proof of reproducability.
++ Distributed training.
 
 ## Documentation
 
@@ -33,12 +33,12 @@ This project can be found in [PyPi](LINK TO PYPI project) (Python Package Index)
 Firstly, clone this repository:
 
 ```
-git clone https://github.com/Danielhp95/Generalized-RL-Self-Play-Framework
+git clone https://github.com/Near32/Regym
 ```
 
 Secondly, install it locally using the `-e` flag in the `pip install` command:
 ```
-cd Generalized-RL-Self-Play-Framework/
+cd Regym/
 pip install -e .
 ```
 
