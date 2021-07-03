@@ -6,6 +6,8 @@ import sys
 from typing import Dict
 
 import torch.multiprocessing
+
+from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from functools import partial
 
@@ -24,6 +26,241 @@ from comaze_gym.utils.wrappers import comaze_wrap
 from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgentWrapper
 
 import ray
+
+from regym.modules import EnvironmentModule, CurrentAgentsModule
+
+from regym.modules import MultiStepCICMetricModule
+from rl_action_policy import RLActionPolicy
+from comaze_gym.metrics import MultiStepCIC, RuleBasedActionPolicy
+
+from regym.modules import MessageTrajectoryMutualInformationMetricModule
+from rl_message_policy import RLMessagePolicy
+from comaze_gym.metrics import MessageTrajectoryMutualInformationMetric, RuleBasedMessagePolicy
+
+from regym.modules import CoMazeGoalOrderingPredictionModule
+from rl_hiddenstate_policy import RLHiddenStatePolicy
+from comaze_gym.metrics import GoalOrderingPredictionMetric, RuleBasedHiddenStatePolicy
+
+from regym.pubsub_manager import PubSubManager
+
+def make_rl_pubsubmanager(
+    agents,
+    config, 
+    ms_cic_metric=None,
+    m_traj_mutual_info_metric=None,
+    goal_order_pred_metric=None,
+    logger=None,
+    load_path=None,
+    save_path=None):
+    """
+    Create a PubSubManager.
+    :param agents: List of Agents to use in the rl loop.
+    :param config: Dict that specifies all the important hyperparameters of the network.
+        - "task"
+        - "sad"
+        - "vdn"
+        - "max_obs_count"
+        - "sum_writer": str where to save the summary...
+
+    """
+    modules = config.pop("modules")
+
+    cam_id = "current_agents"
+    modules[cam_id] = CurrentAgentsModule(
+        id=cam_id,
+        agents=agents
+    )
+
+    envm_id = "EnvironmentModule_0"
+    envm_input_stream_ids = {
+        #"logger":"modules:logger:ref",
+        #"logs_dict":"logs_dict",
+        
+        "iteration":"signals:iteration",
+
+        "current_agents":f"modules:{cam_id}:ref",
+    }
+    modules[envm_id] = EnvironmentModule(
+        id=envm_id,
+        config=config,
+        input_stream_ids=envm_input_stream_ids
+    )
+
+    ms_cic_id = "MultiStepCIC_player0"
+    ms_cic_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "vocab_size":"config:vocab_size",
+      "max_sentence_length":"config:max_sentence_length",
+      
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    listening_biasing = False 
+    if len(sys.argv) > 2:
+      listening_biasing = any(['listening_biasing' in arg for arg in sys.argv[2:]])
+
+    if listening_biasing:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: Biasing for positive listening.")
+    else:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: NOT biasing for positive listening.")
+    
+    ms_cic_config = {
+      "biasing":listening_biasing,
+      "nbr_players":len(agents),
+      "player_id":0,
+      "metric":ms_cic_metric, #if None: default constr. for rule based agent...
+      #"message_zeroing_out_fn"= ...
+    }
+
+    if ms_cic_metric is not None:
+      modules[ms_cic_id] = MultiStepCICMetricModule(
+        id=ms_cic_id,
+        config=ms_cic_config,
+        input_stream_ids=ms_cic_input_stream_ids,
+      )
+
+    m_traj_mutinfo_id = "MessageTrajectoryMutualInforMEtric_player0"
+    m_traj_mutinfo_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "vocab_size":"config:vocab_size",
+      "max_sentence_length":"config:max_sentence_length",
+      
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    signalling_biasing = False 
+    if len(sys.argv) > 2:
+      signalling_biasing = any(['signalling_biasing' in arg for arg in sys.argv[2:]])
+
+    if signalling_biasing:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: Biasing for positive signalling.")
+    else:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: NOT biasing for positive signalling.")
+    
+    m_traj_mutinfo_config = {
+      "biasing":signalling_biasing,
+      "nbr_players":len(agents),
+      "player_id":0,
+      "metric":m_traj_mutual_info_metric, #if None: default constr. for rule based agent...
+      #"message_zeroing_out_fn"= ...
+    }
+
+    if m_traj_mutual_info_metric is not None:
+      modules[m_traj_mutinfo_id] = MessageTrajectoryMutualInformationMetricModule(
+        id=m_traj_mutinfo_id,
+        config=m_traj_mutinfo_config,
+        input_stream_ids=m_traj_mutinfo_input_stream_ids,
+      )
+
+
+    goal_order_pred_id = "GoalOrderingPred_player0"
+    goal_order_pred_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "vocab_size":"config:vocab_size",
+      "max_sentence_length":"config:max_sentence_length",
+      
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    goal_ordering_biasing = False 
+    if len(sys.argv) > 2:
+      goal_ordering_biasing = any(['goal_ordering_biasing' in arg for arg in sys.argv[2:]])
+
+    if goal_ordering_biasing:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: Biasing for Goal Ordering Prediction.")
+    else:
+      import ipdb; ipdb.set_trace()
+      print("WARNING: NOT biasing for Goal Ordering Prediction.")
+    
+    goal_order_pred_config = {
+      "biasing":goal_ordering_biasing,
+      "nbr_players":len(agents),
+      "player_id":0,
+      "metric":goal_order_pred_metric, #if None: default constr. for rule based agent...
+    }
+    
+    if goal_order_pred_metric is not None:
+      modules[goal_order_pred_id] = CoMazeGoalOrderingPredictionModule(
+        id=goal_order_pred_id,
+        config=goal_order_pred_config,
+        input_stream_ids=goal_order_pred_input_stream_ids,
+      )
+
+
+
+    pipelines = config.pop("pipelines")
+    
+    pipelines["rl_loop_0"] = [
+        envm_id,
+    ]
+
+    if ms_cic_metric is not None:
+      pipelines["rl_loop_0"].append(ms_cic_id)
+    if m_traj_mutual_info_metric is not None:
+      pipelines["rl_loop_0"].append(m_traj_mutinfo_id)
+    if goal_order_pred_metric is not None:
+      pipelines["rl_loop_0"].append(goal_order_pred_id)
+    
+    optim_id = "global_optim"
+    optim_config = {
+      "modules":modules,
+      "learning_rate":3e-4,
+      "optimizer_type":'adam',
+      "with_gradient_clip":False,
+      "adam_eps":1e-16,
+    }
+
+    optim_module = regym.modules.build_OptimizationModule(
+      id=optim_id,
+      config=optim_config,
+    )
+    modules[optim_id] = optim_module
+
+    logger_id = "per_epoch_logger"
+    logger_module = regym.modules.build_PerEpochLoggerModule(id=logger_id)
+    modules[logger_id] = logger_module
+    
+    pipelines[optim_id] = []
+    pipelines[optim_id].append(optim_id)
+    pipelines[optim_id].append(logger_id)
+
+    pbm = PubSubManager(
+        config=config,
+        modules=modules,
+        pipelines=pipelines,
+        logger=logger,
+        load_path=load_path,
+        save_path=save_path,
+    )
+    
+    return pbm
+
 
 def comaze_r2d2_wrap(
     env, 
@@ -68,51 +305,97 @@ def train_and_evaluate(agents: List[object],
                        render_mode="rgb_array",
                        step_hooks=[],
                        sad=False,
-                       vdn=False):
-    
-    async = False
+                       vdn=False,
+                       ms_cic_metric=None,
+                       m_traj_mutual_info_metric=None,
+                       goal_order_pred_metric=None):
+    pubsub = False
     if len(sys.argv) > 2:
-      async = any(['async' in arg for arg in sys.argv])
+      pubsub = any(['pubsub' in arg for arg in sys.argv])
 
-    if async:
-      trained_agent = marl_loop.async_gather_experience_parallel1(
-      #trained_agents = marl_loop.async_gather_experience_parallel(
-        task,
-        agents,
-        training=True,
-        #nbr_pretraining_steps=nbr_pretraining_steps,
-        max_obs_count=nbr_max_observations,
-        env_configs=None,
-        sum_writer=sum_writer,
-        base_path=base_path,
-        test_obs_interval=test_obs_interval,
-        test_nbr_episode=test_nbr_episode,
-        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
-        save_traj_length_divider=1,
-        render_mode=render_mode,
-        step_hooks=step_hooks,
-        sad=sad,
-        vdn=vdn,
+    if pubsub:
+      import ipdb; ipdb.set_trace()
+      config = {
+        "modules": {},
+        "pipelines": {},
+      }
+
+      config['training'] = True
+      config['env_configs'] = None
+      config['task'] = task 
+      
+      sum_writer_path = os.path.join(sum_writer, 'actor.log')
+      sum_writer = config['sum_writer'] = SummaryWriter(sum_writer_path, flush_secs=1)
+
+      config['base_path'] = base_path 
+      config['offset_episode_count'] = offset_episode_count
+      config['nbr_pretraining_steps'] = nbr_pretraining_steps 
+      config['max_obs_count'] = nbr_max_observations
+      config['test_obs_interval'] = test_obs_interval
+      config['test_nbr_episode'] = test_nbr_episode
+      config['benchmarking_record_episode_interval'] = benchmarking_record_episode_interval
+      config['render_mode'] = render_mode
+      config['step_hooks'] = step_hooks
+      config['save_traj_length_divider'] =1
+      config['sad'] = sad 
+      config['vdn'] = vdn
+      config['nbr_players'] = 2      
+      pubsubmanager = make_rl_pubsubmanager(
+        agents=agents,
+        config=config,
+        ms_cic_metric=ms_cic_metric,
+        m_traj_mutual_info_metric=m_traj_mutual_info_metric,
+        goal_order_pred_metric=goal_order_pred_metric,
+        logger=sum_writer,
       )
-    else: 
-      trained_agents = marl_loop.gather_experience_parallel(
-        task,
-        agents,
-        training=True,
-        #nbr_pretraining_steps=nbr_pretraining_steps,
-        max_obs_count=nbr_max_observations,
-        env_configs=None,
-        sum_writer=sum_writer,
-        base_path=base_path,
-        test_obs_interval=test_obs_interval,
-        test_nbr_episode=test_nbr_episode,
-        benchmarking_record_episode_interval=benchmarking_record_episode_interval,
-        save_traj_length_divider=1,
-        render_mode=render_mode,
-        step_hooks=step_hooks,
-        sad=sad,
-        vdn=vdn,
-      )
+
+      pubsubmanager.train() 
+
+      trained_agents = agents 
+    else:
+      async = False
+      if len(sys.argv) > 2:
+        async = any(['async' in arg for arg in sys.argv])
+
+      if async:
+        trained_agent = marl_loop.async_gather_experience_parallel1(
+        #trained_agents = marl_loop.async_gather_experience_parallel(
+          task,
+          agents,
+          training=True,
+          #nbr_pretraining_steps=nbr_pretraining_steps,
+          max_obs_count=nbr_max_observations,
+          env_configs=None,
+          sum_writer=sum_writer,
+          base_path=base_path,
+          test_obs_interval=test_obs_interval,
+          test_nbr_episode=test_nbr_episode,
+          benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+          save_traj_length_divider=1,
+          render_mode=render_mode,
+          step_hooks=step_hooks,
+          sad=sad,
+          vdn=vdn,
+        )
+      else: 
+        trained_agents = marl_loop.gather_experience_parallel(
+          task,
+          agents,
+          training=True,
+          #nbr_pretraining_steps=nbr_pretraining_steps,
+          max_obs_count=nbr_max_observations,
+          env_configs=None,
+          sum_writer=sum_writer,
+          base_path=base_path,
+          test_obs_interval=test_obs_interval,
+          test_nbr_episode=test_nbr_episode,
+          benchmarking_record_episode_interval=benchmarking_record_episode_interval,
+          save_traj_length_divider=1,
+          render_mode=render_mode,
+          step_hooks=step_hooks,
+          sad=sad,
+          vdn=vdn,
+        )
 
     save_replay_buffer = False
     if len(sys.argv) > 2:
@@ -136,6 +419,65 @@ def training_process(agent_config: Dict,
                      train_observation_budget: int = 1e7,
                      base_path: str = './', 
                      seed: int = 0):
+    test_only = False
+    use_ms_cic = False
+    use_m_traj_mutual_info = False
+    use_goal_order_pred = False
+    combined_action_space = False
+    signalling_biasing = False 
+    listening_biasing = False 
+    goal_ordering_biasing = False
+    pubsub = False
+    if len(sys.argv) > 2:
+      pubsub = any(['pubsub' in arg for arg in sys.argv])
+      test_only = any(['test_only' in arg for arg in sys.argv])
+      use_ms_cic = any(['ms_cic' in arg for arg in sys.argv])
+      use_m_traj_mutual_info = any(['mutual_info' in arg for arg in sys.argv])
+      use_goal_order_pred = any(['goal_order' in arg for arg in sys.argv])
+      combined_action_space = any(['combined_action_space' in arg for arg in sys.argv])
+      signalling_biasing = any(['signalling_biasing' in arg for arg in sys.argv[2:]])
+      listening_biasing = any(['listening_biasing' in arg for arg in sys.argv[2:]])
+      goal_ordering_biasing = any(['goal_ordering_biasing' in arg for arg in sys.argv[2:]])
+      
+    ms_cic_metric = None
+    m_traj_mutual_info_metric = None
+    goal_order_pred_metric = None 
+
+    if test_only:
+      base_path = os.path.join(base_path,"TESTING")
+    else:
+      base_path = os.path.join(base_path,"TRAINING")
+    
+    if pubsub:
+      base_path = os.path.join(base_path,"PUBSUB")
+    else:
+      base_path = os.path.join(base_path,"NOPUBSUB")
+      
+    if use_ms_cic:
+      base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if listening_biasing else ''}")
+    if use_m_traj_mutual_info:
+      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if signalling_biasing else ''}")
+    if use_goal_order_pred:
+      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1p3' if goal_ordering_biasing else ''}-NoDropout+RulesPrediction+BigArch")
+    
+    rule_based = False
+    communicating = False
+    if len(sys.argv) > 2:
+      rule_based = any(['rule_based' in arg for arg in sys.argv[2:]])
+      communicating = any(['communicating_rule_based' in arg for arg in sys.argv[2:]])
+    if rule_based:
+      base_path = os.path.join(base_path,f"{'COMM-' if communicating else ''}RULEBASE")
+    
+    print(f"Final Path: -- {base_path} --")
+    
+    if rule_based:
+      import ipdb; ipdb.set_trace()
+      print("rule-based agents do not usee SAD nor VDN...")
+      agent_config["sad"] = False
+      agent_config["vdn"] = False
+      task_config["sad"] = False
+      task_config["vdn"] = False
+        
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     np.random.seed(seed)
@@ -184,13 +526,15 @@ def training_process(agent_config: Dict,
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
     regym.RegymSummaryWriterPath = base_path #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
-    sum_writer =  base_path
+    sum_writer = base_path
     
-    #base_path1 = os.path.join(base_path,"1")
-    #save_path1 = os.path.join(base_path1,f"./{task_config['agent-id']}.agent")
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
+    if task_config.get("reload", 'None')!='None':
+      import ipdb; ipdb.set_trace()
+      agent, offset_episode_count = check_path_for_agent(task_config["reload"])
+    else:
+      agent, offset_episode_count = check_path_for_agent(save_path1)
     
-    agent, offset_episode_count = check_path_for_agent(save_path1)
     if agent is None: 
         agent = initialize_agents(
           task=task,
@@ -198,21 +542,29 @@ def training_process(agent_config: Dict,
         )[0]
     agent.save_path = save_path1
     
-    """
-    base_path2 = os.path.join(base_path,"2")
-    save_path2 = os.path.join(base_path2,f"./{task_config['agent-id']}.agent")
+    if test_only:
+      print(save_path1)
+      import ipdb; ipdb.set_trace()
+      agent.training = False
+    else:
+      import ipdb; ipdb.set_trace()
+
+    if use_ms_cic:
+      action_policy = RLActionPolicy(
+        agent=agent,
+        combined_action_space=combined_action_space,
+      )
+    if use_m_traj_mutual_info:
+      message_policy = RLMessagePolicy(
+        agent=agent,
+        combined_action_space=combined_action_space,
+      )
     
-    agent2, offset_episode_count = check_path_for_agent(save_path2)
-    if agent2 is None: 
-        agent2 = initialize_agents(
-          task=task,
-          agent_configurations={task_config['agent-id']: agent_config}
-        )[0]
-    agent2.save_path = save_path2
-    """
-
-    #agents = [agent, agent2]
-
+    if use_goal_order_pred:
+      hiddenstate_policy = RLHiddenStatePolicy(
+        agent=agent,
+      )
+    
     if "vdn" in agent_config \
     and agent_config["vdn"]:
       import ipdb; ipdb.set_trace()
@@ -231,6 +583,54 @@ def training_process(agent_config: Dict,
       # -given that it proposes decorrelated data-, but it may
       # also have unknown disadvantages. Needs proper investigation.
 
+      if rule_based:
+        import importlib  
+        comaze_gym = importlib.import_module("regym.environments.envs.CoMaze.comaze-gym.comaze_gym")
+        from comaze_gym import build_WrappedActionOnlyRuleBasedAgent, build_WrappedCommunicatingRuleBasedAgent 
+        build_fn = build_WrappedActionOnlyRuleBasedAgent
+        if communicating:
+          build_fn = build_WrappedCommunicatingRuleBasedAgent
+        agents = [
+          build_fn(
+            player_idx=pidx,
+            action_space_dim=task.action_dim,
+          ) for pidx in range(2)
+        ]
+
+        if use_ms_cic:
+          action_policy = RuleBasedActionPolicy( 
+              wrapped_rule_based_agent=agents[0],
+              combined_action_space=combined_action_space,
+          )
+        if use_m_traj_mutual_info:
+          message_policy = RuleBasedMessagePolicy( 
+              wrapped_rule_based_agent=agents[0],
+              combined_action_space=combined_action_space,
+          )
+        if use_goal_order_pred:
+          hiddenstate_policy = RuleBasedHiddenStatePolicy( 
+              wrapped_rule_based_agent=agents[0],
+          )
+      
+    if use_ms_cic:  
+      ms_cic_metric = MultiStepCIC(
+          action_policy=action_policy,
+          action_policy_bar=RLActionPolicy(
+            agent=agent,
+            combined_action_space=combined_action_space,
+          )
+      )
+    if use_m_traj_mutual_info:  
+      m_traj_mutual_info_metric = MessageTrajectoryMutualInformationMetric(
+          message_policy=message_policy,
+      )
+    if use_goal_order_pred:  
+      goal_order_pred_metric = GoalOrderingPredictionMetric(
+          hiddenstate_policy=hiddenstate_policy,
+          label_dim=4*5,
+          data_save_path=os.path.join(base_path,"GoalOrderingPredModule"),
+      )
+
     trained_agents = train_and_evaluate(
       agents=agents,
       task=task,
@@ -244,8 +644,11 @@ def training_process(agent_config: Dict,
       #benchmarking_record_episode_interval=None, 
       benchmarking_record_episode_interval=benchmarking_record_episode_interval,
       render_mode="human_comm",
-      sad=task_config["sad"],
-      vdn=task_config["vdn"],
+      sad=task_config["sad"] if not(rule_based) else False,
+      vdn=task_config["vdn"] if not(rule_based) else False,
+      ms_cic_metric=ms_cic_metric,
+      m_traj_mutual_info_metric=m_traj_mutual_info_metric,
+      goal_order_pred_metric=goal_order_pred_metric,
     )
 
     return trained_agents, task 
@@ -277,7 +680,7 @@ def main():
         env_name = task_config['env-id']
         run_name = task_config['run-id']
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
-        print(f"Path: -- {path} --")
+        print(f"Tentative Path: -- {path} --")
         training_process(agents_config[task_config['agent-id']], task_config,
                          benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
                          benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),

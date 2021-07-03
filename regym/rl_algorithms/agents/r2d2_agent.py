@@ -27,8 +27,11 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             algorithm=algorithm
         )
 
-    def _take_action(self, state, infos=None):
-        return DQNAgent.take_action(self, state=state, infos=infos)
+    def _take_action(self, state, infos=None, as_logit=False):
+        return DQNAgent.take_action(self, state=state, infos=infos, as_logit=as_logit)
+
+    def _query_action(self, state, infos=None, as_logit=False):
+        return DQNAgent.query_action(self, state=state, infos=infos, as_logit=as_logit)
 
     def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
@@ -103,6 +106,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             algorithm=cloned_algo,
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos)
         )
+        clone.save_path = self.save_path
         clone.async_learner = False
         clone.async_actor = True
 

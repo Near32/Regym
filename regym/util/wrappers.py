@@ -104,16 +104,18 @@ class VDNVecEnvWrapper(object):
         return self.env.render(render_mode=render_mode, env_indices=env_indices)
 
     def reset(self, **kwargs):
-        next_obs, next_infos = self.env.reset(**kwargs)
-        
+        input_dict = self.env.reset(**kwargs)
+        nvdn_next_obs = input_dict["observations"]
+        nvdn_next_infos = input_dict["info"]
+
         vdn_obs = np.concatenate(
-            next_obs,
+            nvdn_next_obs,
             axis=0
         )
         next_obs = [vdn_obs]
 
         list_infos = []
-        for li in next_infos:
+        for li in nvdn_next_infos:
             for k in range(len(li)):
                 list_infos.append(li[k])
         """
@@ -127,7 +129,15 @@ class VDNVecEnvWrapper(object):
         """
         next_infos = [list_infos]
 
-        return next_obs, next_infos
+        output_dict = {
+            "observations":nvdn_next_obs,
+            "info":nvdn_next_infos,
+
+            "vdn_observations":next_obs,
+            "vdn_info":next_infos,
+        }
+
+        return output_dict
 
     def step(self, action, **kwargs):
         assert isinstance(action, list) and len(action)==1, "action argument must be a singleton list of dictionnary (SAD) or tensor."
@@ -153,27 +163,34 @@ class VDNVecEnvWrapper(object):
                 a = action[0][pidx*nbr_env:(pidx+1)*nbr_env, ...]
                 env_action.append(a)
 
-        next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
-        
+        nonvdn_action = env_action
+        env_output_dict = self.env.step(env_action, **kwargs)
+        if "actions" in env_output_dict:
+            nonvdn_action = env_output_dict["actions"]
+        nvdn_next_obs = env_output_dict["succ_observations"]
+        nvdn_reward = env_output_dict["reward"]
+        nvdn_done = env_output_dict["done"]
+        nvdn_next_infos = env_output_dict["succ_info"]
+
         next_obs = [
             np.concatenate(
-                next_obs,
+                nvdn_next_obs,
                 axis=0
             )
         ]
         # 1 x (batch_size*num_player, ...)
 
-        reward_shape = reward[0].shape
+        reward_shape = nvdn_reward[0].shape
         reward = [
             np.concatenate(
-                reward,
+                nvdn_reward,
                 axis=0
             )
         ]
         # 1 x (batch_size*num_player, ...)
         
         list_infos = []
-        for li in next_infos:
+        for li in nvdn_next_infos:
             for k in range(len(li)):
                 list_infos.append(li[k])
         
@@ -188,7 +205,21 @@ class VDNVecEnvWrapper(object):
         # 1 x key x (batch_size*num_player, ...)
         """
 
-        return next_obs, reward, done, next_infos
+        output_dict = {
+            "actions":nonvdn_action,
+
+            "succ_observations":nvdn_next_obs, 
+            "reward":nvdn_reward, 
+            "done":nvdn_done, 
+            "succ_info":nvdn_next_infos,
+
+            "vdn_succ_observations":next_obs, 
+            "vdn_reward":reward, 
+            "vdn_done":nvdn_done, 
+            "vdn_succ_info":next_infos
+        }
+
+        return output_dict
 
 
 # # Wrappers:
@@ -1758,8 +1789,10 @@ class SADVecEnvWrapper(object):
         return self.env.render(render_mode=render_mode, env_indices=env_indices)
     
     def reset(self, **kwargs):
-        next_obs, next_infos = self.env.reset(**kwargs)
-        
+        input_dict = self.env.reset(**kwargs)
+        next_obs = input_dict["observations"]
+        next_infos = input_dict["info"]
+
         self.nbr_players = len(next_obs)
         self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
         # (nbr_env, )
@@ -1773,7 +1806,12 @@ class SADVecEnvWrapper(object):
                     axis=-1,
                 )
         
-        return next_obs, next_infos
+        output_dict = {
+            "observations":next_obs, 
+            "info":next_infos,
+        }
+
+        return output_dict
 
     def step(self, action, **kwargs):
         assert isinstance(action, list), "action argument must be a list of dictionnary (or tensors if test-time...)."
@@ -1785,8 +1823,13 @@ class SADVecEnvWrapper(object):
         else:
             env_action = action
 
-        next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
-        
+        #next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
+        env_output_dict = self.env.step(env_action, **kwargs)
+        next_obs = env_output_dict["succ_observations"]
+        reward = env_output_dict["reward"]
+        done = env_output_dict["done"]
+        next_infos = env_output_dict["succ_info"]
+
         for player_idx in range(self.nbr_players):
             for env_idx in range(len(next_infos[player_idx])):
                 current_player = self.current_player_idx[env_idx] 
@@ -1810,7 +1853,16 @@ class SADVecEnvWrapper(object):
         self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
         # (nbr_env, )
         
-        return next_obs, reward, done, next_infos
+        output_dict = {
+            "actions":env_action, #non-sad actions
+
+            "succ_observations":next_obs, 
+            "reward":reward, 
+            "done":done, 
+            "succ_info":next_infos,
+        }
+
+        return output_dict
 
 
 

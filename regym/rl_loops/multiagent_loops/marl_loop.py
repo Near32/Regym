@@ -39,7 +39,13 @@ def run_episode_parallel(
     max_episode_length=1e30,
     env_configs=None,
     save_traj=False,
-    render_mode="rgb_array"):
+    render_mode="rgb_array",
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info"):
     '''
     Runs a single multi-agent rl loop until termination.
     The observations vector is of length n, where n is the number of agents
@@ -53,8 +59,11 @@ def run_episode_parallel(
     
     N.B.: only care about agent 0's trajectory.
     '''
-    observations, info = env.reset(env_configs=env_configs)
-
+    #observations, info = env.reset(env_configs=env_configs)
+    env_reset_output_dict = env.reset(env_configs=env_configs)
+    observations = env_reset_output_dict[obs_key]
+    info = env_reset_output_dict[info_key]
+        
     nbr_actors = env.get_nbr_envs()
     
     for agent in agents:
@@ -75,7 +84,12 @@ def run_episode_parallel(
             ) 
             for agent_idx, agent in enumerate(agents)
         ] 
-        succ_observations, reward, done, succ_info = env.step(actions, only_progress_non_terminated=True)
+        #succ_observations, reward, done, succ_info = env.step(actions, only_progress_non_terminated=True)
+        env_output_dict = env.step(actions, only_progress_non_terminated=True)
+        succ_observations = env_output_dict[succ_obs_key]
+        reward = env_output_dict[reward_key]
+        done = env_output_dict[done_key]
+        succ_info = env_output_dict[succ_info_key]
 
         if training:
             for agent_idx, agent in enumerate(agents):
@@ -93,7 +107,9 @@ def run_episode_parallel(
         for actor_index in range(nbr_actors):
             if previous_done[actor_index]:
                 continue
-            batch_index +=1
+            #batch_index +=1
+            # since `only_progress_non_terminated=True`:
+            batch_index = actor_index 
 
             # Bookkeeping of the actors whose episode just ended:
             d = done[actor_index]
@@ -106,6 +122,7 @@ def run_episode_parallel(
 
             # Only care about agent 0's trajectory:
             pa_obs = observations[0][batch_index]
+            pa_info = info[0][batch_index]
             if save_traj:
                 pa_obs = env.render(render_mode, env_indices=[batch_index])[0]
             pa_a = actions[0][batch_index]
@@ -121,7 +138,7 @@ def run_episode_parallel(
                     pa_int_r = agent.get_intrinsic_reward(actor_index)
             """
             if not previous_done[actor_index]:
-                per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
+                per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) )
 
         observations = copy.deepcopy(succ_observations)
         info = copy.deepcopy(succ_info)
@@ -165,7 +182,15 @@ def test_agent(
     nbr_save_traj=1, 
     save_traj=False,
     render_mode="rgb_array",
-    save_traj_length_divider=1):
+    save_traj_length_divider=1,
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info",
+    ):
+
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
 
@@ -177,6 +202,12 @@ def test_agent(
         env_configs=None,
         save_traj=save_traj,
         render_mode=render_mode,
+        obs_key=obs_key,
+        succ_obs_key=succ_obs_key,
+        reward_key=reward_key,
+        done_key=done_key,
+        info_key=info_key,
+        succ_info_key=succ_info_key,
     )
 
     total_return = [ sum([ exp[2] for exp in t]) for t in trajectory]
@@ -449,6 +480,12 @@ def gather_experience_parallel(
     sad=False,
     vdn=False,
     nbr_players=2,
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info",
     ):
     '''
     Runs a self-play multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
@@ -482,13 +519,14 @@ def gather_experience_parallel(
     if vdn:
         test_env = VDNVecEnvWrapper(test_env, nbr_players=nbr_players)
     
-    observations, info = env.reset(env_configs=env_configs)
-    
+    #observations, info = env.reset(env_configs=env_configs)
+    env_reset_output_dict = env.reset(env_configs=env_configs)
+    observations = env_reset_output_dict[obs_key]
+    info = env_reset_output_dict[info_key]
+
     nbr_actors = env.get_nbr_envs()
-    """
     for agent in agents:
         agent.set_nbr_actor(nbr_actors)
-    """
     done = [False]*nbr_actors
     
     per_actor_trajectories = [list() for i in range(nbr_actors)]
@@ -513,7 +551,9 @@ def gather_experience_parallel(
             if agent.training:
                 agent.algorithm.summary_writer = sum_writer
             else:
-                agent.algorithm.summary_writer = None 
+                algo = getattr(agent, "algorithm", None)
+                if algo is not None:
+                    agent.algorithm.summary_writer = None 
 
     while True:
         actions = [
@@ -524,7 +564,12 @@ def gather_experience_parallel(
             for agent_idx, agent in enumerate(agents)
         ]
         
-        succ_observations, reward, done, succ_info = env.step(actions)
+        #succ_observations, reward, done, succ_info = env.step(actions)
+        env_output_dict = env.step(actions)
+        succ_observations = env_output_dict[succ_obs_key]
+        reward = env_output_dict[reward_key]
+        done = env_output_dict[done_key]
+        succ_info = env_output_dict[succ_info_key]
 
         if training:
             for agent_idx, agent in enumerate(agents):
@@ -553,13 +598,36 @@ def gather_experience_parallel(
                 for agent in agents:
                     hook(env, agent, obs_count)
 
+            # Only care about agent 0's trajectory:
+            pa_obs = observations[0][actor_index]
+            pa_a = actions[0][actor_index]
+            pa_r = reward[0][actor_index]
+            pa_succ_obs = succ_observations[0][actor_index]
+            pa_done = done[actor_index]
+            pa_int_r = 0.0
+
+            """
+            if getattr(agent.algorithm, "use_rnd", False):
+                get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
+                if callable(get_intrinsic_reward):
+                    pa_int_r = agent.get_intrinsic_reward(actor_index)
+            """
+            per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
+
+
+            #////////////////////////////////////////////////////////////////////////////////////////
             # Bookkeeping of the actors whose episode just ended:
+            #////////////////////////////////////////////////////////////////////////////////////////
             done_condition = ('real_done' in succ_info[0][actor_index] and succ_info[0][actor_index]['real_done']) or ('real_done' not in succ_info[0][actor_index] and done[actor_index])
             if done_condition:
                 update_count = agents[0].get_update_count()
                 episode_count += 1
                 episode_count_record += 1
-                succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                #succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                env_reset_output_dict = env.reset(env_configs=config.get('env_configs', None), env_indices=[actor_index])
+                succ_observations = env_reset_output_dict[obs_key]
+                succ_info = env_reset_output_dict[info_key]
+                
                 for agent_idx, agent in enumerate(agents):
                     agent.reset_actors(indices=[actor_index])
                 
@@ -582,10 +650,10 @@ def gather_experience_parallel(
                     if actor_index == 0:
                         sample_episode_count += 1
                     #sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
-                    sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
-                    sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_PositiveReward', positive_total_returns[-1], obs_count)
+                    #sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
+                    #sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_PositiveReward', positive_total_returns[-1], obs_count)
                     #sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], update_count)
-                    sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
+                    #sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
                     sum_writer.flush()
 
                 if len(trajectories) >= nbr_actors:
@@ -627,22 +695,8 @@ def gather_experience_parallel(
 
                 per_actor_trajectories[actor_index] = list()
 
-            # Only care about agent 0's trajectory:
-            pa_obs = observations[0][actor_index]
-            pa_a = actions[0][actor_index]
-            pa_r = reward[0][actor_index]
-            pa_succ_obs = succ_observations[0][actor_index]
-            pa_done = done[actor_index]
-            pa_int_r = 0.0
-
-            """
-            if getattr(agent.algorithm, "use_rnd", False):
-                get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
-                if callable(get_intrinsic_reward):
-                    pa_int_r = agent.get_intrinsic_reward(actor_index)
-            """
-            per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
-
+            #////////////////////////////////////////////////////////////////////////////////////////
+            #////////////////////////////////////////////////////////////////////////////////////////
 
             if test_nbr_episode != 0 and obs_count % test_obs_interval == 0:
                 save_traj = False
