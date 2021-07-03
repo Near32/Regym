@@ -427,7 +427,9 @@ def training_process(agent_config: Dict,
     signalling_biasing = False 
     listening_biasing = False 
     goal_ordering_biasing = False
+    pubsub = False
     if len(sys.argv) > 2:
+      pubsub = any(['pubsub' in arg for arg in sys.argv])
       test_only = any(['test_only' in arg for arg in sys.argv])
       use_ms_cic = any(['ms_cic' in arg for arg in sys.argv])
       use_m_traj_mutual_info = any(['mutual_info' in arg for arg in sys.argv])
@@ -441,6 +443,16 @@ def training_process(agent_config: Dict,
     m_traj_mutual_info_metric = None
     goal_order_pred_metric = None 
 
+    if test_only:
+      base_path = os.path.join(base_path,"TESTING")
+    else:
+      base_path = os.path.join(base_path,"TRAINING")
+    
+    if pubsub:
+      base_path = os.path.join(base_path,"PUBSUB")
+    else:
+      base_path = os.path.join(base_path,"NOPUBSUB")
+      
     if use_ms_cic:
       base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if listening_biasing else ''}")
     if use_m_traj_mutual_info:
@@ -517,8 +529,12 @@ def training_process(agent_config: Dict,
     sum_writer = base_path
     
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
+    if task_config.get("reload", 'None')!='None':
+      import ipdb; ipdb.set_trace()
+      agent, offset_episode_count = check_path_for_agent(task_config["reload"])
+    else:
+      agent, offset_episode_count = check_path_for_agent(save_path1)
     
-    agent, offset_episode_count = check_path_for_agent(save_path1)
     if agent is None: 
         agent = initialize_agents(
           task=task,
@@ -612,6 +628,7 @@ def training_process(agent_config: Dict,
       goal_order_pred_metric = GoalOrderingPredictionMetric(
           hiddenstate_policy=hiddenstate_policy,
           label_dim=4*5,
+          data_save_path=os.path.join(base_path,"GoalOrderingPredModule"),
       )
 
     trained_agents = train_and_evaluate(

@@ -185,6 +185,11 @@ class EnvironmentModule(Module):
         actions = [
             agent.take_action(
                 state=self.observations[agent_idx],
+                infos=self.info[agent_idx] 
+            ) \
+            if agent.training else \
+            agent.query_action(
+                state=self.observations[agent_idx],
                 infos=self.info[agent_idx]
             )
             for agent_idx, agent in enumerate(self.agents)
@@ -215,7 +220,7 @@ class EnvironmentModule(Module):
                         infos=self.info[agent_idx],
                     )
 
-        if self.sad:
+        if self.sad and isinstance(actions[0], dict):
             actions = [
                 a["action"]
                 for a in actions

@@ -480,6 +480,12 @@ def gather_experience_parallel(
     sad=False,
     vdn=False,
     nbr_players=2,
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info",
     ):
     '''
     Runs a self-play multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
@@ -513,8 +519,11 @@ def gather_experience_parallel(
     if vdn:
         test_env = VDNVecEnvWrapper(test_env, nbr_players=nbr_players)
     
-    observations, info = env.reset(env_configs=env_configs)
-    
+    #observations, info = env.reset(env_configs=env_configs)
+    env_reset_output_dict = env.reset(env_configs=env_configs)
+    observations = env_reset_output_dict[obs_key]
+    info = env_reset_output_dict[info_key]
+
     nbr_actors = env.get_nbr_envs()
     for agent in agents:
         agent.set_nbr_actor(nbr_actors)
@@ -555,7 +564,12 @@ def gather_experience_parallel(
             for agent_idx, agent in enumerate(agents)
         ]
         
-        succ_observations, reward, done, succ_info = env.step(actions)
+        #succ_observations, reward, done, succ_info = env.step(actions)
+        env_output_dict = env.step(actions)
+        succ_observations = env_output_dict[succ_obs_key]
+        reward = env_output_dict[reward_key]
+        done = env_output_dict[done_key]
+        succ_info = env_output_dict[succ_info_key]
 
         if training:
             for agent_idx, agent in enumerate(agents):
@@ -609,7 +623,11 @@ def gather_experience_parallel(
                 update_count = agents[0].get_update_count()
                 episode_count += 1
                 episode_count_record += 1
-                succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                #succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                env_reset_output_dict = env.reset(env_configs=config.get('env_configs', None), env_indices=[actor_index])
+                succ_observations = env_reset_output_dict[obs_key]
+                succ_info = env_reset_output_dict[info_key]
+                
                 for agent_idx, agent in enumerate(agents):
                     agent.reset_actors(indices=[actor_index])
                 
