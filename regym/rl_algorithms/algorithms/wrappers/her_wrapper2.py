@@ -86,6 +86,8 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         
         if not(exp_dict['non_terminal']):
             episode_length = len(self.episode_buffer[actor_index])
+            per_episode_d2store = {}
+
             for idx in range(episode_length):
                 s = self.episode_buffer[actor_index][idx]['s']
                 a = self.episode_buffer[actor_index][idx]['a']
@@ -110,8 +112,10 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                     'info': info,
                     #'g':desired_goal
                 }
-                self.algorithm.store(d2store, actor_index=actor_index)
-                
+                #self.algorithm.store(d2store, actor_index=actor_index)
+                if -1 not in per_episode_d2store: per_episode_d2store[-1] = []
+                per_episode_d2store[-1].append(d2store)
+
                 if self.algorithm.summary_writer is not None and all(non_terminal<=0.5):
                     self.episode_count += 1
                     self.algorithm.summary_writer.add_scalar('PerEpisode/Success', 1+r.mean().item(), self.episode_count)
@@ -172,8 +176,15 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                         if self.algorithm.summary_writer is not None:
                             self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_future', new_r.mean().item(), self.algorithm.get_update_count())
                         
+                    #self.algorithm.store(d2store, actor_index=actor_index)
+                    if k not in per_episode_d2store: per_episode_d2store[k] = []
+                    per_episode_d2store[k].append(d2store)
+            
+            for key in per_episode_d2store:
+                for d2store in per_episode_d2store[key]:
                     self.algorithm.store(d2store, actor_index=actor_index)
-
+                
+            
             # Reset episode buffer:
             self.episode_buffer[actor_index] = []
 
