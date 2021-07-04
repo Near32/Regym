@@ -56,8 +56,15 @@ def generate_model(
     task: 'regym.environments.Task', 
     kwargs: Dict,
     head_type: str="CategoricalQNet") -> nn.Module:
+    
     phi_body = None
-    input_dim = list(task.observation_shape)
+    if isinstance(task.observation_shape, int):
+        input_dim = task.observation_shape
+    else:
+        input_dim = list(task.observation_shape)
+    
+    """
+    # To deprecate: test if breaks without...
     if 'goal_oriented' in kwargs and kwargs['goal_oriented']:
         goal_input_shape = list(task.goal_shape)
         if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
@@ -65,6 +72,7 @@ def generate_model(
                 input_dim = input_dim+goal_input_shape
             else:
                 input_dim[-1] = input_dim[-1]+goal_input_shape[-1]
+    """
 
     if kwargs['phi_arch'] != 'None':
         output_dim = kwargs['phi_arch_feature_dim']
@@ -119,12 +127,33 @@ def generate_model(
             strides = kwargs['phi_arch_strides']
             paddings = kwargs['phi_arch_paddings']
             output_dim = kwargs['phi_arch_feature_dim']
-            phi_body = ConvolutionalBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings)
+            
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_phi_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tll = extra_inputs_infos[key]['target_location']
+                    if not isinstance(tll[0], list):
+                        tll= [tll]
+                    for tl in tll:
+                        if 'phi_body' in tl:
+                            extra_inputs_infos_phi_body[key] = {
+                                'shape':shape, 
+                                'target_location':tl
+                            }
+            import ipdb; ipdb.set_trace()
+            phi_body = ConvolutionalBody(
+                input_shape=input_shape,
+                feature_dim=output_dim,
+                channels=channels,
+                kernel_sizes=kernels,
+                strides=strides,
+                paddings=paddings,
+                extra_inputs_infos=extra_inputs_infos_phi_body,
+            )
+
         elif kwargs['phi_arch'] == 'ResNet18':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
@@ -696,15 +725,23 @@ def generate_model(
         use_rnd = True
 
 
-    # TODO: remove this! We needed to relax this condition for MineRL
-    # assert(task.action_type == 'Discrete')
-    obs_shape = list(task.observation_shape)
+    if isinstance(task.observation_shape, int):
+        obs_shape = task.observation_shape
+    else:
+        obs_shape = list(task.observation_shape)
     if 'preprocessed_observation_shape' in kwargs: obs_shape = kwargs['preprocessed_observation_shape']
-    goal_shape = list(task.goal_shape)
+    if isinstance(task.observation_shape, int):
+        goal_shape = task.goal_shape
+    else:
+        goal_shape = list(task.goal_shape)
+
     if 'preprocessed_goal_shape' in kwargs: goal_shape = kwargs['preprocessed_goal_shape']
+    """
+    # depr: goal update
     if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
         obs_shape[-1] = obs_shape[-1] + goal_shape[-1]
-
+    """
+    
     # Selecting Extra Inputs Infos relevant to final_critic_layer:
     extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
     extra_inputs_infos_final_critic_layer = {}

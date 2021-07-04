@@ -965,13 +965,7 @@ def compute_loss(states: torch.Tensor,
     
     Q_Si_Ai_value = value_function_rescaling(unscaled_Q_Si_Ai_value)    
     scaled_bellman_target_Sipn_onlineGreedyAction = value_function_rescaling(unscaled_bellman_target_Sipn_onlineGreedyAction)
-    '''
-    # TODO: decide how to handle HER augmentation...
-    if HER_target_clamping:
-        # clip the target to [-50,0]
-        expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)
-    '''
-
+    
     # Compute loss:
     # MSE ?
     """
@@ -980,6 +974,13 @@ def compute_loss(states: torch.Tensor,
     """
 
     # Abs:
+    if HER_target_clamping:
+        # clip the unscaled target to [-50,0]
+        unscaled_bellman_target_Sipn_onlineGreedyAction = torch.clamp(
+            unscaled_bellman_target_Sipn_onlineGreedyAction, 
+            -1. / (1 - gamma),
+            0.0
+        )
     td_error = torch.abs(unscaled_bellman_target_Sipn_onlineGreedyAction.detach() - unscaled_Q_Si_Ai_value)
     scaled_td_error = torch.abs(scaled_bellman_target_Sipn_onlineGreedyAction.detach() - Q_Si_Ai_value)
     assert list(td_error.shape) == [batch_size, training_length, 1]

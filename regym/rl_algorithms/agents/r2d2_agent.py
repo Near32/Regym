@@ -11,6 +11,8 @@ from regym.rl_algorithms.agents.utils import generate_model, parse_and_check
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
+from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2
+
 
 class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
     def __init__(self, name, algorithm, extra_inputs_infos):
@@ -185,6 +187,20 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         name=f"{agent_name}_algo",
     )
 
+    if kwargs.get('use_HER', False):
+        from regym.rl_algorithms.algorithms.wrappers import latent_based_goal_predicated_reward_fn2
+        goal_predicated_reward_fn = None
+        if kwargs.get('HER_use_latent', False):
+            goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn2
+
+        algorithm = HERAlgorithmWrapper2(
+            algorithm=algorithm,
+            strategy=kwargs['HER_strategy'],
+            goal_predicated_reward_fn=goal_predicated_reward_fn,
+            extra_inputs_infos=kwargs['extra_inputs_infos'],
+        )
+
+    
     agent = R2D2Agent(
         name=agent_name,
         algorithm=algorithm,

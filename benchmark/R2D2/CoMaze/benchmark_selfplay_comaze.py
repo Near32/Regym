@@ -273,6 +273,7 @@ def comaze_r2d2_wrap(
     if clip_reward:
         env = ClipRewardEnv(env)
 
+    import ipdb; ipdb.set_trace()
     if previous_reward_action:
         env = PreviousRewardActionInfoMultiAgentWrapper(env=env)
     

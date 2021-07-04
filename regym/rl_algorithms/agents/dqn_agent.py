@@ -52,7 +52,7 @@ class DQNAgent(Agent):
         self.previous_save_quotient = -1
 
     def get_update_count(self):
-        return self.algorithm.get_update_count()
+        return self.algorithm.unwrapped.get_update_count()
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
         '''
@@ -246,13 +246,15 @@ class DQNAgent(Agent):
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
 
+            """
+            # depr : goal update
             if self.goal_oriented:
-                raise NotImplementedError
                 exp_dict['goals'] = Agent._extract_from_hdict(
                     goals, 
                     batch_index, 
                     goal_preprocessing_fn=self.goal_preprocessing
                 )
+            """
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
@@ -277,7 +279,7 @@ class DQNAgent(Agent):
 
         if self.training \
         and self.handled_experiences > self.kwargs['min_capacity'] \
-        and self.algorithm.stored_experiences() > self.kwargs['min_capacity'] \
+        and self.algorithm.unwrapped.stored_experiences() > self.kwargs['min_capacity'] \
         and (period_count_check % period_check == 0 or not(self.async_actor)):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
@@ -290,23 +292,23 @@ class DQNAgent(Agent):
             
             nbr_updates = self.nbr_training_iteration_per_cycle
 
-            if self.algorithm.summary_writer is not None:
+            if self.algorithm.unwrapped.summary_writer is not None:
                 if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
                     actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
                 else:
                     actor_learner_shared_dict = self.actor_learner_shared_dict.get()
                 nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
-                self.algorithm.summary_writer.add_scalar(
+                self.algorithm.unwrapped.summary_writer.add_scalar(
                     f'PerUpdate/ActorLearnerSynchroRemainingUpdates', 
                     nbr_update_remaining, 
-                    self.algorithm.get_update_count()
+                    self.algorithm.unwrapped.get_update_count()
                 )
             
             # Update actor's models:
             if self.async_learner\
             and (self.handled_experiences // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
                 self.previous_actor_models_update_quotient = self.handled_experiences // self.actor_models_update_steps_interval
-                new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.get_models().items()}
+                new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.unwrapped.get_models().items()}
                 
                 if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
                     actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
@@ -323,8 +325,8 @@ class DQNAgent(Agent):
 
             if self.async_learner\
             and self.save_path is not None \
-            and (self.algorithm.get_update_count() // self.saving_interval) != self.previous_save_quotient:
-                self.previous_save_quotient = self.algorithm.get_update_count() // self.saving_interval
+            and (self.algorithm.unwrapped.get_update_count() // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = self.algorithm.unwrapped.get_update_count() // self.saving_interval
                 self.save()
 
         return nbr_updates
@@ -346,13 +348,13 @@ class DQNAgent(Agent):
                 
                 if "models" in actor_learner_shared_dict.keys():
                     new_models = actor_learner_shared_dict["models"]
-                    self.algorithm.set_models(new_models)
+                    self.algorithm.unwrapped.set_models(new_models)
                 else:
                     raise NotImplementedError 
 
         if self.training:
             self.nbr_steps += state.shape[0]
-        self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
+        self.eps = self.algorithm.unwrapped.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
         if "vdn" in self.kwargs \
         and self.kwargs["vdn"]:
             # The following will not make same values contiguous:
@@ -361,17 +363,24 @@ class DQNAgent(Agent):
             self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
 
 
-        state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        
+        """
+        # depr : goal update
         goal = None
         if self.goal_oriented:
-            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.kwargs['use_cuda'])
+            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        """
 
-        model = self.algorithm.get_models()['model']
+        model = self.algorithm.unwrapped.get_models()['model']
         if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
-            model = self.algorithm.get_models()['target_model']
+            model = self.algorithm.unwrapped.get_models()['target_model']
         model = model.train(mode=self.training)
 
-        self.current_prediction = self.query_model(model, state, goal)
+        
+        # depr : goal update
+        #self.current_prediction = self.query_model(model, state, goal)
+        self.current_prediction = self.query_model(model, state)
         
         if as_logit:
             return self.current_prediction['log_a']
@@ -441,11 +450,11 @@ class DQNAgent(Agent):
                 
                 if "models" in actor_learner_shared_dict.keys():
                     new_models = actor_learner_shared_dict["models"]
-                    self.algorithm.set_models(new_models)
+                    self.algorithm.unwrapped.set_models(new_models)
                 else:
                     raise NotImplementedError 
 
-        self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
+        self.eps = self.algorithm.unwrapped.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
         if "vdn" in self.kwargs \
         and self.kwargs["vdn"]:
             # The following will not make same values contiguous:
@@ -454,17 +463,23 @@ class DQNAgent(Agent):
             self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
 
 
-        state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        
+        """
+        # depr : goal update
         goal = None
         if self.goal_oriented:
-            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.kwargs['use_cuda'])
+            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        """
 
-        model = self.algorithm.get_models()['model']
+        model = self.algorithm.unwrapped.get_models()['model']
         if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
-            model = self.algorithm.get_models()['target_model']
+            model = self.algorithm.unwrapped.get_models()['target_model']
         if not(model.training):  model = model.train(mode=True)
 
-        current_prediction = self.query_model(model, state, goal)
+        # depr : goal update
+        #current_prediction = self.query_model(model, state, goal)
+        current_prediction = self.query_model(model, state)
         
         if as_logit:
             return current_prediction['log_a']
@@ -514,7 +529,7 @@ class DQNAgent(Agent):
 
         return actions
 
-    def query_model(self, model, state, goal):
+    def query_model(self, model, state, goal=None):
         if self.recurrent:
             self._pre_process_rnn_states()
             # WARNING: it is imperative to make a copy 
@@ -626,7 +641,7 @@ def build_DQN_Agent(task, config, agent_name):
         loss_fn = ddqn_loss.compute_loss
 
     dqn_algorithm = DQNAlgorithm(kwargs, model, loss_fn=loss_fn)
-
+    
     if 'use_HER' in kwargs and kwargs['use_HER']:
         from ..algorithms.wrappers import latent_based_goal_predicated_reward_fn
         goal_predicated_reward_fn = None

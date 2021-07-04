@@ -56,7 +56,18 @@ def reset_noisy_layer(module):
         module._reset_noise()
 
 class ConvolutionalBody(nn.Module):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.ReLU]):
+    def __init__(
+        self, 
+        input_shape, 
+        feature_dim=256, 
+        channels=[3, 3], 
+        kernel_sizes=[1], 
+        strides=[1], 
+        paddings=[0], 
+        dropout=0.0, 
+        non_linearities=[nn.ReLU],
+        extra_inputs_infos: Dict={},
+        ):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -70,6 +81,8 @@ class ConvolutionalBody(nn.Module):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
+
+        TODO: update calls to this constructor to use extra_inputs_infos if needs be...
         '''
         super(ConvolutionalBody, self).__init__()
         self.dropout = dropout
@@ -89,6 +102,13 @@ class ConvolutionalBody(nn.Module):
         h_dim = input_shape[1]
         w_dim = input_shape[2]
         in_ch = channels[0]
+        
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert isinstance(shape, list)
+            assert shape[1]==h_dim and shape[2]==w_dim            
+            in_ch += shape[-1]
+
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
             if cfg == 'M':
                 layer = nn.MaxPool2d(kernel_size=k, stride=s)
@@ -144,6 +164,16 @@ class ConvolutionalBody(nn.Module):
         return self.features(x)
 
     def forward(self, x, non_lin_output=True):
+        if isinstance(x, tuple):
+            x, frame_states = inputs[0], copy_hdict(inputs[1])
+            extra_inputs = extract_subtree(
+                in_dict=frame_states,
+                node_id='extra_inputs',
+            )
+
+            extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+            if len(extra_inputs): x = torch.cat([x]+extra_inputs, dim=-1)
+
         feat_map = self._compute_feat_map(x)
 
         # View -> Reshape
