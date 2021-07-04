@@ -228,9 +228,10 @@ dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5: &dqn_smallMLP_obs84_graclip5m1_
         replay_capacity: 1e6
         min_capacity: 128 #1e4
         replay_period: 240 #240
-
+        
         use_HER:    False 
         HER_strategy:   'final-1'
+        #HER_strategy:   'future-4'
 
         observation_resize_dim: None
         goal_resize_dim: None
@@ -353,16 +354,22 @@ r2d2_smallMLP_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_smallMLP_graclip
 
 experiment:
     tasks: [{
-        'env-id': '20BitsSwap-v0', #'10BitsSwapMNIST-v0',
+        #'env-id': '20BitsSwap-v0', 
+        'env-id': '10BitsSwap-v0',
         #'run-id': 'B7/B96k_EpPerCycle16_MLP256_GSflat_GSNotShared_final-1_lr1m3/Seed10_venv_dqn_Max+Sk0_St1_ObsNone_ClipReward_Eps5p2End2m2_tau40_GradClip5m1',
-        'run-id': 'WithHERTargetClamping/WithProperEpisodeStoring/B7/B96k_EpPerCycle16_MLP256_GSflat_GSNotShared_final-1_lr1m3/Seed10_venv1_r2d2_her_Max+Sk0_St1_ObsNone_ClipReward_Eps5p2End2m2_tau40_GradClip5m1',
+        #'run-id': 'WithHERTargetClamping/WithProperEpisodeStoring/B7/B96k_EpPerCycle16_MLP256_GSflat_GSNotShared_final-1_lr1m3/Seed10_venv1_r2d2_her_Max+Sk0_St1_ObsNone_ClipReward_Eps5p2End2m2_tau40_GradClip5m1',
+        'run-id': 'WithHERTargetClamping/RepP1/AdamEPS1m12+LR1m3+GradClip5m1/TrainItPerCycle40/B96k_EpPerCycle16_MLP256_GSflat_GSNotShared_final-1/Seed10_venv1_r2d2_her_Max+Sk0_St1_ObsNone_ClipReward_Eps5p2End2m2_tau40',
+        
         #'agent-id': '1step_double_HER_dqn_smallMLP_r1e5',
         #'agent-id': '1step_1m3Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_smallMLP_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L2_O1_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
         # NO Ent reg:
         #'agent-id': '1step_0Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_smallMLP_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L2_O1_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
         # RepP Actually !:
-        'agent-id': '1step_0Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_smallMLP_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepActuallyP1_NOBURNIN_b128_L2_O1_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
-        
+        #'agent-id': '1step_0Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_smallMLP_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepActuallyP1_NOBURNIN_b128_L2_O1_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
+
+        # DQN:
+        'agent-id': '1step_double_HER_dqnher_smallMLP_r1e5',
+
         #'nbr_actor': 128,
         #'nbr_actor': 100,
         #'nbr_actor': 64,
@@ -406,7 +413,7 @@ experiment:
     seed: 10
 
 agents:    
-    1step_double_HER_dqn_smallMLP_r1e5:
+    1step_double_HER_dqnher_smallMLP_r1e5:
         <<: *dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5
         replay_capacity: 1e5
         double: True
@@ -414,6 +421,21 @@ agents:
         #noisy: True 
         n_step: 1
         use_HER: True
+
+        gradient_clip: 0.5 #0.5
+        batch_size: 128 #32
+        tau: 2.5e-2 #1.0e-2
+        learning_rate: 1.0e-3 #2.5e-4
+        #learning_rate: 1.0e-4 #2.5e-4
+        #adam_eps: 1.0e-8
+        adam_eps: 1.0e-12
+
+        replay_period: 1 #240
+
+        nbr_training_iteration_per_cycle: 40
+        nbr_episode_per_cycle:  16
+
+
 
     1step_noisy_double_HER_dqn_smallMLP_r1e5:
         <<: *dqn_smallMLP_obs84_graclip5m1_b32_tau1m2_lr25m5

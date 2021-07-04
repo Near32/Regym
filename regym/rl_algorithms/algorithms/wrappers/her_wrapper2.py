@@ -124,7 +124,6 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                 for k in range(self.k):
                     d2store = {}
                     if 'final' in self.strategy:
-                        raise NotImplementedError
                         #achieved_goal = self.episode_buffer[actor_index][-1]['goals']['achieved_goals']['s']
                         
                         achieved_exp = self.episode_buffer[actor_index][idx]
@@ -135,10 +134,26 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                             _extract_goals_from_info_fn=self._extract_goals_from_info
                         )
                         
-                        new_non_terminal = torch.zeros(1) if all(new_r>-0.5) else torch.ones(1)
+                        #new_non_terminal = torch.zeros(1) if all(new_r>-0.5) else torch.ones(1)
+                        new_non_terminal = torch.zeros_like(non_terminal) if all(new_r>-0.5) else torch.ones_like(non_terminal) 
                         
-                        d2store = {'s':s, 'a':a, 'r':new_r, 'succ_s':succ_s, 'non_terminal':new_non_terminal, 'g':achieved_goal}
-                        
+                        d2store = {
+                            's':s, 
+                            'a':a, 
+                            'r':new_r, 
+                            'succ_s':succ_s, 
+                            'non_terminal':new_non_terminal, 
+                            'rnn_states': copy_hdict(
+                                self._update_goals_in_rnn_states(
+                                    hdict=rnn_states,
+                                    goal_value=achieved_goal,
+                                    goal_key='desired_goal',
+                                )
+                            ),
+                            'info': info,
+                            #'g':achieved_goal
+                        }
+
                         if self.algorithm.summary_writer is not None:
                             self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_final', new_r.mean().item(), self.algorithm.get_update_count())
                     

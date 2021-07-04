@@ -398,9 +398,7 @@ def training_process(agent_config: Dict,
       print(save_path1)
       import ipdb; ipdb.set_trace()
       agent.training = False
-    else:
-      import ipdb; ipdb.set_trace()
-
+    
     trained_agent = train_and_evaluate(
       agent=agent,
       task=task,

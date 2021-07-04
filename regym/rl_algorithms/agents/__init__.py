@@ -1,6 +1,7 @@
 from .gym_rock_paper_scissors_agent import MixedStrategyAgent
 from .tabular_q_learning_agent import build_TabularQ_Agent, TabularQLearningAgent
 from .dqn_agent import build_DQN_Agent, DQNAgent
+from .dqn_her_agent import build_DQN_HER_Agent, DQNHERAgent
 from .r2d2_agent import build_R2D2_Agent, R2D2Agent
 from .r2d3_agent import build_R2D3_Agent, R2D3Agent
 from .ther_agent import build_THER_Agent, THERAgent
