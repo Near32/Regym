@@ -143,7 +143,6 @@ def generate_model(
                                 'shape':shape, 
                                 'target_location':tl
                             }
-            import ipdb; ipdb.set_trace()
             phi_body = ConvolutionalBody(
                 input_shape=input_shape,
                 feature_dim=output_dim,
@@ -701,7 +700,6 @@ def generate_model(
             use_residual_connection = False
             if 'use_residual_connection' in kwargs \
             and kwargs['use_residual_connection']:
-                import ipdb; ipdb.set_trace()
                 use_residual_connection = kwargs['use_residual_connection']
             
             critic_body = LinearLstmBody2(

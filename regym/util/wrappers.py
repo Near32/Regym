@@ -103,6 +103,9 @@ class VDNVecEnvWrapper(object):
     def render(self, render_mode="rgb_array", env_indices=None) :
         return self.env.render(render_mode=render_mode, env_indices=env_indices)
 
+    def close(self):
+        return self.env.close()
+
     def reset(self, **kwargs):
         input_dict = self.env.reset(**kwargs)
         nvdn_next_obs = input_dict["observations"]
@@ -1724,6 +1727,9 @@ class SADVecEnvWrapper_depr(object):
     def render(self, render_mode="rgb_array", env_indices=None):
         return self.env.render(render_mode=render_mode, env_indices=env_indices)
     
+    def close(self):
+        return self.env.close() 
+
     def reset(self, **kwargs):
         next_obs, next_infos = self.env.reset(**kwargs)
         
@@ -1788,6 +1794,9 @@ class SADVecEnvWrapper(object):
     def render(self, render_mode="rgb_array", env_indices=None):
         return self.env.render(render_mode=render_mode, env_indices=env_indices)
     
+    def close(self):
+        return self.env.close()
+        
     def reset(self, **kwargs):
         input_dict = self.env.reset(**kwargs)
         next_obs = input_dict["observations"]

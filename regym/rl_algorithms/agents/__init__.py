@@ -5,6 +5,7 @@ from .dqn_her_agent import build_DQN_HER_Agent, DQNHERAgent
 from .r2d2_agent import build_R2D2_Agent, R2D2Agent
 from .r2d3_agent import build_R2D3_Agent, R2D3Agent
 from .ther_agent import build_THER_Agent, THERAgent
+from .ther2_agent import build_THER2_Agent, THER2Agent
 from .ppo_agent import build_PPO_Agent, PPOAgent
 from .reinforce_agent import build_Reinforce_Agent, ReinforceAgent
 from .a2c_agent import build_A2C_Agent, A2CAgent

@@ -163,6 +163,11 @@ class EnvironmentModule(Module):
 
         self.epoch = 0 
 
+        self.pbar = tqdm(
+            total=self.config['max_obs_count'], 
+            position=0,
+        )
+
         print("Initialization of Environment Module: DONE")
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
@@ -228,7 +233,7 @@ class EnvironmentModule(Module):
 
         for actor_index in range(self.nbr_actors):
             self.obs_count += 1
-            # pbar.update(1)
+            self.pbar.update(1)
 
             for hook in self.config['step_hooks']:
                 for agent in self.agents:
@@ -440,14 +445,18 @@ class EnvironmentModule(Module):
         if self.obs_count >= self.config["max_obs_count"]:
             outputs_stream_dict["signals:done_training"] = True 
             outputs_stream_dict["signals:trained_agents"] = self.agents 
-
+            
             if self.sum_writer is not None:
                 self.sum_writer.flush()
             
             self.env.close()
             self.test_env.close()
-            self.init = False 
+            self.init = False
 
+            return outputs_stream_dict 
+        else:
+            outputs_stream_dict["signals:done_training"] = False
+        
         return copy.deepcopy(outputs_stream_dict)
             
 

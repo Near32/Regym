@@ -107,10 +107,8 @@ def make_rl_pubsubmanager(
       listening_biasing = any(['listening_biasing' in arg for arg in sys.argv[2:]])
 
     if listening_biasing:
-      import ipdb; ipdb.set_trace()
       print("WARNING: Biasing for positive listening.")
     else:
-      import ipdb; ipdb.set_trace()
       print("WARNING: NOT biasing for positive listening.")
     
     ms_cic_config = {
@@ -149,10 +147,8 @@ def make_rl_pubsubmanager(
       signalling_biasing = any(['signalling_biasing' in arg for arg in sys.argv[2:]])
 
     if signalling_biasing:
-      import ipdb; ipdb.set_trace()
       print("WARNING: Biasing for positive signalling.")
     else:
-      import ipdb; ipdb.set_trace()
       print("WARNING: NOT biasing for positive signalling.")
     
     m_traj_mutinfo_config = {
@@ -192,10 +188,8 @@ def make_rl_pubsubmanager(
       goal_ordering_biasing = any(['goal_ordering_biasing' in arg for arg in sys.argv[2:]])
 
     if goal_ordering_biasing:
-      import ipdb; ipdb.set_trace()
       print("WARNING: Biasing for Goal Ordering Prediction.")
     else:
-      import ipdb; ipdb.set_trace()
       print("WARNING: NOT biasing for Goal Ordering Prediction.")
     
     goal_order_pred_config = {
@@ -273,7 +267,6 @@ def comaze_r2d2_wrap(
     if clip_reward:
         env = ClipRewardEnv(env)
 
-    import ipdb; ipdb.set_trace()
     if previous_reward_action:
         env = PreviousRewardActionInfoMultiAgentWrapper(env=env)
     
@@ -315,7 +308,6 @@ def train_and_evaluate(agents: List[object],
       pubsub = any(['pubsub' in arg for arg in sys.argv])
 
     if pubsub:
-      import ipdb; ipdb.set_trace()
       config = {
         "modules": {},
         "pipelines": {},
@@ -420,6 +412,7 @@ def training_process(agent_config: Dict,
                      train_observation_budget: int = 1e7,
                      base_path: str = './', 
                      seed: int = 0):
+    
     test_only = False
     use_ms_cic = False
     use_m_traj_mutual_info = False
@@ -439,6 +432,18 @@ def training_process(agent_config: Dict,
       signalling_biasing = any(['signalling_biasing' in arg for arg in sys.argv[2:]])
       listening_biasing = any(['listening_biasing' in arg for arg in sys.argv[2:]])
       goal_ordering_biasing = any(['goal_ordering_biasing' in arg for arg in sys.argv[2:]])
+
+      override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--seed' in arg]
+      if len(override_seed_argv_idx):
+        seed = int(sys.argv[override_seed_argv_idx[0]+1])
+        print(f"NEW RANDOM SEED: {seed}")
+
+      override_reload_argv = [idx for idx, arg in enumerate(sys.argv) if '--reload_path' in arg]
+      if len(override_reload_argv):
+        task_config["reload"] = sys.argv[override_reload_argv[0]+1]
+        print(f"NEW RELOAD PATH: {task_config['reload']}")
+
+      task_config["otherplay"] = any(['--otherplay' in arg for arg in sys.argv[2:]])
       
     ms_cic_metric = None
     m_traj_mutual_info_metric = None
@@ -469,10 +474,14 @@ def training_process(agent_config: Dict,
     if rule_based:
       base_path = os.path.join(base_path,f"{'COMM-' if communicating else ''}RULEBASE")
     
+    if task_config["otherplay"]:
+      base_path = os.path.join(base_path,"OtherPlay")
+    
+    base_path = os.path.join(base_path,f"SEED{seed}")
+
     print(f"Final Path: -- {base_path} --")
     
     if rule_based:
-      import ipdb; ipdb.set_trace()
       print("rule-based agents do not usee SAD nor VDN...")
       agent_config["sad"] = False
       agent_config["vdn"] = False
@@ -480,6 +489,22 @@ def training_process(agent_config: Dict,
       task_config["vdn"] = False
         
     if not os.path.exists(base_path): os.makedirs(base_path)
+
+    task_config['final_path'] = base_path
+    yaml.dump(
+      task_config, 
+      open(
+        os.path.join(base_path, "task_config.yaml"), 'w',
+        encoding='utf8',
+      ),
+    )
+    yaml.dump(
+      agent_config, 
+      open(
+        os.path.join(base_path, "agent_config.yaml"), 'w',
+        encoding='utf8',
+      ),
+    )
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -531,7 +556,6 @@ def training_process(agent_config: Dict,
     
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     if task_config.get("reload", 'None')!='None':
-      import ipdb; ipdb.set_trace()
       agent, offset_episode_count = check_path_for_agent(task_config["reload"])
     else:
       agent, offset_episode_count = check_path_for_agent(save_path1)
@@ -545,10 +569,7 @@ def training_process(agent_config: Dict,
     
     if test_only:
       print(save_path1)
-      import ipdb; ipdb.set_trace()
       agent.training = False
-    else:
-      import ipdb; ipdb.set_trace()
 
     if use_ms_cic:
       action_policy = RLActionPolicy(
@@ -568,7 +589,6 @@ def training_process(agent_config: Dict,
     
     if "vdn" in agent_config \
     and agent_config["vdn"]:
-      import ipdb; ipdb.set_trace()
       agents = [agent]
     else:
       player2_harvest = False
@@ -576,7 +596,6 @@ def training_process(agent_config: Dict,
       if len(sys.argv) > 2:
         player2_harvest = any(['player2_harvest' in arg for arg in sys.argv])
 
-      import ipdb; ipdb.set_trace()
       agents = [agent, agent.get_async_actor(training=player2_harvest)]
       # We can create non-training or training async actors.
       # If traininging, then their experience is added to the replay buffer

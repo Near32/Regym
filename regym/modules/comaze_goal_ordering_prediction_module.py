@@ -175,7 +175,10 @@ class CoMazeGoalOrderingPredictionModule(Module):
                 if not hasattr(self, 'x'):
                     return outputs_stream_dict
 
-            indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//self.sampling_fraction, replace=False)
+            if filtering_signal:
+                indices = list(range(len(self.x)))
+            else:
+                indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//self.sampling_fraction, replace=False)
             x = [traj for idx, traj in enumerate(self.x) if idx in indices]
             goal_ordering_labels = [labels for idx, labels in enumerate(self.goal_ordering_labels) if idx in indices]
             rules_labels = [labels for idx, labels in enumerate(self.rules_labels) if idx in indices]
@@ -212,10 +215,8 @@ class CoMazeGoalOrderingPredictionModule(Module):
             logs_dict[f"{mode}/{self.id}/RulesPrediction-Q1/{'Eval' if filtering_signal else 'Sample'}"] = q1_correct_rp.mean()
 
             losses_dict = input_streams_dict["losses_dict"]
-            #losses_dict[f"{mode}/{self.id}/GoalOrderingPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_gop]
-            logs_dict[f"{mode}/{self.id}/GoalOrderingPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_gop.cpu()
-            # biasing only on rules:
-            losses_dict[f"{mode}/{self.id}/RulesPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1000.0, L_rp]
+            losses_dict[f"{mode}/{self.id}/GoalOrderingPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_gop]
+            losses_dict[f"{mode}/{self.id}/RulesPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rp]
         
         return outputs_stream_dict
     

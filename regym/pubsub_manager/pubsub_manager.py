@@ -162,14 +162,9 @@ class PubSubManager(object):
     def train(self):
         iteration = -1
         
-        pbar = tqdm(
-            total=self.config['max_obs_count'], 
-            position=0,
-        )
-        
         while True:
             iteration += 1
-            pbar.update(1)
+            #pbar.update(1)
 
             self.stream_handler.update("signals:iteration", iteration)
             self.stream_handler.update("signals:global_it_step", iteration)
@@ -179,8 +174,10 @@ class PubSubManager(object):
             
             self.stream_handler.reset("losses_dict")
             self.stream_handler.reset("logs_dict")    
+            
             # TODO: define how to stop the loop?
-
+            if self.stream_handler["signals:done_training"]:
+                break
             # TODO: define how to make checkpoints:
             """
             if self.save_epoch_interval is not None\
