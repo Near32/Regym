@@ -414,6 +414,7 @@ def training_process(agent_config: Dict,
                      seed: int = 0):
     
     test_only = False
+    path_suffix = None
     use_ms_cic = False
     use_m_traj_mutual_info = False
     use_goal_order_pred = False
@@ -442,6 +443,11 @@ def training_process(agent_config: Dict,
       if len(override_reload_argv):
         task_config["reload"] = sys.argv[override_reload_argv[0]+1]
         print(f"NEW RELOAD PATH: {task_config['reload']}")
+
+      path_suffix_argv = [idx for idx, arg in enumerate(sys.argv) if '--path_suffix' in arg]
+      if len(path_suffix_argv):
+        path_suffix = sys.argv[path_suffix_argv[0]+1]
+        print(f"ADDITIONAL PATH SUFFIX: {path_suffix}")
 
       task_config["otherplay"] = any(['--otherplay' in arg for arg in sys.argv[2:]])
       
@@ -479,8 +485,12 @@ def training_process(agent_config: Dict,
     
     base_path = os.path.join(base_path,f"SEED{seed}")
 
+    if path_suffix is not None:
+      base_path = os.path.join(base_path, path_suffix)
+
     print(f"Final Path: -- {base_path} --")
-    
+    import ipdb; ipdb.set_trace() 
+
     if rule_based:
       print("rule-based agents do not usee SAD nor VDN...")
       agent_config["sad"] = False
