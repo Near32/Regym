@@ -704,7 +704,7 @@ def main():
         training_process(agents_config[task_config['agent-id']], task_config,
                          benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
                          benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),
-                         benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])),
+                         benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])) if experiment_config['benchmarking_record_episode_interval']!='None' else None,
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
                          seed=experiment_config['seed'])
