@@ -419,7 +419,7 @@ experiment:
     benchmarking_record_episode_interval: 1.0e1 #1.0e20
     #benchmarking_record_episode_interval: 1.0e20
     #train_observation_budget: 1.0e7
-    train_observation_budget: 3.0e5
+    train_observation_budget: 3.3e6
     seed: 1
     
 agents:
