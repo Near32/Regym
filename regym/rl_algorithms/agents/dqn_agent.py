@@ -481,16 +481,24 @@ class DQNAgent(Agent):
         #current_prediction = self.query_model(model, state, goal)
         current_prediction = self.query_model(model, state)
         
-        if as_logit:
-            return current_prediction['log_a']
-
-        # Post-process and update the rnn_states from the current prediction:
+        # 1) Post-process and update the rnn_states from the current prediction:
         # self.rnn_states <-- self.current_prediction['next_rnn_states']
         # WARNING: _post_process affects self.rnn_states. It is imperative to
         # manipulate a copy of it outside of the agent's manipulation, e.g.
         # when feeding it to the models.
-        current_prediction = self._post_process(current_prediction)
+        # 2) All the elements from the prediction dictionnary are being detached+cpued from the graph.
+        # Thus, here, we only want to update the rnn state:
+        
+        if as_logit:
+            self._post_process_and_update_rnn_states(
+                next_rnn_states_dict=current_prediction['next_rnn_states'],
+                rnn_states_dict=self.rnn_states
+            )
 
+            return current_prediction['log_a']
+        else:
+            current_prediction = self._post_process(current_prediction)
+        
         greedy_action = current_prediction['a'].reshape((-1,1)).numpy()
 
         if self.noisy:

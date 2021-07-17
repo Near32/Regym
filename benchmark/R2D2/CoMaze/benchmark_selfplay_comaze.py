@@ -470,7 +470,7 @@ def training_process(agent_config: Dict,
     if use_m_traj_mutual_info:
       base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if signalling_biasing else ''}")
     if use_goal_order_pred:
-      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1p3' if goal_ordering_biasing else ''}-NoDropout+RulesPrediction+BigArch")
+      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1p3' if goal_ordering_biasing else ''}-NoDropout+RulesPrediction+BigArch+RNNStatePostProcess-PredDictItemDetaching")
     
     rule_based = False
     communicating = False
