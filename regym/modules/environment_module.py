@@ -167,6 +167,7 @@ class EnvironmentModule(Module):
             total=self.config['max_obs_count'], 
             position=0,
         )
+        self.pbar.update(self.obs_count)
 
         print("Initialization of Environment Module: DONE")
         
