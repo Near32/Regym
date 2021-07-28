@@ -81,6 +81,9 @@ class MessageTrajectoryMutualInformationMetricModule(Module):
         self.actions = []
         self.dones = []
 
+        self.iteration = 0
+        self.sampling_fraction = 5
+        self.sampling_period = 10.0
 
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
@@ -107,7 +110,9 @@ class MessageTrajectoryMutualInformationMetricModule(Module):
         trajectories = input_streams_dict["trajectories"]
         compute = True 
 
-        if (compute and np.random.random() < 0.1) or filtering_signal:
+        self.iteration += 1
+        #if (compute and np.random.random() < 1.0/self.sampling_period) or filtering_signal:
+        if (compute and (self.iteration % self.sampling_period) == 0) or filtering_signal:
             if filtering_signal:
                 self.actions = [
                     [
@@ -140,7 +145,12 @@ class MessageTrajectoryMutualInformationMetricModule(Module):
                 if not hasattr(self, 'x'):
                     return outputs_stream_dict
 
-            indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//10, replace=False)
+            #indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//10, replace=False)
+            if filtering_signal:
+                indices = list(range(len(self.x)))
+            else:
+                indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//self.sampling_fraction, replace=False)
+            
             x = [traj for idx, traj in enumerate(self.x) if idx in indices]
 
             batch_size = len(x)
@@ -163,7 +173,7 @@ class MessageTrajectoryMutualInformationMetricModule(Module):
 
             if self.biasing:
                 losses_dict = input_streams_dict["losses_dict"]
-                losses_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = [0.0001, L_ps]
+                losses_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_ps]
             else:
                 logs_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_ps.cpu()
             

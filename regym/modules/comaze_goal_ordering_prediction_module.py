@@ -72,6 +72,7 @@ class CoMazeGoalOrderingPredictionModule(Module):
         self.player_id = self.config.get('player_id', 0)
         self.metric = self.config['metric']
 
+        self.iteration = 0
         self.sampling_fraction = 5
         self.sampling_period = 10.0
 
@@ -131,7 +132,9 @@ class CoMazeGoalOrderingPredictionModule(Module):
         trajectories = input_streams_dict["trajectories"]
         compute = True 
 
-        if (compute and np.random.random() < 1.0/self.sampling_period) or filtering_signal:
+        self.iteration += 1
+        #if (compute and np.random.random() < 1.0/self.sampling_period) or filtering_signal:
+        if (compute and (self.iteration % self.sampling_period) == 0) or filtering_signal:
             if filtering_signal:
                 self.actions = [
                     [
@@ -179,6 +182,7 @@ class CoMazeGoalOrderingPredictionModule(Module):
                 indices = list(range(len(self.x)))
             else:
                 indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//self.sampling_fraction, replace=False)
+            
             x = [traj for idx, traj in enumerate(self.x) if idx in indices]
             goal_ordering_labels = [labels for idx, labels in enumerate(self.goal_ordering_labels) if idx in indices]
             rules_labels = [labels for idx, labels in enumerate(self.rules_labels) if idx in indices]

@@ -34,16 +34,21 @@ def extract_subtrees(
 class RLHiddenStatePolicy(MessagePolicy):
     def __init__(
         self, 
-        agent:Agent):
+        agent:Agent,
+        augmented:bool=False):
         """
         
         """
         super(RLHiddenStatePolicy, self).__init__(
-            model=agent
+            model=agent,
         )
         self.player_idx = 0
+        self.augmented = augmented
+        
+        self.secretgoalStr2id = {"RED":0, "YELLOW":1, "BLUE":2, "GREEN":3}
+
     
-    def get_hiddens(self):
+    def get_hiddens(self, info=None):
         rnn_states = self.model.get_rnn_states()
         # Extract 'hidden''s list:
         hiddens = extract_subtrees(in_dict=rnn_states, node_id='hidden')
@@ -71,7 +76,35 @@ class RLHiddenStatePolicy(MessagePolicy):
             dim=0,
         )
         # batch_size x nbr_parts*hidden_dims
-        
+        if self.augmented:
+            extras = []
+            for actor_id in range(batch_size):
+                if info is not None:
+                    abs_repr = info[actor_id]['abstract_repr']
+                    
+                    reached_goals_str = abs_repr['reached_goals']
+                    rg_hs = torch.zeros((4*3))
+                    startidx = 0
+                    for goal_str in reached_goals_str:
+                        rg_hs[startidx+self.secretgoalStr2id[goal_str]] = 1.0
+                        startidx += 4
+                    
+                    player_id = abs_repr['player_id']
+                    secretGoalRule = abs_repr['secretGoalRule'][player_id]
+                    sgr_hs = torch.zeros((4*2))
+                    startidx = 0
+                    sgr_hs[ startidx+self.secretgoalStr2id[secretGoalRule.earlierGoal.color] ] = 1.0
+                    startidx += 4
+                    sgr_hs[ startidx+self.secretgoalStr2id[secretGoalRule.laterGoal.color] ] = 1.0
+
+                    extra = torch.cat([rg_hs, sgr_hs], dim=0).reshape((1,-1))
+                else:
+                    extra = torch.zeros((1,4*3+4*2))
+                extras.append(extra)
+            extras = torch.cat(extras, dim=0)
+            hiddens = torch.cat([hiddens, extras], dim=1)
+            # batch_size x (nbr_parts*hidden_dims + extra_dim)
+
         return hiddens 
 
     def get_hidden_state_dim(self):
@@ -81,6 +114,7 @@ class RLHiddenStatePolicy(MessagePolicy):
     def clone(self, training=False):
         return RLHiddenStatePolicy(
             agent=self.model.clone(training=training), 
+            augmented=self.augmented,
         )
 
     def reset(self, batch_size:int, training:Optional[bool]=False):
@@ -118,7 +152,7 @@ class RLHiddenStatePolicy(MessagePolicy):
         log_p_a = self.model.query_action(**x)
         # batch_size x action_space_dim
 
-        hiddens = self.get_hiddens()
-        # batch_size x nbr_parts*hidden_dims
+        hiddens = self.get_hiddens(info=x.get('infos', None))
+        # batch_size x nbr_parts*hidden_dims + extra_dim if self.augmented
 
         return hiddens

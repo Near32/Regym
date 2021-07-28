@@ -74,6 +74,10 @@ class MultiStepCICMetricModule(Module):
         self.player_id = self.config.get('player_id', 0)
         self.metric = self.config.get('metric', None)
 
+        self.iteration = 0
+        self.sampling_fraction = 5
+        self.sampling_period = 10.0
+
         def message_zeroing_out_fn(
             x, 
             msg_key="communication_channel", 
@@ -135,7 +139,9 @@ class MultiStepCICMetricModule(Module):
         trajectories = input_streams_dict["trajectories"]
         compute = True 
 
-        if (compute and np.random.random() < 0.1) or filtering_signal:
+        self.iteration += 1
+        #if (compute and np.random.random() < 1.0/self.sampling_period) or filtering_signal:
+        if (compute and (self.iteration % self.sampling_period) == 0) or filtering_signal:
             if filtering_signal:
                 self.actions = [
                     [
@@ -170,11 +176,14 @@ class MultiStepCICMetricModule(Module):
                 a = self.a 
 
             else:
-
                 if not hasattr(self, 'xp'):
                     return outputs_stream_dict
 
-            indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//10, replace=False)
+            if filtering_signal:
+                indices = list(range(len(self.x)))
+            else:
+                indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//self.sampling_fraction, replace=False)
+            
             x = [traj for idx, traj in enumerate(self.x) if idx in indices]
             xp = [traj for idx, traj in enumerate(self.xp) if idx in indices]
             a = [traj for idx, traj in enumerate(self.a) if idx in indices]

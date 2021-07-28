@@ -414,6 +414,7 @@ def training_process(agent_config: Dict,
                      seed: int = 0):
     
     test_only = False
+    augmented = False
     path_suffix = None
     use_ms_cic = False
     use_m_traj_mutual_info = False
@@ -433,6 +434,9 @@ def training_process(agent_config: Dict,
       signalling_biasing = any(['signalling_biasing' in arg for arg in sys.argv[2:]])
       listening_biasing = any(['listening_biasing' in arg for arg in sys.argv[2:]])
       goal_ordering_biasing = any(['goal_ordering_biasing' in arg for arg in sys.argv[2:]])
+      
+      if use_goal_order_pred:
+          augmented = any(['augmented' in arg for arg in sys.argv[2:] if 'goal_order' in arg])
 
       override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--seed' in arg]
       if len(override_seed_argv_idx):
@@ -448,6 +452,12 @@ def training_process(agent_config: Dict,
       if len(path_suffix_argv):
         path_suffix = sys.argv[path_suffix_argv[0]+1]
         print(f"ADDITIONAL PATH SUFFIX: {path_suffix}")
+
+      obs_budget_argv = [idx for idx, arg in enumerate(sys.argv) if '--obs_budget' in arg]
+      if len(obs_budget_argv):
+        train_observation_budget = int(sys.argv[obs_budget_argv[0]+1])
+        print(f"TRAINING OBSERVATION BUDGET: {train_observation_budget}")
+
 
       task_config["otherplay"] = any(['--otherplay' in arg for arg in sys.argv[2:]])
       
@@ -468,9 +478,9 @@ def training_process(agent_config: Dict,
     if use_ms_cic:
       base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if listening_biasing else ''}")
     if use_m_traj_mutual_info:
-      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if signalling_biasing else ''}")
+      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m0-f1m1' if signalling_biasing else ''}")
     if use_goal_order_pred:
-      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1p3' if goal_ordering_biasing else ''}-NoDropout+RulesPrediction+BigArch+RNNStatePostProcess-PredDictItemDetaching")
+      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPrediction+BigArch+RNNStatePostProcess-PredDictItemDetaching{'+AugmentedHiddenStates' if augmented else ''}")
     
     rule_based = False
     communicating = False
@@ -595,6 +605,7 @@ def training_process(agent_config: Dict,
     if use_goal_order_pred:
       hiddenstate_policy = RLHiddenStatePolicy(
         agent=agent,
+        augmented=augmented,
       )
     
     if "vdn" in agent_config \

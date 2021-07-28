@@ -414,7 +414,7 @@ experiment:
     ]
     #experiment_id: 'r2d2_comaze_debug2'
     experiment_id: 'r2d2_comaze_data'
-    benchmarking_episodes: 10
+    benchmarking_episodes: 100
     benchmarking_interval: 1.0e3
     benchmarking_record_episode_interval: 'None' #1.0e1 #1.0e20
     #benchmarking_record_episode_interval: 1.0e20
