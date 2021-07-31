@@ -1,4 +1,8 @@
 from typing import Dict, Any, Optional, List, Callable
+
+import torch
+import sklearn 
+
 import logging
 import yaml
 import os
@@ -28,6 +32,7 @@ from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgen
 import ray
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
+from regym.modules import MARLEnvironmentModule, RLAgentModule
 
 from regym.modules import MultiStepCICMetricModule
 from rl_action_policy import RLActionPolicy
@@ -59,10 +64,15 @@ def make_rl_pubsubmanager(
         - "task"
         - "sad"
         - "vdn"
+        - "otherplay"
         - "max_obs_count"
         - "sum_writer": str where to save the summary...
 
     """
+    pipelined = False
+    if len(sys.argv) > 2:
+      pipelined = any(['pipelined' in arg for arg in sys.argv])
+
     modules = config.pop("modules")
 
     cam_id = "current_agents"
@@ -71,20 +81,64 @@ def make_rl_pubsubmanager(
         agents=agents
     )
 
-    envm_id = "EnvironmentModule_0"
-    envm_input_stream_ids = {
-        #"logger":"modules:logger:ref",
-        #"logs_dict":"logs_dict",
-        
-        "iteration":"signals:iteration",
+    if pipelined:
+      envm_id = "MARLEnvironmentModule_0"
+      
+      rlam_ids = [
+        f"rl_agent_{rlaidx}"
+        for rlaidx in range(len(agents))
+      ]
+      for aidx, (rlam_id, agent) in enumerate(zip(rlam_ids, agents)):
+        rlam_config = {
+          'agent': agent
+        }
+        rlam_input_stream_ids = {
+          "logs_dict":"logs_dict",
+          "losses_dict":"losses_dict",
+          "epoch":"signals:epoch",
+          "mode":"signals:mode",
 
-        "current_agents":f"modules:{cam_id}:ref",
-    }
-    modules[envm_id] = EnvironmentModule(
-        id=envm_id,
-        config=config,
-        input_stream_ids=envm_input_stream_ids
-    )
+          "reset_actors":f"modules:{envm_id}:reset_actors",
+          
+          "observations":f"modules:{envm_id}:player_0:observations",
+          "infos":f"modules:{envm_id}:player_0:infos",
+          "actions":f"modules:{envm_id}:player_0:actions",
+          "succ_observations":f"modules:{envm_id}:player_0:succ_observations",
+          "succ_infos":f"modules:{envm_id}:player_0:succ_infos",
+          "rewards":f"modules:{envm_id}:player_0:rewards",
+          "dones":f"modules:{envm_id}:dones",
+        }
+        modules[rlam_id] = RLAgentModule(
+            id=rlam_id,
+            config=rlam_config,
+            input_stream_ids=rlam_input_stream_ids,
+        )
+
+      envm_input_stream_ids = {
+          "iteration":"signals:iteration",
+          "current_agents":f"modules:{cam_id}:ref",
+      }
+
+      modules[envm_id] = MARLEnvironmentModule(
+          id=envm_id,
+          config=config,
+          input_stream_ids=envm_input_stream_ids
+      )
+    else:
+      envm_id = "EnvironmentModule_0"
+      envm_input_stream_ids = {
+          #"logger":"modules:logger:ref",
+          #"logs_dict":"logs_dict",
+          
+          "iteration":"signals:iteration",
+
+          "current_agents":f"modules:{cam_id}:ref",
+      }
+      modules[envm_id] = EnvironmentModule(
+          id=envm_id,
+          config=config,
+          input_stream_ids=envm_input_stream_ids
+      )
 
     ms_cic_id = "MultiStepCIC_player0"
     ms_cic_input_stream_ids = {
@@ -213,6 +267,9 @@ def make_rl_pubsubmanager(
     pipelines["rl_loop_0"] = [
         envm_id,
     ]
+    if pipelined:
+      for rlam_id in rlam_ids:
+        pipelines['rl_loop_0'].append(rlam_id)
 
     if ms_cic_metric is not None:
       pipelines["rl_loop_0"].append(ms_cic_id)
@@ -300,6 +357,7 @@ def train_and_evaluate(agents: List[object],
                        step_hooks=[],
                        sad=False,
                        vdn=False,
+                       otherplay=False,
                        ms_cic_metric=None,
                        m_traj_mutual_info_metric=None,
                        goal_order_pred_metric=None):
@@ -332,6 +390,7 @@ def train_and_evaluate(agents: List[object],
       config['save_traj_length_divider'] =1
       config['sad'] = sad 
       config['vdn'] = vdn
+      config['otherplay'] = otherplay
       config['nbr_players'] = 2      
       pubsubmanager = make_rl_pubsubmanager(
         agents=agents,
@@ -346,11 +405,11 @@ def train_and_evaluate(agents: List[object],
 
       trained_agents = agents 
     else:
-      async = False
+      asynch = False
       if len(sys.argv) > 2:
-        async = any(['async' in arg for arg in sys.argv])
+        asynch = any(['async' in arg for arg in sys.argv])
 
-      if async:
+      if asynch:
         trained_agent = marl_loop.async_gather_experience_parallel1(
         #trained_agents = marl_loop.async_gather_experience_parallel(
           task,
@@ -369,6 +428,7 @@ def train_and_evaluate(agents: List[object],
           step_hooks=step_hooks,
           sad=sad,
           vdn=vdn,
+          otherplay=otherplay,
         )
       else: 
         trained_agents = marl_loop.gather_experience_parallel(
@@ -388,6 +448,7 @@ def train_and_evaluate(agents: List[object],
           step_hooks=step_hooks,
           sad=sad,
           vdn=vdn,
+          otherplay=otherplay
         )
 
     save_replay_buffer = False
@@ -687,6 +748,7 @@ def training_process(agent_config: Dict,
       render_mode="human_comm",
       sad=task_config["sad"] if not(rule_based) else False,
       vdn=task_config["vdn"] if not(rule_based) else False,
+      otherplay=task_config.get("otherplay", False),
       ms_cic_metric=ms_cic_metric,
       m_traj_mutual_info_metric=m_traj_mutual_info_metric,
       goal_order_pred_metric=goal_order_pred_metric,
@@ -731,11 +793,11 @@ def main():
                          seed=experiment_config['seed'])
 
 if __name__ == '__main__':
-  async = False 
+  asynch = False 
   __spec__ = None
   if len(sys.argv) > 2:
-      async = any(['async' in arg for arg in sys.argv])
-  if async:
+      asynch = any(['async' in arg for arg in sys.argv])
+  if asynch:
       torch.multiprocessing.freeze_support()
       torch.multiprocessing.set_start_method("forkserver", force=True)
       #torch.multiprocessing.set_start_method("spawn", force=True)

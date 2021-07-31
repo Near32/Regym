@@ -37,18 +37,18 @@ from regym.modules.module import Module
 from regym.rl_loops.multiagent_loops.marl_loop import test_agent
 
 
-def build_EnvironmentModule(
+def build_MARLEnvironmentModule(
     id:str,
     config:Dict[str,object],
     input_stream_ids:Dict[str,str]=None) -> Module:
-    return EnvironmentModule(
+    return MARLEnvironmentModule(
         id=id,
         config=config, 
         input_stream_ids=input_stream_ids
     )
 
 
-class EnvironmentModule(Module):
+class MARLEnvironmentModule(Module):
     def __init__(self,
                  id:str,
                  config:Dict[str,object],
@@ -70,9 +70,9 @@ class EnvironmentModule(Module):
                 if default_id not in input_stream_ids.keys():
                     input_stream_ids[default_id] = default_stream
 
-        super(EnvironmentModule, self).__init__(
+        super(MARLEnvironmentModule, self).__init__(
             id=id,
-            type="EnvironmentModule",
+            type="MARLEnvironmentModule",
             config=config,
             input_stream_ids=input_stream_ids
         )
@@ -93,10 +93,15 @@ class EnvironmentModule(Module):
         if self.config.get('vdn', False):
             self.test_env = VDNVecEnvWrapper(self.test_env, nbr_players=self.config['nbr_players'])
         
+        # Create placeholders for players:
+        import ipdb; ipdb.set_trace()
+        # check that nbr_players=1 when using vdn ?
+        for player_idx in range(self.config['nbr_players']):
+            setattr(self, f"player_{player_idx}", dict())
 
     def initialisation(self, input_streams_dict: Dict[str,object]) -> None:
         self.init = True
-        print("Initialization of Environment Module: ...") 
+        print("Initialization of MARL Environment Module: ...") 
 
         self.observations = None 
         self.info = None 
@@ -169,13 +174,14 @@ class EnvironmentModule(Module):
         )
         self.pbar.update(self.obs_count)
 
-        print("Initialization of Environment Module: DONE")
+        print("Initialization of MARL Environment Module: DONE")
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
         outputs_stream_dict = {}
         outputs_stream_dict["new_trajectories_published"] = False 
+        outputs_stream_dict['reset_actors'] = []
 
         if not self.init:
             self.initialisation(input_streams_dict)
@@ -187,20 +193,49 @@ class EnvironmentModule(Module):
             if self.vdn:
                 self.nonvdn_observations = env_reset_output_dict["observations"]
                 self.nonvdn_info = env_reset_output_dict["info"]
-                    
+            
+            outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
+            outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
+            outputs_stream_dict[self.action_key] = None 
+            outputs_stream_dict[self.reward_key] = None 
+            outputs_stream_dict[self.done_key] = None
+            outputs_stream_dict[self.succ_obs_key] = None
+            outputs_stream_dict[self.succ_info_key] = None
+
+            if self.vdn:
+                outputs_stream_dict["observations"] = copy.deepcopy(self.nonvdn_observations)
+                outputs_stream_dict["info"] = copy.deepcopy(self.nonvdn_info)
+                outputs_stream_dict["actions"] = None
+                outputs_stream_dict["reward"] = None 
+                outputs_stream_dict["done"] = None 
+                outputs_stream_dict["succ_observations"] = None
+                outputs_stream_dict["succ_info"] = None
+
+            for pidx in range(len(self.observations)):
+                pidx_d = getattr(self, f"player_{pidx}")
+                pidx_d['observations'] = None
+                pidx_d['infos'] = None
+                pidx_d['actions'] = None
+                pidx_d['succ_observations'] = self.observations[pidx]
+                pidx_d['succ_infos'] = self.infos[pidx]  
+                pidx_d['rewards'] = None
+                pidx_d['dones'] = None
+            
+            import ipdb; ipdb.set_trace()
+
+            outputs_stream_dict["signals:mode"] = 'train'
+            outputs_stream_dict["signals:epoch"] = self.epoch
+            outputs_stream_dict["signals:done_training"] = False
+            
+            return copy.deepcopy(outputs_stream_dict)
+
+
         actions = [
-            agent.take_action(
-                state=self.observations[agent_idx],
-                infos=self.info[agent_idx] 
-            ) \
-            if agent.training else \
-            agent.query_action(
-                state=self.observations[agent_idx],
-                infos=self.info[agent_idx]
-            )
-            for agent_idx, agent in enumerate(self.agents)
+            getattr(f'player_{player_idx}').actions
+            for player_idx in range(len(self.observations))
         ]
-        
+        import ipdb; ipdb.set_trace()
+
         env_output_dict = self.env.step(actions)
         succ_observations = env_output_dict[self.succ_obs_key]
         reward = env_output_dict[self.reward_key]
@@ -213,18 +248,6 @@ class EnvironmentModule(Module):
             nonvdn_reward = env_output_dict['reward']
             nonvdn_done = env_output_dict['done']
             nonvdn_succ_info = env_output_dict['succ_info']
-
-        if self.config['training']:
-            for agent_idx, agent in enumerate(self.agents):
-                if agent.training:
-                    agent.handle_experience(
-                        s=self.observations[agent_idx],
-                        a=actions[agent_idx],
-                        r=reward[agent_idx],
-                        succ_s=succ_observations[agent_idx],
-                        done=done,
-                        infos=self.info[agent_idx],
-                    )
 
         if self.sad and isinstance(actions[0], dict):
             actions = [
@@ -256,9 +279,12 @@ class EnvironmentModule(Module):
                     nonvdn_succ_observations = env_reset_output_dict['observations']
                     nonvdn_succ_info = env_reset_output_dict['info']
 
+                """
                 for agent_idx, agent in enumerate(self.agents):
                     agent.reset_actors(indices=[actor_index])
-                
+                """
+                outputs_stream_dict['reset_actors'].append(actor_index)
+
                 # Logging:
                 self.trajectories.append(self.per_actor_per_player_trajectories[actor_index])
 
@@ -432,6 +458,19 @@ class EnvironmentModule(Module):
             outputs_stream_dict["succ_observations"] = nonvdn_succ_observations
             outputs_stream_dict["succ_info"] = nonvdn_succ_info
 
+        # Prepare player dicts for RLAgent modules:
+        for pidx in range(len(self.observations)):
+            pidx_d = getattr(self, f"player_{pidx}")
+            pidx_d['observations'] = self.observations[pidx]
+            pidx_d['infos'] = self.infos[pidx] 
+            pidx_d['actions'] = actions[pidx]
+            pidx_d['succ_observations'] = succ_observations[pidx]
+            pidx_d['succ_infos'] = succ_infos[pidx] 
+            pidx_d['rewards'] = reward[pidx]
+            pidx_d['dones'] = done
+
+        import ipdb; ipdb.set_trace()
+        # check player dicts...
 
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)

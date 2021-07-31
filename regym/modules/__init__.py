@@ -1,6 +1,8 @@
 from .module import Module
 
 from .current_agents_module import CurrentAgentsModule
+from .rl_agent_module import RLAgentModule
+from .marl_environment_module import MARLEnvironmentModule
 from .environment_module import EnvironmentModule
 
 from .multi_step_cic_metric_module import MultiStepCICMetricModule

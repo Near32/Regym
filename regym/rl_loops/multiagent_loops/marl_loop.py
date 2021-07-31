@@ -479,6 +479,7 @@ def gather_experience_parallel(
     step_hooks=[],
     sad=False,
     vdn=False,
+    otherplay=False,
     nbr_players=2,
     obs_key="observations",
     succ_obs_key="succ_observations",
@@ -509,13 +510,13 @@ def gather_experience_parallel(
 
     env = task.env
     if sad:
-        env = SADEnvWrapper(env, nbr_actions=task.action_dim)
+        env = SADEnvWrapper(env, nbr_actions=task.action_dim, otherplay=otherplay)
     if vdn:
         env = VDNVecEnvWrapper(env, nbr_players=nbr_players)
 
     test_env = task.test_env
     if sad:
-        test_env = SADEnvWrapper(test_env, nbr_actions=task.action_dim)
+        test_env = SADEnvWrapper(test_env, nbr_actions=task.action_dim, otherplay=otherplay)
     if vdn:
         test_env = VDNVecEnvWrapper(test_env, nbr_players=nbr_players)
     

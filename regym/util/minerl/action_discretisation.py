@@ -1,7 +1,5 @@
 from typing import Callable, List, Dict, Union
 
-from sklearn.cluster import KMeans
-from sklearn.metrics import pairwise_distances
 import numpy as np
 
 import minerl
@@ -93,6 +91,7 @@ def get_kmeans_actions(env:str,path:str,trajectory_names:np.ndarray,n_clusters:i
     :returns:
         - kmeans_actions: Numpy array of actions found by kmeans
     '''
+    from sklearn.cluster import KMeans
 
     data = minerl.data.make(env,path)
     actions = []
@@ -119,7 +118,8 @@ def get_action_set(env:str,path:str,n_clusters:int,score_percent:float=0.9,agree
     :returns:
         - actions_set: Numpy array of actions found by kmeans and inventory actions
     '''
-
+    from sklearn.metrics import pairwise_distances
+    
     good_demos = get_good_demo_names(env,path,score_percent)
     inventory_actions = get_inventory_actions(env,path,good_demos,agreement_percent)
     kmeans_actions = get_kmeans_actions(env,path,good_demos,n_clusters)

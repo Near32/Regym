@@ -1768,7 +1768,7 @@ class SADVecEnvWrapper_depr(object):
         return next_obs, reward, done, next_infos
 
 class SADVecEnvWrapper(object):
-    def __init__(self, env, nbr_actions):
+    def __init__(self, env, nbr_actions, otherplay=False):
         """
         Simplified Action Decoder wrapper expects the action argument for
         the step method to be a list of dictionnary containing the following keys:
@@ -1781,6 +1781,7 @@ class SADVecEnvWrapper(object):
         an extra player_offset tensor.
         """
         self.env = env
+        self.otherplay=otherplay
         self.nbr_actions = nbr_actions
         self.nbr_players = None
         self.current_player_idx = None
@@ -1846,6 +1847,27 @@ class SADVecEnvWrapper(object):
                 if isinstance(action[0], dict):
                     #ga = action[other_idx]["greedy_action"][env_idx]
                     ga = action[current_player]["greedy_action"][env_idx]
+                    if self.otherplay:
+                        # expects env to be wrapped with DiscreteCombinedActionWrapper:
+                        dcaw_env = self.env.env_processes[env_idx]
+                        while not hasattr(dcaw_env, "_decode_action"):
+                            dcaw_env = dcaw_env.env 
+                        # expects other play wrapper:
+                        ow_env = dcaw_env.env
+                        # decode current player's action in the original env:
+                        decoded_ga = ow_env._decode_action( 
+                            action=dcaw_env._decode_action(ga),
+                            player_id=current_player,
+                        )
+                        # encode current player's action into other player's env:
+                        otherplayer_encoded_ga = dcaw_env._encode_action(
+                            action_dict=ow_env._encode_action(
+                                action=decoded_ga,
+                                player_id=player_idx, # other player's view point
+                            )
+                        )
+                        import ipdb; ipdb.set_trace()
+                        ga = otherplayer_encoded_ga
                 else:
                     #ga = action[other_idx][env_idx]
                     ga = action[current_player][env_idx]
