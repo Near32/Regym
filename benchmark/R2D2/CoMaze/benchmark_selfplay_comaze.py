@@ -72,7 +72,8 @@ def make_rl_pubsubmanager(
     pipelined = False
     if len(sys.argv) > 2:
       pipelined = any(['pipelined' in arg for arg in sys.argv])
-
+    print(f"Pipelined: {pipelined}")
+    
     modules = config.pop("modules")
 
     cam_id = "current_agents"
@@ -83,6 +84,10 @@ def make_rl_pubsubmanager(
 
     if pipelined:
       envm_id = "MARLEnvironmentModule_0"
+      envm_input_stream_ids = {
+          "iteration":"signals:iteration",
+          "current_agents":f"modules:{cam_id}:ref",
+      }
       
       rlam_ids = [
         f"rl_agent_{rlaidx}"
@@ -90,8 +95,12 @@ def make_rl_pubsubmanager(
       ]
       for aidx, (rlam_id, agent) in enumerate(zip(rlam_ids, agents)):
         rlam_config = {
-          'agent': agent
+          'agent': agent,
+          'actions_stream_id':f"modules:{envm_id}:player_{aidx}:actions",
         }
+
+        envm_input_stream_ids[f'player_{aidx}'] = f"modules:{rlam_id}:ref"
+
         rlam_input_stream_ids = {
           "logs_dict":"logs_dict",
           "losses_dict":"losses_dict",
@@ -100,24 +109,19 @@ def make_rl_pubsubmanager(
 
           "reset_actors":f"modules:{envm_id}:reset_actors",
           
-          "observations":f"modules:{envm_id}:player_0:observations",
-          "infos":f"modules:{envm_id}:player_0:infos",
-          "actions":f"modules:{envm_id}:player_0:actions",
-          "succ_observations":f"modules:{envm_id}:player_0:succ_observations",
-          "succ_infos":f"modules:{envm_id}:player_0:succ_infos",
-          "rewards":f"modules:{envm_id}:player_0:rewards",
-          "dones":f"modules:{envm_id}:dones",
+          "observations":f"modules:{envm_id}:ref:player_{aidx}:observations",
+          "infos":f"modules:{envm_id}:ref:player_{aidx}:infos",
+          "actions":f"modules:{envm_id}:ref:player_{aidx}:actions",
+          "succ_observations":f"modules:{envm_id}:ref:player_{aidx}:succ_observations",
+          "succ_infos":f"modules:{envm_id}:ref:player_{aidx}:succ_infos",
+          "rewards":f"modules:{envm_id}:ref:player_{aidx}:rewards",
+          "dones":f"modules:{envm_id}:ref:player_{aidx}:dones",
         }
         modules[rlam_id] = RLAgentModule(
             id=rlam_id,
             config=rlam_config,
             input_stream_ids=rlam_input_stream_ids,
         )
-
-      envm_input_stream_ids = {
-          "iteration":"signals:iteration",
-          "current_agents":f"modules:{cam_id}:ref",
-      }
 
       modules[envm_id] = MARLEnvironmentModule(
           id=envm_id,
