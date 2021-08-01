@@ -61,6 +61,7 @@ class MARLEnvironmentModule(Module):
             "iteration":"signals:iteration",
 
             "current_agents":"modules:current_agents:ref",
+            "player_0":"modules:rl_agent_0:ref",
         }
 
         if input_stream_ids is None:
@@ -94,9 +95,11 @@ class MARLEnvironmentModule(Module):
             self.test_env = VDNVecEnvWrapper(self.test_env, nbr_players=self.config['nbr_players'])
         
         # Create placeholders for players:
-        import ipdb; ipdb.set_trace()
-        # check that nbr_players=1 when using vdn ?
-        for player_idx in range(self.config['nbr_players']):
+        self.nbr_agents = self.config['nbr_players']
+        if self.config.get('vdn', False):
+            self.nbr_agents = 1 
+
+        for player_idx in range(self.nbr_agents):
             setattr(self, f"player_{player_idx}", dict())
 
     def initialisation(self, input_streams_dict: Dict[str,object]) -> None:
@@ -211,30 +214,32 @@ class MARLEnvironmentModule(Module):
                 outputs_stream_dict["succ_observations"] = None
                 outputs_stream_dict["succ_info"] = None
 
-            for pidx in range(len(self.observations)):
+            for pidx in range(self.nbr_agents):
                 pidx_d = getattr(self, f"player_{pidx}")
                 pidx_d['observations'] = None
                 pidx_d['infos'] = None
                 pidx_d['actions'] = None
                 pidx_d['succ_observations'] = self.observations[pidx]
-                pidx_d['succ_infos'] = self.infos[pidx]  
+                pidx_d['succ_infos'] = self.info[pidx]  
                 pidx_d['rewards'] = None
                 pidx_d['dones'] = None
             
-            import ipdb; ipdb.set_trace()
-
             outputs_stream_dict["signals:mode"] = 'train'
             outputs_stream_dict["signals:epoch"] = self.epoch
             outputs_stream_dict["signals:done_training"] = False
             
             return copy.deepcopy(outputs_stream_dict)
 
-
+        """
         actions = [
             getattr(f'player_{player_idx}').actions
-            for player_idx in range(len(self.observations))
+            for player_idx in range(self.nbr_agents)
         ]
-        import ipdb; ipdb.set_trace()
+        """
+        actions = [
+            input_streams_dict[f'player_{player_idx}'].actions
+            for player_idx in range(self.nbr_agents)
+        ]
 
         env_output_dict = self.env.step(actions)
         succ_observations = env_output_dict[self.succ_obs_key]
@@ -459,18 +464,15 @@ class MARLEnvironmentModule(Module):
             outputs_stream_dict["succ_info"] = nonvdn_succ_info
 
         # Prepare player dicts for RLAgent modules:
-        for pidx in range(len(self.observations)):
+        for pidx in range(self.nbr_agents):
             pidx_d = getattr(self, f"player_{pidx}")
             pidx_d['observations'] = self.observations[pidx]
-            pidx_d['infos'] = self.infos[pidx] 
+            pidx_d['infos'] = self.info[pidx] 
             pidx_d['actions'] = actions[pidx]
             pidx_d['succ_observations'] = succ_observations[pidx]
-            pidx_d['succ_infos'] = succ_infos[pidx] 
+            pidx_d['succ_infos'] = succ_info[pidx] 
             pidx_d['rewards'] = reward[pidx]
             pidx_d['dones'] = done
-
-        import ipdb; ipdb.set_trace()
-        # check player dicts...
 
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)

@@ -1866,7 +1866,7 @@ class SADVecEnvWrapper(object):
                                 player_id=player_idx, # other player's view point
                             )
                         )
-                        import ipdb; ipdb.set_trace()
+                        # int
                         ga = otherplayer_encoded_ga
                 else:
                     #ga = action[other_idx][env_idx]

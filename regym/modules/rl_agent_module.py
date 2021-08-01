@@ -1,5 +1,7 @@
 from typing import Dict, List, Optional 
 
+import copy
+
 from regym.modules.module import Module
 
 def build_RLAgentModule(
@@ -32,13 +34,13 @@ class RLAgentModule(Module):
 
             "reset_actors":"modules:marl_environment_module:reset_actors",
             
-            "observations":"modules:marl_environment_module:player_0:observations",
-            "infos":"modules:marl_environment_module:player_0:infos",
-            "actions":"modules:marl_environment_module:player_0:actions",
-            "succ_observations":"modules:marl_environment_module:player_0:succ_observations",
-            "succ_infos":"modules:marl_environment_module:player_0:succ_infos",
-            "rewards":"modules:marl_environment_module:player_0:rewards",
-            "dones":"modules:marl_environment_module:dones",
+            "observations":"modules:marl_environment_module:ref:player_0:observations",
+            "infos":"modules:marl_environment_module:ref:player_0:infos",
+            "actions":"modules:marl_environment_module:ref:player_0:actions",
+            "succ_observations":"modules:marl_environment_module:ref:player_0:succ_observations",
+            "succ_infos":"modules:marl_environment_module:ref:player_0:succ_infos",
+            "rewards":"modules:marl_environment_module:ref:player_0:rewards",
+            "dones":"modules:marl_environment_module:ref:player_0:dones",
         }
 
         if input_stream_ids is None:
@@ -62,14 +64,14 @@ class RLAgentModule(Module):
         self.agent = agent
 
     def parameters(self):
-        return agent.parameters() 
+        return self.agent.parameters() 
         
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
-        outputs_stream_dict = {}
+        outputs_streams_dict = {}
         
-        self.new_observations = input_stream_dict['succ_observations']
+        self.new_observations = input_streams_dict['succ_observations']
         self.new_infos = input_streams_dict['succ_infos']
 
         if hasattr(self, 'observations')\
@@ -79,8 +81,8 @@ class RLAgentModule(Module):
                 a=self.actions,
                 r=input_streams_dict['rewards'],
                 succ_s=self.new_observations,
-                done=input_streams_dict['done'],
-                infos=self.infos[agent_idx],
+                done=input_streams_dict['dones'],
+                infos=self.infos,
             )
 
         # TODO: maybe reset everything if no attr observations:
@@ -101,7 +103,6 @@ class RLAgentModule(Module):
         self.infos = copy.deepcopy(self.new_infos)
         self.actions = copy.deepcopy(self.new_actions)
 
-        outputs_streams_dict[self.input_stream_ids['actions']] = copy.deepcopy(self.new_actions)
-        import ipdb; ipdb.set_trace() 
-
+        outputs_streams_dict[self.config['actions_stream_id']] = copy.deepcopy(self.new_actions)
+        
         return outputs_streams_dict
