@@ -1804,7 +1804,9 @@ class SADVecEnvWrapper(object):
         next_infos = input_dict["info"]
 
         self.nbr_players = len(next_obs)
-        self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        self.current_player_idx = None 
+        if 'current_player' in next_infos[0][0]:
+            self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
         # (nbr_env, )
 
         for player_idx in range(2):
@@ -1842,7 +1844,12 @@ class SADVecEnvWrapper(object):
 
         for player_idx in range(self.nbr_players):
             for env_idx in range(len(next_infos[player_idx])):
-                current_player = self.current_player_idx[env_idx] 
+                current_player = None
+                if self.current_player_idx is not None:
+                    current_player = self.current_player_idx[env_idx]
+                else:
+                    # assuming self.nbr_players==2...
+                    current_player = self.nbr_players-(player_idx+1) 
                 relative_current_player_idx = (current_player-player_idx) % self.nbr_players
                 if isinstance(action[0], dict):
                     #ga = action[other_idx]["greedy_action"][env_idx]
@@ -1881,7 +1888,10 @@ class SADVecEnvWrapper(object):
                 )
 
         # update:
-        self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        if 'current_player' in next_infos[0][0]:
+            self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        else:
+            self.current_player_idx = None 
         # (nbr_env, )
         
         output_dict = {

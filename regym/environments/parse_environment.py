@@ -55,7 +55,7 @@ def generate_task(env_name: str,
     env = None
     if is_gym_environment and is_unity_environment: raise ValueError(f'{env_name} exists as both a Gym and an Unity environment. Rename Unity environment to remove duplicate problem.')
     elif is_gym_environment: 
-        env = gym.make(env_name)
+        env = gym.make(env_name, **env_config)
         env.seed(seed)
         if wrapping_fn is not None: 
             env = wrapping_fn(env=env)

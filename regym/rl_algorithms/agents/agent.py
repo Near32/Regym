@@ -138,7 +138,12 @@ class Agent(object):
         In case of a multi-actor process, this function is called to reset
         the actors' internal values.
         '''
-        self.current_prediction: Dict[str, Any] = None
+        # the following is interfering with rl_agent_module
+        # that operates on a delay with MARLEnvironmentModule
+        # when it comes to the time prediction is made
+        # and then the time when an experience is handled.
+        # TODO: make sure that disabling it is not affecting other behaviours...
+        #self.current_prediction: Dict[str, Any] = None
 
         if init:
             self.previously_done_actors = [False]*self.nbr_actor
@@ -304,6 +309,42 @@ class Agent(object):
                                 # only post-process:
                                 rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
                             
+    @staticmethod
+    def _keep_grad_update_rnn_states(next_rnn_states_dict: Dict, rnn_states_dict: Dict, map_keys: Optional[List]=None):
+        '''
+        Update the rnn_state to the values of next_rnn_states, when present in both.
+        Otherwise, simply detach+cpu the values. 
+
+        :param next_rnn_states_dict: Dict with a hierarchical structure.
+        :param rnn_states_dict: Dict with a hierarchical structure, ends up being update when possible.
+        :param map_keys: List of keys we map the operation to.
+        '''
+        for recurrent_submodule_name in rnn_states_dict:
+            if not is_leaf(rnn_states_dict[recurrent_submodule_name]):
+                Agent._keep_grad_update_rnn_states(
+                    next_rnn_states_dict=next_rnn_states_dict[recurrent_submodule_name],
+                    rnn_states_dict=rnn_states_dict[recurrent_submodule_name]
+                )
+            else:
+                eff_map_keys = map_keys if map_keys is not None else rnn_states_dict[recurrent_submodule_name].keys()
+                for key in eff_map_keys:
+                    updateable = False
+                    """
+                    if key in next_rnn_states_dict[recurrent_submodule_name]:
+                        updateable = True
+                        for idx in range(len(next_rnn_states_dict[recurrent_submodule_name][key])):
+                            # Post-process:
+                            next_rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                    """
+                    if key in rnn_states_dict[recurrent_submodule_name]:
+                        for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
+                            if updateable:
+                                # Updating rnn_states:
+                                rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx]#.detach().cpu()
+                            else:
+                                # only post-process:
+                                rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx]#.detach().cpu()
+    
     def _post_process(self, prediction: Dict[str, Any]):
         """
         Post-process a prediction by detaching-cpuing the tensors.

@@ -490,12 +490,12 @@ class DQNAgent(Agent):
         # Thus, here, we only want to update the rnn state:
         
         if as_logit:
-            self._post_process_and_update_rnn_states(
+            self._keep_grad_update_rnn_states(
                 next_rnn_states_dict=current_prediction['next_rnn_states'],
                 rnn_states_dict=self.rnn_states
             )
-
-            return current_prediction['log_a']
+            return current_prediction
+            #return current_prediction['log_a']
         else:
             current_prediction = self._post_process(current_prediction)
         

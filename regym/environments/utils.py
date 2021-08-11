@@ -9,8 +9,7 @@ class EnvironmentCreator():
         self.env_config = env_config
 
     def __call__(self, worker_id=None, seed=0):
-        if self.is_gym_environment: 
-            import ipdb; ipdb.set_trace()
+        if self.is_gym_environment:
             env = gym.make(self.environment_name, **self.env_config)
             env.seed(seed)
             if self.wrapping_fn is not None: env = self.wrapping_fn(env=env)
