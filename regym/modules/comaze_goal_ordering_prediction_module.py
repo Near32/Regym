@@ -130,11 +130,12 @@ class CoMazeGoalOrderingPredictionModule(Module):
         
         filtering_signal = input_streams_dict["filtering_signal"]
         trajectories = input_streams_dict["trajectories"]
-        compute = True 
+        #compute = True
+        compute = True #(epoch >= 50)
 
         self.iteration += 1
         #if (compute and np.random.random() < 1.0/self.sampling_period) or filtering_signal:
-        if (compute and (self.iteration % self.sampling_period) == 0) or filtering_signal:
+        if compute and (((self.iteration % self.sampling_period) == 0) or filtering_signal):
             if filtering_signal:
                 self.actions = [
                     [
@@ -219,7 +220,7 @@ class CoMazeGoalOrderingPredictionModule(Module):
             logs_dict[f"{mode}/{self.id}/RulesPrediction-Q1/{'Eval' if filtering_signal else 'Sample'}"] = q1_correct_rp.mean()
 
             losses_dict = input_streams_dict["losses_dict"]
-            losses_dict[f"{mode}/{self.id}/GoalOrderingPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_gop]
+            #losses_dict[f"{mode}/{self.id}/GoalOrderingPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_gop]
             losses_dict[f"{mode}/{self.id}/RulesPredictionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rp]
         
         return outputs_stream_dict

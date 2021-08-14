@@ -63,7 +63,8 @@ class RLActionPolicy(ActionPolicy):
         """
 
         #log_p_a = self.model.take_action(**x)
-        log_p_a = self.model.query_action(**x)
+        pred_dict = self.model.query_action(**x)
+        log_p_a = pred_dict['log_a']
         # batch_size x action_space_dim
 
         batch_size = log_p_a.shape[0]

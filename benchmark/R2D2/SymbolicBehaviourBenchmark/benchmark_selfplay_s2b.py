@@ -34,7 +34,7 @@ import ray
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
 
-from regym.modules import ReconstructionFromHiddenStateModule
+from regym.modules import ReconstructionFromHiddenStateModule, MultiReconstructionFromHiddenStateModule
 from rl_hiddenstate_policy import RLHiddenStatePolicy
 
 #from regym.modules import MessageTrajectoryMutualInformationMetricModule
@@ -55,6 +55,7 @@ def make_rl_pubsubmanager(
     save_path=None,
     speaker_rec=False,
     listener_rec=False,
+    listener_comm_rec=False,
     ):
     """
     Create a PubSubManager.
@@ -69,8 +70,11 @@ def make_rl_pubsubmanager(
 
     """
     pipelined = False
+    use_multi_rec = False
     if len(sys.argv) > 2:
       pipelined = any(['pipelined' in arg for arg in sys.argv])
+    if len(sys.argv) >2:
+        use_multi_rec = any(['multi_rec' in arg for arg in sys.argv])
 
     modules = config.pop("modules")
 
@@ -150,6 +154,22 @@ def make_rl_pubsubmanager(
         for exp in traj[player_id]:
             labels.append(torch.from_numpy((1+exp[0])*0.5))
         return labels
+    def build_comm_to_reconstruct_from_trajectory_fn(
+        traj: List[List[Any]],
+        player_id:int,
+        ) -> List[torch.Tensor]:
+        likelihoods = []
+        previous_com = None
+        for exp in traj[player_id]:
+            current_com = torch.from_numpy(exp[-1]['communication_channel'])
+            if previous_com is None:    previous_com = current_com
+
+            target_pred = torch.cat([previous_com, current_com], dim=-1)
+            likelihoods.append(target_pred)
+
+            previous_com = current_com
+        return likelihoods
+
 
     rec_p0_id = "Reconstruction_player0"
     rec_p0_input_stream_ids = {
@@ -183,7 +203,7 @@ def make_rl_pubsubmanager(
       "build_signal_to_reconstruct_from_trajectory_fn": build_signal_to_reconstruct_from_trajectory_fn,
     }
     
-    if speaker_rec:
+    if speaker_rec and not(use_multi_rec):
       modules[rec_p0_id] = ReconstructionFromHiddenStateModule(
         id=rec_p0_id,
         config=rec_p0_config,
@@ -222,12 +242,107 @@ def make_rl_pubsubmanager(
       "build_signal_to_reconstruct_from_trajectory_fn": build_signal_to_reconstruct_from_trajectory_fn,
     }
     
-    if listener_rec:
+    if listener_rec and not(use_multi_rec):
       modules[rec_p1_id] = ReconstructionFromHiddenStateModule(
         id=rec_p1_id,
         config=rec_p1_config,
         input_stream_ids=rec_p1_input_stream_ids,
       )
+    
+    comm_rec_p1_id = "CommReconstruction_player1"
+    comm_rec_p1_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    listener_comm_rec_biasing = False 
+    if len(sys.argv) > 2:
+      listener_comm_rec_biasing = any(['listener_comm_rec_biasing' in arg for arg in sys.argv[2:]])
+
+    if listener_comm_rec_biasing:
+      print("WARNING: Biasing for Listener's Communication Reconstruction.")
+    else:
+      print("WARNING: NOT biasing Listener's Communication Reconstruction.")
+    
+    def comm_accuracy_pre_process_fn(
+        pred:torch.Tensor, 
+        target:torch.Tensor,
+        ):
+        # Reshape into (sentence_length, vocab_size):
+        target = target.reshape(-1, 7)
+        pred = pred.reshape(-1, 7)
+        
+        # Retrieve target idx:
+        target_idx = target.max(dim=-1, keepdim=True)[1]
+        
+        pred_distr = pred.softmax(dim=-1)
+
+        #acc = ((pred-0.1<=target).float()+(pred+0.1>=target).float())==2).gather(
+        '''
+        acc = (pred_distr>=0.5).float().gather(
+            dim=-1,
+            index=target_idx,
+        )
+        '''
+        pred_idx = pred.max(dim=-1, keepdim=True)[1]
+        acc = (target_idx == pred_idx).float().reshape(1,-1)
+        # (1, sentence_length)
+        
+        return acc
+
+    comm_rec_p1_config = {
+      "biasing":listener_comm_rec_biasing,
+      "nbr_players":len(agents),
+      "player_id":1,
+      'use_cuda':True,
+      "signal_to_reconstruct_dim": 7*2,
+      "hiddenstate_policy": RLHiddenStatePolicy(agent=agents[-1]),
+      "build_signal_to_reconstruct_from_trajectory_fn": build_comm_to_reconstruct_from_trajectory_fn,
+      "accuracy_pre_process_fn":comm_accuracy_pre_process_fn,
+    }
+    
+    if listener_comm_rec and not(use_multi_rec):
+        modules[comm_rec_p1_id] = ReconstructionFromHiddenStateModule(
+            id=comm_rec_p1_id,
+            config=comm_rec_p1_config,
+            input_stream_ids=comm_rec_p1_input_stream_ids,
+        )
+    
+    if use_multi_rec:
+        if speaker_rec:
+            raise NotImplementedError
+        multi_rec_p1_id = 'multi_rec_p1'
+        rec_dicts = {}
+        rec_p1_config = {
+            "signal_to_reconstruct_dim":4*3,
+            "build_signal_to_reconstruct_from_trajectory_fn":build_signal_to_reconstruct_from_trajectory_fn,
+        }
+        rec_dicts[rec_p1_id] = rec_p1_config
+        comm_rec_p1_config = {
+            "signal_to_reconstruct_dim": 7*2,
+            "build_signal_to_reconstruct_from_trajectory_fn": build_comm_to_reconstruct_from_trajectory_fn,
+            "accuracy_pre_process_fn":comm_accuracy_pre_process_fn,
+        }
+        rec_dicts[comm_rec_p1_id] = comm_rec_p1_config
+        modules[multi_rec_p1_id] = MultiReconstructionFromHiddenStateModule(
+            id=multi_rec_p1_id,
+            config={
+                "biasing":listener_rec_biasing or listener_comm_rec_biasing,
+                "nbr_players":len(agents),
+                "player_id":1,
+                "use_cuda":True,
+                "hiddenstate_policy":RLHiddenStatePolicy(agent=agents[-1]),
+                "rec_dicts": rec_dicts,
+            },
+            input_stream_ids=rec_p1_input_stream_ids,
+        )
 
 
     pipelines = config.pop("pipelines")
@@ -238,11 +353,16 @@ def make_rl_pubsubmanager(
     if pipelined:
       for rlam_id in rlam_ids:
         pipelines['rl_loop_0'].append(rlam_id)
-    if speaker_rec:
-      pipelines["rl_loop_0"].append(rec_p0_id)
-    if listener_rec:
-      pipelines["rl_loop_0"].append(rec_p1_id)
-    
+    if use_multi_rec and (listener_rec or listener_comm_rec):
+        pipelines["rl_loop_0"].append(multi_rec_p1_id)
+    else:
+        if speaker_rec:
+            pipelines["rl_loop_0"].append(rec_p0_id)
+        if listener_rec:
+            pipelines["rl_loop_0"].append(rec_p1_id)
+        if listener_comm_rec:
+            pipelines["rl_loop_0"].append(comm_rec_p1_id)
+     
  
 
     optim_id = "global_optim"
@@ -331,6 +451,7 @@ def train_and_evaluate(agents: List[object],
                        otherplay=False,
                        speaker_rec=False,
                        listener_rec=False,
+                       listener_comm_rec=False,
                        ):
     pubsub = False
     if len(sys.argv) > 2:
@@ -368,6 +489,7 @@ def train_and_evaluate(agents: List[object],
         config=config,
         speaker_rec=speaker_rec,
         listener_rec=listener_rec,
+        listener_comm_rec=listener_comm_rec,
         logger=sum_writer,
       )
 
@@ -449,17 +571,21 @@ def training_process(agent_config: Dict,
     pubsub = False
     speaker_rec = False
     listener_rec = False
+    listener_comm_rec = False
     speaker_rec_biasing = False
     listener_rec_biasing = False
+    listener_comm_rec_biasing = False
     if len(sys.argv) > 2:
       pubsub = any(['pubsub' in arg for arg in sys.argv])
       test_only = any(['test_only' in arg for arg in sys.argv])
       
       speaker_rec = any(['use_speaker_rec' in arg for arg in sys.argv[2:]])
       listener_rec = any(['use_listener_rec' in arg for arg in sys.argv[2:]])
+      listener_comm_rec = any(['use_listener_comm_rec' in arg for arg in sys.argv[2:]])
        
       speaker_rec_biasing = any(['speaker_rec_biasing' in arg for arg in sys.argv[2:]])
       listener_rec_biasing = any(['listener_rec_biasing' in arg for arg in sys.argv[2:]])
+      listener_comm_rec_biasing = any(['listener_comm_rec_biasing' in arg for arg in sys.argv[2:]])
       
       override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--seed' in arg]
       if len(override_seed_argv_idx):
@@ -497,7 +623,9 @@ def training_process(agent_config: Dict,
     if speaker_rec:
       base_path = os.path.join(base_path,f"SpeakerReconstruction{'+Biasing-1p3' if speaker_rec_biasing else ''}-BigArch")
     if listener_rec:
-      base_path = os.path.join(base_path,f"ListenerReconstruction{'+Biasing-1p3' if listener_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"ListenerReconstruction{'+Biasing-1p0' if listener_rec_biasing else ''}-BigArch")
+    if listener_comm_rec:
+      base_path = os.path.join(base_path,f"ListenerCommunicationChannelReconstruction{'+Biasing-1p0' if listener_comm_rec_biasing else ''}-BigArch")
      
   
     if task_config["otherplay"]:
@@ -514,6 +642,8 @@ def training_process(agent_config: Dict,
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     task_config['final_path'] = base_path
+    task_config['command_line'] = ' '.join(sys.argv)
+    print(task_config['command_line'])
     yaml.dump(
       task_config, 
       open(
@@ -631,6 +761,7 @@ def training_process(agent_config: Dict,
       otherplay=task_config.get("otherplay", False),
       speaker_rec=speaker_rec,
       listener_rec=listener_rec,
+      listener_comm_rec=listener_comm_rec,
     )
 
     return trained_agents, task 

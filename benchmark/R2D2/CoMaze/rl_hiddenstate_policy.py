@@ -48,8 +48,11 @@ class RLHiddenStatePolicy(MessagePolicy):
         self.secretgoalStr2id = {"RED":0, "YELLOW":1, "BLUE":2, "GREEN":3}
 
     
-    def get_hiddens(self, info=None):
-        rnn_states = self.model.get_rnn_states()
+    def get_hiddens(self, info=None, from_pred=None):
+        if from_pred is None:
+            rnn_states = self.model.get_rnn_states()
+        else:
+            rnn_states = from_pred['next_rnn_states']
         # Extract 'hidden''s list:
         hiddens = extract_subtrees(in_dict=rnn_states, node_id='hidden')
         # List[List[Tensor]]
@@ -101,7 +104,7 @@ class RLHiddenStatePolicy(MessagePolicy):
                 else:
                     extra = torch.zeros((1,4*3+4*2))
                 extras.append(extra)
-            extras = torch.cat(extras, dim=0)
+            extras = torch.cat(extras, dim=0).to(hiddens.device)
             hiddens = torch.cat([hiddens, extras], dim=1)
             # batch_size x (nbr_parts*hidden_dims + extra_dim)
 
@@ -149,10 +152,11 @@ class RLHiddenStatePolicy(MessagePolicy):
             we either marginalized over possible actions or not.
         """
 
-        log_p_a = self.model.query_action(**x)
+        #log_p_a = self.model.query_action(**x)
+        pred_dict = self.model.query_action(**x)
         # batch_size x action_space_dim
 
-        hiddens = self.get_hiddens(info=x.get('infos', None))
+        hiddens = self.get_hiddens(info=x.get('infos', None), from_pred=pred_dict)
         # batch_size x nbr_parts*hidden_dims + extra_dim if self.augmented
 
         return hiddens

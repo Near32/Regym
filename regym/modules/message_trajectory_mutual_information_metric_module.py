@@ -162,14 +162,19 @@ class MessageTrajectoryMutualInformationMetricModule(Module):
                     mask[actor_id][t] = (x[actor_id][t]['infos'][0]["current_player"].item()==self.player_id)
             
             ## Measure:
-            L_ps, averaged_entropy = self.metric.compute_pos_sign_loss(
+            L_ps, averaged_m_policy_entropy, \
+            exp_ent_pi_m_x_it_over_x_it = self.metric.compute_pos_sign_loss(
                 x=x, 
                 mask=mask,
                 biasing=self.biasing,
             )
             # batch_size 
+
+            mutual_info_m_x_it = averaged_m_policy_entropy - exp_ent_pi_m_x_it_over_x_it
+            # (1 x 1)
             
-            logs_dict[f"{mode}/{self.id}/AverageMessageEntropy/{'Eval' if filtering_signal else 'Sample'}"] = averaged_entropy
+            logs_dict[f"{mode}/{self.id}/AverageMessagePolicyEntropy/{'Eval' if filtering_signal else 'Sample'}"] = averaged_m_policy_entropy
+            logs_dict[f"{mode}/{self.id}/MutualInformationMessageTrajectory/{'Eval' if filtering_signal else 'Sample'}"] = mutual_info_m_x_it
 
             if self.biasing:
                 losses_dict = input_streams_dict["losses_dict"]

@@ -184,7 +184,7 @@ def make_rl_pubsubmanager(
         input_stream_ids=ms_cic_input_stream_ids,
       )
 
-    m_traj_mutinfo_id = "MessageTrajectoryMutualInforMEtric_player0"
+    m_traj_mutinfo_id = "MessageTrajectoryMutualInforMetric_player0"
     m_traj_mutinfo_input_stream_ids = {
       "logs_dict":"logs_dict",
       "losses_dict":"losses_dict",
@@ -545,7 +545,9 @@ def training_process(agent_config: Dict,
     if use_m_traj_mutual_info:
       base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m0-f1m1' if signalling_biasing else ''}")
     if use_goal_order_pred:
-      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPrediction+BigArch+RNNStatePostProcess-PredDictItemDetaching{'+AugmentedHiddenStates' if augmented else ''}")
+      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
+      #base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+GoalOrderingPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
+      #base_path = os.path.join(base_path,f"GoalOrderingPred-AfterEpoch50-{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
     
     rule_based = False
     communicating = False
@@ -576,6 +578,8 @@ def training_process(agent_config: Dict,
     if not os.path.exists(base_path): os.makedirs(base_path)
 
     task_config['final_path'] = base_path
+    task_config['command_line'] = ' '.join(sys.argv)
+    print(task_config['command_line'])
     yaml.dump(
       task_config, 
       open(
@@ -735,6 +739,7 @@ def training_process(agent_config: Dict,
           hiddenstate_policy=hiddenstate_policy,
           label_dim=4*5,
           data_save_path=os.path.join(base_path,"GoalOrderingPredModule"),
+          use_cuda=agent_config['use_cuda'],
       )
 
     trained_agents = train_and_evaluate(
