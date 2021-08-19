@@ -545,7 +545,8 @@ def training_process(agent_config: Dict,
     if use_m_traj_mutual_info:
       base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m0-f1m1' if signalling_biasing else ''}")
     if use_goal_order_pred:
-      base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
+      base_path = os.path.join(base_path,f"GoalOrderingPred-{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
+      #base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
       #base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+GoalOrderingPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
       #base_path = os.path.join(base_path,f"GoalOrderingPred-AfterEpoch50-{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
     
