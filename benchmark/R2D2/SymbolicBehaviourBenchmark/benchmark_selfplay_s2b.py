@@ -27,6 +27,8 @@ from regym.util.experiment_parsing import initialize_agents
 
 import symbolic_behaviour_benchmark
 from symbolic_behaviour_benchmark.utils.wrappers import s2b_wrap
+from symbolic_behaviour_benchmark.rule_based_agents import build_WrappedPositionallyDisentangledSpeakerAgent 
+
 from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgentWrapper
 
 import ray
@@ -36,14 +38,6 @@ from regym.modules import MARLEnvironmentModule, RLAgentModule
 
 from regym.modules import ReconstructionFromHiddenStateModule, MultiReconstructionFromHiddenStateModule
 from rl_hiddenstate_policy import RLHiddenStatePolicy
-
-#from regym.modules import MessageTrajectoryMutualInformationMetricModule
-#from rl_message_policy import RLMessagePolicy
-#from comaze_gym.metrics import MessageTrajectoryMutualInformationMetric, RuleBasedMessagePolicy
-
-#from regym.modules import CoMazeGoalOrderingPredictionModule
-#from rl_hiddenstate_policy import RLHiddenStatePolicy
-#from comaze_gym.metrics import GoalOrderingPredictionMetric, RuleBasedHiddenStatePolicy
 
 from regym.pubsub_manager import PubSubManager
 
@@ -575,6 +569,9 @@ def training_process(agent_config: Dict,
     speaker_rec_biasing = False
     listener_rec_biasing = False
     listener_comm_rec_biasing = False
+    
+    use_rule_based_agent = False 
+    use_speaker_rule_based_agent = False
     if len(sys.argv) > 2:
       pubsub = any(['pubsub' in arg for arg in sys.argv])
       test_only = any(['test_only' in arg for arg in sys.argv])
@@ -587,6 +584,14 @@ def training_process(agent_config: Dict,
       listener_rec_biasing = any(['listener_rec_biasing' in arg for arg in sys.argv[2:]])
       listener_comm_rec_biasing = any(['listener_comm_rec_biasing' in arg for arg in sys.argv[2:]])
       
+      use_rule_based_agent = any(['rule_based_agent' in arg for arg in sys.argv[2:]])
+      use_speaker_rule_based_agent = any(['speaker_rule_based_agent' in arg for arg in sys.argv[2:]])
+      if use_rule_based_agent:
+          agent_config['vdn'] = False
+          agent_config['sad'] = False 
+          task_config['vdn'] = False 
+          task_config['vdn'] = False 
+
       override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--seed' in arg]
       if len(override_seed_argv_idx):
         seed = int(sys.argv[override_seed_argv_idx[0]+1])
@@ -615,6 +620,9 @@ def training_process(agent_config: Dict,
     else:
       base_path = os.path.join(base_path,"TRAINING")
     
+    if use_rule_based_agent:
+      base_path = os.path.join(base_path, f"WithPosDis{'Speaker' if use_speaker_rule_based_agent else 'Listener'}RBAgent")
+
     if pubsub:
       base_path = os.path.join(base_path,"PUBSUB")
     else:
@@ -730,17 +738,41 @@ def training_process(agent_config: Dict,
     and agent_config["vdn"]:
       agents = [agent]
     else:
-      player2_harvest = False
+        if use_rule_based_agent:
+            if use_speaker_rule_based_agent:
+                rb_agent = build_WrappedPositionallyDisentangledSpeakerAgent( 
+                    player_idx=0,
+                    action_space_dim=task.env.action_space.n, 
+                    vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
+                    max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
+                    nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
+                    nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
+        
+                )
+                agents = [rb_agent, agent]
+            else:
+                rb_agent = build_WrappedPositionallyDisentangledListenerAgent( 
+                    player_idx=1,
+                    action_space_dim=task.env.action_space.n, 
+                    vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
+                    max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
+                    nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
+                    nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
+        
+                )
+                agents = [agent, rb_agent]
+        else:
+            player2_harvest = False
 
-      if len(sys.argv) > 2:
-        player2_harvest = any(['player2_harvest' in arg for arg in sys.argv])
+            if len(sys.argv) > 2:
+                player2_harvest = any(['player2_harvest' in arg for arg in sys.argv])
 
-      agents = [agent, agent.get_async_actor(training=player2_harvest)]
-      # We can create non-training or training async actors.
-      # If traininging, then their experience is added to the replay buffer
-      # of the main agent, which might have some advantanges
-      # -given that it proposes decorrelated data-, but it may
-      # also have unknown disadvantages. Needs proper investigation.
+            agents = [agent, agent.get_async_actor(training=player2_harvest)]
+            # We can create non-training or training async actors.
+            # If traininging, then their experience is added to the replay buffer
+            # of the main agent, which might have some advantanges
+            # -given that it proposes decorrelated data-, but it may
+            # also have unknown disadvantages. Needs proper investigation.
 
 
     trained_agents = train_and_evaluate(
