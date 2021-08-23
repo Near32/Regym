@@ -6,8 +6,6 @@ from collections import deque
 from functools import partial 
 
 import ray
-# TODO : change every storage to use remote ray storages
-import time 
 
 import numpy as np
 import torch
@@ -55,7 +53,7 @@ class DQNAlgorithm(Algorithm):
 
         assert (self.use_HER and self.goal_oriented) or not(self.goal_oriented)
 
-        self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda'])
+        self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda']) if 'weights_decay_lambda' in self.kwargs else 0.0
         self.weights_entropy_lambda = float(self.kwargs['weights_entropy_lambda']) if 'weights_entropy_lambda' in self.kwargs else 0.0
         
         
@@ -136,6 +134,9 @@ class DQNAlgorithm(Algorithm):
             from regym import SharedVariable
             self._param_update_counter = SharedVariable(0)
 
+    def parameters(self):
+        return self.model.parameters()
+        
     @property
     def param_update_counter(self):
         if isinstance(self._param_update_counter, ray.actor.ActorHandle):
@@ -217,10 +218,11 @@ class DQNAlgorithm(Algorithm):
         else:
             self.eps = self.epsend + max(0, (self.epsstart-self.epsend)/((float(nbr_steps)/self.epsdecay)+1))
 
+        """
         if self.summary_writer is not None:
             for actor_i in range(self.eps.shape[0]):
                 self.summary_writer.add_scalar(f'Training/Eps_Actor_{actor_i}', self.eps[actor_i], nbr_steps)
-        
+        """
         return self.eps 
 
     def reset_storages(self, nbr_actor: int=None):
@@ -236,7 +238,11 @@ class DQNAlgorithm(Algorithm):
         self.storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
         if self.recurrent:  keys += ['rnn_states']
+
+        """
+        # depr : goal update
         if self.goal_oriented:    keys += ['g']
+        """
         
         circular_keys={'succ_s':'s'}
         circular_offsets={'succ_s':self.n_step}
@@ -312,9 +318,11 @@ class DQNAlgorithm(Algorithm):
             current_exp_dict['r'] = truncated_n_step_return
         else:
             current_exp_dict = exp_dict
-        
+        """
+        # depr : goal update
         if self.goal_oriented and 'g' not in current_exp_dict:
             current_exp_dict['g'] = current_exp_dict['goals']['desired_goals']['s']
+        """
 
         if self.use_PER:
             init_sampling_priority = None 
@@ -370,9 +378,12 @@ class DQNAlgorithm(Algorithm):
         if self.recurrent:
             keys += ['rnn_states', 'next_rnn_states']
         
+        """
+        # depr : goal update
         if self.goal_oriented:
             keys += ['g']
-        
+        """
+
         for key in keys:    fulls[key] = []
 
         using_ray = isinstance(self.storages[0], ray.actor.ActorHandle)
@@ -485,8 +496,11 @@ class DQNAlgorithm(Algorithm):
                 # (batch_size, unroll_dim, ...)
 
             sampled_goals = None
+            """
+            # depr : goal update
             if self.goal_oriented:
                 sampled_goals = goals[batch_indices].cuda() if self.kwargs['use_cuda'] else goals[batch_indices]
+            """
 
             sampled_importanceSamplingWeights = None
             if self.use_PER:
@@ -595,8 +609,12 @@ class DQNAlgorithm(Algorithm):
             # (batch_size, unroll_dim, ...)
 
         sampled_goals = None
+
+        """
+        # depr : goal update
         if self.goal_oriented:
             sampled_goals = goals[batch_indices].cuda() if self.kwargs['use_cuda'] else goals[batch_indices]
+        """
 
         sampled_importanceSamplingWeights = None
         # if self.use_PER:

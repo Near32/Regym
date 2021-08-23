@@ -8,16 +8,6 @@ seed: 111
 task: {
     'env-id': 'CoMaze-7x7-Dense-v0',
     
-    # Selfplay:
-    #'run-id': 'serial/selfplay/Player2Harvesting/debugWhiteReachedGoal/NoBPTT/WithBN/ScalingFN_EPS1m3/Seed1_venv64_r2d2_EntropyReg0_WeightDecayReg0/',
-    #'agent-id': 'SADpaper_1step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate100Steps_EPSgreedyAPEX1m0_4m1OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2p4Min1e4_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L2_O1_B0',
-    # MARL: IQL:
-    #'run-id': 'serial/MARL/debugWhiteReachedGoal/NoBPTT/WithBN/ScalingFN_EPS1m3/Seed1_venv64_r2d2_EntropyReg0_WeightDecayReg0/',
-    #'agent-id': 'SAD_IQL_paper_1step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate100Steps_EPSgreedyAPEX1m0_4m1OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2p4Min1e4_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L2_O1_B0',
-    
-    # MARL: SAD:
-    #'run-id': 'serial/MARL/WithBN/ScalingFN_EPS1m3/Seed1_venv64_r2d2_EntropyReg0_WeightDecayReg0/',
-    #'agent-id': 'SAD_SAD_paper_1step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate100Steps_EPSgreedyAPEX1m0_4m1OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2p4Min1e4_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L2_O1_B0',
     # Selfplay: learner to actor update interval: 100 -> 1 
     'run-id': 'serial/selfplay/WithPlayer2Harvest/WithBN/ScalingFN_EPS1m3/Seed1_venv64_r2d2_EntropyReg0_WeightDecayReg0/',
     'agent-id': 'SAD_SAD_paper_3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r5p4Min2e4_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0',

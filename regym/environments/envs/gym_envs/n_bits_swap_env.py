@@ -47,7 +47,16 @@ class NBitsSwapEnv(gym.Env):
         self.state = self.np_random.randint(2, size=self.n)
         if not self.fixed_goal:
             self.goal = self.np_random.randint(2, size=self.n)
-        return self._get_obs()
+
+        info = {'latents':
+                    {   's': [self.state.copy()], 
+                        'succ_s': [self.state.copy()],
+                        'achieved_goal': [self.state.copy()],
+                        'desired_goal': [self.goal.copy()],
+                    }
+                }
+
+        return self._get_obs(), info
 
     def step(self, action):
         assert(action < self.n)
@@ -60,10 +69,10 @@ class NBitsSwapEnv(gym.Env):
         terminal = True if reward >= -0.5 or self.nbr_steps >= self.max_episode_steps else False
         
         info = {'latents':
-                    {   's': init_state.copy(), 
-                        'succ_s': self.state.copy(),
-                        'achieved_goal': self.state.copy(),
-                        'desired_goal': self.goal.copy()
+                    {   's': [init_state.copy()], 
+                        'succ_s': [self.state.copy()],
+                        'achieved_goal': [self.state.copy()],
+                        'desired_goal': [self.goal.copy()],
                     }
                 }
 

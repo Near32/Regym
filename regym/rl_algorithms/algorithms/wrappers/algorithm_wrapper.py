@@ -3,6 +3,7 @@ from ..algorithm import Algorithm
 class AlgorithmWrapper(Algorithm):
     def __init__(self, algorithm):
         self.algorithm = algorithm 
+        self.unwrapped = self.algorithm.unwrapped
 
     @property
     def kwargs(self):

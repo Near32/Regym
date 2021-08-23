@@ -17,7 +17,6 @@ from regym.rl_algorithms.networks import PreprocessFunction
 from regym.util.minerl import get_action_set, generate_action_parser, MineRLTrajectoryBasedEnv, trajectory_based_rl_loop, get_good_demo_names
 from regym.util.wrappers import minerl2020_wrap_env
 from regym.environments.vec_env import VecEnv
-from sklearn.metrics import pairwise_distances
 import numpy as np
 
 class R2D3Agent(R2D2Agent):
@@ -85,11 +84,12 @@ class MineRLTrajectoryEnvironmentCreator():
         return env
 
 def action_parser(action, action_set):
-  true_action = action['vector'] if isinstance(action, dict) else action
-  dis = pairwise_distances(action_set, true_action.reshape(1, -1))
-  discrete_action = np.argmin(dis, axis=0)
-  # (1,)
-  return discrete_action
+    from sklearn.metrics import pairwise_distances
+    true_action = action['vector'] if isinstance(action, dict) else action
+    dis = pairwise_distances(action_set, true_action.reshape(1, -1))
+    discrete_action = np.argmin(dis, axis=0)
+    # (1,)
+    return discrete_action
 
 def load_demonstrations_into_replay_buffer(
       agent,

@@ -6,12 +6,8 @@ import random
 from collections.abc import Iterable
 
 from ..algorithms.DQN import DQNAlgorithm, dqn_loss, ddqn_loss
-from ..networks import CategoricalQNet
-from ..networks import FCBody, FCBody2, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
-from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
-from ..networks import LinearLinearBody, LinearLstmBody
-from ..networks import NoisyLinear
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
+from regym.rl_algorithms.agents.utils import generate_model 
 
 import ray
 import torch
@@ -22,7 +18,7 @@ from functools import partial
 
 from .agent import Agent
 from .wrappers import DictHandlingAgentWrapper
-from gym.spaces import Dict
+from gym.spaces import Dict as gymDict
 from ..algorithms.wrappers import HERAlgorithmWrapper
 from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
 from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
@@ -56,7 +52,7 @@ class DQNAgent(Agent):
         self.previous_save_quotient = -1
 
     def get_update_count(self):
-        return self.algorithm.get_update_count()
+        return self.algorithm.unwrapped.get_update_count()
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
         '''
@@ -76,7 +72,7 @@ class DQNAgent(Agent):
         and self.kwargs["sad"]:
             a = a["action"]
 
-        if prediction is None:  prediction = self.current_prediction
+        if prediction is None:  prediction = deepcopy(self.current_prediction)
 
         state, r, succ_state, non_terminal = self.preprocess_environment_signals(s, r, succ_s, done)
         a = torch.from_numpy(a)
@@ -87,56 +83,100 @@ class DQNAgent(Agent):
         if "vdn" in self.kwargs \
         and self.kwargs["vdn"]:
             # Add a player dimension to each element:
-            # Assume inputs have shape : [batch_size*nbr_players, ...]
+            # Assume inputs have shape : [batch_size*nbr_players, ...],
+            # i.e. [batch_for_p0; batch_for_p1, ...]
             nbr_players = self.kwargs["vdn_nbr_players"]
             batch_size = state.shape[0] // nbr_players
             
             new_state = []
             for bidx in range(batch_size):
-                bidx_states = torch.stack([state[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_states = torch.stack(
+                    [
+                        state[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_state.append(bidx_states)
             state = torch.cat(new_state, dim=0)
             
             new_a = []
             for bidx in range(batch_size):
-                bidx_as = torch.stack([a[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_as = torch.stack(
+                    [
+                        a[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_a.append(bidx_as)
             a = torch.cat(new_a, dim=0)
 
             new_r = []
             for bidx in range(batch_size):
-                bidx_rs = torch.stack([r[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_rs = torch.stack(
+                    [
+                        r[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_r.append(bidx_rs)
             r = torch.cat(new_r, dim=0)
 
-            """
+            '''
             non_terminal = torch.cat([non_terminal]*2, dim=0)
             new_nt = []
             for bidx in range(batch_size):
                 bidx_nts = torch.stack([non_terminal[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
                 new_nt.append(bidx_nts)
             non_terminal = torch.cat(new_nt, dim=0)            
-            """
-
+            '''
+            
             new_succ_state = []
             for bidx in range(batch_size):
-                bidx_succ_states = torch.stack([succ_state[pidx*batch_size+bidx].unsqueeze(0) for pidx in range(nbr_players)], dim=1)
+                bidx_succ_states = torch.stack(
+                    [
+                        succ_state[pidx*batch_size+bidx].unsqueeze(0) 
+                        for pidx in range(nbr_players)
+                    ], 
+                    dim=1
+                )
                 new_succ_state.append(bidx_succ_states)
             succ_state = torch.cat(new_succ_state, dim=0)
             
-            hdict_reshape_fn = lambda x: x.reshape(batch_size, nbr_players, *x.shape[1:])
-            
+            # BEWARE: reshaping might not give the expected ordering due to the dimensions' ordering...
+            #hdict_reshape_fn = lambda x: x.reshape(batch_size, nbr_players, *x.shape[1:])
+            # The above fails to capture the correct ordering:
+            # [ batch0=[p0_exp1, p0_exp2 ; .. ]] instead of 
+            # [ batch0=[p0_exp1, p1_exp1 ; .. ]], if only two players are considered...  
+            def reshape_fn(x):
+                new_x = []
+                for bidx in range(batch_size):
+                    bidx_x = torch.stack(
+                        [
+                            x[pidx*batch_size+bidx].unsqueeze(0) 
+                            for pidx in range(nbr_players)
+                        ], 
+                        dim=1
+                    )
+                    new_x.append(bidx_x)
+                return torch.cat(new_x, dim=0)
+                
             for k, t in prediction.items():
                 if isinstance(t, torch.Tensor):
-                    prediction[k] = t.reshape(batch_size, nbr_players, *t.shape[1:])
+                    #prediction[k] = t.reshape(batch_size, nbr_players, *t.shape[1:])
+                    prediction[k] = reshape_fn(prediction[k])
                 elif isinstance(t, dict):
                     prediction[k] = apply_on_hdict(
                         hdict=t,
-                        fn=hdict_reshape_fn,
+                        fn=reshape_fn, #hdict_reshape_fn,
                     )
                 else:
                     raise NotImplementedError
             
+            """
+            # not used...
             # Infos: list of batch_size * nbr_players dictionnaries:
             new_infos = []
             for bidx in range(batch_size):
@@ -152,6 +192,7 @@ class DQNAgent(Agent):
             # Goals:
             if self.goal_oriented:
                 raise NotImplementedError
+            """
 
         # We assume that this function has been called directly after take_action:
         # therefore the current prediction correspond to this experience.
@@ -186,11 +227,13 @@ class DQNAgent(Agent):
 
             #########################################################################
             #########################################################################
+            # Exctracts tensors at root level:
             exp_dict.update(Agent._extract_from_prediction(prediction, batch_index))
             #########################################################################
             #########################################################################
             
 
+            # Extracts remaining info:
             if self.recurrent:
                 exp_dict['rnn_states'] = _extract_from_rnn_states(
                     prediction['rnn_states'],
@@ -203,8 +246,15 @@ class DQNAgent(Agent):
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
 
+            """
+            # depr : goal update
             if self.goal_oriented:
-                exp_dict['goals'] = Agent._extract_from_hdict(goals, batch_index, goal_preprocessing_fn=self.goal_preprocessing)
+                exp_dict['goals'] = Agent._extract_from_hdict(
+                    goals, 
+                    batch_index, 
+                    goal_preprocessing_fn=self.goal_preprocessing
+                )
+            """
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
@@ -229,7 +279,7 @@ class DQNAgent(Agent):
 
         if self.training \
         and self.handled_experiences > self.kwargs['min_capacity'] \
-        and self.algorithm.stored_experiences() > self.kwargs['min_capacity'] \
+        and self.algorithm.unwrapped.stored_experiences() > self.kwargs['min_capacity'] \
         and (period_count_check % period_check == 0 or not(self.async_actor)):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
@@ -242,23 +292,23 @@ class DQNAgent(Agent):
             
             nbr_updates = self.nbr_training_iteration_per_cycle
 
-            if self.algorithm.summary_writer is not None:
+            if self.algorithm.unwrapped.summary_writer is not None:
                 if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
                     actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
                 else:
                     actor_learner_shared_dict = self.actor_learner_shared_dict.get()
                 nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
-                self.algorithm.summary_writer.add_scalar(
+                self.algorithm.unwrapped.summary_writer.add_scalar(
                     f'PerUpdate/ActorLearnerSynchroRemainingUpdates', 
                     nbr_update_remaining, 
-                    self.algorithm.get_update_count()
+                    self.algorithm.unwrapped.get_update_count()
                 )
             
             # Update actor's models:
             if self.async_learner\
             and (self.handled_experiences // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
                 self.previous_actor_models_update_quotient = self.handled_experiences // self.actor_models_update_steps_interval
-                new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.get_models().items()}
+                new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.unwrapped.get_models().items()}
                 
                 if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
                     actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
@@ -275,13 +325,13 @@ class DQNAgent(Agent):
 
             if self.async_learner\
             and self.save_path is not None \
-            and (self.algorithm.get_update_count() // self.saving_interval) != self.previous_save_quotient:
-                self.previous_save_quotient = self.algorithm.get_update_count() // self.saving_interval
+            and (self.algorithm.unwrapped.get_update_count() // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = self.algorithm.unwrapped.get_update_count() // self.saving_interval
                 self.save()
 
         return nbr_updates
 
-    def take_action(self, state, infos=None):
+    def take_action(self, state, infos=None, as_logit=False):
         if self.async_actor:
             # Update the algorithm's model if needs be:
             if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
@@ -298,29 +348,43 @@ class DQNAgent(Agent):
                 
                 if "models" in actor_learner_shared_dict.keys():
                     new_models = actor_learner_shared_dict["models"]
-                    self.algorithm.set_models(new_models)
+                    self.algorithm.unwrapped.set_models(new_models)
                 else:
                     raise NotImplementedError 
 
         if self.training:
             self.nbr_steps += state.shape[0]
-        self.eps = self.algorithm.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
+        self.eps = self.algorithm.unwrapped.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
         if "vdn" in self.kwargs \
         and self.kwargs["vdn"]:
-            self.eps = np.concatenate([self.eps]*self.kwargs["vdn_nbr_players"], axis=0)
+            # The following will not make same values contiguous:
+            #self.eps = np.concatenate([self.eps]*self.kwargs["vdn_nbr_players"], axis=0)
+            # whereas the following will, and thus players in the same environment will explore similarly:
+            self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
 
-        state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
+
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        
+        """
+        # depr : goal update
         goal = None
         if self.goal_oriented:
-            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.kwargs['use_cuda'])
+            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        """
 
-        model = self.algorithm.get_models()['model']
+        model = self.algorithm.unwrapped.get_models()['model']
         if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
-            model = self.algorithm.get_models()['target_model']
+            model = self.algorithm.unwrapped.get_models()['target_model']
         model = model.train(mode=self.training)
 
-        self.current_prediction = self.query_model(model, state, goal)
         
+        # depr : goal update
+        #self.current_prediction = self.query_model(model, state, goal)
+        self.current_prediction = self.query_model(model, state)
+        
+        if as_logit:
+            return self.current_prediction['log_a']
+
         # Post-process and update the rnn_states from the current prediction:
         # self.rnn_states <-- self.current_prediction['next_rnn_states']
         # WARNING: _post_process affects self.rnn_states. It is imperative to
@@ -329,6 +393,7 @@ class DQNAgent(Agent):
         self.current_prediction = self._post_process(self.current_prediction)
 
         greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
+
         if self.noisy or not(self.training):
             return greedy_action
 
@@ -365,7 +430,114 @@ class DQNAgent(Agent):
 
         return actions
 
-    def query_model(self, model, state, goal):
+    def query_action(self, state, infos=None, as_logit=False):
+        """
+        Query's the model in training mode...
+        """
+        if self.async_actor:
+            # Update the algorithm's model if needs be:
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            if actor_learner_shared_dict["models_update_required"][self.async_actor_idx]:
+                actor_learner_shared_dict["models_update_required"][self.async_actor_idx] = False
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+                
+                if "models" in actor_learner_shared_dict.keys():
+                    new_models = actor_learner_shared_dict["models"]
+                    self.algorithm.unwrapped.set_models(new_models)
+                else:
+                    raise NotImplementedError 
+
+        self.eps = self.algorithm.unwrapped.get_epsilon(nbr_steps=self.nbr_steps, strategy=self.epsdecay_strategy)
+        if "vdn" in self.kwargs \
+        and self.kwargs["vdn"]:
+            # The following will not make same values contiguous:
+            #self.eps = np.concatenate([self.eps]*self.kwargs["vdn_nbr_players"], axis=0)
+            # whereas the following will, and thus players in the same environment will explore similarly:
+            self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
+
+
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        
+        """
+        # depr : goal update
+        goal = None
+        if self.goal_oriented:
+            goal = self.goal_preprocessing(self.goals, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        """
+
+        model = self.algorithm.unwrapped.get_models()['model']
+        if 'use_target_to_gather_data' in self.kwargs and self.kwargs['use_target_to_gather_data']:
+            model = self.algorithm.unwrapped.get_models()['target_model']
+        if not(model.training):  model = model.train(mode=True)
+
+        # depr : goal update
+        #current_prediction = self.query_model(model, state, goal)
+        current_prediction = self.query_model(model, state)
+        
+        # 1) Post-process and update the rnn_states from the current prediction:
+        # self.rnn_states <-- self.current_prediction['next_rnn_states']
+        # WARNING: _post_process affects self.rnn_states. It is imperative to
+        # manipulate a copy of it outside of the agent's manipulation, e.g.
+        # when feeding it to the models.
+        # 2) All the elements from the prediction dictionnary are being detached+cpued from the graph.
+        # Thus, here, we only want to update the rnn state:
+        
+        if as_logit:
+            self._keep_grad_update_rnn_states(
+                next_rnn_states_dict=current_prediction['next_rnn_states'],
+                rnn_states_dict=self.rnn_states
+            )
+            return current_prediction
+            #return current_prediction['log_a']
+        else:
+            current_prediction = self._post_process(current_prediction)
+        
+        greedy_action = current_prediction['a'].reshape((-1,1)).numpy()
+
+        if self.noisy:
+            return greedy_action
+
+        legal_actions = torch.ones_like(current_prediction['qa'])
+        if infos is not None\
+        and 'head' in infos\
+        and 'extra_inputs' in infos['head']\
+        and 'legal_actions' in infos['head']['extra_inputs']:
+            legal_actions = infos['head']['extra_inputs']['legal_actions'][0]
+            # in case there are no legal actions for this agent in this current turn:
+            for actor_idx in range(legal_actions.shape[0]):
+                if legal_actions[actor_idx].sum() == 0: 
+                    legal_actions[actor_idx, ...] = 1
+        sample = np.random.random(size=self.eps.shape)
+        greedy = (sample > self.eps)
+        greedy = np.reshape(greedy[:state.shape[0]], (state.shape[0],1))
+
+        #random_actions = [random.randrange(model.action_dim) for _ in range(state.shape[0])]
+        random_actions = [
+            legal_actions[actor_idx].multinomial(num_samples=1).item() 
+            for actor_idx in range(legal_actions.shape[0])
+        ]
+        random_actions = np.reshape(np.array(random_actions), (state.shape[0],1))
+        
+        actions = greedy*greedy_action + (1-greedy)*random_actions
+        
+        if "sad" in self.kwargs \
+        and self.kwargs["sad"]:
+            action_dict = {
+                'action': actions,
+                'greedy_action': greedy_action,
+            }
+            return action_dict 
+
+        return actions
+
+    def query_model(self, model, state, goal=None):
         if self.recurrent:
             self._pre_process_rnn_states()
             # WARNING: it is imperative to make a copy 
@@ -388,7 +560,8 @@ class DQNAgent(Agent):
             minimal=minimal
         )
         clone = DQNAgent(name=self.name, algorithm=cloned_algo)
-
+        clone.save_path = self.save_path
+        
         clone.actor_learner_shared_dict = self.actor_learner_shared_dict
         clone._handled_experiences = self._handled_experiences
         clone.episode_count = self.episode_count
@@ -450,392 +623,6 @@ class DQNAgent(Agent):
         return clone
 
 
-def generate_model(task: 'regym.environments.Task', kwargs: Dict) -> nn.Module:
-    phi_body = None
-    input_dim = list(task.observation_shape)
-    if 'goal_oriented' in kwargs and kwargs['goal_oriented']:
-        goal_input_shape = list(task.goal_shape)
-        if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
-            if isinstance(input_dim, int):
-                input_dim = input_dim+goal_input_shape
-            else:
-                input_dim[-1] = input_dim[-1]+goal_input_shape[-1]
-
-    if kwargs['phi_arch'] != 'None':
-        output_dim = kwargs['phi_arch_feature_dim']
-        if kwargs['phi_arch'] == 'LSTM-RNN':
-            phi_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
-        elif kwargs['phi_arch'] == 'GRU-RNN':
-            phi_body = GRUBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
-        elif kwargs['phi_arch'] == 'MLP':
-            hidden_units=kwargs['phi_arch_hidden_units']
-            hidden_units += [output_dim]
-            
-            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
-            extra_inputs_infos_phi_body = {}
-            if extra_inputs_infos != {}:
-                for key in extra_inputs_infos:
-                    shape = extra_inputs_infos[key]['shape']
-                    tl = extra_inputs_infos[key]['target_location']
-                    if 'phi_body' in tl:
-                        extra_inputs_infos_phi_body[key] = {
-                            'shape':shape, 
-                            'target_location':tl
-                        }
-            if extra_inputs_infos_phi_body == {}:
-                phi_body = FCBody(
-                    input_dim, 
-                    hidden_units=hidden_units,
-                )
-            else:
-                phi_body = FCBody2(
-                    input_dim, 
-                    hidden_units=hidden_units,
-                    extra_inputs_infos=extra_inputs_infos_phi_body
-                )
-
-        elif kwargs['phi_arch'] == 'CNN':
-            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            if isinstance(kwargs['observation_resize_dim'], int):
-                input_height, input_width = kwargs['observation_resize_dim'], kwargs['observation_resize_dim']
-            else:
-                input_height, input_width = kwargs['observation_resize_dim']
-
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=input_height, normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], input_height, input_width]
-            if 'nbr_frame_stacking' in kwargs:
-                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
-            input_shape = kwargs['preprocessed_observation_shape']
-            channels = [input_shape[0]] + kwargs['phi_arch_channels']
-            kernels = kwargs['phi_arch_kernels']
-            strides = kwargs['phi_arch_strides']
-            paddings = kwargs['phi_arch_paddings']
-            output_dim = kwargs['phi_arch_feature_dim']
-            phi_body = ConvolutionalBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings)
-        elif kwargs['phi_arch'] == 'ResNet18':
-            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
-            if 'nbr_frame_stacking' in kwargs:
-                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
-            input_shape = kwargs['preprocessed_observation_shape']
-            output_dim = kwargs['phi_arch_feature_dim']
-            phi_body = resnet18Input64(input_shape=input_shape, output_dim=output_dim)
-        elif kwargs['phi_arch'] == 'CNN-GRU-RNN':
-            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
-            if 'nbr_frame_stacking' in kwargs:
-                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
-            input_shape = kwargs['preprocessed_observation_shape']
-            channels = [input_shape[0]] + kwargs['phi_arch_channels']
-            kernels = kwargs['phi_arch_kernels']
-            strides = kwargs['phi_arch_strides']
-            paddings = kwargs['phi_arch_paddings']
-            output_dim = kwargs['phi_arch_hidden_units'][-1]
-            phi_body = ConvolutionalGruBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings,
-                                         hidden_units=kwargs['phi_arch_hidden_units'])
-        elif kwargs['phi_arch'] == 'CNN-LSTM-RNN':
-            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
-            if 'nbr_frame_stacking' in kwargs:
-                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
-            input_shape = kwargs['preprocessed_observation_shape']
-            channels = [input_shape[0]] + kwargs['phi_arch_channels']
-            kernels = kwargs['phi_arch_kernels']
-            strides = kwargs['phi_arch_strides']
-            paddings = kwargs['phi_arch_paddings']
-            output_dim = kwargs['phi_arch_feature_dim']  # TODO: figure out if this breaks anything else
-            
-            # Selecting Extra Inputs Infos relevant to phi_body:
-            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
-            extra_inputs_infos_phi_body = {}
-            if extra_inputs_infos != {}:
-                for key in extra_inputs_infos:
-                    shape = extra_inputs_infos[key]['shape']
-                    tl = extra_inputs_infos[key]['target_location']
-                    if 'phi_body' in tl:
-                        extra_inputs_infos_phi_body[key] = {
-                            'shape':shape, 
-                            'target_location':tl
-                        }
-            
-            phi_body = ConvolutionalLstmBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings,
-                                         extra_inputs_infos=extra_inputs_infos_phi_body,
-                                         hidden_units=kwargs['phi_arch_hidden_units'])
-        input_dim = output_dim
-
-
-    goal_phi_body = None
-    if 'goal_oriented' in kwargs and kwargs['goal_oriented']:
-        goal_input_shape = task.goal_shape
-        if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
-            kwargs['goal_preprocess'] = kwargs['state_preprocess']
-
-        if 'goal_state_shared_arch' in kwargs and kwargs['goal_state_shared_arch']:
-            kwargs['goal_preprocess'] = kwargs['state_preprocess']
-            if 'preprocessed_observation_shape' in kwargs:
-                kwargs['preprocessed_goal_shape'] = kwargs['preprocessed_observation_shape']
-                goal_input_shape = kwargs['preprocessed_goal_shape']
-            goal_phi_body = None
-
-        elif kwargs['goal_phi_arch'] != 'None':
-            output_dim = 256
-            if kwargs['goal_phi_arch'] == 'LSTM-RNN':
-                phi_body = LSTMBody(goal_input_shape, hidden_units=(output_dim,), gate=F.leaky_relu)
-            elif kwargs['goal_phi_arch'] == 'GRU-RNN':
-                phi_body = GRUBody(goal_input_shape, hidden_units=(output_dim,), gate=F.leaky_relu)
-            elif kwargs['goal_phi_arch'] == 'MLP':
-                phi_body = FCBody(goal_input_shape, hidden_units=(output_dim, ), gate=F.leaky_relu)
-            elif kwargs['goal_phi_arch'] == 'CNN':
-                # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-                kwargs['goal_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['goal_resize_dim'], normalize_rgb_values=True)
-                kwargs['preprocessed_goal_shape'] = [task.goal_shape[-1], kwargs['goal_resize_dim'], kwargs['goal_resize_dim']]
-                if 'nbr_frame_stacking' in kwargs:
-                    kwargs['preprocessed_goal_shape'][0] *=  kwargs['nbr_frame_stacking']
-                input_shape = kwargs['preprocessed_goal_shape']
-                channels = [goal_shape[0]] + kwargs['goal_phi_arch_channels']
-                kernels = kwargs['goal_phi_arch_kernels']
-                strides = kwargs['goal_phi_arch_strides']
-                paddings = kwargs['goal_phi_arch_paddings']
-                output_dim = kwargs['goal_phi_arch_feature_dim']
-                phi_body = ConvolutionalBody(input_shape=input_shape,
-                                             feature_dim=output_dim,
-                                             channels=channels,
-                                             kernel_sizes=kernels,
-                                             strides=strides,
-                                             paddings=paddings)
-            elif kwargs['goal_phi_arch'] == 'ResNet18':
-                # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-                kwargs['goal_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['goal_resize_dim'], normalize_rgb_values=True)
-                kwargs['preprocessed_goal_shape'] = [task.goal_shape[-1], kwargs['goal_resize_dim'], kwargs['goal_resize_dim']]
-                if 'nbr_frame_stacking' in kwargs:
-                    kwargs['preprocessed_goal_shape'][0] *=  kwargs['nbr_frame_stacking']
-                input_shape = kwargs['preprocessed_goal_shape']
-                output_dim = kwargs['goal_phi_arch_feature_dim']
-                phi_body = resnet18Input64(input_shape=input_shape, output_dim=output_dim)
-            elif kwargs['goal_phi_arch'] == 'CNN-GRU-RNN':
-                # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-                kwargs['goal_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['goal_resize_dim'], normalize_rgb_values=True)
-                kwargs['preprocessed_goal_shape'] = [task.goal_shape[-1], kwargs['goal_resize_dim'], kwargs['goal_resize_dim']]
-                if 'nbr_frame_stacking' in kwargs:
-                    kwargs['preprocessed_goal_shape'][0] *=  kwargs['nbr_frame_stacking']
-                input_shape = kwargs['preprocessed_goal_shape']
-                channels = [input_shape[0]] + kwargs['goal_phi_arch_channels']
-                kernels = kwargs['goal_phi_arch_kernels']
-                strides = kwargs['goal_phi_arch_strides']
-                paddings = kwargs['goal_phi_arch_paddings']
-                output_dim = kwargs['goal_phi_arch_hidden_units'][-1]
-                goal_phi_body = ConvolutionalGruBody(input_shape=input_shape,
-                                             feature_dim=output_dim,
-                                             channels=channels,
-                                             kernel_sizes=kernels,
-                                             strides=strides,
-                                             paddings=paddings,
-                                             hidden_units=kwargs['phi_arch_hidden_units'])
-            input_dim += output_dim
-
-
-    critic_body = None
-    layer_fn = nn.Linear
-    if kwargs['noisy']:  layer_fn = NoisyLinear
-    if kwargs['critic_arch'] != 'None':
-        output_dim = 256
-        if kwargs['critic_arch'] == 'LSTM-RNN':
-            #critic_body = LSTMBody(input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
-            state_dim = input_dim
-            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
-
-            # Selecting Extra Inputs Infos relevant to phi_body:
-            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
-            extra_inputs_infos_critic_body = {}
-            if extra_inputs_infos != {}:
-                for key in extra_inputs_infos:
-                    shape = extra_inputs_infos[key]['shape']
-                    tl = extra_inputs_infos[key]['target_location']
-                    if 'critic_body' in tl:
-                        extra_inputs_infos_critic_body[key] = {
-                            'shape':shape, 
-                            'target_location':tl
-                        }
-
-            critic_body = LSTMBody(
-                state_dim=state_dim,
-                hidden_units=critic_arch_hidden_units, 
-                gate=None,
-                extra_inputs_infos=extra_inputs_infos_critic_body,
-            )
-        elif kwargs['critic_arch'] == 'GRU-RNN':
-            state_dim = input_dim
-            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
-
-            # Selecting Extra Inputs Infos relevant to phi_body:
-            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
-            extra_inputs_infos_critic_body = {}
-            if extra_inputs_infos != {}:
-                for key in extra_inputs_infos:
-                    shape = extra_inputs_infos[key]['shape']
-                    tl = extra_inputs_infos[key]['target_location']
-                    if 'critic_body' in tl:
-                        extra_inputs_infos_critic_body[key] = {
-                            'shape':shape, 
-                            'target_location':tl
-                        }
-            
-            critic_body = GRUBody(
-                state_dim=state_dim,
-                hidden_units=critic_arch_hidden_units, 
-                gate=None,
-                extra_inputs_infos=extra_inputs_infos_critic_body,
-            )
-        elif kwargs['critic_arch'] == 'MLP':
-            hidden_units=(output_dim,)
-            if 'critic_arch_hidden_units' in kwargs:
-                hidden_units = list(kwargs['critic_arch_hidden_units'])
-            critic_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
-        elif kwargs['critic_arch'] == 'CNN':
-            # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=True)
-            kwargs['preprocessed_observation_shape'] = [input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
-            if 'nbr_frame_stacking' in kwargs:
-                kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
-            input_shape = kwargs['preprocessed_observation_shape']
-            channels = [input_shape[0]] + kwargs['critic_arch_channels']
-            kernels = kwargs['critic_arch_kernels']
-            strides = kwargs['critic_arch_strides']
-            paddings = kwargs['critic_arch_paddings']
-            output_dim = kwargs['critic_arch_feature_dim']
-            critic_body = ConvolutionalBody(input_shape=input_shape,
-                                         feature_dim=output_dim,
-                                         channels=channels,
-                                         kernel_sizes=kernels,
-                                         strides=strides,
-                                         paddings=paddings)
-        elif kwargs['critic_arch'] == 'MLP-LSTM-RNN':
-            # Assuming flatten input:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            state_dim = input_dim
-            critic_arch_feature_dim = kwargs['critic_arch_feature_dim']
-            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
-
-            # Selecting Extra Inputs Infos relevant to phi_body:
-            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
-            extra_inputs_infos_critic_body = {}
-            if extra_inputs_infos != {}:
-                for key in extra_inputs_infos:
-                    shape = extra_inputs_infos[key]['shape']
-                    tl = extra_inputs_infos[key]['target_location']
-                    if 'critic_body' in tl:
-                        extra_inputs_infos_critic_body[key] = {
-                            'shape':shape, 
-                            'target_location':tl
-                        }
-            
-            critic_body = LinearLstmBody(
-                state_dim=state_dim,
-                feature_dim=critic_arch_feature_dim, 
-                hidden_units=critic_arch_hidden_units, 
-                non_linearities=[nn.ReLU], 
-                gate=F.relu,
-                dropout=0.0,
-                add_non_lin_final_layer=True,
-                layer_init_fn=None,
-                extra_inputs_infos=extra_inputs_infos_critic_body,
-            )
-
-        elif kwargs['critic_arch'] == 'MLP-MLP-RNN':
-            # Assuming flatten input:
-            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
-            state_dim = input_dim
-            critic_arch_feature_dim = kwargs['critic_arch_feature_dim']
-            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
-
-            # Selecting Extra Inputs Infos relevant to phi_body:
-            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
-            extra_inputs_infos_critic_body = {}
-            if extra_inputs_infos != {}:
-                for key in extra_inputs_infos:
-                    shape = extra_inputs_infos[key]['shape']
-                    tl = extra_inputs_infos[key]['target_location']
-                    if 'critic_body' in tl:
-                        extra_inputs_infos_critic_body[key] = {
-                            'shape':shape, 
-                            'target_location':tl
-                        }
-            
-            critic_body = LinearLinearBody(
-                state_dim=state_dim,
-                feature_dim=critic_arch_feature_dim, 
-                hidden_units=critic_arch_hidden_units, 
-                non_linearities=[nn.ReLU], 
-                gate=F.relu,
-                dropout=0.0,
-                add_non_lin_final_layer=True,
-                layer_init_fn=None,
-                extra_inputs_infos=extra_inputs_infos_critic_body,
-            )
-
-
-
-    # TODO: remove this! We needed to relax this condition for MineRL
-    # assert(task.action_type == 'Discrete')
-    obs_shape = list(task.observation_shape)
-    if 'preprocessed_observation_shape' in kwargs: obs_shape = kwargs['preprocessed_observation_shape']
-    goal_shape = list(task.goal_shape)
-    if 'preprocessed_goal_shape' in kwargs: goal_shape = kwargs['preprocessed_goal_shape']
-    if 'goal_state_flattening' in kwargs and kwargs['goal_state_flattening']:
-        obs_shape[-1] = obs_shape[-1] + goal_shape[-1]
-
-    # Selecting Extra Inputs Infos relevant to final_critic_layer:
-    extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
-    extra_inputs_infos_final_critic_layer = {}
-    if extra_inputs_infos != {}:
-        for key in extra_inputs_infos:
-            shape = extra_inputs_infos[key]['shape']
-            tl = extra_inputs_infos[key]['target_location']
-            if 'final_critic_layer' in tl:
-                extra_inputs_infos_final_critic_layer[key] = {
-                    'shape':shape, 
-                    'target_location':tl
-                }
-    
-    model = CategoricalQNet(
-        state_dim=obs_shape,
-        action_dim=task.action_dim,
-        phi_body=phi_body,
-        critic_body=critic_body,
-        dueling=kwargs['dueling'],
-        noisy=kwargs['noisy'],
-        goal_oriented=kwargs['goal_oriented'] if 'goal_oriented' in kwargs else False,
-        goal_shape=goal_shape,
-        goal_phi_body=goal_phi_body,
-        extra_inputs_infos=extra_inputs_infos_final_critic_layer
-    )
-
-    model.share_memory()
-    return model
-
-
 def build_DQN_Agent(task, config, agent_name):
     '''
     :param task: Environment specific configuration
@@ -862,7 +649,7 @@ def build_DQN_Agent(task, config, agent_name):
         loss_fn = ddqn_loss.compute_loss
 
     dqn_algorithm = DQNAlgorithm(kwargs, model, loss_fn=loss_fn)
-
+    
     if 'use_HER' in kwargs and kwargs['use_HER']:
         from ..algorithms.wrappers import latent_based_goal_predicated_reward_fn
         goal_predicated_reward_fn = None
@@ -875,7 +662,7 @@ def build_DQN_Agent(task, config, agent_name):
 
     agent = DQNAgent(name=agent_name, algorithm=dqn_algorithm)
 
-    if isinstance(getattr(task.env, 'observation_space', None), Dict) or ('use_HER' in kwargs and kwargs['use_HER']):
+    if isinstance(getattr(task.env, 'observation_space', None), gymDict) or ('use_HER' in kwargs and kwargs['use_HER']):
         agent = DictHandlingAgentWrapper(agent=agent, use_achieved_goal=kwargs['use_HER'])
 
     print(dqn_algorithm.get_models())

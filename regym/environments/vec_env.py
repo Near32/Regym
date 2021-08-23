@@ -15,10 +15,13 @@ class VecEnv():
                  gathering=True,
                  video_recording_episode_period=None,
                  video_recording_dirpath='./tmp/regym/video_recording/',
+                 video_recording_render_mode='rgb_array',
                  initial_env=None):
         
         self.video_recording_episode_period = video_recording_episode_period
         self.video_recording_dirpath = video_recording_dirpath
+        self.video_recording_render_mode = video_recording_render_mode
+
         self.gathering = gathering
         self.seed = seed
         self.env_creator = env_creator
@@ -52,7 +55,12 @@ class VecEnv():
         if self.env_processes[0] is None:
             self.launch_env_process(idx=0)
         return self.env_processes[0].action_space
-    
+    @property
+    def unwrapped_env(self):
+        if self.env_processes[0] is None:
+            self.launch_env_process(idx=0)
+        return self.env_processes[0]
+
     def seed(self, seed):
         self.seed = seed 
 
@@ -80,12 +88,12 @@ class VecEnv():
             self.initial_env = None
         self.env_processes[idx] = self.env_creator(worker_id=wid, seed=seed)
         
-        
         if idx==0 and self.video_recording_episode_period is not None:
             self.env_processes[idx] = PeriodicVideoRecorderWrapper(
                 env=self.env_processes[idx], 
                 base_dirpath=self.video_recording_dirpath,
-                video_recording_episode_period=self.video_recording_episode_period
+                video_recording_episode_period=self.video_recording_episode_period,
+                render_mode=self.video_recording_render_mode,
             )
 
     def sample(self):
@@ -119,6 +127,16 @@ class VecEnv():
 
     def put_action_in_queue(self, action, idx):
         self.env_queues[idx]['out'] = self.env_processes[idx].step(action)
+
+    def render(self, render_mode="rgb_array", env_indices=None) :
+        if env_indices is None: env_indices = range(self.nbr_parallel_env)
+        
+        observations = []
+        for idx in env_indices:
+            obs = self.env_processes[idx].render(render_mode)
+            observations.append(obs)
+
+        return observations
 
     def reset(self, env_configs=None, env_indices=None) :
         if env_indices is None: env_indices = range(self.nbr_parallel_env)
@@ -178,7 +196,12 @@ class VecEnv():
             self.dones[idx] = False
         self.init_reward = []
 
-        return copy.deepcopy([per_env_obs, per_env_infos])
+        output_dict = {
+            "observations":per_env_obs, 
+            "info":per_env_infos
+        }
+        
+        return copy.deepcopy(output_dict)
 
     def step(self, action_vector, only_progress_non_terminated=True):
         observations = []
@@ -210,13 +233,17 @@ class VecEnv():
             obs, r, done, info = experience
 
             if len(self.init_reward)<len(self.env_queues):
-                self.init_reward.append(r)
+                # Zero-out this initial reward:
+                init_r = copy.deepcopy(r)
+                if isinstance(init_r, list):
+                    for ridx in range(len(init_r)):
+                        init_r[ridx] = 0*init_r[ridx]  
+                self.init_reward.append(init_r)
 
             observations.append( obs )
             rewards.append( r )
 
-            if only_progress_non_terminated and self.dones[env_index] and not(all(self.dones)):
-                done=False
+            if only_progress_non_terminated and self.dones[env_index]:
                 rewards[-1] = self.init_reward[env_index]
             else:
                 self.dones[env_index] = done 
@@ -258,7 +285,14 @@ class VecEnv():
                 for idx_agent in range(len(infos[0])) 
             ]
 
-        return copy.deepcopy([per_env_obs, per_env_reward, dones, per_env_infos])
+        output_dict = {
+            "succ_observations":per_env_obs, 
+            "reward":per_env_reward, 
+            "done":dones, 
+            "succ_info":per_env_infos
+        }
+
+        return copy.deepcopy(output_dict)
 
     def close(self) :
         if self.env_processes is not None:

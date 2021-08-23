@@ -100,17 +100,25 @@ class VDNVecEnvWrapper(object):
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
 
+    def render(self, render_mode="rgb_array", env_indices=None) :
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+
+    def close(self):
+        return self.env.close()
+
     def reset(self, **kwargs):
-        next_obs, next_infos = self.env.reset(**kwargs)
-        
+        input_dict = self.env.reset(**kwargs)
+        nvdn_next_obs = input_dict["observations"]
+        nvdn_next_infos = input_dict["info"]
+
         vdn_obs = np.concatenate(
-            next_obs,
+            nvdn_next_obs,
             axis=0
         )
         next_obs = [vdn_obs]
 
         list_infos = []
-        for li in next_infos:
+        for li in nvdn_next_infos:
             for k in range(len(li)):
                 list_infos.append(li[k])
         """
@@ -124,7 +132,15 @@ class VDNVecEnvWrapper(object):
         """
         next_infos = [list_infos]
 
-        return next_obs, next_infos
+        output_dict = {
+            "observations":nvdn_next_obs,
+            "info":nvdn_next_infos,
+
+            "vdn_observations":next_obs,
+            "vdn_info":next_infos,
+        }
+
+        return output_dict
 
     def step(self, action, **kwargs):
         assert isinstance(action, list) and len(action)==1, "action argument must be a singleton list of dictionnary (SAD) or tensor."
@@ -150,27 +166,34 @@ class VDNVecEnvWrapper(object):
                 a = action[0][pidx*nbr_env:(pidx+1)*nbr_env, ...]
                 env_action.append(a)
 
-        next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
-        
+        nonvdn_action = env_action
+        env_output_dict = self.env.step(env_action, **kwargs)
+        if "actions" in env_output_dict:
+            nonvdn_action = env_output_dict["actions"]
+        nvdn_next_obs = env_output_dict["succ_observations"]
+        nvdn_reward = env_output_dict["reward"]
+        nvdn_done = env_output_dict["done"]
+        nvdn_next_infos = env_output_dict["succ_info"]
+
         next_obs = [
             np.concatenate(
-                next_obs,
+                nvdn_next_obs,
                 axis=0
             )
         ]
         # 1 x (batch_size*num_player, ...)
 
-        reward_shape = reward[0].shape
+        reward_shape = nvdn_reward[0].shape
         reward = [
             np.concatenate(
-                reward,
+                nvdn_reward,
                 axis=0
             )
         ]
         # 1 x (batch_size*num_player, ...)
         
         list_infos = []
-        for li in next_infos:
+        for li in nvdn_next_infos:
             for k in range(len(li)):
                 list_infos.append(li[k])
         
@@ -185,7 +208,21 @@ class VDNVecEnvWrapper(object):
         # 1 x key x (batch_size*num_player, ...)
         """
 
-        return next_obs, reward, done, next_infos
+        output_dict = {
+            "actions":nonvdn_action,
+
+            "succ_observations":nvdn_next_obs, 
+            "reward":nvdn_reward, 
+            "done":nvdn_done, 
+            "succ_info":nvdn_next_infos,
+
+            "vdn_succ_observations":next_obs, 
+            "vdn_reward":reward, 
+            "vdn_done":nvdn_done, 
+            "vdn_succ_info":next_infos
+        }
+
+        return output_dict
 
 
 # # Wrappers:
@@ -1668,7 +1705,7 @@ class SADEnvWrapper(gym.Wrapper):
         import ipdb; ipdb.set_trace()
         return next_obs, reward, done, next_infos
 
-class SADVecEnvWrapper(object):
+class SADVecEnvWrapper_depr(object):
     def __init__(self, env, nbr_actions):
         """
         Simplified Action Decoder wrapper expects the action argument for
@@ -1686,6 +1723,12 @@ class SADVecEnvWrapper(object):
 
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
+
+    def render(self, render_mode="rgb_array", env_indices=None):
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+    
+    def close(self):
+        return self.env.close() 
 
     def reset(self, **kwargs):
         next_obs, next_infos = self.env.reset(**kwargs)
@@ -1723,6 +1766,145 @@ class SADVecEnvWrapper(object):
                 next_infos[player_idx][env_idx]["greedy_action"] = ohe_ga
 
         return next_obs, reward, done, next_infos
+
+class SADVecEnvWrapper(object):
+    def __init__(self, env, nbr_actions, otherplay=False):
+        """
+        Simplified Action Decoder wrapper expects the action argument for
+        the step method to be a list of dictionnary containing the following keys:
+        - "action": the actual action to execute in the environment.
+        - "greedy_action": the greedy action that the agent would have used at test time.
+        It also expects the info dictionnary to contain a "current_player" key with an integer
+        as the value of the active player.
+        It passes the action to the wrapped environment and writes the greedy action
+        of the CURRENT PLAYER into the next_info dictionnary of ALL players with
+        an extra player_offset tensor.
+        """
+        self.env = env
+        self.otherplay=otherplay
+        self.nbr_actions = nbr_actions
+        self.nbr_players = None
+        self.current_player_idx = None
+
+    def get_nbr_envs(self):
+        return self.env.get_nbr_envs()
+
+    def set_nbr_envs(self, nbr_envs):
+        self.env.set_nbr_envs(nbr_envs)
+
+    def render(self, render_mode="rgb_array", env_indices=None):
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+    
+    def close(self):
+        return self.env.close()
+        
+    def reset(self, **kwargs):
+        input_dict = self.env.reset(**kwargs)
+        next_obs = input_dict["observations"]
+        next_infos = input_dict["info"]
+
+        self.nbr_players = len(next_obs)
+        self.current_player_idx = None 
+        if 'current_player' in next_infos[0][0]:
+            self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        # (nbr_env, )
+
+        for player_idx in range(2):
+            for env_idx in range(len(next_infos[player_idx])):
+                ohe_ga = np.zeros((1,self.nbr_actions), dtype=np.float32)
+                ohe_ap = np.zeros((1,self.nbr_players), dtype=np.float32)
+                next_infos[player_idx][env_idx]["greedy_action"] = np.concatenate(
+                    [ohe_ga, ohe_ap],
+                    axis=-1,
+                )
+        
+        output_dict = {
+            "observations":next_obs, 
+            "info":next_infos,
+        }
+
+        return output_dict
+
+    def step(self, action, **kwargs):
+        assert isinstance(action, list), "action argument must be a list of dictionnary (or tensors if test-time...)."
+        
+        env_action = []
+        if isinstance(action[0], dict):
+            for a in action:
+                env_action.append(a["action"])
+        else:
+            env_action = action
+
+        #next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
+        env_output_dict = self.env.step(env_action, **kwargs)
+        next_obs = env_output_dict["succ_observations"]
+        reward = env_output_dict["reward"]
+        done = env_output_dict["done"]
+        next_infos = env_output_dict["succ_info"]
+
+        for player_idx in range(self.nbr_players):
+            for env_idx in range(len(next_infos[player_idx])):
+                current_player = None
+                if self.current_player_idx is not None:
+                    current_player = self.current_player_idx[env_idx]
+                else:
+                    # assuming self.nbr_players==2...
+                    current_player = self.nbr_players-(player_idx+1) 
+                relative_current_player_idx = (current_player-player_idx) % self.nbr_players
+                if isinstance(action[0], dict):
+                    #ga = action[other_idx]["greedy_action"][env_idx]
+                    ga = action[current_player]["greedy_action"][env_idx]
+                    if self.otherplay:
+                        # expects env to be wrapped with DiscreteCombinedActionWrapper:
+                        dcaw_env = self.env.env_processes[env_idx]
+                        while not hasattr(dcaw_env, "_decode_action"):
+                            dcaw_env = dcaw_env.env 
+                        # expects other play wrapper:
+                        ow_env = dcaw_env.env
+                        # decode current player's action in the original env:
+                        decoded_ga = ow_env._decode_action( 
+                            action=dcaw_env._decode_action(ga),
+                            player_id=current_player,
+                        )
+                        # encode current player's action into other player's env:
+                        otherplayer_encoded_ga = dcaw_env._encode_action(
+                            action_dict=ow_env._encode_action(
+                                action=decoded_ga,
+                                player_id=player_idx, # other player's view point
+                            )
+                        )
+                        # int
+                        ga = otherplayer_encoded_ga
+                else:
+                    #ga = action[other_idx][env_idx]
+                    ga = action[current_player][env_idx]
+                ohe_ga = np.zeros((1,self.nbr_actions), dtype=np.float32)
+                ohe_ga[0,ga] = 1
+                ohe_ap = np.zeros((1,self.nbr_players), dtype=np.float32)
+                ohe_ap[0,relative_current_player_idx] = 1
+                next_infos[player_idx][env_idx]["greedy_action"] = np.concatenate(
+                    [ohe_ga, ohe_ap],
+                    axis=-1,
+                )
+
+        # update:
+        if 'current_player' in next_infos[0][0]:
+            self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        else:
+            self.current_player_idx = None 
+        # (nbr_env, )
+        
+        output_dict = {
+            "actions":env_action, #non-sad actions
+
+            "succ_observations":next_obs, 
+            "reward":reward, 
+            "done":done, 
+            "succ_info":next_infos,
+        }
+
+        return output_dict
+
 
 
 class FailureEndingTimeLimit(gym.Wrapper):
@@ -1990,10 +2172,57 @@ class DictFrameStack(gym.Wrapper):
             self.observations[k].append(obs[k])        
         return self._get_obs(obs), reward, done, info
 
+
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
+from gym.wrappers.monitoring.video_recorder import logger as video_recorder_logger
+
+class ConfigVideoRecorder(VideoRecorder):
+    def __init__(self, env, render_mode, path=None, metadata=None, enabled=True, base_path=None):
+        super(ConfigVideoRecorder, self).__init__(
+            env=env,
+            path=path,
+            metadata=metadata,
+            enabled=enabled,
+            base_path=base_path
+        )
+        
+        modes = env.metadata.get('render.modes', [])
+        
+        if render_mode not in modes:
+            video_recorder_logger.warn('Render mode required is not available with this Env. Disabling further rendering.')
+            self.broken = True 
+
+        self.render_mode = render_mode
+
+    def capture_frame(self):
+        if not self.functional: return 
+        logger.debug('Capturing video frame: path=%s', self.path)
+
+        render_mode = self.render_mode
+        frame = self.env.render(mode=render_mode)
+
+        if frame is None:
+            if self._async:
+                return 
+            else:
+                video_recorder_logger.warn('Env returned none on render(). Disabling further rendering for video recorder by marking as disabled: path=%s metadat_path=%s',
+                    self.path,
+                    self.metadat_path
+                )
+                self.broken=True
+        else:
+            self.last_frame = frame
+            if self.ansi_mode:
+                self._encode_ansi_frame(frame)
+            else:
+                self._encode_image_frame(frame)
+
+
 class PeriodicVideoRecorderWrapper(gym.Wrapper):
-    def __init__(self, env, base_dirpath, video_recording_episode_period=1):
+    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array',):
         gym.Wrapper.__init__(self, env)
 
+        self.render_mode = render_mode
         self.episode_idx = 0
         self.base_dirpath = base_dirpath
         os.makedirs(self.base_dirpath, exist_ok=True)
@@ -2003,10 +2232,13 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
         self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
 
     def _init_video_recorder(self, env, path):
-        self.video_recorder = gym.wrappers.monitoring.video_recorder.VideoRecorder(env=env, path=path, enabled=True)
+        #self.video_recorder = gym.wrappers.monitoring.video_recorder.VideoRecorder(env=env, path=path, enabled=True)
+        self.video_recorder = ConfigVideoRecorder(env=env, render_mode=self.render_mode, path=path, enabled=True)
 
     def reset(self, **args):
         self.episode_idx += 1
+
+        env_output = super(PeriodicVideoRecorderWrapper, self).reset()
 
         if self.episode_idx % self.video_recording_episode_period == 0:
             path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
@@ -2019,7 +2251,7 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
                 del self.video_recorder
                 self.is_video_enabled = False
 
-        return super(PeriodicVideoRecorderWrapper, self).reset()
+        return env_output
 
     def step(self, action):
         if self.is_video_enabled:

@@ -1,3 +1,5 @@
+from typing import Dict, Any
+
 import gym
 
 from .gym_parser import parse_gym_environment
@@ -12,13 +14,17 @@ def generate_task(env_name: str,
                   env_type: EnvType = EnvType.SINGLE_AGENT, 
                   nbr_parallel_env: int = 1, 
                   wrapping_fn: object = None, 
-                  test_wrapping_fn: object = None, 
+                  test_wrapping_fn: object = None,
+                  env_config: Dict[str,Any] = {},
+                  test_env_config: Dict[str,Any] = {},
                   seed: int = 0,
                   test_seed: int = 1,
                   train_video_recording_episode_period: int = None,
                   train_video_recording_dirpath: str = './tmp/recordings/train/',
+                  train_video_recording_render_mode: str = 'rgb_array',
                   test_video_recording_episode_period: int = None,
                   test_video_recording_dirpath: str = './tmp/recordings/teset/',
+                  test_video_recording_render_mode: str = 'rgb_array',
                   gathering: bool = False) -> Task:
     '''
     Returns a regym.environments.Task by creating an environment derived from :param: env_name
@@ -49,7 +55,7 @@ def generate_task(env_name: str,
     env = None
     if is_gym_environment and is_unity_environment: raise ValueError(f'{env_name} exists as both a Gym and an Unity environment. Rename Unity environment to remove duplicate problem.')
     elif is_gym_environment: 
-        env = gym.make(env_name)
+        env = gym.make(env_name, **env_config)
         env.seed(seed)
         if wrapping_fn is not None: 
             env = wrapping_fn(env=env)
@@ -57,8 +63,8 @@ def generate_task(env_name: str,
     elif is_unity_environment: task = parse_unity_environment(env_name, env_type)
     else: raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
 
-    env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=wrapping_fn)
-    test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn)
+    env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=wrapping_fn, env_config=env_config)
+    test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn, env_config=test_env_config)
 
     task = Task(task.name, 
                 #ParallelEnv(env_creator, nbr_parallel_env, seed=seed), 
@@ -70,6 +76,7 @@ def generate_task(env_name: str,
                     gathering=gathering,
                     video_recording_episode_period=train_video_recording_episode_period,
                     video_recording_dirpath=train_video_recording_dirpath,
+                    video_recording_render_mode=train_video_recording_render_mode,
                     initial_env=env,
                 ), 
                 env_type,
@@ -80,7 +87,8 @@ def generate_task(env_name: str,
                     seed=test_seed,
                     gathering=False,
                     video_recording_episode_period=test_video_recording_episode_period,
-                    video_recording_dirpath=test_video_recording_dirpath
+                    video_recording_dirpath=test_video_recording_dirpath,
+                    video_recording_render_mode=test_video_recording_render_mode,
                 ),
                 task.state_space_size, 
                 task.action_space_size, 

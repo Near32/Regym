@@ -2,8 +2,8 @@ class Storage:
     def __init__(self, keys=None):
         if keys is None:
             keys = []
-        keys = keys + ['s', 'a', 'r', 'succ_s', 'non_terminal',
-                       'v', 'q', 'pi', 'log_pi', 'ent',
+        keys = keys + ['s', 'a', 'r', 'succ_s', 'non_terminal', 'info',
+                       'v', 'q', 'pi', 'log_pi', 'ent', 'greedy_action',
                        'adv', 'ret', 'qa', 'log_pi_a',
                        'mean', 'action_logits']
         self.keys = keys
