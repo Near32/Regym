@@ -1,23 +1,22 @@
 # NOTE: relative path
 population_path: 'random_agents/'
 save_path: './cross_play_matrix.pickle'
-num_games_per_matchup: 1
+agents: {
+    'comm_RB_seed1': 1,
+    'comm_RB_seed2': 2,
+    'comm_RB_seed3': 3,
+    }
+num_games_per_matchup: 10
 num_matrices: 1
 
 seed: 111
 task: {
-    'env-id': 'CoMaze-7x7-Dense-v0',
+    'env-id': 'CoMaze-9x9-Dense-Level5-UniformSecrets-v0',
     
-    # Selfplay: learner to actor update interval: 100 -> 1 
-    'run-id': 'serial/selfplay/WithPlayer2Harvest/WithBN/ScalingFN_EPS1m3/Seed1_venv64_r2d2_EntropyReg0_WeightDecayReg0/',
+    'run-id': 'serial/crossplay/WithBN/ScalingFN_EPS1m3/Seed1_venv64_r2d2_EntropyReg0_WeightDecayReg0/',
     'agent-id': 'SAD_SAD_paper_3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r5p4Min2e4_alpha9m1_beta6m1_over2e4_eta9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0',
     
     'nbr_actor': 64,
-    #'nbr_frame_skipping': 4,
-    #'nbr_frame_stacking': 4,
-    #'grayscale': True,
-    #'single_life_episode': True, #False,
-    #'nbr_max_random_steps': 30,
     'sad': True,
     'clip_reward': False,
     'previous_reward_action': True,

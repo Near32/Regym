@@ -1,4 +1,4 @@
-from typing import List, Tuple, Union, Optional
+from typing import List, Dict, Tuple, Union, Optional
 import pickle
 from functools import partial
 from itertools import product
@@ -18,6 +18,7 @@ import gym
 import comaze_gym
 from comaze_gym.utils.wrappers import comaze_wrap
 
+import regym
 from regym.environments import generate_task, EnvType
 from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgentWrapper
 from regym.rl_algorithms import build_Random_Agent
@@ -94,7 +95,7 @@ def cross_play(population: List['Agent'],
 
 
 def compute_cross_play_matrices(num_matrices: int,
-                                population: List['Agent'],
+                                population:Dict[str,regym.rl_algorithms.agents.agent.Agent],
                                 task: 'Task',
                                 num_games_per_matchup: int,
                                 show_progress: bool) -> List[np.ndarray]:
@@ -123,7 +124,7 @@ def compute_cross_play_matrices(num_matrices: int,
     return cross_play_matrices
 
 
-def compute_cross_play_evaluation_matrix(population: List['Agent'],
+def compute_cross_play_evaluation_matrix(population:Dict[str,regym.rl_algorithms.agents.agent.Agent],
                                          task: 'Task',
                                          num_games_per_matchup: int,
                                          show_progress: bool=True) -> np.ndarray:
@@ -133,7 +134,7 @@ def compute_cross_play_evaluation_matrix(population: List['Agent'],
     (population[i], population[j]) on :param: task over :param: num_games_per_matchup.
     '''
     cross_play_matrix = np.zeros((len(population), len(population)))
-
+    agentIndices2Name = dict(zip(range(len(population)), population.keys()))
     matchups_agent_indices = list(product(range(len(population)), range(len(population))))
     if show_progress:
         description = ('Computing cross play matrix with '
@@ -141,8 +142,10 @@ def compute_cross_play_evaluation_matrix(population: List['Agent'],
                        f'with {num_games_per_matchup} num games per matchup')
         matchups_agent_indices = tqdm(matchups_agent_indices, desc=description)
     for i, j in matchups_agent_indices:
+        i_name = agentIndices2Name[i]
+        j_name = agentIndices2Name[j]
         pairwise_performance = compute_pairwise_performance(
-            agent_vector=[population[i], population[j]],
+            agent_vector=[population[i_name], population[j_name]],
             task=task,
             num_episodes=num_games_per_matchup
         )
@@ -150,7 +153,7 @@ def compute_cross_play_evaluation_matrix(population: List['Agent'],
     return cross_play_matrix
 
 
-def compute_pairwise_performance(agent_vector: List['Agent'],
+def compute_pairwise_performance(agent_vector: List[regym.rl_algorithms.agents.agent.Agent],
                                  task: 'Task',  # TODO: change upstream
                                  num_episodes: int) -> float:
     '''
@@ -172,11 +175,14 @@ def check_input_validity(num_games_per_matchup, num_matrices):
         raise ValueError(f'CLI Argument "num_games_per_matchup" must be strictly positive (Given: {num_matrices})')
 
 
-def plot_cross_play_matrix(cross_play_matrix: Union[List, np.ndarray],
-                           cross_play_value_variance: Optional[float]=None,
-                           show_annotations: bool=True,
-                           cbar: bool=True,
-                           ax: Optional[plt.Axes] = None) -> plt.Axes:
+def plot_cross_play_matrix(
+        population:Dict[str,regym.rl_algorithms.agents.agent.Agent], 
+        cross_play_matrix: Union[List, np.ndarray],
+        cross_play_value_variance: Optional[float]=None,
+        show_annotations: bool=True,
+        cbar: bool=True,
+        ax: Optional[plt.Axes] = None,
+        )-> plt.Axes:
     '''
     Plots the :param: cross_play_matrix on a heatmap.
 
@@ -199,6 +205,9 @@ def plot_cross_play_matrix(cross_play_matrix: Union[List, np.ndarray],
     ax.set_xlabel('Agent ID', size=20)
     ax.set_ylabel('Agent ID', size=20)
     ax.set_ylim(len(cross_play_matrix) + 0.2, -0.2)  # Required seaborn hack
+    
+    plt.xticks(np.arange(len(population)), list(population.keys()), rotation=45)
+    plt.yticks(np.arange(len(population)), list(population.keys()), rotation=45)
 
     title = f'Cross-play matrix. Cross-play value: {np.mean(cross_play_matrix)}'
     if cross_play_value_variance: title = '{} +- {:.2}'.format(title, cross_play_value_variance)
@@ -237,6 +246,29 @@ def create_task_for_r2d2(task_config):
     )
     return task
 
+def load_agents(agents_dict:Dict[str,str])->Dict[str,regym.rl_algorithms.agents.agent.Agent]:
+    '''
+    For rule-based agents, the paths are replaced by int to be used as seeds.
+    Player indices have to be set again upon matchup pairings.
+    '''
+    for agent_name in agents_dict:
+        if 'RB' in agent_name:
+            import importlib  
+            comaze_gym = importlib.import_module("regym.environments.envs.CoMaze.comaze-gym.comaze_gym")
+            from comaze_gym import build_WrappedActionOnlyRuleBasedAgent, build_WrappedCommunicatingRuleBasedAgent 
+            build_fn = build_WrappedActionOnlyRuleBasedAgent
+            if 'comm' in agent_name:
+                build_fn = build_WrappedCommunicatingRuleBasedAgent
+            agents_dict[agent_name] = build_fn(
+                player_idx=1,
+                action_space_dim=task.action_dim,
+                seed=int(agents_dict[agent_name]),
+            )
+        else:
+            agents_dict[agent_name] = torch.load(agents_dict[agent_name])
+            agents_dict[agent_name].training = False 
+    return agents_dict
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=DESCRIPTION)
@@ -246,10 +278,14 @@ if __name__ == '__main__':
     cross_play_config = yaml.load(open(args.config))
     task_config = cross_play_config['task']
 
+    '''
     if not os.path.isdir(cross_play_config['population_path']):
         raise ValueError(f"CLI Argument 'population_path' does not point to an existing directory (Given: {cross_play_config['population_path']})")
+    '''
 
     task = create_task_for_r2d2(task_config)
+    
+    loaded_population = load_agents(cross_play_config['agents'])
 
     # Making sure that parameters for evaluation are sound
     check_input_validity(
@@ -268,5 +304,11 @@ if __name__ == '__main__':
      )
 
     matplotlib.use('TkAgg')
-    plot_cross_play_matrix(mean_cross_play_matrix, cross_play_value_variance=std_cross_play_value)
+    plot_cross_play_matrix(
+        population=loaded_population,
+        cross_play_matrix=mean_cross_play_matrix, 
+        cross_play_value_variance=std_cross_play_value
+    )
     plt.show()
+
+    import ipdb; ipdb.set_trace()
