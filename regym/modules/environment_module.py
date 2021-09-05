@@ -56,7 +56,7 @@ class EnvironmentModule(Module):
         
         default_input_stream_ids = {
             #"logger":"modules:logger:ref",
-            #"logs_dict":"logs_dict",
+            "logs_dict":"logs_dict",
             
             "iteration":"signals:iteration",
 
@@ -231,14 +231,22 @@ class EnvironmentModule(Module):
                 a["action"]
                 for a in actions
             ]
+        
+        for hook in self.config['step_hooks']:
+            hook(
+                self.sum_writer,
+                self.env, 
+                self.agents, 
+                env_output_dict, 
+                self.obs_count, 
+                input_streams_dict,
+                outputs_stream_dict
+            )
+
 
         for actor_index in range(self.nbr_actors):
             self.obs_count += 1
             self.pbar.update(1)
-
-            for hook in self.config['step_hooks']:
-                for agent in self.agents:
-                    hook(self.env, agent, self.obs_count)
 
             # Bookkeeping of the actors whose episode just ended:
             done_condition = ('real_done' in succ_info[0][actor_index] \

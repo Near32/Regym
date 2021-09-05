@@ -81,6 +81,7 @@ def make_rl_pubsubmanager(
     if pipelined:
       envm_id = "MARLEnvironmentModule_0"
       envm_input_stream_ids = {
+          "logs_dict":"logs_dict",
           "iteration":"signals:iteration",
           "current_agents":f"modules:{cam_id}:ref",
       }
@@ -472,12 +473,74 @@ def train_and_evaluate(agents: List[object],
       config['test_nbr_episode'] = test_nbr_episode
       config['benchmarking_record_episode_interval'] = benchmarking_record_episode_interval
       config['render_mode'] = render_mode
-      config['step_hooks'] = step_hooks
       config['save_traj_length_divider'] =1
       config['sad'] = sad 
       config['vdn'] = vdn
       config['otherplay'] = otherplay
-      config['nbr_players'] = 2      
+      config['nbr_players'] = 2
+
+      # Hooks:
+      ## S2B accuracy hook:
+      acc_buffers = {}
+      nbr_actors = task.env.get_nbr_envs()
+      def acc_hook(
+        sum_writer,
+        env,
+        agents,
+        env_output_dict,
+        obs_count,
+        input_streams_dict,
+        outputs_stream_dict,
+        ):
+        logs_dict = input_streams_dict['logs_dict']
+        info = env_output_dict['succ_info']
+        for iidx in range(len(info[0])):
+          s2b_mode = info[0][iidx]['mode']
+          end_of_mode = info[0][iidx]['end_of_mode']
+          if end_of_mode:
+            if s2b_mode not in acc_buffers:  acc_buffers[s2b_mode] = []
+            acc_buffers[s2b_mode].append(info[0][iidx]['running_accuracy'])
+            #logs_dict[f"S2B/Accuracy/{iidx}/{s2b_mode}"] = info[0][iidx]['running_accuracy']
+        #sum_writer.add_scalar(f"S2B/Accuracy/{iidx}/{s2b_mode}", info[0][iidx]['running_accuracy'], obs_count)
+        for s2b_mode in acc_buffers:
+          if len(acc_buffers[s2b_mode])>=nbr_actors:
+            values = np.asarray(acc_buffers[s2b_mode])
+            meanv = values.mean()
+            stdv = values.std()
+            logs_dict[f"S2B/Accuracy/Mean/{s2b_mode}"] = meanv #sum(acc_buffers[s2b_mode])/nbr_actors
+            logs_dict[f"S2B/Accuracy/Std/{s2b_mode}"] = stdv #sum(acc_buffers[s2b_mode])/nbr_actors
+            median_value = np.nanpercentile(
+                values,
+                q=50,
+                axis=None,
+                interpolation="nearest"
+            )
+            q1_value = np.nanpercentile(
+                values,
+                q=25,
+                axis=None,
+                interpolation="lower"
+            )
+            q3_value = np.nanpercentile(
+                values,
+                q=75,
+                axis=None,
+                interpolation="higher"
+            )
+            iqr = q3_value-q1_value
+              
+            logs_dict[f"S2B/Accuracy/Median/{s2b_mode}"] = median_value
+            logs_dict[f"S2B/Accuracy/Q1/{s2b_mode}"] = q1_value
+            logs_dict[f"S2B/Accuracy/Q3/{s2b_mode}"] = q3_value
+            logs_dict[f"S2B/Accuracy/IQR/{s2b_mode}"] = iqr
+
+            sum_writer.add_histogram(f"S2B/Accuracy/{s2b_mode}", values, obs_count*nbr_actors)
+
+            acc_buffers[s2b_mode] = []
+        return   
+      step_hooks.append(acc_hook)
+      config['step_hooks'] = step_hooks
+
       pubsubmanager = make_rl_pubsubmanager(
         agents=agents,
         config=config,
