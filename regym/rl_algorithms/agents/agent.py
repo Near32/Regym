@@ -153,55 +153,6 @@ class Agent(object):
         if self.recurrent:
             _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor, actor_indices=indices, vdn=vdn)
 
-    def update_actors(self, batch_idx:int):
-        """
-        DEPRECATED: will be removed soon:
-        We are no longer udpating the actors while episode are running.
-        We assume the vectorized environment will allways provide tensors
-        of regular shape where the batch size is always equal to the number of actors.
-        """
-        import ipdb; ipdb.set_trace()
-        '''
-        In case of a multi-actor process, this function is called to handle
-        the (dynamic) number of environment that are being used.
-        More specifically, it regularizes the rnn_states when
-        an actor's episode ends.
-        It is assumed that update can only go by removing stuffs...
-        Indeed, actors all start at the same time, and thus self.reset_actors()
-        ought to be called at that time.
-        Note: since the number of environment that are running changes,
-        the size of the rnn_states on the batch dimension will change too.
-        Therefore, we cannot identify an rnn_state by the actor/environment index.
-        Thus, it is a batch index that is requested, that would truly be in touch
-        with the current batch dimension.
-        :param batch_idx: index of the actor whose episode just finished.
-        '''
-        if self.recurrent:
-            self.remove_from_rnn_states(batch_idx=batch_idx)
-
-        if self.goal_oriented:
-            self.remove_from_goals(batch_idx=batch_idx)
-
-    def update_goals(self, goals:torch.Tensor):
-        """
-        DEPRECATED: will be removed soon:
-        see update_actors method
-        """
-        import ipdb; ipdb.set_trace()
-        assert(self.goal_oriented)
-        self.goals = goals
-
-    def remove_from_goals(self, batch_idx:int):
-        """
-        DEPRECATED: will be removed soon:
-        see update_actors method
-        """
-        import ipdb; ipdb.set_trace()
-        self.goals = np.concatenate(
-                    [self.goals[:batch_idx,...],
-                     self.goals[batch_idx+1:,...]],
-                     axis=0)
-
     def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[], vdn:Optional[bool]=None):
         # TODO: account for the indices in rnn states:
         if ((vdn is not None and vdn) or (vdn is None))\
@@ -217,9 +168,8 @@ class Agent(object):
                         new_actor_indices.append(aidx+nbr_envs*pidx)
                 actor_indices = new_actor_indices
 
-        lookedup_keys = ['LSTM', 'GRU']
+        lookedup_keys = ['LSTM', 'GRU', 'NTM']
         new_rnn_states = {}
-        #kwargs = {'cuda': algorithm.kwargs['use_cuda'], 'repeat':nbr_actor}
         kwargs = {'cuda': False, 'repeat':nbr_actor}
         for name, model in algorithm.get_models().items():
             if "model" in name and model is not None:
@@ -231,7 +181,7 @@ class Agent(object):
                     kwargs=kwargs
                 )
         rnn_keys = list(new_rnn_states.keys())
-
+        
         if self.rnn_states is None or actor_indices==[]:    
             return rnn_keys, new_rnn_states
 

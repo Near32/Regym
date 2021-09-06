@@ -4,6 +4,9 @@ from .bodies import FCBody, FCBody2, LSTMBody, GRUBody, EmbeddingRNNBody, Captio
 from .bodies import ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
 from .bodies import LinearLinearBody, LinearLstmBody, LinearLstmBody2
 from .bodies import NoisyLinear
+
+from .neural_turing_machine import NTMBody
+
 from .heads import SquashedGaussianActorNet, GaussianActorNet, CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
 from .heads import QNet, CategoricalQNet, InstructionPredictor
 from .heads import EnsembleQNet
