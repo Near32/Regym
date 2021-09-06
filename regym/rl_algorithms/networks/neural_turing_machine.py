@@ -64,46 +64,50 @@ class BasicHeads(nn.Module):
         # will be repercuted onto the current frame_state
         x, frame_states = ctrl_inputs[0], copy_hdict(ctrl_inputs[1])
         
-        self.ctrl_output = self.ctrl2head(x)
-        self.ctrl_output = self.ctrl_output.view((-1,self.nbr_heads,self.head_gate_dim))
+        ctrl_output = self.ctrl2head(x)
+        ctrl_output = ctrl_output.view((-1,self.nbr_heads,self.head_gate_dim))
 
-        self._generate_addressing()
+        k, beta, g, s, gamma, erase, add = self._generate_addressing(ctrl_output)
 
         # Addressing :
-        self.wc = self.memory.content_addressing(memory_state, self.k, self.beta)
+        wc = self.memory.content_addressing(memory_state, k, beta)
 
         node_id = f"{'read' if self.is_read else 'write'}_prev_w"
         prev_w = extract_subtree(
             in_dict=frame_states,
             node_id=node_id,
-        )['data'][0].to(self.wc.device)
+        )['data'][0].to(wc.device)
         #(batch_size x nbrHeads x nbr_mem_slot )
         
-        w = self.memory.location_addressing(memory_state, prev_w, self.wc, self.g, self.s, self.gamma)
+        w = self.memory.location_addressing(memory_state, prev_w, wc, g, s, gamma)
         #(batch_size x nbrHeads)
         
         frame_states.update({node_id:
             {'data':[w]}
         })
 
-        return w, frame_states 
+        return w, erase, add, frame_states 
 
-    def _generate_addressing(self) :
-        self.k = self.ctrl_output[:,:,0:self.mem_dim]
-        self.beta = F.softplus(self.ctrl_output[:,:,self.mem_dim:self.mem_dim+1])
-        self.g = torch.sigmoid(self.ctrl_output[:,:,self.mem_dim+1:self.mem_dim+2])
-        self.s = F.softmax( 
+    def _generate_addressing(self, ctrl_output) :
+        k = ctrl_output[:,:,0:self.mem_dim]
+        beta = F.softplus(ctrl_output[:,:,self.mem_dim:self.mem_dim+1])
+        g = torch.sigmoid(ctrl_output[:,:,self.mem_dim+1:self.mem_dim+2])
+        s = F.softmax( 
             F.softplus( 
-                self.ctrl_output[:,:,self.mem_dim+2:self.mem_dim+5]
+                ctrl_output[:,:,self.mem_dim+2:self.mem_dim+5]
             ),
             dim=-1
         )
-        self.gamma = 1+F.softplus(self.ctrl_output[:,:,self.mem_dim+5:self.mem_dim+6])    
+        gamma = 1+F.softplus(ctrl_output[:,:,self.mem_dim+5:self.mem_dim+6])    
 
-        if not(self.is_read) :
-            self.erase = self.ctrl_output[:,:,self.mem_dim+6:2*self.mem_dim+6]
-            self.add = self.ctrl_output[:,:,2*self.mem_dim+6:3*self.mem_dim+6]
+        if not(self.is_read):
+            erase = ctrl_output[:,:,self.mem_dim+6:2*self.mem_dim+6]
+            add = ctrl_output[:,:,2*self.mem_dim+6:3*self.mem_dim+6]
+        else:
+            erase = None
+            add = None 
 
+        return k, beta, g, s, gamma, erase, add
 
 class ReadHeads(BasicHeads):
     def __init__(
@@ -120,7 +124,7 @@ class ReadHeads(BasicHeads):
         )
         
     def read(self, memory_state, ctrl_inputs) :
-        w, frame_states = super(ReadHeads, self).forward(memory_state,ctrl_inputs)
+        w, _, _, frame_states = super(ReadHeads, self).forward(memory_state,ctrl_inputs)
         r = self.memory.read(memory_state=memory_state, w=w)
         return r, frame_states
 
@@ -140,8 +144,8 @@ class WriteHeads(BasicHeads):
         )
         
     def write(self, memory_state, ctrl_inputs) :
-        w, frame_states = super(WriteHeads,self).forward(memory_state, ctrl_inputs)
-        new_memory_state = self.memory.write(memory_state=memory_state, w=w, erase=self.erase, add=self.add)
+        w, erase, add, frame_states = super(WriteHeads,self).forward(memory_state, ctrl_inputs)
+        new_memory_state = self.memory.write(memory_state=memory_state, w=w, erase=erase, add=add)
         return new_memory_state, frame_states
 
 class NTMController(LSTMBody):
@@ -280,9 +284,9 @@ class NTMController(LSTMBody):
         batch_size = slots_read.shape[0]
         rslots_read = slots_read.reshape(batch_size, -1)
         ext_fc_inp = torch.cat( [ctrl_output, rslots_read], dim=-1)
-        self.output_fn_output = self.output_fn(ext_fc_inp)
+        output_fn_output = self.output_fn(ext_fc_inp)
         
-        return self.output_fn_output
+        return output_fn_output
     
     def forward_controller(self, inputs):
         '''
