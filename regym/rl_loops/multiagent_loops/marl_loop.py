@@ -260,9 +260,18 @@ def test_agent(
     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in episode_lengths]) / len(trajectory) )
 
     trajectory_metrics = populate_metrics_dictionary(
-        total_return, mean_total_return, std_ext_return,
-        total_int_return, mean_total_int_return, std_int_return,
-        episode_lengths, mean_episode_length, std_episode_length,
+        total_return, 
+        mean_total_return, 
+        std_ext_return,
+        positive_total_return,
+        mean_positive_total_return,
+        std_ext_positive_return,
+        total_int_return, 
+        mean_total_int_return, 
+        std_int_return,
+        episode_lengths, 
+        mean_episode_length, 
+        std_episode_length,
         requested_metrics
     )
 
@@ -297,13 +306,26 @@ def test_agent(
             end = time.time()
             eta = end-begin
             print(f'{actor_idx+1} / {nbr_save_traj} :: Time: {eta} sec.')
+    
     return trajectory_metrics
 
 
-def populate_metrics_dictionary(total_return, mean_total_return, std_ext_return,
-                                total_int_return, mean_total_int_return, std_int_return,
-                                episode_lengths, mean_episode_length, std_episode_length,
-                                requested_metrics: List[str] = []) -> Dict[str, Any]:
+def populate_metrics_dictionary(
+    total_return, 
+    mean_total_return, 
+    std_ext_return,
+    total_pos_return,
+    mean_total_pos_return,
+    std_ext_pos_return,
+    total_int_return, 
+    mean_total_int_return, 
+    std_int_return,
+    episode_lengths, 
+    mean_episode_length, 
+    std_episode_length,
+    requested_metrics: List[str] = []
+    ) -> Dict[str, Any]:
+    
     trajectory_metrics = {}
     if 'total_return' in requested_metrics:
         trajectory_metrics['total_return'] = total_return
@@ -311,6 +333,13 @@ def populate_metrics_dictionary(total_return, mean_total_return, std_ext_return,
         trajectory_metrics['mean_total_return'] = mean_total_return
     if 'std_ext_return' in requested_metrics:
         trajectory_metrics['std_ext_return'] = std_ext_return
+    
+    if 'total_pos_return' in requested_metrics:
+        trajectory_metrics['total_pos_return'] = total_pos_return
+    if 'mean_total_pos_return' in requested_metrics:
+        trajectory_metrics['mean_total_pos_return'] = mean_total_pos_return
+    if 'std_ext_pos_return' in requested_metrics:
+        trajectory_metrics['std_ext_pos_return'] = std_ext_pos_return
 
     if 'total_int_return' in requested_metrics:
         trajectory_metrics['total_int_return'] = total_int_return
