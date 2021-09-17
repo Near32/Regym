@@ -26,6 +26,7 @@ class BasicHeads(nn.Module):
         self.is_read = is_read 
 
         self.generate_ctrl2gate()
+        self.init_prev_w()
 
     def generate_ctrl2gate(self) :
         if self.is_read is None :
@@ -44,10 +45,26 @@ class BasicHeads(nn.Module):
                 self.nbr_heads * self.head_gate_dim
             )
         )
-
+    
+    def init_prev_w(self):
+        #attr_id = f"{'read' if self.is_read else 'write'}_prev_w"
+        attr_id = "prev_w"
+        setattr(self, attr_id, nn.Parameter(torch.zeros(1, self.nbr_heads, self.memory.mem_nbr_slots)))
+            
     def get_reset_states(self, cuda=False, repeat=1):
         node_id = f"{'read' if self.is_read else 'write'}_prev_w"
-        prev_w = torch.zeros((repeat, self.nbr_heads, self.memory.mem_nbr_slots))
+        # Constant:
+        #prev_w = torch.zeros((repeat, self.nbr_heads, self.memory.mem_nbr_slots))
+        # Constant with diversity:
+        prev_w = []
+        for hidx in range(self.nbr_heads):
+            offset = 0 if self.is_read else self.nbr_heads
+            hw = torch.zeros(repeat, 1, self.memory.mem_nbr_slots)
+            hw[...,hidx+offset] = 1.0
+            prev_w.append(hw)
+        prev_w = torch.cat(prev_w, dim=1)
+        # Learnable:
+        # prev_w = self.prev_w.repeat(repeat, 1, 1) 
         if cuda:
             prev_w = prev_w.cuda()
         return {node_id:{'data': [prev_w]}}
@@ -76,12 +93,12 @@ class BasicHeads(nn.Module):
         prev_w = extract_subtree(
             in_dict=frame_states,
             node_id=node_id,
-        )['data'][0].to(wc.device)
+        )['data'][0].to(ctrl_output.device)
         #(batch_size x nbrHeads x nbr_mem_slot )
         
         w = self.memory.location_addressing(memory_state, prev_w, wc, g, s, gamma)
         #(batch_size x nbrHeads)
-        
+
         frame_states.update({node_id:
             {'data':[w]}
         })
@@ -89,20 +106,28 @@ class BasicHeads(nn.Module):
         return w, erase, add, frame_states 
 
     def _generate_addressing(self, ctrl_output) :
-        k = ctrl_output[:,:,0:self.mem_dim]
+        #k = ctrl_output[:,:,0:self.mem_dim]
+        k = torch.tanh(ctrl_output[:,:,0:self.mem_dim])
         beta = F.softplus(ctrl_output[:,:,self.mem_dim:self.mem_dim+1])
         g = torch.sigmoid(ctrl_output[:,:,self.mem_dim+1:self.mem_dim+2])
+        
         s = F.softmax( 
             F.softplus( 
                 ctrl_output[:,:,self.mem_dim+2:self.mem_dim+5]
             ),
             dim=-1
         )
+        
+        #s = F.softmax(ctrl_output[:,:,self.mem_dim+2:self.mem_dim+5], dim=-1)
         gamma = 1+F.softplus(ctrl_output[:,:,self.mem_dim+5:self.mem_dim+6])    
 
         if not(self.is_read):
-            erase = ctrl_output[:,:,self.mem_dim+6:2*self.mem_dim+6]
-            add = ctrl_output[:,:,2*self.mem_dim+6:3*self.mem_dim+6]
+            #erase = ctrl_output[:,:,self.mem_dim+6:2*self.mem_dim+6]
+            # (batch_size, nbrHeads, mem_dim)
+            #add = ctrl_output[:,:,2*self.mem_dim+6:3*self.mem_dim+6]
+            erase = torch.sigmoid(ctrl_output[:,:,self.mem_dim+6:2*self.mem_dim+6])
+            # (batch_size, nbrHeads, mem_dim)
+            add = torch.tanh(ctrl_output[:,:,2*self.mem_dim+6:3*self.mem_dim+6])
         else:
             erase = None
             add = None 
@@ -397,7 +422,11 @@ class NTMMemory(nn.Module) :
         self.initialize_memory()
 
     def initialize_memory(self) :
-        self.init_mem = torch.zeros((self.mem_nbr_slots,self.mem_dim))
+        # Constant 
+        ## Null:
+        #self.init_mem = torch.zeros((1, self.mem_nbr_slots,self.mem_dim))
+        ## Small:
+        self.init_mem = 1e-6*torch.ones((1, self.mem_nbr_slots,self.mem_dim))
         
     def get_reset_states(self, cuda=False, repeat=1):
         memory = []
@@ -417,9 +446,13 @@ class NTMMemory(nn.Module) :
         nbrHeads = k.size()[1]
         eps = 1e-10
         
-        memory_bhSMidx = torch.cat([memory.unsqueeze(1)]*nbrHeads, dim=1).to(k.device)
-        kmat = torch.cat([k.unsqueeze(2)]*self.mem_nbr_slots, dim=2)
-        cossim = F.cosine_similarity( kmat, memory_bhSMidx, dim=3)
+        #memory_bhSMidx = torch.cat([memory.unsqueeze(1)]*nbrHeads, dim=1).to(k.device)
+        memory_bhSMidx = memory.unsqueeze(1).repeat(1,nbrHeads,1,1).to(k.device)
+        # (batch_size, nbrHeads, nbr_mem_slot, mem_dim)
+        #kmat = torch.cat([k.unsqueeze(2)]*self.mem_nbr_slots, dim=2)
+        kmat = k.unsqueeze(2)
+        # (batch_size, nbrHeards, 1, nbr_mem_slot)
+        cossim = F.cosine_similarity( kmat, memory_bhSMidx, dim=-1)
         #(batch_size x nbrHeads nbr_mem_slot )
         w = F.softmax( beta * cossim, dim=-1)
         #(batch_size x nbrHeads nbr_mem_slot )
@@ -465,12 +498,17 @@ class NTMMemory(nn.Module) :
         c = torch.cat([wg[:,-size+1:], wg, wg[:,:size-1]], dim=1)
         #(batch_size x nbr_mem_slot )
         # s : (batch_size x nbr_mem_slot )
+        """
+        # The following has a very high time complexity (4 seconds with batch_size=128)
         res = []
         for bidx in range(batch_size):
             cr = F.conv1d(c[bidx].reshape(1,1,-1), s[bidx].reshape(1,1,-1)).squeeze(1)
             #(1 x nbr_mem_slot )
             res.append(cr)
         res = torch.cat(res, dim=0)
+        """
+        # 20 times faster apparently:  
+        res = F.conv1d(c.reshape((1,batch_size, -1)), s.reshape((batch_size, 1, -1)), groups=batch_size).squeeze(0)
         #(batch_size x nbr_mem_slot++)
         
         ret = res[:,1:seq_len+1]
@@ -485,27 +523,42 @@ class NTMMemory(nn.Module) :
         erase, 
         add,
         ):
+        # erase/add: (batch_size, nbrHeads, mem_dim)
+        # w: (batch_size, nbrHeads, nbr_mem_slot)
+        # memory_state: (batch_size, nbr_mem_slot, mem_dim)
         batch_size = w.shape[0]
-        memory_state = memory_state.to(w.device)
-        nmemory = torch.zeros_like(memory_state)
+        nmemory = memory_state
 
+        """
+        nmemory = torch.zeros_like(memory_state)
         for bidx in range(batch_size) :
             for headidx in range(erase.size()[1]) :
                 e = torch.ger(w[bidx][headidx], erase[bidx][headidx])
+                # (nbr_mem_slot, mem_dim)
                 a = torch.ger(w[bidx][headidx], add[bidx][headidx])
+                
                 nmemory[bidx] = memory_state[bidx]*(1-e)+a 
                 #(nbr_mem_slots x mem_dim)
-        
+        """
+        nh = erase.shape[1]
+        e = torch.matmul(w.unsqueeze(-1), erase.unsqueeze(2))
+        a = torch.matmul(w.unsqueeze(-1), add.unsqueeze(2))
+        for hidx in range(nh):
+            nmemory = nmemory*(1-e[:,hidx])+a[:,hidx]
         return nmemory
 
     def read(self, memory_state, w):
+        """
         nbrHeads = w.size()[1]
         memory_bhSMidx = torch.cat([memory_state.unsqueeze(1)]*nbrHeads, dim=1).to(w.device)
         wb = torch.cat( [w.unsqueeze(3) for i in range(memory_bhSMidx.size()[3])], dim=3)
         reading = torch.sum(wb * memory_bhSMidx, dim=2)
+        """
+        #reading = torch.matmul(w, memory_state.to(w.device))
+        reading = torch.matmul(w, memory_state)
         #(batch_size x nbrHeads x mem_dim)
         return reading
-
+        
 
 class NTMBody(nn.Module) :
     def __init__(
@@ -614,20 +667,20 @@ class NTMBody(nn.Module) :
         # state : ( h, c) 
         controller_inputs = [x, ntm_state_dict['ntm_controller']]
         nx, ntm_state_dict['ntm_controller'] = self.controller.forward_controller(controller_inputs)
-        # nx : dim : 
-
+        
+        memory_state = ntm_state_dict['ntm_memory']['memory'][0].to(x.device) 
         # Memory Read :
         # batch_dim x nbr_read_heads * mem_dim :
         readHeads_inputs = [nx, ntm_state_dict['ntm_readheads']]
         read_vec, ntm_state_dict['ntm_readheads'] = self.readHeads.read(
-            memory_state=ntm_state_dict['ntm_memory']['memory'][0],
+            memory_state=memory_state,
             ctrl_inputs=readHeads_inputs,
         )
-        
+
         # Memory Write :
         writeHeads_inputs = [nx, ntm_state_dict['ntm_writeheads']]
         written_memory_state, ntm_state_dict['ntm_writeheads'] =self.writeHeads.write(
-            memory_state=ntm_state_dict['ntm_memory']['memory'][0],
+            memory_state=memory_state,
             ctrl_inputs=writeHeads_inputs,
         )
 
@@ -637,11 +690,11 @@ class NTMBody(nn.Module) :
             read_vec,
         )
         
+
         ntm_state_dict['ntm_body']['prev_read_vec'] = [read_vec.reshape(batch_size, -1)]
         ntm_state_dict['ntm_memory']['memory'] = [written_memory_state]
-
         frame_states.update({'ntm':ntm_state_dict})
-
+        
         return ext_output, frame_states 
 
     def get_feature_shape(self):

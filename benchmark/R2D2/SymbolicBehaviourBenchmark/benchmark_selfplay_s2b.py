@@ -50,6 +50,7 @@ def make_rl_pubsubmanager(
     speaker_rec=False,
     listener_rec=False,
     listener_comm_rec=False,
+    node_id_to_extract="hidden",
     ):
     """
     Create a PubSubManager.
@@ -194,7 +195,10 @@ def make_rl_pubsubmanager(
       "player_id":0,
       'use_cuda':True,
       "signal_to_reconstruct_dim": 4*3,
-      "hiddenstate_policy": RLHiddenStatePolicy(agent=agents[0]),
+      "hiddenstate_policy": RLHiddenStatePolicy(
+          agent=agents[0],
+          node_id_to_extract=node_id_to_extract,
+      ),
       "build_signal_to_reconstruct_from_trajectory_fn": build_signal_to_reconstruct_from_trajectory_fn,
     }
     
@@ -233,7 +237,10 @@ def make_rl_pubsubmanager(
       "player_id":1,
       'use_cuda':True,
       "signal_to_reconstruct_dim": 4*3,
-      "hiddenstate_policy": RLHiddenStatePolicy(agent=agents[-1]),
+      "hiddenstate_policy": RLHiddenStatePolicy(
+          agent=agents[-1],
+          node_id_to_extract=node_id_to_extract,
+      ),
       "build_signal_to_reconstruct_from_trajectory_fn": build_signal_to_reconstruct_from_trajectory_fn,
     }
     
@@ -298,7 +305,10 @@ def make_rl_pubsubmanager(
       "player_id":1,
       'use_cuda':True,
       "signal_to_reconstruct_dim": 7*2,
-      "hiddenstate_policy": RLHiddenStatePolicy(agent=agents[-1]),
+      "hiddenstate_policy": RLHiddenStatePolicy(
+          agent=agents[-1],
+          node_id_to_extract=node_id_to_extract, 
+      ),
       "build_signal_to_reconstruct_from_trajectory_fn": build_comm_to_reconstruct_from_trajectory_fn,
       "accuracy_pre_process_fn":comm_accuracy_pre_process_fn,
     }
@@ -333,7 +343,10 @@ def make_rl_pubsubmanager(
                 "nbr_players":len(agents),
                 "player_id":1,
                 "use_cuda":True,
-                "hiddenstate_policy":RLHiddenStatePolicy(agent=agents[-1]),
+                "hiddenstate_policy":RLHiddenStatePolicy(
+                    agent=agents[-1],
+                    node_id_to_extract=node_id_to_extract,
+                ),
                 "rec_dicts": rec_dicts,
             },
             input_stream_ids=rec_p1_input_stream_ids,
@@ -447,6 +460,7 @@ def train_and_evaluate(agents: List[object],
                        speaker_rec=False,
                        listener_rec=False,
                        listener_comm_rec=False,
+                       node_id_to_extract="hidden",
                        ):
     pubsub = False
     if len(sys.argv) > 2:
@@ -548,6 +562,7 @@ def train_and_evaluate(agents: List[object],
         listener_rec=listener_rec,
         listener_comm_rec=listener_comm_rec,
         logger=sum_writer,
+        node_id_to_extract=node_id_to_extract,
       )
 
       pubsubmanager.train() 
@@ -639,6 +654,12 @@ def training_process(agent_config: Dict,
       pubsub = any(['pubsub' in arg for arg in sys.argv])
       test_only = any(['test_only' in arg for arg in sys.argv])
       
+      node_id_to_extract="hidden"
+      override_nite = [idx for idx, arg in enumerate(sys.argv) if "--node_id_to_extract" in arg]
+      if len(override_nite):
+          node_id_to_extract = sys.argv[override_nite[0]+1]
+          print(f"NEW NODE ID TO EXTRACT FOR REC: {node_id_to_extract}")
+
       speaker_rec = any(['use_speaker_rec' in arg for arg in sys.argv[2:]])
       listener_rec = any(['use_listener_rec' in arg for arg in sys.argv[2:]])
       listener_comm_rec = any(['use_listener_comm_rec' in arg for arg in sys.argv[2:]])
@@ -692,11 +713,11 @@ def training_process(agent_config: Dict,
       base_path = os.path.join(base_path,"NOPUBSUB")
     
     if speaker_rec:
-      base_path = os.path.join(base_path,f"SpeakerReconstruction{'+Biasing-1p3' if speaker_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"SpeakerReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p3' if speaker_rec_biasing else ''}-BigArch")
     if listener_rec:
-      base_path = os.path.join(base_path,f"ListenerReconstruction{'+Biasing-1p0' if listener_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"ListenerReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p0' if listener_rec_biasing else ''}-BigArch")
     if listener_comm_rec:
-      base_path = os.path.join(base_path,f"ListenerCommunicationChannelReconstruction{'+Biasing-1p0' if listener_comm_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"ListenerCommunicationChannelReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p0' if listener_comm_rec_biasing else ''}-BigArch")
      
   
     if task_config["otherplay"]:
@@ -857,6 +878,7 @@ def training_process(agent_config: Dict,
       speaker_rec=speaker_rec,
       listener_rec=listener_rec,
       listener_comm_rec=listener_comm_rec,
+      node_id_to_extract=node_id_to_extract,
     )
 
     return trained_agents, task 

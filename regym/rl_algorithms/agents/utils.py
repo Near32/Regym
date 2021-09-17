@@ -5,6 +5,7 @@ from ..networks import FCBody, FCBody2, LSTMBody, GRUBody, ConvolutionalBody, Be
 from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
 from ..networks import LinearLinearBody, LinearLstmBody, LinearLstmBody2
 from ..networks import NTMBody
+from ..networks import DNCBody
 from ..networks import NoisyLinear
 
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
@@ -715,6 +716,44 @@ def generate_model(
                 add_non_lin_final_layer=True,
                 use_residual_connection=use_residual_connection,
                 #layer_init_fn=None,
+                extra_inputs_infos=extra_inputs_infos_critic_body,
+            )
+        elif kwargs['critic_arch'] == 'DNC':
+            # Assuming flatten input:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            state_dim = input_dim
+            critic_arch_feature_dim = kwargs['critic_arch_feature_dim']
+            #critic_arch_linear_hidden_units = kwargs['critic_arch_linear_hidden_units']
+            #critic_arch_linear_post_hidden_units = None
+            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
+
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_critic_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tll = extra_inputs_infos[key]['target_location']
+                    if not isinstance(tll[0], list):
+                        tll= [tll]
+                    for tl in tll:
+                        if 'critic_body' in tl:
+                            extra_inputs_infos_critic_body[key] = {
+                                'shape':shape, 
+                                'target_location':tl
+                            }
+            
+            critic_body = DNCBody( 
+                input_dim=state_dim, 
+                hidden_units=critic_arch_hidden_units, 
+                output_dim=critic_arch_feature_dim, 
+                mem_nbr_slots=128, 
+                mem_dim=32, 
+                nbr_read_heads=2, 
+                nbr_write_heads=1, 
+                #linear_hidden_units=critic_arch_linear_hidden_units,
+                #linear_post_hidden_units=critic_arch_linear_post_hidden_units,
+                #use_residual_connection=use_residual_connection,
                 extra_inputs_infos=extra_inputs_infos_critic_body,
             )
         elif kwargs['critic_arch'] == 'NTM':

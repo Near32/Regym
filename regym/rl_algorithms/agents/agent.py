@@ -168,7 +168,7 @@ class Agent(object):
                         new_actor_indices.append(aidx+nbr_envs*pidx)
                 actor_indices = new_actor_indices
 
-        lookedup_keys = ['LSTM', 'GRU', 'NTM']
+        lookedup_keys = ['LSTM', 'GRU', 'NTM', 'DNC']
         new_rnn_states = {}
         kwargs = {'cuda': False, 'repeat':nbr_actor}
         for name, model in algorithm.get_models().items():
