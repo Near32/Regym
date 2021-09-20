@@ -34,7 +34,9 @@ class ForkedPdb(pdb.Pdb):
 #forkedPdb = ForkedPdb()
 
 from regym.modules.module import Module
-from regym.rl_loops.multiagent_loops.marl_loop import test_agent
+from regym.rl_loops.multiagent_loops.wandb_marl_loop import test_agent
+
+import wandb 
 
 
 def build_MARLEnvironmentModule(
@@ -155,20 +157,6 @@ class MARLEnvironmentModule(Module):
         self.episode_count_record = 0
         self.sample_episode_count = 0
 
-        if isinstance(self.config['sum_writer'], str):
-            sum_writer_path = os.path.join(self.config['sum_writer'], 'actor.log')
-            self.sum_writer = SummaryWriter(sum_writer_path, flush_secs=1)
-        else:
-            self.sum_writer = self.config['sum_writer']
-
-        for agent in self.agents:
-            agent_algo = getattr(agent, "algorithm", None)
-            if agent_algo is None:  continue
-            if agent.training:
-                agent_algo.summary_writer = self.sum_writer
-            else:
-                agent_algo.summary_writer = None 
-
         self.epoch = 0 
 
         self.pbar = tqdm(
@@ -262,7 +250,7 @@ class MARLEnvironmentModule(Module):
         
         for hook in self.config['step_hooks']:
             hook(
-                self.sum_writer,
+                None, #self.sum_writer,
                 self.env, 
                 self.agents, 
                 env_output_dict, 
@@ -308,23 +296,21 @@ class MARLEnvironmentModule(Module):
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))
                 self.episode_lengths.append(len(traj))
 
-                if self.sum_writer is not None:
-                    self.sum_writer.add_scalar('Training/TotalReturn', self.total_returns[-1], self.episode_count)
-                    self.sum_writer.add_scalar('PerObservation/TotalReturn', self.total_returns[-1], self.obs_count)
-                    self.sum_writer.add_scalar('PerUpdate/TotalReturn', self.total_returns[-1], self.update_count)
-                    
-                    self.sum_writer.add_scalar('Training/PositiveTotalReturn', self.positive_total_returns[-1], self.episode_count)
-                    self.sum_writer.add_scalar('PerObservation/PositiveTotalReturn', self.positive_total_returns[-1], self.obs_count)
-                    self.sum_writer.add_scalar('PerUpdate/PositiveTotalReturn', self.positive_total_returns[-1], self.update_count)
-                    
-                    if actor_index == 0:
-                        self.sample_episode_count += 1
-                    #sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
-                    #sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
-                    #sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_PositiveReward', positive_total_returns[-1], obs_count)
-                    #sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], self.update_count)
-                    #sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
-                    self.sum_writer.flush()
+                wandb.log({'Training/TotalReturn':  self.total_returns[-1]}) # self.episode_count)
+                wandb.log({'PerObservation/TotalReturn':  self.total_returns[-1]}) # self.obs_count)
+                wandb.log({'PerUpdate/TotalReturn':  self.total_returns[-1]}) # self.update_count)
+                
+                wandb.log({'Training/PositiveTotalReturn':  self.positive_total_returns[-1]}) # self.episode_count)
+                wandb.log({'PerObservation/PositiveTotalReturn':  self.positive_total_returns[-1]}) # self.obs_count)
+                wandb.log({'PerUpdate/PositiveTotalReturn':  self.positive_total_returns[-1]}) # self.update_count)
+                
+                if actor_index == 0:
+                    self.sample_episode_count += 1
+                #wandb.log({f'data/reward_{actor_index}':  total_returns[-1]}) # sample_episode_count)
+                #wandb.log({f'PerObservation/Actor_{actor_index}_Reward':  total_returns[-1]}) # obs_count)
+                #wandb.log({f'PerObservation/Actor_{actor_index}_PositiveReward':  positive_total_returns[-1]}) # obs_count)
+                #wandb.log({f'PerUpdate/Actor_{actor_index}_Reward':  total_returns[-1]}) # self.update_count)
+                #wandb.log({'Training/TotalIntReturn':  total_int_returns[-1]}) # episode_count)
 
                 if len(self.trajectories) >= self.nbr_actors:
                     mean_total_return = sum( self.total_returns) / len(self.trajectories)
@@ -336,25 +322,23 @@ class MARLEnvironmentModule(Module):
                     mean_episode_length = sum( self.episode_lengths) / len(self.trajectories)
                     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in self.episode_lengths]) / len(self.episode_lengths) )
 
-                    if self.sum_writer is not None:
-                        self.sum_writer.add_scalar('Training/StdIntReturn', std_int_return, self.episode_count // self.nbr_actors)
-                        self.sum_writer.add_scalar('Training/StdExtReturn', std_ext_return, self.episode_count // self.nbr_actors)
+                    wandb.log({'Training/StdIntReturn':  std_int_return}) # self.episode_count // self.nbr_actors)
+                    wandb.log({'Training/StdExtReturn':  std_ext_return}) # self.episode_count // self.nbr_actors)
 
-                        self.sum_writer.add_scalar('Training/MeanTotalReturn', mean_total_return, self.episode_count // self.nbr_actors)
-                        self.sum_writer.add_scalar('PerObservation/MeanTotalReturn', mean_total_return, self.obs_count)
-                        self.sum_writer.add_scalar('PerUpdate/MeanTotalReturn', mean_total_return, self.update_count)
-                        self.sum_writer.add_scalar('Training/MeanPositiveTotalReturn', mean_positive_total_return, self.episode_count // self.nbr_actors)
-                        self.sum_writer.add_scalar('PerObservation/MeanPositiveTotalReturn', mean_positive_total_return, self.obs_count)
-                        self.sum_writer.add_scalar('PerUpdate/MeanPositiveTotalReturn', mean_positive_total_return, self.update_count)
-                        self.sum_writer.add_scalar('Training/MeanTotalIntReturn', mean_total_int_return, self.episode_count // self.nbr_actors)
+                    wandb.log({'Training/MeanTotalReturn':  mean_total_return}) # self.episode_count // self.nbr_actors)
+                    wandb.log({'PerObservation/MeanTotalReturn':  mean_total_return}) # self.obs_count)
+                    wandb.log({'PerUpdate/MeanTotalReturn':  mean_total_return}) # self.update_count)
+                    wandb.log({'Training/MeanPositiveTotalReturn':  mean_positive_total_return}) # self.episode_count // self.nbr_actors)
+                    wandb.log({'PerObservation/MeanPositiveTotalReturn':  mean_positive_total_return}) # self.obs_count)
+                    wandb.log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return}) # self.update_count)
+                    wandb.log({'Training/MeanTotalIntReturn':  mean_total_int_return}) # self.episode_count // self.nbr_actors)
 
-                        self.sum_writer.add_scalar('Training/MeanEpisodeLength', mean_episode_length, self.episode_count // self.nbr_actors)
-                        self.sum_writer.add_scalar('PerObservation/MeanEpisodeLength', mean_episode_length, self.obs_count)
-                        self.sum_writer.add_scalar('PerUpdate/MeanEpisodeLength', mean_episode_length, self.update_count)
-                        self.sum_writer.add_scalar('Training/StdEpisodeLength', std_episode_length, self.episode_count // self.nbr_actors)
-                        self.sum_writer.add_scalar('PerObservation/StdEpisodeLength', std_episode_length, self.obs_count)
-                        self.sum_writer.add_scalar('PerUpdate/StdEpisodeLength', std_episode_length, self.update_count)
-                        self.sum_writer.flush()
+                    wandb.log({'Training/MeanEpisodeLength':  mean_episode_length}) # self.episode_count // self.nbr_actors)
+                    wandb.log({'PerObservation/MeanEpisodeLength':  mean_episode_length}) # self.obs_count)
+                    wandb.log({'PerUpdate/MeanEpisodeLength':  mean_episode_length}) # self.update_count)
+                    wandb.log({'Training/StdEpisodeLength':  std_episode_length}) # self.episode_count // self.nbr_actors)
+                    wandb.log({'PerObservation/StdEpisodeLength':  std_episode_length}) # self.obs_count)
+                    wandb.log({'PerUpdate/StdEpisodeLength':  std_episode_length}) # self.update_count)
 
                     # bookkeeping:
                     outputs_stream_dict["trajectories"] = copy.deepcopy(self.trajectories)
@@ -432,7 +416,7 @@ class MARLEnvironmentModule(Module):
                     agents=[agent.clone(training=False) for agent in self.agents],
                     update_count=self.agents[0].get_update_count(),
                     nbr_episode=self.config['test_nbr_episode'],
-                    sum_writer=self.sum_writer,
+                    #sum_writer=self.sum_writer,
                     iteration=self.obs_count,
                     base_path=self.config['base_path'],
                     save_traj=save_traj,
@@ -494,9 +478,6 @@ class MARLEnvironmentModule(Module):
         if self.obs_count >= self.config["max_obs_count"]:
             outputs_stream_dict["signals:done_training"] = True 
             outputs_stream_dict["signals:trained_agents"] = self.agents 
-            
-            if self.sum_writer is not None:
-                self.sum_writer.flush()
             
             self.env.close()
             self.test_env.close()

@@ -22,7 +22,7 @@ from ...networks import hard_update, random_sample
 from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
 
 
-
+import wandb
 summary_writer = None 
 
 
@@ -287,8 +287,7 @@ class DQNAlgorithm(Algorithm):
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
+        wandb.log({'PerTrainingRequest/NbrStoredExperiences':  nbr_stored_experiences}) # self.train_request_count)
         
         return nbr_stored_experiences
 
@@ -343,8 +342,7 @@ class DQNAlgorithm(Algorithm):
         samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
         end = time.time()
 
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/RetrieveValuesFn', end-start, self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}) # self.param_update_counter)
 
 
         if self.noisy:  
@@ -355,8 +353,7 @@ class DQNAlgorithm(Algorithm):
         self.optimize_model(minibatch_size, samples)
         end = time.time()
         
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizeModelFn', end-start, self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}) # self.param_update_counter)
         
         if self.target_update_count > self.target_update_interval:
             self.target_update_count = 0
@@ -543,10 +540,9 @@ class DQNAlgorithm(Algorithm):
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
-                if self.summary_writer is not None:
-                    self.summary_writer.add_scalar('PerUpdate/ImportanceSamplingMean', sampled_importanceSamplingWeights.cpu().mean().item(), self.param_update_counter)
-                    self.summary_writer.add_scalar('PerUpdate/ImportanceSamplingStd', sampled_importanceSamplingWeights.cpu().std().item(), self.param_update_counter)
-                    self.summary_writer.add_scalar('PerUpdate/PER_Beta', beta, self.param_update_counter)
+                wandb.log({'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item()}) # self.param_update_counter)
+                wandb.log({'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item()}) # self.param_update_counter)
+                wandb.log({'PerUpdate/PER_Beta':  beta}) # self.param_update_counter)
 
             self.param_update_counter += 1 
 
@@ -563,9 +559,7 @@ class DQNAlgorithm(Algorithm):
             )
 
         end = time.time()
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizationLoss', end-start, self.param_update_counter)
-            self.summary_writer.flush()
+        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}) # self.param_update_counter)
 
 
     def compute_td_error(self, samples: Dict):
@@ -652,9 +646,7 @@ class DQNAlgorithm(Algorithm):
 
         end = time.time()
         
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/TDErrorComputation', end-start, self.param_update_counter)
-            self.summary_writer.flush()
+        wandb.log({'PerUpdate/TimeComplexity/TDErrorComputation':  end-start}) # self.param_update_counter)
         
         return loss, loss_per_item 
 

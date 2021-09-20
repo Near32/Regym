@@ -9,6 +9,18 @@ from .utils import layer_init, layer_init_lstm, layer_init_gru
 from regym.rl_algorithms.utils import _extract_from_rnn_states, extract_subtree, copy_hdict
 from regym.rl_algorithms.networks.bodies import LSTMBody
 
+import wandb
+
+def _register_nan_checks(model):
+    def check_grad(module, grad_in, grad_out):
+        #wandb.log({f"{type(module).__name__}_gradients": wandb.Histogram(grad_in)})
+        if any([torch.any(torch.isnan(gi.data)) for gi in grad_in if gi is not None]):
+            print(type(module).__name__)
+            import ipdb; ipdb.set_trace()
+
+    model.apply(lambda module: module.register_backward_hook(check_grad))
+
+
 class BasicDNCHeads(nn.Module):
     def __init__(
         self,
@@ -159,6 +171,8 @@ class ReadWriteHeads(BasicDNCHeads):
         # (batch_size x nbr_read/write_heads x mem_nbr_slots)
         psi = torch.prod(1 - free_gates.reshape(batch_size, -1, 1) * prev_read_weights, dim=1)
         # (batch_size x nbr_mem_slots)
+        #wandblog({f"psi": wandb.Histogram(psi.cpu().detach())})
+        
         # if we only had one write head:
         # usage = prev_usage_vector + pev_write_weights -prev_usage_vector*prev_write_weights
         # with multiple write head:
@@ -202,6 +216,7 @@ class ReadWriteHeads(BasicDNCHeads):
             prev_write_weights=prev_write_weights,
         )
         # (batch_size x mem_nbr_slots)
+        #wandb.log({f"usage": wandb.Histogram(updated_usage_vector.cpu().detach())})
         
         # Adapted from:
         # https://github.com/ixaxaar/pytorch-dnc/blob/33e35326db74c7ccd45360d6668682e60b407d1f/dnc/memory.py#L84
@@ -242,9 +257,11 @@ class ReadWriteHeads(BasicDNCHeads):
             index=unsorted_indices.long(),
         ).reshape(batch_size, 1, self.memory.mem_nbr_slots)
         # (batch_size x 1 x mem_nbr_slots)
+        #wandb.log({f"allocation": wandb.Histogram(allocation_weights.cpu().detach())})
 
         # Content Addressing :
         wc = self.memory.content_addressing(memory_state, odict['kw'], odict['betaw'])
+        #wandblog({f"write_content": wandb.Histogram(wc.cpu().detach())})
 
         # Interpolation between content and allocation:
         write_weights = odict['gw']*(odict['ga']*allocation_weights+(1-odict['ga'])*wc)
@@ -294,14 +311,16 @@ class ReadWriteHeads(BasicDNCHeads):
         updated_link_matrix = eye.expand_as(updated_link_matrix)*updated_link_matrix
 
         odict['link_matrix'] = updated_link_matrix
+        #wandblog({f"link_matrix": wandb.Histogram(updated_link_matrix.cpu().detach())})
 
         # update precedence weights:
-        sum_prev_p = prev_precedence_weights.reshape(-1, self.memory.mem_nbr_slots).sum(dim=-2,keepdim=False)
-        # (batch_size,)
-        updated_precedence_weights = (1-sum_prev_p)*prev_precedence_weights+write_weights
+        sum_w = write_weights.reshape(-1, self.memory.mem_nbr_slots).sum(dim=-1).reshape(batch_size, 1, 1)
+        # (batch_size, 1, 1)
+        updated_precedence_weights = (1-sum_w)*prev_precedence_weights+write_weights
         #(batch_size, 1, mem_nbr_slots)
         
         odict['precedence_weights'] = updated_precedence_weights 
+        #wandb.log({f"precedence_weights": wandb.Histogram(updated_precedence_weights.cpu().detach())})
                 
         # forward weighting:
         ## allow broadcasting over head dimension:
@@ -332,9 +351,14 @@ class ReadWriteHeads(BasicDNCHeads):
         read_weights = read_weights.sum(dim=-1, keepdim=False)
         
         odict['read_weights'] = read_weights
+        #wandblog({f"forward_weights": wandb.Histogram(forward_weights.cpu().detach())})
+        #wandblog({f"backward_weights": wandb.Histogram(backward_weights.cpu().detach())})
+        #wandblog({f"content_weights": wandb.Histogram(content_weights.cpu().detach())})
+        #wandb.log({f"read_modes_scaler": wandb.Histogram(read_modes_scaler.cpu().detach())})
 
         read_vectors = self.memory.read(memory_state=memory_state, w=read_weights)
         odict['read_vectors'] = read_vectors
+        #wandblog({f"read_vectors": wandb.Histogram(read_vectors.cpu().detach())})
 
         return read_vectors, read_weights, updated_precedence_weights, updated_link_matrix
 
@@ -623,6 +647,8 @@ class DNCBody(nn.Module) :
         self.build_memory()
         self.build_controller()
         self.build_heads()
+        
+        #_register_nan_checks(self)
 
     def build_memory(self) :
         self.memory = DNCMemory(
@@ -744,6 +770,8 @@ class DNCBody(nn.Module) :
         prev_read_vec = dnc_state_dict['dnc_body']['prev_read_vec'][0]
         prev_read_vec = prev_read_vec.to(x.dtype).to(x.device)
         x = torch.cat([x, prev_read_vec], dim=-1)
+        
+        #wandblog({f"prev_read_vec": wandb.Histogram(prev_read_vec.cpu().detach())})
 
         # Controller Outputs :
         # output : batch_dim x hidden_dim
@@ -751,10 +779,15 @@ class DNCBody(nn.Module) :
         controller_inputs = [x, dnc_state_dict['dnc_controller']]
         vt, nx, dnc_state_dict['dnc_controller'] = self.controller.forward_controller(controller_inputs)
         
+        #wandb.log({f"vt": wandb.Histogram(vt.cpu().detach())})
+        #wandblog({f"nx": wandb.Histogram(nx.cpu().detach())})
+        
         # clip the controller output
         nx = torch.clamp(nx, -self.clip, self.clip)
         
         memory_state = dnc_state_dict['dnc_memory']['memory'][0].to(x.device) 
+        
+        #wandblog({f"memory": wandb.Histogram(memory_state.cpu().detach())})
         
         prev_read_weights = dnc_state_dict['dnc_body']['prev_read_weights'][0].to(vt.device)
         prev_write_weights = dnc_state_dict['dnc_body']['prev_write_weights'][0].to(vt.device)

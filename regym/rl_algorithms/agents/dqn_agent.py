@@ -23,6 +23,8 @@ from ..algorithms.wrappers import HERAlgorithmWrapper
 from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
 from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
 
+import wandb
+
 
 class DQNAgent(Agent):
     def __init__(self, name, algorithm):
@@ -292,17 +294,19 @@ class DQNAgent(Agent):
             
             nbr_updates = self.nbr_training_iteration_per_cycle
 
-            if self.algorithm.unwrapped.summary_writer is not None:
-                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
-                    actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
-                else:
-                    actor_learner_shared_dict = self.actor_learner_shared_dict.get()
-                nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
-                self.algorithm.unwrapped.summary_writer.add_scalar(
-                    f'PerUpdate/ActorLearnerSynchroRemainingUpdates', 
-                    nbr_update_remaining, 
-                    self.algorithm.unwrapped.get_update_count()
-                )
+            #if self.algorithm.unwrapped.summary_writer is not None:
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
+            #self.algorithm.unwrapped.summary_writer.add_scalar(
+            wandb.log({
+                f'PerUpdate/ActorLearnerSynchroRemainingUpdates':
+                nbr_update_remaining
+                }, 
+                #self.algorithm.unwrapped.get_update_count()
+            )
             
             # Update actor's models:
             if self.async_learner\

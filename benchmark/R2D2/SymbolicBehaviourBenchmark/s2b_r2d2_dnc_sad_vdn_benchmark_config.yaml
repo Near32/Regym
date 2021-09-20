@@ -280,6 +280,23 @@ experiment:
         'observation_resize_dim': 56, #(56,56),
         #
         'reload': 'None',
+        'test_only': False,
+        'path_suffix': 'None',
+        'pubsub': True,
+   
+        'speaker_rec': False,
+        'listener_rec': True,
+        'listener_comm_rec': False,
+        'speaker_rec_biasing': False,
+        'listener_rec_biasing': True,
+        'listener_comm_rec_biasing': False,
+        
+        'node_id_to_extract': 'memory',
+
+        'player2_harvest': False,
+    
+        'use_rule_based_agent': False ,
+        'use_speaker_rule_based_agent': True,
         },
     ]
     experiment_id: 'r2d2_s2b_debug'

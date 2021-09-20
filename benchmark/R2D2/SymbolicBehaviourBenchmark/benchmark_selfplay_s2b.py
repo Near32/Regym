@@ -41,6 +41,9 @@ from rl_hiddenstate_policy import RLHiddenStatePolicy
 
 from regym.pubsub_manager import PubSubManager
 
+import wandb
+
+
 def make_rl_pubsubmanager(
     agents,
     config, 
@@ -48,8 +51,11 @@ def make_rl_pubsubmanager(
     load_path=None,
     save_path=None,
     speaker_rec=False,
+    speaker_rec_biasing=False, 
     listener_rec=False,
+    listener_rec_biasing=False, 
     listener_comm_rec=False,
+    listener_comm_rec_biasing=False, 
     node_id_to_extract="hidden",
     ):
     """
@@ -64,10 +70,10 @@ def make_rl_pubsubmanager(
         - "sum_writer": str where to save the summary...
 
     """
-    pipelined = False
+    pipelined = True #False
     use_multi_rec = False
-    if len(sys.argv) > 2:
-      pipelined = any(['pipelined' in arg for arg in sys.argv])
+    #if len(sys.argv) > 2:
+    #  pipelined = any(['pipelined' in arg for arg in sys.argv])
     if len(sys.argv) >2:
         use_multi_rec = any(['multi_rec' in arg for arg in sys.argv])
 
@@ -180,10 +186,6 @@ def make_rl_pubsubmanager(
       "current_agents":"modules:current_agents:ref",  
     }
 
-    speaker_rec_biasing = False 
-    if len(sys.argv) > 2:
-      speaker_rec_biasing = any(['speaker_rec_biasing' in arg for arg in sys.argv[2:]])
-
     if speaker_rec_biasing:
       print("WARNING: Biasing for Speaker's Reconstruction.")
     else:
@@ -221,11 +223,7 @@ def make_rl_pubsubmanager(
 
       "current_agents":"modules:current_agents:ref",  
     }
-
-    listener_rec_biasing = False 
-    if len(sys.argv) > 2:
-      listener_rec_biasing = any(['listener_rec_biasing' in arg for arg in sys.argv[2:]])
-
+    
     if listener_rec_biasing:
       print("WARNING: Biasing for Listener's Reconstruction.")
     else:
@@ -263,10 +261,6 @@ def make_rl_pubsubmanager(
 
       "current_agents":"modules:current_agents:ref",  
     }
-
-    listener_comm_rec_biasing = False 
-    if len(sys.argv) > 2:
-      listener_comm_rec_biasing = any(['listener_comm_rec_biasing' in arg for arg in sys.argv[2:]])
 
     if listener_comm_rec_biasing:
       print("WARNING: Biasing for Listener's Communication Reconstruction.")
@@ -460,11 +454,12 @@ def train_and_evaluate(agents: List[object],
                        speaker_rec=False,
                        listener_rec=False,
                        listener_comm_rec=False,
+                       speaker_rec_biasing=False, 
+                       listener_rec_biasing=False, 
+                       listener_comm_rec_biasing=False, 
                        node_id_to_extract="hidden",
                        ):
-    pubsub = False
-    if len(sys.argv) > 2:
-      pubsub = any(['pubsub' in arg for arg in sys.argv])
+    pubsub = True #False
 
     if pubsub:
       config = {
@@ -548,10 +543,11 @@ def train_and_evaluate(agents: List[object],
             logs_dict[f"S2B/Accuracy/Q3/{s2b_mode}"] = q3_value
             logs_dict[f"S2B/Accuracy/IQR/{s2b_mode}"] = iqr
 
-            sum_writer.add_histogram(f"S2B/Accuracy/{s2b_mode}", values, obs_count*nbr_actors)
+            #sum_writer.add_histogram(f"S2B/Accuracy/{s2b_mode}", values, obs_count*nbr_actors)
 
             acc_buffers[s2b_mode] = []
         return   
+      
       step_hooks.append(acc_hook)
       config['step_hooks'] = step_hooks
 
@@ -561,6 +557,9 @@ def train_and_evaluate(agents: List[object],
         speaker_rec=speaker_rec,
         listener_rec=listener_rec,
         listener_comm_rec=listener_comm_rec,
+        speaker_rec_biasing=speaker_rec_biasing,
+        listener_rec_biasing=listener_rec_biasing,
+        listener_comm_rec_biasing=listener_comm_rec_biasing,
         logger=sum_writer,
         node_id_to_extract=node_id_to_extract,
       )
@@ -638,43 +637,35 @@ def training_process(agent_config: Dict,
                      base_path: str = './', 
                      seed: int = 0):
     
-    test_only = False
-    path_suffix = None
-    pubsub = False
-    speaker_rec = False
-    listener_rec = False
-    listener_comm_rec = False
-    speaker_rec_biasing = False
-    listener_rec_biasing = False
-    listener_comm_rec_biasing = False
+    test_only = task_config.get('test_only', False)
+    path_suffix = task_config.get('path_suffix', None)
+    if path_suffix=='None':  path_suffix=None
+    pubsub = task_config.get('pubsub', False)
     
-    use_rule_based_agent = False 
-    use_speaker_rule_based_agent = False
+    speaker_rec = task_config.get('speaker_rec', False)
+    listener_rec = task_config.get('listener_rec', False)
+    listener_comm_rec = task_config.get('listener_comm_rec', False)
+    speaker_rec_biasing = task_config.get('speaker_rec_biasing', False)
+    listener_rec_biasing = task_config.get('listener_rec_biasing', False)
+    listener_comm_rec_biasing = task_config.get('listener_comm_rec_biasing', False)
+    node_id_to_extract=  task_config.get('node_id_to_extract', "hidden") #"memory"
+    
+    player2_harvest = task_config.get('player2_harvest', False)
+    
+    use_rule_based_agent = task_config.get('use_rule_based_agent', False )
+    use_speaker_rule_based_agent = task_config.get('use_speaker_rule_based_agent', False)
+    
+    if use_rule_based_agent:
+      agent_config['vdn'] = False
+      agent_config['sad'] = False 
+      task_config['vdn'] = False 
+      task_config['vdn'] = False 
+
     if len(sys.argv) > 2:
-      pubsub = any(['pubsub' in arg for arg in sys.argv])
-      test_only = any(['test_only' in arg for arg in sys.argv])
-      
-      node_id_to_extract="hidden"
       override_nite = [idx for idx, arg in enumerate(sys.argv) if "--node_id_to_extract" in arg]
       if len(override_nite):
           node_id_to_extract = sys.argv[override_nite[0]+1]
           print(f"NEW NODE ID TO EXTRACT FOR REC: {node_id_to_extract}")
-
-      speaker_rec = any(['use_speaker_rec' in arg for arg in sys.argv[2:]])
-      listener_rec = any(['use_listener_rec' in arg for arg in sys.argv[2:]])
-      listener_comm_rec = any(['use_listener_comm_rec' in arg for arg in sys.argv[2:]])
-       
-      speaker_rec_biasing = any(['speaker_rec_biasing' in arg for arg in sys.argv[2:]])
-      listener_rec_biasing = any(['listener_rec_biasing' in arg for arg in sys.argv[2:]])
-      listener_comm_rec_biasing = any(['listener_comm_rec_biasing' in arg for arg in sys.argv[2:]])
-      
-      use_rule_based_agent = any(['rule_based_agent' in arg for arg in sys.argv[2:]])
-      use_speaker_rule_based_agent = any(['speaker_rule_based_agent' in arg for arg in sys.argv[2:]])
-      if use_rule_based_agent:
-          agent_config['vdn'] = False
-          agent_config['sad'] = False 
-          task_config['vdn'] = False 
-          task_config['vdn'] = False 
 
       override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--seed' in arg]
       if len(override_seed_argv_idx):
@@ -696,9 +687,6 @@ def training_process(agent_config: Dict,
         train_observation_budget = int(sys.argv[obs_budget_argv[0]+1])
         print(f"TRAINING OBSERVATION BUDGET: {train_observation_budget}")
 
-
-      task_config["otherplay"] = any(['--otherplay' in arg for arg in sys.argv[2:]])
-      
     if test_only:
       base_path = os.path.join(base_path,"TESTING")
     else:
@@ -750,7 +738,7 @@ def training_process(agent_config: Dict,
         encoding='utf8',
       ),
     )
-
+    
     np.random.seed(seed)
     torch.manual_seed(seed)
     random.seed(seed)
@@ -846,19 +834,17 @@ def training_process(agent_config: Dict,
                 )
                 agents = [agent, rb_agent]
         else:
-            player2_harvest = False
-
-            if len(sys.argv) > 2:
-                player2_harvest = any(['player2_harvest' in arg for arg in sys.argv])
-
             agents = [agent, agent.get_async_actor(training=player2_harvest)]
             # We can create non-training or training async actors.
             # If traininging, then their experience is added to the replay buffer
             # of the main agent, which might have some advantanges
             # -given that it proposes decorrelated data-, but it may
             # also have unknown disadvantages. Needs proper investigation.
-
-
+    
+    config = {'task':task_config, 'agent': agent_config}
+    wandb.init(project='debug_dnc', config=config)
+    #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
+    
     trained_agents = train_and_evaluate(
       agents=agents,
       task=task,
@@ -878,6 +864,9 @@ def training_process(agent_config: Dict,
       speaker_rec=speaker_rec,
       listener_rec=listener_rec,
       listener_comm_rec=listener_comm_rec,
+      speaker_rec_biasing=speaker_rec_biasing,
+      listener_rec_biasing=listener_rec_biasing,
+      listener_comm_rec_biasing=listener_comm_rec_biasing,
       node_id_to_extract=node_id_to_extract,
     )
 
