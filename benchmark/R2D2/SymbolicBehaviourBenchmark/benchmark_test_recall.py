@@ -851,6 +851,10 @@ def main():
         type=str, 
         default="./recall_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
     )
+    parser.add_argument("--path_suffix", 
+        type=str, 
+        default="",
+    )
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
@@ -863,6 +867,10 @@ def main():
     parser.add_argument("--weights_entropy_lambda", 
         type=float, 
         default=0.0,
+    )
+    parser.add_argument("--DNC_sparse_K", 
+        type=int, 
+        default=0,
     )
     parser.add_argument("--sequence_replay_unroll_length", 
         type=int, 

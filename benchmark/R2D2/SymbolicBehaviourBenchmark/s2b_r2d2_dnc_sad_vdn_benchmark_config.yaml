@@ -439,6 +439,7 @@ agents:
         critic_arch_feature_dim: 128
         critic_arch_hidden_units: [128]
         #critic_arch_hidden_units: [128, 128]
+        DNC_sparse_K: 0
 
         # Arch 3:
         # critic_arch: 'MLP-LSTM-RNN2'

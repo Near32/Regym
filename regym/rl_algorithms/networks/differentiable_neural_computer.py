@@ -535,18 +535,37 @@ class DNCController(LSTMBody):
         return self.output_dim
 
 
+def asp(t, K=8):
+    batch_size = t.shape[0]
+    row_size = t.shape[1]
+    col_size = t.shape[2]
+    t_v, t_i = t.topk(k=K, dim=-1, largest=True, sorted=False)
+    """
+    st = torch.zeros_like(t)
+    for bidx in range(batch_size):
+        for ridx in range(row_size):
+            for k in range(K):
+                st[bidx, ridx, t_i[bidx, ridx, k]] = t[bidx, ridx, t_i[bidx, ridx, k]]
+    st = st.to_sparse()
+    """
+    st = torch.zeros_like(t).scatter_(index=t_i, dim=-1, src=t_v).to_sparse()
+    return st
+
+
 class DNCMemory(nn.Module) :
     def __init__(
         self, 
         mem_nbr_slots, 
-        mem_dim, 
+        mem_dim,
+        sparse_K=0,
         ):
         
         super(DNCMemory,self).__init__()
 
         self.mem_nbr_slots = mem_nbr_slots
         self.mem_dim = mem_dim
-        
+        self.sparse_K = sparse_K
+
         self.initialize_memory()
 
     def initialize_memory(self) :
@@ -559,6 +578,7 @@ class DNCMemory(nn.Module) :
     def get_reset_states(self, cuda=False, repeat=1):
         memory = []
         h = self.init_mem.clone().repeat(repeat, 1 , 1)
+        if self.sparse_K!=0:    h = h.to_sparse()
         if cuda:
             h = h.cuda()
         memory.append(h)
@@ -605,6 +625,8 @@ class DNCMemory(nn.Module) :
         a = torch.matmul(w.unsqueeze(-1), add.unsqueeze(2))
         for hidx in range(nh):
             nmemory = nmemory*(1-e[:,hidx])+a[:,hidx]
+        
+       
         return nmemory
 
     def read(self, memory_state, w):
@@ -624,6 +646,7 @@ class DNCBody(nn.Module) :
         nbr_read_heads=1, 
         nbr_write_heads=1, 
         clip=20,
+        sparse_K=0,
         extra_inputs_infos: Optional[Dict]={},
         ):
 
@@ -637,7 +660,8 @@ class DNCBody(nn.Module) :
 
         self.mem_nbr_slots = mem_nbr_slots
         self.mem_dim = mem_dim
-        
+        self.sparse_K = sparse_K
+
         assert nbr_write_heads==1
         self.nbr_read_heads = nbr_read_heads
         self.nbr_write_heads = nbr_write_heads
@@ -654,6 +678,7 @@ class DNCBody(nn.Module) :
         self.memory = DNCMemory(
             mem_nbr_slots=self.mem_nbr_slots,
             mem_dim=self.mem_dim,
+            sparse_K=self.sparse_K,
         )
         
     def build_controller(self) :
@@ -786,7 +811,9 @@ class DNCBody(nn.Module) :
         nx = torch.clamp(nx, -self.clip, self.clip)
         
         memory_state = dnc_state_dict['dnc_memory']['memory'][0].to(x.device) 
-        
+        if memory_state.is_sparse:
+            memory_state = memory_state.to_dense()
+
         #wandblog({f"memory": wandb.Histogram(memory_state.cpu().detach())})
         
         prev_read_weights = dnc_state_dict['dnc_body']['prev_read_weights'][0].to(vt.device)
@@ -817,7 +844,7 @@ class DNCBody(nn.Module) :
         # batch_dim x nbr_read_heads * mem_dim :
         read_vec, new_read_weights, \
         updated_precedence_weights, updated_link_matrix = self.readWriteHeads.read(
-            memory_state=memory_state,
+            memory_state=written_memory_state,
             odict=odict,
             write_weights=new_write_weights,
             prev_link_matrix=prev_link_matrix,
@@ -837,6 +864,8 @@ class DNCBody(nn.Module) :
         )
 
         dnc_state_dict['dnc_body']['prev_read_vec'] = [read_vec.reshape(batch_size, -1)]
+        if self.sparse_K!=0:
+            written_memory_state = asp(written_memory_state, K=self.sparse_K)
         dnc_state_dict['dnc_memory']['memory'] = [written_memory_state]
         frame_states.update({'dnc':dnc_state_dict})
         

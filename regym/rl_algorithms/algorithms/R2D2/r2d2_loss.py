@@ -1083,7 +1083,7 @@ def compute_loss(states: torch.Tensor,
         wandb.log({'Training/ImportanceSamplingStd':  importanceSamplingWeights.cpu().std().item(), "training_step":iteration_count}, commit=False)
         wandb.log({'Training/PER_Beta':  PER_beta, "training_step":iteration_count}, commit=False)
     
-    wandb.log()
+    wandb.log({}, commit=True)
 
     return loss, loss_per_item
 

@@ -436,7 +436,7 @@ class MARLEnvironmentModule(Module):
                       agent.save(minimal=True)
                       print(f"Agent {agent} saved at: {agent.save_path}")
                     
-        wandb.log()
+        wandb.log({}, commit=True)
 
         outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
         outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
