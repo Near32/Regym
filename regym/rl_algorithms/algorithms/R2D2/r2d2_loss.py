@@ -1034,7 +1034,7 @@ def compute_loss(states: torch.Tensor,
     
     end = time.time()
 
-    wandb.log({'Training/TimeComplexity':  end-start}) # iteration_count)
+    wandb.log({'Training/TimeComplexity':  end-start, "training_step":iteration_count}, commit=False)
     
     if study_qa_values_discrepancy:
         denominator = eps+torch.abs(training_burned_in_predictions['qa'].reshape(batch_size, -1).max(dim=-1)[0])
@@ -1048,40 +1048,42 @@ def compute_loss(states: torch.Tensor,
         final_discrepancy_qa = final_diff.pow(2).sum(-1).sqrt() / denominator
         # (batch_size, )
         
-        wandb.log({'Training/DiscrepancyQAValues/Initial':  initial_discrepancy_qa.cpu().mean().item()}) # iteration_count)
-        wandb.log({'Training/DiscrepancyQAValues/Final':  final_discrepancy_qa.cpu().mean().item()}) # iteration_count)
+        wandb.log({'Training/DiscrepancyQAValues/Initial':  initial_discrepancy_qa.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+        wandb.log({'Training/DiscrepancyQAValues/Final':  final_discrepancy_qa.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     
-    # wandb.log({'Training/MeanTrainingNStepReturn':  training_rewards.cpu().mean().item()}) # iteration_count)
-    # wandb.log({'Training/MinTrainingNStepReturn':  training_rewards.cpu().min().item()}) # iteration_count)
-    # wandb.log({'Training/MaxTrainingNStepReturn':  training_rewards.cpu().max().item()}) # iteration_count)
-    wandb.log({'Training/MeanTrainingReward':  training_rewards.cpu().mean().item()}) # iteration_count)
-    wandb.log({'Training/MinTrainingReward':  training_rewards.cpu().min().item()}) # iteration_count)
-    wandb.log({'Training/MaxTrainingReward':  training_rewards.cpu().max().item()}) # iteration_count)
+    # wandb.log({'Training/MeanTrainingNStepReturn':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+    # wandb.log({'Training/MinTrainingNStepReturn':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
+    # wandb.log({'Training/MaxTrainingNStepReturn':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MeanTrainingReward':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MinTrainingReward':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MaxTrainingReward':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
     
-    #wandb.log({'Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().mean().item()}) # iteration_count)
-    #wandb.log({'Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().min().item()}) # iteration_count)
-    #wandb.log({'Training/MaxTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().max().item()}) # iteration_count)
+    #wandb.log({'Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+    #wandb.log({'Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().min().item(), "training_step":iteration_count}, commit=False)
+    #wandb.log({'Training/MaxTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().max().item(), "training_step":iteration_count}, commit=False)
     
-    wandb.log({'Training/MeanTargetQsi':  unscaled_targetQ_Si_A_values.cpu().mean().item()}) # iteration_count)
-    wandb.log({'Training/MinTargetQsi':  unscaled_targetQ_Si_A_values.cpu().min().item()}) # iteration_count)
-    wandb.log({'Training/MaxTargetQsi':  unscaled_targetQ_Si_A_values.cpu().max().item()}) # iteration_count)
+    wandb.log({'Training/MeanTargetQsi':  unscaled_targetQ_Si_A_values.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MinTargetQsi':  unscaled_targetQ_Si_A_values.cpu().min().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MaxTargetQsi':  unscaled_targetQ_Si_A_values.cpu().max().item(), "training_step":iteration_count}, commit=False)
     
-    wandb.log({'Training/MeanBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().mean().item()}) # iteration_count)
-    wandb.log({'Training/MinBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().min().item()}) # iteration_count)
-    wandb.log({'Training/MaxBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().max().item()}) # iteration_count)
+    wandb.log({'Training/MeanBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MinBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().min().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MaxBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().max().item(), "training_step":iteration_count}, commit=False)
     
-    wandb.log({'Training/MeanQAValues':  training_predictions['qa'].cpu().mean().item()}) # iteration_count)
-    wandb.log({'Training/MinQAValues':  training_predictions['qa'].cpu().min().item()}) # iteration_count)
-    wandb.log({'Training/MaxQAValues':  training_predictions['qa'].cpu().max().item()}) # iteration_count)
+    wandb.log({'Training/MeanQAValues':  training_predictions['qa'].cpu().mean().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MinQAValues':  training_predictions['qa'].cpu().min().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/MaxQAValues':  training_predictions['qa'].cpu().max().item(), "training_step":iteration_count}, commit=False)
     
-    wandb.log({'Training/StdQAValues':  training_predictions['qa'].cpu().std().item()}) # iteration_count)
-    wandb.log({'Training/QAValueLoss':  loss.cpu().item()}) # iteration_count)
-    wandb.log({'Training/EntropyVal':  training_predictions['ent'].mean().cpu().item()}) # iteration_count)
-    #wandb.log({'Training/TotalLoss':  loss.cpu().item()}) # iteration_count)
+    wandb.log({'Training/StdQAValues':  training_predictions['qa'].cpu().std().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/QAValueLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/EntropyVal':  training_predictions['ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
+    #wandb.log({'Training/TotalLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
     if use_PER:
-        wandb.log({'Training/ImportanceSamplingMean':  importanceSamplingWeights.cpu().mean().item()}) # iteration_count)
-        wandb.log({'Training/ImportanceSamplingStd':  importanceSamplingWeights.cpu().std().item()}) # iteration_count)
-        wandb.log({'Training/PER_Beta':  PER_beta}) # iteration_count)
+        wandb.log({'Training/ImportanceSamplingMean':  importanceSamplingWeights.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+        wandb.log({'Training/ImportanceSamplingStd':  importanceSamplingWeights.cpu().std().item(), "training_step":iteration_count}, commit=False)
+        wandb.log({'Training/PER_Beta':  PER_beta, "training_step":iteration_count}, commit=False)
+    
+    wandb.log()
 
     return loss, loss_per_item
 

@@ -122,11 +122,11 @@ class PerEpochLoggerModule(Module):
             if need_stats:
               averaged_value = values.mean()
               std_value = values.std()
-              wandb.log({f"PerEpoch/{key}/Mean":  averaged_value}) # epoch)
-              wandb.log({f"PerEpoch/{key}/Std":  std_value}) # epoch)
+              wandb.log({f"PerEpoch/{key}/Mean":  averaged_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/Std":  std_value, "epoch":epoch}, commit=False)
               
-              wandb.log({f"PerUpdate/{key}/Mean":  averaged_value}) # update_count)
-              wandb.log({f"PerUpdate/{key}/Std":  std_value}) # update_count)
+              wandb.log({f"PerUpdate/{key}/Mean":  averaged_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/Std":  std_value, "update_count":update_count}, commit=False)
               
 
               median_value = np.nanpercentile(
@@ -149,20 +149,20 @@ class PerEpochLoggerModule(Module):
               )
               iqr = q3_value-q1_value
               
-              wandb.log({f"PerEpoch/{key}/Median":  median_value}) # epoch)
-              wandb.log({f"PerEpoch/{key}/Q1":  q1_value}) # epoch)
-              wandb.log({f"PerEpoch/{key}/Q3":  q3_value}) # epoch)
-              wandb.log({f"PerEpoch/{key}/IQR":  iqr}) # epoch)
+              wandb.log({f"PerEpoch/{key}/Median":  median_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/Q1":  q1_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/Q3":  q3_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/IQR":  iqr, "epoch":epoch}, commit=False)
               
-              wandb.log({f"PerUpdate/{key}/Median":  median_value}) # update_count)
-              wandb.log({f"PerUpdate/{key}/Q1":  q1_value}) # update_count)
-              wandb.log({f"PerUpdate/{key}/Q3":  q3_value}) # update_count)
-              wandb.log({f"PerUpdate/{key}/IQR":  iqr}) # update_count)
+              wandb.log({f"PerUpdate/{key}/Median":  median_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/Q1":  q1_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/Q3":  q3_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/IQR":  iqr, "update_count":update_count}, commit=False)
               
               #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
-              wandb.log({f"PerEpoch/{key}":  valuelist[-1]}) # epoch)
-              wandb.log({f"PerUpdate/{key}":  valuelist[-1]}) # update_count)
+              wandb.log({f"PerEpoch/{key}":  valuelist[-1], "epoch":epoch}, commit=False)
+              wandb.log({f"PerUpdate/{key}":  valuelist[-1], "update_count":update_count}, commit=False)
               
               # Remove the value form the logs_dict if it is present:
               logs_dict.pop(key, None)
@@ -174,7 +174,7 @@ class PerEpochLoggerModule(Module):
         for key,value in logs_dict.items():
           if isinstance(value, torch.Tensor): 
               value = value.mean().item()
-          wandb.log({key:  value}) # global_it_step)
-
+          wandb.log({key:  value, "global_it_step":global_it_step}, commit=False)
+        wandb.log()
         return {}
         

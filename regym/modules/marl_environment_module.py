@@ -296,21 +296,21 @@ class MARLEnvironmentModule(Module):
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))
                 self.episode_lengths.append(len(traj))
 
-                wandb.log({'Training/TotalReturn':  self.total_returns[-1]}) # self.episode_count)
-                wandb.log({'PerObservation/TotalReturn':  self.total_returns[-1]}) # self.obs_count)
-                wandb.log({'PerUpdate/TotalReturn':  self.total_returns[-1]}) # self.update_count)
+                wandb.log({'Training/TotalReturn':  self.total_returns[-1], "episode_count":self.episode_count}, commit=False)
+                wandb.log({'PerObservation/TotalReturn':  self.total_returns[-1], "obs_count":self.obs_count}, commit=False)
+                wandb.log({'PerUpdate/TotalReturn':  self.total_returns[-1], "update_count":self.update_count}, commit=False)
                 
-                wandb.log({'Training/PositiveTotalReturn':  self.positive_total_returns[-1]}) # self.episode_count)
-                wandb.log({'PerObservation/PositiveTotalReturn':  self.positive_total_returns[-1]}) # self.obs_count)
-                wandb.log({'PerUpdate/PositiveTotalReturn':  self.positive_total_returns[-1]}) # self.update_count)
+                wandb.log({'Training/PositiveTotalReturn':  self.positive_total_returns[-1], "episode_count":self.episode_count}, commit=False)
+                wandb.log({'PerObservation/PositiveTotalReturn':  self.positive_total_returns[-1], "obs_count":self.obs_count}, commit=False)
+                wandb.log({'PerUpdate/PositiveTotalReturn':  self.positive_total_returns[-1], "update_count":self.update_count}, commit=False)
                 
                 if actor_index == 0:
                     self.sample_episode_count += 1
-                #wandb.log({f'data/reward_{actor_index}':  total_returns[-1]}) # sample_episode_count)
-                #wandb.log({f'PerObservation/Actor_{actor_index}_Reward':  total_returns[-1]}) # obs_count)
-                #wandb.log({f'PerObservation/Actor_{actor_index}_PositiveReward':  positive_total_returns[-1]}) # obs_count)
-                #wandb.log({f'PerUpdate/Actor_{actor_index}_Reward':  total_returns[-1]}) # self.update_count)
-                #wandb.log({'Training/TotalIntReturn':  total_int_returns[-1]}) # episode_count)
+                #wandb.log({f'data/reward_{actor_index}':  total_returns[-1]}) # sample_episode_count, commit=False)
+                #wandb.log({f'PerObservation/Actor_{actor_index}_Reward':  total_returns[-1]}) # obs_count, commit=False)
+                #wandb.log({f'PerObservation/Actor_{actor_index}_PositiveReward':  positive_total_returns[-1]}) # obs_count, commit=False)
+                #wandb.log({f'PerUpdate/Actor_{actor_index}_Reward':  total_returns[-1], "update_count":self.update_count}, commit=False)
+                #wandb.log({'Training/TotalIntReturn':  total_int_returns[-1]}) # episode_count, commit=False)
 
                 if len(self.trajectories) >= self.nbr_actors:
                     mean_total_return = sum( self.total_returns) / len(self.trajectories)
@@ -322,23 +322,23 @@ class MARLEnvironmentModule(Module):
                     mean_episode_length = sum( self.episode_lengths) / len(self.trajectories)
                     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in self.episode_lengths]) / len(self.episode_lengths) )
 
-                    wandb.log({'Training/StdIntReturn':  std_int_return}) # self.episode_count // self.nbr_actors)
-                    wandb.log({'Training/StdExtReturn':  std_ext_return}) # self.episode_count // self.nbr_actors)
+                    wandb.log({'PerEpisodeBatch/StdIntReturn':  std_int_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb.log({'PerEpisodeBatch/StdExtReturn':  std_ext_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
 
-                    wandb.log({'Training/MeanTotalReturn':  mean_total_return}) # self.episode_count // self.nbr_actors)
-                    wandb.log({'PerObservation/MeanTotalReturn':  mean_total_return}) # self.obs_count)
-                    wandb.log({'PerUpdate/MeanTotalReturn':  mean_total_return}) # self.update_count)
-                    wandb.log({'Training/MeanPositiveTotalReturn':  mean_positive_total_return}) # self.episode_count // self.nbr_actors)
-                    wandb.log({'PerObservation/MeanPositiveTotalReturn':  mean_positive_total_return}) # self.obs_count)
-                    wandb.log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return}) # self.update_count)
-                    wandb.log({'Training/MeanTotalIntReturn':  mean_total_int_return}) # self.episode_count // self.nbr_actors)
+                    wandb.log({'PerEpisodeBatch/MeanTotalReturn':  mean_total_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb.log({'PerObservation/MeanTotalReturn':  mean_total_return, "obs_count":self.obs_count}, commit=False)
+                    wandb.log({'PerUpdate/MeanTotalReturn':  mean_total_return, "update_count":self.update_count}, commit=False)
+                    wandb.log({'PerEpisodeBatch/MeanPositiveTotalReturn':  mean_positive_total_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb.log({'PerObservation/MeanPositiveTotalReturn':  mean_positive_total_return, "obs_count":self.obs_count}, commit=False)
+                    wandb.log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return, "update_count":self.update_count}, commit=False)
+                    wandb.log({'PerEpisodeBatch/MeanTotalIntReturn':  mean_total_int_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
 
-                    wandb.log({'Training/MeanEpisodeLength':  mean_episode_length}) # self.episode_count // self.nbr_actors)
-                    wandb.log({'PerObservation/MeanEpisodeLength':  mean_episode_length}) # self.obs_count)
-                    wandb.log({'PerUpdate/MeanEpisodeLength':  mean_episode_length}) # self.update_count)
-                    wandb.log({'Training/StdEpisodeLength':  std_episode_length}) # self.episode_count // self.nbr_actors)
-                    wandb.log({'PerObservation/StdEpisodeLength':  std_episode_length}) # self.obs_count)
-                    wandb.log({'PerUpdate/StdEpisodeLength':  std_episode_length}) # self.update_count)
+                    wandb.log({'PerEpisodeBatch/MeanEpisodeLength':  mean_episode_length, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb.log({'PerObservation/MeanEpisodeLength':  mean_episode_length, "obs_count":self.obs_count}, commit=False)
+                    wandb.log({'PerUpdate/MeanEpisodeLength':  mean_episode_length, "update_count":self.update_count}, commit=False)
+                    wandb.log({'PerEpisodeBatch/StdEpisodeLength':  std_episode_length, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb.log({'PerObservation/StdEpisodeLength':  std_episode_length, "obs_count":self.obs_count}, commit=False)
+                    wandb.log({'PerUpdate/StdEpisodeLength':  std_episode_length, "update_count":self.update_count}, commit=False)
 
                     # bookkeeping:
                     outputs_stream_dict["trajectories"] = copy.deepcopy(self.trajectories)
@@ -436,6 +436,7 @@ class MARLEnvironmentModule(Module):
                       agent.save(minimal=True)
                       print(f"Agent {agent} saved at: {agent.save_path}")
                     
+        wandb.log()
 
         outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
         outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)

@@ -168,8 +168,8 @@ class VecEnv():
             observations.append(obs)
             infos.append(info)
 
-        
-        if self.single_agent:
+        # TODO: deprecate single agent bool and use common formatting:
+        if False: #self.single_agent:
             per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
             per_env_infos = infos
         else:
@@ -215,7 +215,8 @@ class VecEnv():
                 continue
             batch_env_index += 1
             
-            if self.single_agent:
+            #TODO: single agent is deprecated:
+            if False: #self.single_agent:
                 pa_a = action_vector[batch_env_index]
             else:
                 pa_a = [ action_vector[idx_agent][batch_env_index] for idx_agent in range( len(action_vector) ) ]
@@ -252,7 +253,8 @@ class VecEnv():
             infos.append(info)
         
             
-        if self.single_agent:
+        # TODO: deprecate single agent bool and use common formatting:
+        if False: #self.single_agent:
             per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
             per_env_reward = np.concatenate( [ np.array(r).reshape(-1) for r in rewards], axis=0)
             per_env_infos = infos
