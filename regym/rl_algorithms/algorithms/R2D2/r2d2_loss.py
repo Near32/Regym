@@ -120,7 +120,9 @@ def replace_rnn_states_at_time_indices(rnn_states_batched: Dict,
                     value = rnn_states_batched[recurrent_submodule_name][key][idx] 
                     batch_size = value.shape[0]
                     unroll_size = time_indices_end+1-time_indices_start 
-                    value[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name][key][idx].reshape(batch_size, unroll_size, -1)
+                    #value[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name][key][idx].reshape(batch_size, unroll_size, -1)
+                    # reshaping is probably useless:
+                    value[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name][key][idx].unsqueeze(1)
                     rnn_states[recurrent_submodule_name][key].append(value)
         else:
             rnn_states[recurrent_submodule_name] = replace_rnn_states_at_time_indices(

@@ -27,6 +27,7 @@ class BasicDNCHeads(nn.Module):
         memory, 
         input_dim=256, 
         nbr_heads=1, 
+        simplified=False,
         ):
         super(BasicDNCHeads,self).__init__()
 
@@ -34,6 +35,7 @@ class BasicDNCHeads(nn.Module):
         self.mem_dim = self.memory.mem_dim
         self.nbr_heads = nbr_heads
         self.input_dim = input_dim
+        self.simplified = simplified 
 
         self.generate_ctrl2gate()
 
@@ -44,25 +46,30 @@ class BasicDNCHeads(nn.Module):
         # read strenghs betar:
         self.head_gate_dim += self.nbr_heads*1
         
-        # free gates f:
-        self.head_gate_dim += self.nbr_heads*1 
-        # read modes pi:
-        self.head_gate_dim += self.nbr_heads*3
+        if not self.simplified:
+            # free gates f:
+            self.head_gate_dim += self.nbr_heads*1 
+            # read modes pi:
+            self.head_gate_dim += self.nbr_heads*3
         
-        # kw write keys:
-        self.head_gate_dim += self.memory.mem_dim
-        # write strengths betaw:
-        self.head_gate_dim += 1
+            # kw write keys:
+            self.head_gate_dim += self.memory.mem_dim
+            # write strengths betaw:
+            self.head_gate_dim += 1
             
-        # erase vector e:
-        self.head_gate_dim += self.memory.mem_dim
-        # wrte vector v:
-        self.head_gate_dim += self.memory.mem_dim
-        # allocation gate ga:
-        self.head_gate_dim += 1
-        # write gate gw:
-        self.head_gate_dim += 1
+            # erase vector e:
+            self.head_gate_dim += self.memory.mem_dim
         
+            # wrte vector v:
+            self.head_gate_dim += self.memory.mem_dim
+            # allocation gate ga:
+            self.head_gate_dim += 1
+            # write gate gw:
+            self.head_gate_dim += 1
+        else:
+            # wrte vector v:
+            self.head_gate_dim += self.memory.mem_dim//2
+            
         self.ctrl2head = layer_init(
             nn.Linear(
                 self.input_dim, 
@@ -102,43 +109,48 @@ class BasicDNCHeads(nn.Module):
         end += self.nbr_heads
         odict['betar'] = F.softplus(ctrl_output[:,start:end]).reshape(-1, self.nbr_heads, 1)
         # no need for 1+ :  https://github.com/deepmind/dnc/issues/9
-        start = end
-        end += self.mem_dim
-        #odict['kw'] = ctrl_output[:,start:end].reshape(-1, 1, self.mem_dim)
-        odict['kw'] = torch.tanh(ctrl_output[:,start:end]).reshape(-1, 1, self.mem_dim)
-        start = end
-        end += 1
-        odict['betaw'] = F.softplus(ctrl_output[:,start:end]).reshape(-1, 1, 1)
-        # no need for 1+ :  https://github.com/deepmind/dnc/issues/9
+        
+        if not self.simplified:
+            start = end
+            end += self.mem_dim
+            #odict['kw'] = ctrl_output[:,start:end].reshape(-1, 1, self.mem_dim)
+            odict['kw'] = torch.tanh(ctrl_output[:,start:end]).reshape(-1, 1, self.mem_dim)
+            start = end
+            end += 1
+            odict['betaw'] = F.softplus(ctrl_output[:,start:end]).reshape(-1, 1, 1)
+            # no need for 1+ :  https://github.com/deepmind/dnc/issues/9
 
-        start = end
-        end += self.mem_dim
-        # (batch_size, 1, mem_dim)
-        odict['erase'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, 1, self.mem_dim)
+            start = end
+            end += self.mem_dim
+            # (batch_size, 1, mem_dim)
+            odict['erase'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, 1, self.mem_dim)
         
         start = end
         end += self.mem_dim
         # (batch_size, 1, mem_dim)
+        write_dim = self.mem_dim
+        if self.simplified: write_dim = int(write_dim // 2)
         #odict['write'] = ctrl_output[:,start:end].reshape(-1, 1, self.mem_dim)
-        odict['write'] = torch.tanh(ctrl_output[:,start:end]).reshape(-1, 1, self.mem_dim)
+        odict['write'] = torch.tanh(ctrl_output[:,start:end]).reshape(-1, 1, write_dim)
         
-        start = end 
-        end += 1
-        odict['ga'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, 1, 1)
-        start = end
-        end += 1
-        odict['gw'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, 1, 1)
+        if not self.simplified:
+            start = end 
+            end += 1
+            odict['ga'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, 1, 1)
+            start = end
+            end += 1
+            odict['gw'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, 1, 1)
         
-        start = end 
-        end += self.nbr_heads
-        odict['f'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, self.nbr_heads, 1)
+            start = end 
+            end += self.nbr_heads
+            odict['f'] = torch.sigmoid(ctrl_output[:,start:end]).reshape(-1, self.nbr_heads, 1)
         
-        start = end 
-        end += 3*self.nbr_heads
-        odict['pi'] = torch.softmax(
-            ctrl_output[:,start:end].reshape(-1, self.nbr_heads, 3),
-            dim=-1,
-        )
+            start = end 
+            end += 3*self.nbr_heads
+            odict['pi'] = torch.softmax(
+                ctrl_output[:,start:end].reshape(-1, self.nbr_heads, 3),
+                dim=-1,
+            )
 
         return odict
 
@@ -149,11 +161,13 @@ class ReadWriteHeads(BasicDNCHeads):
         memory, 
         nbr_heads=1, 
         input_dim=256,
+        simplified=False,
         ):
         super(ReadWriteHeads,self).__init__(
             memory=memory,
             input_dim=input_dim,
             nbr_heads=nbr_heads,
+            simplified=simplified,
         )
     
     def _update_usage_vector(
@@ -279,6 +293,57 @@ class ReadWriteHeads(BasicDNCHeads):
 
         return new_memory_state, updated_usage_vector, write_weights 
     
+    def simplified_write(
+        self,
+        memory_state:torch.Tensor,
+        odict:Dict[str,torch.Tensor],
+        discount_factor:float,
+        timestep:int,
+        prev_ret_write_weights:torch.Tensor,
+        prev_write_weights:torch.Tensor,
+        vector_to_write:Optional[torch.Tensor]=None,
+        ):
+        batch_size = memory_state.shape[0]
+
+        # Write weights:
+        bfilter = (timestep < self.memory.mem_nbr_slots).long()
+        ts_write_weights = torch.zeros(batch_size, 1, self.memory.mem_nbr_slots).to(
+            timestep.device
+        ).index_fill_(
+            dim=-1,
+            index=(bfilter*timestep).long().reshape(batch_size),
+            value=1.0,
+        )
+
+        _, least_used_index = odict['usage_vector'].min(dim=-1, keepdim=True)
+        # (batch_size, 1)
+        lu_write_weights = torch.zeros(batch_size, 1, self.memory.mem_nbr_slots).to(
+            timestep.device
+        ).index_fill_(
+            dim=-1,
+            index=least_used_index.long().reshape(batch_size),
+            value=1.0,
+        )
+        
+        write_weights = bfilter*ts_write_weights+(1-bfilter)*lu_write_weights
+
+        # Retroactive Adressing:
+        ## Interpolation between prev_write_weights and prev_retroactive_weights:
+        ret_write_weights = discount_factor*prev_ret_write_weights+(1-discount_factor)*prev_write_weights
+        #(batch_size x 1 x nbr_mem_slots  )
+        
+        if vector_to_write is None:
+            vector_to_write = odict['write']
+
+        new_memory_state = self.memory.simplified_write(
+            memory_state=memory_state,
+            write_weights=write_weights,
+            ret_write_weights=ret_write_weights,
+            vector_to_write=vector_to_write,
+        )
+        
+        return new_memory_state, write_weights, ret_write_weights
+
     def read(
         self, 
         memory_state, 
@@ -361,6 +426,26 @@ class ReadWriteHeads(BasicDNCHeads):
         #wandblog({f"read_vectors": wandb.Histogram(read_vectors.cpu().detach())})
 
         return read_vectors, read_weights, updated_precedence_weights, updated_link_matrix
+
+    def simplified_read(
+        self,
+        memory_state:torch.Tensor,
+        odict:Dict[str,torch.Tensor],
+        prev_usage_vector:torch.Tensor,
+        ):
+        # Content Addressing :
+        read_weights = self.memory.content_addressing(memory_state, odict['kr'], odict['betar'])
+        #( batch_size, nbrHeads, nbr_mem_slots)
+        odict['read_weights'] = read_weights
+
+        read_vectors = self.memory.read(memory_state=memory_state, w=read_weights)
+        odict['read_vectors'] = read_vectors
+        
+        updated_usage_vector = prev_usage_vector + read_weights.sum(dim=1)
+        #( batch_size, nbr_mem_slots)
+        odict['usage_vector'] = updated_usage_vector 
+
+        return read_vectors, updated_usage_vector 
 
 
 class DNCController(LSTMBody):
@@ -462,6 +547,7 @@ class DNCController(LSTMBody):
 
         extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
         if len(extra_inputs): x = torch.cat([x]+extra_inputs, dim=-1)
+        augmented_x = x 
 
         if next(self.layers[0].parameters()).is_cuda and not(x.is_cuda):    x = x.cuda() 
         hidden_states, cell_states = recurrent_neurons['hidden'], recurrent_neurons['cell']
@@ -519,7 +605,7 @@ class DNCController(LSTMBody):
             'cell': next_cstates}
         })
 
-        return vt, x, frame_states
+        return augmented_x, vt, x, frame_states
     
     def get_reset_states(self, cuda=False, repeat=1):
         hidden_states, cell_states = [], []
@@ -626,9 +712,31 @@ class DNCMemory(nn.Module) :
         for hidx in range(nh):
             nmemory = nmemory*(1-e[:,hidx])+a[:,hidx]
         
-       
         return nmemory
 
+    def simplified_write(
+        self,
+        memory_state,
+        write_weights,
+        ret_write_weights,
+        vector_to_write,
+        ):
+        # w: (batch_size, nbrHeads, nbr_mem_slot)
+        # memory_state: (batch_size, nbr_mem_slot, 2*mem_dim)
+        batch_size = write_weights.shape[0]
+        nmemory = memory_state
+
+        nh = write_weights.shape[1]
+        zero = torch.zeros_like(vector_to_write)
+        z_write = torch.cat([vector_to_write, zero], dim=-1)
+        z_ret = torch.cat([zero, vector_to_write], dim=-1)
+
+        ret = torch.matmul(ret_write_weights.unsqueeze(-1), z_ret.unsqueeze(2))
+        add = torch.matmul(write_weights.unsqueeze(-1), z_write.unsqueeze(2))
+        for hidx in range(nh):
+            nmemory = nmemory+ret[:,hidx]+add[:,hidx]
+        return nmemory
+        
     def read(self, memory_state, w):
         reading = torch.matmul(w, memory_state)
         #(batch_size x nbrHeads x mem_dim)
@@ -647,9 +755,15 @@ class DNCBody(nn.Module) :
         nbr_write_heads=1, 
         clip=20,
         sparse_K=0,
+        simplified=False,
+        discount_factor:float=0.99,
         extra_inputs_infos: Optional[Dict]={},
         ):
-
+        """
+        :param simplified: Boolean, if True, then this module implements the simplified version 
+            of the DNC proposed in Wayne et al., 2018 (https://arxiv.org/pdf/1803.10760.pdf),
+            and re-used in Hill et al., 2020 (https://arxiv.org/pdf/2009.01719.pdf).
+        """
         super(DNCBody,self).__init__()
 
         self.input_dim = input_dim
@@ -661,6 +775,9 @@ class DNCBody(nn.Module) :
         self.mem_nbr_slots = mem_nbr_slots
         self.mem_dim = mem_dim
         self.sparse_K = sparse_K
+        self.simplified = simplified
+        if self.simplified: self.mem_dim *= 2
+        self.discount_factor = discount_factor 
 
         assert nbr_write_heads==1
         self.nbr_read_heads = nbr_read_heads
@@ -698,7 +815,8 @@ class DNCBody(nn.Module) :
         self.readWriteHeads = ReadWriteHeads(
             memory=self.memory,
             nbr_heads=self.nbr_read_heads, 
-            input_dim=self.hidden_dim, 
+            input_dim=self.hidden_dim,
+            simplified=self.simplified,
         )
     
     """
@@ -728,50 +846,60 @@ class DNCBody(nn.Module) :
         return [prev_w]
             
     def get_reset_states(self, cuda=False, repeat=1):
+        ## As an encapsulating module, it is its responsability
+        # to call get_reset_states on the encapsulated elements:
+        hdict = {'dnc_body':{}}
+
         prev_read_vec = []
         h = torch.zeros(repeat, self.nbr_read_heads*self.mem_dim)
         if cuda:
             h = h.cuda()
         prev_read_vec.append(h)
+        hdict['dnc_body']['prev_read_vec'] = prev_read_vec
 
         prev_usage_vector = []
         h = torch.zeros(repeat, self.mem_nbr_slots)
         if cuda:    h = h.cuda()
         prev_usage_vector.append(h)
-
-        prev_read_weights = self._reset_weights(
-            cuda=cuda, 
-            repeat=repeat,
-            nbr_heads=self.nbr_read_heads,
-        )
-        
+        hdict['dnc_body']['prev_usage_vector'] = prev_usage_vector
+    
         prev_write_weights = []
         h = torch.zeros(repeat, self.nbr_write_heads, self.mem_nbr_slots)
         if cuda:    h = h.cuda()
         prev_write_weights.append(h)
-       
-        prev_link_matrix = []
-        h = torch.zeros(repeat, self.mem_nbr_slots, self.mem_nbr_slots)
-        if cuda:    h = h.cuda()
-        prev_link_matrix.append(h)
+        hdict['dnc_body']['prev_write_weights'] = prev_write_weights
         
-        prev_precedence_weights = []
-        h = torch.zeros(repeat, 1, self.mem_nbr_slots)
-        if cuda:    h = h.cuda()
-        prev_precedence_weights.append(h)
- 
-        ## As an encapsulating module, it is its responsability
-        # to call get_reset_states on the encapsulated elements:
-        hdict = {'dnc_body':
-            {
-                'prev_read_vec': prev_read_vec,
-                'prev_usage_vector': prev_usage_vector,
-                'prev_read_weights': prev_read_weights,
-                'prev_write_weights': prev_write_weights,
-                'prev_link_matrix': prev_link_matrix,
-                'prev_precedence_weights': prev_precedence_weights,
-            },
-        }
+        if self.simplified:
+            prev_timestep = []
+            h = torch.zeros(repeat, 1, 1)
+            if cuda:    h = h.cuda()
+            prev_timestep.append(h)
+            hdict['dnc_body']['prev_timestep'] = prev_timestep
+            
+            prev_ret_write_weights = []
+            h = torch.zeros(repeat, self.nbr_write_heads, self.mem_nbr_slots)
+            if cuda:    h = h.cuda()
+            prev_ret_write_weights.append(h)
+            hdict['dnc_body']['prev_ret_write_weights'] = prev_ret_write_weights
+        else:
+            prev_read_weights = self._reset_weights(
+                cuda=cuda, 
+                repeat=repeat,
+                nbr_heads=self.nbr_read_heads,
+            )
+            hdict['dnc_body']['prev_read_weights'] = prev_read_weights
+        
+            prev_link_matrix = []
+            h = torch.zeros(repeat, self.mem_nbr_slots, self.mem_nbr_slots)
+            if cuda:    h = h.cuda()
+            prev_link_matrix.append(h)
+            hdict['dnc_body']['prev_link_matrix'] = prev_link_matrix
+        
+            prev_precedence_weights = []
+            h = torch.zeros(repeat, 1, self.mem_nbr_slots)
+            if cuda:    h = h.cuda()
+            prev_precedence_weights.append(h)
+            hdict['dnc_body']['prev_precedence_weights'] = prev_precedence_weights
 
         hdict['dnc_controller'] = self.controller.get_reset_states(repeat=repeat, cuda=cuda)
         hdict['dnc_memory'] = self.memory.get_reset_states(repeat=repeat, cuda=cuda)
@@ -802,7 +930,7 @@ class DNCBody(nn.Module) :
         # output : batch_dim x hidden_dim
         # state : ( h, c) 
         controller_inputs = [x, dnc_state_dict['dnc_controller']]
-        vt, nx, dnc_state_dict['dnc_controller'] = self.controller.forward_controller(controller_inputs)
+        augmented_x, vt, nx, dnc_state_dict['dnc_controller'] = self.controller.forward_controller(controller_inputs)
         
         #wandb.log({f"vt": wandb.Histogram(vt.cpu().detach())})
         #wandblog({f"nx": wandb.Histogram(nx.cpu().detach())})
@@ -816,57 +944,95 @@ class DNCBody(nn.Module) :
 
         #wandblog({f"memory": wandb.Histogram(memory_state.cpu().detach())})
         
-        prev_read_weights = dnc_state_dict['dnc_body']['prev_read_weights'][0].to(vt.device)
+        if not self.simplified:
+            prev_read_weights = dnc_state_dict['dnc_body']['prev_read_weights'][0].to(vt.device)
+        else:
+            timestep = 1+dnc_state_dict['dnc_body']['prev_timestep'][0].to(vt.device)
+            prev_ret_write_weights = dnc_state_dict['dnc_body']['prev_ret_write_weights'][0].to(vt.device)
+
         prev_write_weights = dnc_state_dict['dnc_body']['prev_write_weights'][0].to(vt.device)
         #(batch_size x nbrHeads x nbr_mem_slot )
         prev_usage_vector = dnc_state_dict['dnc_body']['prev_usage_vector'][0].to(vt.device)
         #(batch_size x nbrHeads x nbr_mem_slot )
 
-        # Memory Write :
+        # Memory Interface :
         odict = self.readWriteHeads(
             memory_state=memory_state,
             ctrl_inputs=nx,
         )
-        written_memory_state, new_usage_vector, new_write_weights =self.readWriteHeads.write(
-            memory_state=memory_state,
-            odict=odict,
-            prev_usage_vector=prev_usage_vector,
-            prev_read_weights=prev_read_weights,
-            prev_write_weights=prev_write_weights,
-        )
+        
+        if self.simplified:
+            # Memory Read :
+            # batch_dim x nbr_read_heads * mem_dim :
+            read_vec, new_usage_vector = self.readWriteHeads.simplified_read(
+                memory_state=memory_state,
+                odict=odict,
+                prev_usage_vector=prev_usage_vector,
+            )
+            
+            # Memory Write:
+            written_memory_state, new_write_weights, \
+            new_ret_write_weights =self.readWriteHeads.simplified_write(
+                memory_state=memory_state,
+                # actually computed from the controller as the 'write' output:
+                #vector_to_write=augmented_x,
+                odict=odict,
+                discount_factor=self.discount_factor,
+                timestep=timestep,
+                prev_ret_write_weights=prev_ret_write_weights,
+                prev_write_weights=prev_write_weights,
+            )
+
+            # updateing frame state:
+            dnc_state_dict['dnc_body']['prev_timestep'] = [timestep]
+            dnc_state_dict['dnc_body']['prev_ret_write_weights'] = [new_ret_write_weights]
+        else:
+            # Memory Write:
+            written_memory_state, new_usage_vector, new_write_weights =self.readWriteHeads.write(
+                memory_state=memory_state,
+                odict=odict,
+                prev_usage_vector=prev_usage_vector,
+                prev_read_weights=prev_read_weights,
+                prev_write_weights=prev_write_weights,
+            )
+             
+            prev_link_matrix = dnc_state_dict['dnc_body']['prev_link_matrix'][0].to(vt.device)
+            prev_precedence_weights = dnc_state_dict['dnc_body']['prev_precedence_weights'][0].to(vt.device)
+        
+            # Memory Read :
+            # batch_dim x nbr_read_heads * mem_dim :
+            read_vec, new_read_weights, \
+            updated_precedence_weights, updated_link_matrix = self.readWriteHeads.read(
+                memory_state=written_memory_state,
+                odict=odict,
+                write_weights=new_write_weights,
+                prev_link_matrix=prev_link_matrix,
+                prev_precedence_weights=prev_precedence_weights,
+                prev_read_weights=prev_read_weights,
+            )
+
+            # updating frame state:
+            dnc_state_dict['dnc_body']['prev_link_matrix'] = [updated_link_matrix]
+            dnc_state_dict['dnc_body']['prev_precedence_weights'] = [updated_precedence_weights]
+            dnc_state_dict['dnc_body']['prev_read_weights'] = [new_read_weights]
+        
         # updating frame state:
         dnc_state_dict['dnc_body']['prev_usage_vector'] = [new_usage_vector]
         dnc_state_dict['dnc_body']['prev_write_weights'] = [new_write_weights]
-        
-        prev_link_matrix = dnc_state_dict['dnc_body']['prev_link_matrix'][0].to(vt.device)
-        prev_precedence_weights = dnc_state_dict['dnc_body']['prev_precedence_weights'][0].to(vt.device)
-        # Memory Read :
-        # batch_dim x nbr_read_heads * mem_dim :
-        read_vec, new_read_weights, \
-        updated_precedence_weights, updated_link_matrix = self.readWriteHeads.read(
-            memory_state=written_memory_state,
-            odict=odict,
-            write_weights=new_write_weights,
-            prev_link_matrix=prev_link_matrix,
-            prev_precedence_weights=prev_precedence_weights,
-            prev_read_weights=prev_read_weights,
-        )
-
-        # updating frame state:
-        dnc_state_dict['dnc_body']['prev_link_matrix'] = [updated_link_matrix]
-        dnc_state_dict['dnc_body']['prev_precedence_weights'] = [updated_precedence_weights]
-        dnc_state_dict['dnc_body']['prev_read_weights'] = [new_read_weights]
-        
+             
         # External Output Function :
         ext_output = self.controller.forward_external_output_fn( 
             vt_output=vt,
             slots_read=read_vec,
         )
 
-        dnc_state_dict['dnc_body']['prev_read_vec'] = [read_vec.reshape(batch_size, -1)]
+        if not self.simplified:
+            dnc_state_dict['dnc_body']['prev_read_vec'] = [read_vec.reshape(batch_size, -1)]
+        
         if self.sparse_K!=0:
             written_memory_state = asp(written_memory_state, K=self.sparse_K)
         dnc_state_dict['dnc_memory']['memory'] = [written_memory_state]
+        
         frame_states.update({'dnc':dnc_state_dict})
         
         return ext_output, frame_states 

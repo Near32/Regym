@@ -32,6 +32,7 @@ class PerEpochLoggerModule(Module):
                 "logs_dict":"logs_dict",
                 "epoch":"signals:epoch",
                 "update_count":"signals:update_count",
+                "agent_update_count":"signals:agent_update_count",
                 "mode":"signals:mode",
                 "end_of_dataset":"signals:end_of_dataset",  
                 # boolean: whether the current batch/datasample is the last of the current dataset/mode.
@@ -87,6 +88,7 @@ class PerEpochLoggerModule(Module):
         
         epoch = input_streams_dict["epoch"]
         update_count = input_streams_dict["update_count"]
+        agent_update_count = input_streams_dict["agent_update_count"]
         mode = input_streams_dict["mode"]
         global_it_step = input_streams_dict["global_it_step"]
         
@@ -127,7 +129,10 @@ class PerEpochLoggerModule(Module):
               
               wandb.log({f"PerUpdate/{key}/Mean":  averaged_value, "update_count":update_count}, commit=False)
               wandb.log({f"PerUpdate/{key}/Std":  std_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Mean":  averaged_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Std":  std_value, "agent_update_count":agent_update_count}, commit=False)
               
+ 
 
               median_value = np.nanpercentile(
                 values,
@@ -158,11 +163,17 @@ class PerEpochLoggerModule(Module):
               wandb.log({f"PerUpdate/{key}/Q1":  q1_value, "update_count":update_count}, commit=False)
               wandb.log({f"PerUpdate/{key}/Q3":  q3_value, "update_count":update_count}, commit=False)
               wandb.log({f"PerUpdate/{key}/IQR":  iqr, "update_count":update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Median":  median_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Q1":  q1_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Q3":  q3_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/IQR":  iqr, "agent_update_count":agent_update_count}, commit=False)
               
+ 
               #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
               wandb.log({f"PerEpoch/{key}":  valuelist[-1], "epoch":epoch}, commit=False)
               wandb.log({f"PerUpdate/{key}":  valuelist[-1], "update_count":update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}":  valuelist[-1], "agent_update_count":agent_update_count}, commit=False)
               
               # Remove the value form the logs_dict if it is present:
               logs_dict.pop(key, None)

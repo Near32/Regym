@@ -104,5 +104,6 @@ class RLAgentModule(Module):
         self.actions = copy.deepcopy(self.new_actions)
 
         outputs_streams_dict[self.config['actions_stream_id']] = copy.deepcopy(self.new_actions)
-        
+        outputs_streams_dict["signals:agent_update_count"] = self.agent.get_update_count()
+
         return outputs_streams_dict

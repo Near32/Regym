@@ -855,10 +855,14 @@ def main():
         type=str, 
         default="",
     )
+    parser.add_argument("--simplified_DNC", 
+        type=str, 
+        default="False",
+    )
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
-        default=3e-4,
+        default=1e-3,
     )
     parser.add_argument("--weights_decay_lambda", 
         type=float, 
@@ -880,6 +884,10 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--sequence_replay_burn_in_ratio", 
+        type=float, 
+        default=0.0,
+    )
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
@@ -890,7 +898,7 @@ def main():
     )
     parser.add_argument("--nbr_actor", 
         type=int, 
-        default=128,
+        default=4,
     )
     parser.add_argument("--batch_size", 
         type=int, 
@@ -898,12 +906,13 @@ def main():
     )
     parser.add_argument("--critic_arch_feature_dim", 
         type=int, 
-        default=128,
+        default=32,
     )
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=2e5,
     )
+
 
     args = parser.parse_args()
     
@@ -911,8 +920,17 @@ def main():
         args.sequence_replay_overlap_length,
         args.sequence_replay_unroll_length-5,
     )
+
+    args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
+    
     dargs = vars(args)
     
+    if args.sequence_replay_burn_in_ratio != 0.0:
+        dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
+        dargs['burn_in'] = True 
+    
+    print(dargs)
+
     from gpuutils import GpuUtils
     GpuUtils.allocate(required_memory=10000, framework="torch")
     

@@ -165,7 +165,7 @@ class OptimizationModule(Module):
 
             logs_dict[f"{mode}/repetition{it_rep}/comm_round{it_comm_round}/Loss"] = loss
         
-        outputs_stream_dict['signals:update_count'] = self.update_count
+            outputs_stream_dict['signals:update_count'] = self.update_count
         
         return outputs_stream_dict
         

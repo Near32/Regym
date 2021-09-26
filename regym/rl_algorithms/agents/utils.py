@@ -752,6 +752,7 @@ def generate_model(
                 nbr_read_heads=2, 
                 nbr_write_heads=1, 
                 sparse_K=kwargs.get("DNC_sparse_K", 0),
+                simplified=kwargs.get("simplified_DNC", False),
                 #linear_hidden_units=critic_arch_linear_hidden_units,
                 #linear_post_hidden_units=critic_arch_linear_post_hidden_units,
                 #use_residual_connection=use_residual_connection,
