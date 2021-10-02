@@ -42,6 +42,7 @@ from rl_hiddenstate_policy import RLHiddenStatePolicy
 from regym.pubsub_manager import PubSubManager
 
 import wandb
+import argparse
 
 
 def make_rl_pubsubmanager(
@@ -640,7 +641,7 @@ def training_process(agent_config: Dict,
     test_only = task_config.get('test_only', False)
     path_suffix = task_config.get('path_suffix', None)
     if path_suffix=='None':  path_suffix=None
-    pubsub = task_config.get('pubsub', False)
+    pubsub = task_config.get('pubsub', True)
     
     speaker_rec = task_config.get('speaker_rec', False)
     listener_rec = task_config.get('listener_rec', False)
@@ -717,7 +718,6 @@ def training_process(agent_config: Dict,
       base_path = os.path.join(base_path, path_suffix)
 
     print(f"Final Path: -- {base_path} --")
-    import ipdb; ipdb.set_trace() 
 
     if not os.path.exists(base_path): os.makedirs(base_path)
 
@@ -842,7 +842,7 @@ def training_process(agent_config: Dict,
             # also have unknown disadvantages. Needs proper investigation.
     
     config = {'task':task_config, 'agent': agent_config}
-    wandb.init(project='debug_dnc', config=config)
+    wandb.init(project='debug_s2b', config=config)
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     trained_agents = train_and_evaluate(
@@ -887,9 +887,112 @@ def main():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger('Symbolic Behaviour Benchmark')
 
-    config_file_path = sys.argv[1] #'./atari_10M_benchmark_config.yaml'
-    experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
+    parser = argparse.ArgumentParser(description="S2B - Recall Test.")
+    parser.add_argument("--config", 
+        type=str, 
+        default="./recall_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
+    )
+    
+    parser.add_argument("--speaker_rec", type=str, default="False",)
+    parser.add_argument("--listener_rec", type=str, default="False",)
+    parser.add_argument("--listener_comm_rec", type=str, default="False",)
+    parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
+    parser.add_argument("--listener_rec_biasing", type=str, default="False",)
+    parser.add_argument("--listener_comm_rec_biasing", type=str, default="False",)
+    parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
+    parser.add_argument("--player2_harvest", type=str, default="False",)
+    parser.add_argument("--use_rule_based_agent", type=str, default="False ",)
+    parser.add_argument("--use_speaker_rule_based_agent", type=str, default="False",)
+    
+    parser.add_argument("--path_suffix", 
+        type=str, 
+        default="",
+    )
+    parser.add_argument("--simplified_DNC", 
+        type=str, 
+        default="False",
+    )
+    parser.add_argument("--learning_rate", 
+        type=float, 
+        help="learning rate",
+        default=1e-3,
+    )
+    parser.add_argument("--weights_decay_lambda", 
+        type=float, 
+        default=0.0,
+    )
+    parser.add_argument("--weights_entropy_lambda", 
+        type=float, 
+        default=0.0,
+    )
+    parser.add_argument("--DNC_sparse_K", 
+        type=int, 
+        default=0,
+    )
+    parser.add_argument("--sequence_replay_unroll_length", 
+        type=int, 
+        default=20,
+    )
+    parser.add_argument("--sequence_replay_overlap_length", 
+        type=int, 
+        default=10,
+    )
+    parser.add_argument("--sequence_replay_burn_in_ratio", 
+        type=float, 
+        default=0.0,
+    )
+    parser.add_argument("--n_step", 
+        type=int, 
+        default=3,
+    )
+    parser.add_argument("--tau", 
+        type=float, 
+        default=4e-4,
+    )
+    parser.add_argument("--nbr_actor", 
+        type=int, 
+        default=4,
+    )
+    parser.add_argument("--batch_size", 
+        type=int, 
+        default=128,
+    )
+    parser.add_argument("--critic_arch_feature_dim", 
+        type=int, 
+        default=32,
+    )
+    parser.add_argument("--train_observation_budget", 
+        type=float, 
+        default=5e5,
+    )
 
+
+    args = parser.parse_args()
+    
+    args.sequence_replay_overlap_length = min(
+        args.sequence_replay_overlap_length,
+        args.sequence_replay_unroll_length-5,
+    )
+
+    args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
+    
+    dargs = vars(args)
+    
+    if args.sequence_replay_burn_in_ratio != 0.0:
+        dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
+        dargs['burn_in'] = True 
+    
+    print(dargs)
+
+    from gpuutils import GpuUtils
+    GpuUtils.allocate(required_memory=10000, framework="torch")
+    
+    config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
+    experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
+    
+    for k,v in dargs.items():
+        if k in experiment_config:  experiment_config[k] = v
+    
     # Generate path for experiment
     base_path = experiment_config['experiment_id']
     if not os.path.exists(base_path): os.makedirs(base_path)
@@ -900,13 +1003,21 @@ def main():
         run_name = task_config['run-id']
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Tentative Path: -- {path} --")
-        training_process(agents_config[task_config['agent-id']], task_config,
-                         benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
-                         benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),
-                         benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])) if experiment_config['benchmarking_record_episode_interval']!='None' else None,
-                         train_observation_budget=int(float(experiment_config['train_observation_budget'])),
-                         base_path=path,
-                         seed=experiment_config['seed'])
+        agent_config =agents_config[task_config['agent-id']] 
+        for k,v in dargs.items():
+            if k in task_config:  task_config[k] = v
+            if k in agent_config:  agent_config[k] = v
+        
+        training_process(
+            agent_config, 
+            task_config,
+            benchmarking_interval=int(float(experiment_config['benchmarking_interval'])),
+            benchmarking_episodes=int(float(experiment_config['benchmarking_episodes'])),
+            benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])) if experiment_config['benchmarking_record_episode_interval']!='None' else None,
+            train_observation_budget=int(float(experiment_config['train_observation_budget'])),
+            base_path=path,
+            seed=experiment_config['seed'],
+        )
 
 if __name__ == '__main__':
   asynch = False 

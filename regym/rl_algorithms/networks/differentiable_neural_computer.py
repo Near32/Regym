@@ -871,7 +871,7 @@ class DNCBody(nn.Module) :
         
         if self.simplified:
             prev_timestep = []
-            h = torch.zeros(repeat, 1, 1)
+            h = (-1)*torch.ones(repeat, 1, 1)
             if cuda:    h = h.cuda()
             prev_timestep.append(h)
             hdict['dnc_body']['prev_timestep'] = prev_timestep

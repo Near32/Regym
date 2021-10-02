@@ -199,7 +199,7 @@ experiment:
         'env-id': 'SymbolicBehaviourBenchmark-RecallTestEnv-2Shots-v0',
         #'env-id': 'SymbolicBehaviourBenchmark-ReceptiveConstructiveTestEnv-v0',
         'env-config': {
-            "max_episode_length": 120, # in terms of games...
+            #"max_episode_length": 120, # in terms of games...
             "nbr_latents": 3,
             "representation_type": "scr", #"ohe"
             "min_nbr_values_per_latent": 2,

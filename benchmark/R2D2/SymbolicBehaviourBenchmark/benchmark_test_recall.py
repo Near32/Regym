@@ -910,7 +910,7 @@ def main():
     )
     parser.add_argument("--train_observation_budget", 
         type=float, 
-        default=2e5,
+        default=5e5,
     )
 
 
