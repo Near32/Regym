@@ -660,7 +660,7 @@ def training_process(agent_config: Dict,
           node_id_to_extract = sys.argv[override_nite[0]+1]
           print(f"NEW NODE ID TO EXTRACT FOR REC: {node_id_to_extract}")
 
-      override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--seed' in arg]
+      override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--new_seed' in arg]
       if len(override_seed_argv_idx):
         seed = int(sys.argv[override_seed_argv_idx[0]+1])
         print(f"NEW RANDOM SEED: {seed}")
@@ -800,8 +800,12 @@ def training_process(agent_config: Dict,
     
     agents = [agent]
     
-    config = {'task':task_config, 'agent': agent_config}
-    wandb.init(project='recall_dnc', config=config)
+    config = {
+        'task':task_config, 
+        'agent': agent_config,
+        'seed':seed,
+    }
+    wandb.init(project='META_RG', config=config)
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     trained_agents = train_and_evaluate(
@@ -880,6 +884,10 @@ def main():
         type=int, 
         default=20,
     )
+    parser.add_argument("--seed", 
+        type=int, 
+        default=10,
+    )
     parser.add_argument("--sequence_replay_overlap_length", 
         type=int, 
         default=10,
@@ -929,6 +937,8 @@ def main():
         dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
         dargs['burn_in'] = True 
     
+    dargs['seed'] = int(dargs['seed'])
+
     print(dargs)
 
     from gpuutils import GpuUtils
@@ -939,7 +949,9 @@ def main():
     
     for k,v in dargs.items():
         if k in experiment_config:  experiment_config[k] = v
-    
+    print("Experiment config:")
+    print(experiment_config)
+
     # Generate path for experiment
     base_path = experiment_config['experiment_id']
     if not os.path.exists(base_path): os.makedirs(base_path)
@@ -955,6 +967,9 @@ def main():
             if k in task_config:  task_config[k] = v
             if k in agent_config:  agent_config[k] = v
         
+        print("Task config:")
+        print(task_config)
+
         training_process(
             agent_config, 
             task_config,

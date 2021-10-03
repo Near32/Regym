@@ -668,7 +668,7 @@ def training_process(agent_config: Dict,
           node_id_to_extract = sys.argv[override_nite[0]+1]
           print(f"NEW NODE ID TO EXTRACT FOR REC: {node_id_to_extract}")
 
-      override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--seed' in arg]
+      override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--new_seed' in arg]
       if len(override_seed_argv_idx):
         seed = int(sys.argv[override_seed_argv_idx[0]+1])
         print(f"NEW RANDOM SEED: {seed}")
@@ -992,7 +992,9 @@ def main():
     
     for k,v in dargs.items():
         if k in experiment_config:  experiment_config[k] = v
-    
+    print("Experiment config:")
+    print(experiment_config)
+
     # Generate path for experiment
     base_path = experiment_config['experiment_id']
     if not os.path.exists(base_path): os.makedirs(base_path)
@@ -1008,6 +1010,9 @@ def main():
             if k in task_config:  task_config[k] = v
             if k in agent_config:  agent_config[k] = v
         
+        print("Task config:")
+        print(task_config)
+
         training_process(
             agent_config, 
             task_config,
