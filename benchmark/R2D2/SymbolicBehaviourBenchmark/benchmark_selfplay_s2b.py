@@ -900,14 +900,14 @@ def main():
         default="./s2b_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
     )
     
-    parser.add_argument("--speaker_rec", type=str, default="False",)
-    parser.add_argument("--listener_rec", type=str, default="False",)
-    parser.add_argument("--listener_comm_rec", type=str, default="False",)
-    parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
-    parser.add_argument("--listener_rec_biasing", type=str, default="False",)
-    parser.add_argument("--listener_comm_rec_biasing", type=str, default="False",)
-    parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
-    parser.add_argument("--player2_harvest", type=str, default="False",)
+    #parser.add_argument("--speaker_rec", type=str, default="False",)
+    #parser.add_argument("--listener_rec", type=str, default="False",)
+    #parser.add_argument("--listener_comm_rec", type=str, default="False",)
+    #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
+    #parser.add_argument("--listener_rec_biasing", type=str, default="False",)
+    #parser.add_argument("--listener_comm_rec_biasing", type=str, default="False",)
+    #parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
+    #parser.add_argument("--player2_harvest", type=str, default="False",)
     parser.add_argument("--use_rule_based_agent", type=str, default="False ",)
     parser.add_argument("--use_speaker_rule_based_agent", type=str, default="False",)
     
@@ -1007,7 +1007,7 @@ def main():
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
     
     for k,v in dargs.items():
-        if k in experiment_config:  experiment_config[k] = v
+        experiment_config[k] = v
     
     print("Experiment config:")
     print(experiment_config)
@@ -1024,8 +1024,8 @@ def main():
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
         for k,v in dargs.items():
-            if k in task_config:  task_config[k] = v
-            if k in agent_config:  agent_config[k] = v
+            task_config[k] = v
+            agent_config[k] = v
         
         print("Task config:")
         print(task_config)
