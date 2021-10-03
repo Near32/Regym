@@ -256,7 +256,7 @@ experiment:
         'run-id': 'Train-Reward1/venv128/V6-MSL1-NCR3-L3Min2Max5-Distr3-OC1-CommPerm',
         
         #'agent-id': '3step_SAD_VDN_aID_1m3Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM2Res_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L150_O0_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
-        'agent-id': '3step_SAD_VDN_aID_0Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPDNC_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
+        'agent-id': '3step_SAD_VDN_aID_0Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
         
         'nbr_actor': 128,
         #'nbr_actor': 100,
@@ -344,7 +344,7 @@ agents:
         eps_greedy_alpha: 7.0
     
     #3step_SAD_VDN_aID_1m3Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM2Res_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L150_O0_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
-    3step_SAD_VDN_aID_0Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPDNC_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
+    3step_SAD_VDN_aID_0Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
         <<: *SAD_VDN_3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeMLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone
         # DEBUG:
         min_capacity: 1e3    
@@ -411,19 +411,19 @@ agents:
         # critic_arch_hidden_units: [512]
 
         # Arch2:
-        # critic_arch: 'MLP-LSTM-RNN2'
-        # use_relu_after_rnn: False #True 
-        # use_residual_connection: True 
-        # critic_arch_linear_hidden_units: [512, 256]
-        # critic_arch_feature_dim: 128
-        # critic_arch_hidden_units: [128, 128]
+        critic_arch: 'MLP-LSTM-RNN2'
+        use_relu_after_rnn: False #True 
+        use_residual_connection: True 
+        critic_arch_linear_hidden_units: [512, 256]
+        critic_arch_feature_dim: 128
+        critic_arch_hidden_units: [128, 128]
 
         # Arch DNC:
-        critic_arch: 'DNC'
-        critic_arch_feature_dim: 128
-        critic_arch_hidden_units: [128]
+        # critic_arch: 'DNC'
+        # critic_arch_feature_dim: 128
+        # critic_arch_hidden_units: [128]
         #critic_arch_hidden_units: [128, 128]
-        DNC_sparse_K: 0
+        # DNC_sparse_K: 0
 
         # Arch 3:
         # critic_arch: 'MLP-LSTM-RNN2'
@@ -443,45 +443,45 @@ agents:
         extra_inputs_infos: {
             'previous_reward':{
                 shape: [1,], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             'previous_action':{
                 shape: ['task.action_dim',], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
 
             'communication_channel':{
                 shape: [7,], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             'round_id':{
                 shape: [4,], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             #'other_agent_id':{
             #    shape: [10,], 
-            #    target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+            #    target_location: ['critic_body', 'extra_inputs']
             #},
             'role_id':{
                 shape: [2,], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             'mode_id':{
                 shape: [2,], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             'previous_game_result':{
                 shape: [2,], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             'previous_game_reward':{
                 shape: [1,], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             
             'action_mask':{
                 shape: ['task.action_dim',], 
-                target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+                target_location: ['critic_body', 'extra_inputs']
             },
             'legal_actions':{
                 shape: ['task.action_dim',], 
@@ -493,7 +493,7 @@ agents:
             ########################
             #'greedy_action':{
             #    shape: [31,], #[6223,], 
-            #    target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
+            #    target_location: ['critic_body', 'extra_inputs']
             #},
             ########################
             ########################

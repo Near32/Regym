@@ -619,10 +619,13 @@ def train_and_evaluate(agents: List[object],
     if len(sys.argv) > 2:
       save_replay_buffer = any(['save_replay_buffer' in arg for arg in sys.argv])
 
-    for agent in trained_agents:
-      agent.save(with_replay_buffer=save_replay_buffer)
-      print(f"Agent saved at: {agent.save_path}")
-    
+    try:
+        for agent in trained_agents:
+            agent.save(with_replay_buffer=save_replay_buffer)
+            print(f"Agent saved at: {agent.save_path}")
+    except Exception as e:
+        print(e)
+
     task.env.close()
     task.test_env.close()
 
@@ -841,8 +844,12 @@ def training_process(agent_config: Dict,
             # -given that it proposes decorrelated data-, but it may
             # also have unknown disadvantages. Needs proper investigation.
     
-    config = {'task':task_config, 'agent': agent_config}
-    wandb.init(project='debug_s2b', config=config)
+    config = {
+        'task':task_config, 
+        'agent': agent_config,
+        'seed': seed,
+    }
+    wandb.init(project='META_RG_S2B', config=config)
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     trained_agents = train_and_evaluate(
@@ -887,10 +894,10 @@ def main():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger('Symbolic Behaviour Benchmark')
 
-    parser = argparse.ArgumentParser(description="S2B - Recall Test.")
+    parser = argparse.ArgumentParser(description="S2B - Test.")
     parser.add_argument("--config", 
         type=str, 
-        default="./recall_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
+        default="./s2b_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
     )
     
     parser.add_argument("--speaker_rec", type=str, default="False",)
@@ -904,6 +911,11 @@ def main():
     parser.add_argument("--use_rule_based_agent", type=str, default="False ",)
     parser.add_argument("--use_speaker_rule_based_agent", type=str, default="False",)
     
+    parser.add_argument("--seed", 
+        type=int, 
+        default=10,
+    )
+ 
     parser.add_argument("--path_suffix", 
         type=str, 
         default="",
@@ -957,10 +969,10 @@ def main():
         type=int, 
         default=128,
     )
-    parser.add_argument("--critic_arch_feature_dim", 
-        type=int, 
-        default=32,
-    )
+    #parser.add_argument("--critic_arch_feature_dim", 
+    #    type=int, 
+    #    default=32,
+    #)
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=5e5,
@@ -975,12 +987,16 @@ def main():
     )
 
     args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
+    args.use_rule_based_agent = True if "Tr" in args.use_rule_based_agent else False
+    args.use_speaker_rule_based_agent = True if "Tr" in args.use_speaker_rule_based_agent else False
     
     dargs = vars(args)
     
     if args.sequence_replay_burn_in_ratio != 0.0:
         dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
         dargs['burn_in'] = True 
+    
+    dargs['seed'] = int(dargs['seed'])
     
     print(dargs)
 
@@ -992,6 +1008,7 @@ def main():
     
     for k,v in dargs.items():
         if k in experiment_config:  experiment_config[k] = v
+    
     print("Experiment config:")
     print(experiment_config)
 
