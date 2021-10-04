@@ -8,6 +8,9 @@ import numpy as np
 import copy 
 
 from .module import Module
+from regym.rl_algorithms.utils import _concatenate_list_hdict
+from functools import partial
+
 
 def build_ReconstructionFromHiddenStateModule(
     id:str,
@@ -65,8 +68,8 @@ class ReconstructionFromHiddenStateModule(Module):
         self.player_id = self.config.get('player_id', 0)
 
         self.iteration = 0
-        self.sampling_fraction = 5
-        self.sampling_period = 10.0
+        self.sampling_fraction = 2
+        self.sampling_period = 25.0
         
         if "build_signal_to_reconstruct_from_trajectory_fn" in self.config:
             self.build_signal_to_reconstruct_from_trajectory_fn = self.config["build_signal_to_reconstruct_from_trajectory_fn"]
@@ -212,6 +215,182 @@ class ReconstructionFromHiddenStateModule(Module):
         }
 
         return output_dict
+    
+    def _batch(
+        self,
+        x:List[List[Any]],
+        minT:int,
+        ):
+        batch_size = len(x)
+        
+        if isinstance(x[0][0], torch.Tensor):
+            x = [torch.stack([x_a_t for x_a_t in x_a[:minT]], dim=0) for x_a in x]
+            return torch.cat(x, dim=1)
+            # minT x batch_size
+        
+        assert isinstance(x[0][0], dict)
+        rx = [dict() for _ in range(minT)]
+        for key in x[0][0]:
+            if isinstance(x[0][0][key], torch.Tensor):
+                for t in range(minT):
+                    x_b_t = torch.cat([x[bidx][t][key] for bidx in range(batch_size)], dim=0)
+                    # batch_size x ...
+                    rx[t][key] = x_b_t
+            elif isinstance(x[0][0][key], np.ndarray):
+                for t in range(minT):
+                    x_b_t = np.concatenate([x[bidx][t][key] for bidx in range(batch_size)], axis=0)
+                    # batch_size x ...
+                    rx[t][key] = x_b_t
+            elif isinstance(x[0][0][key], list):
+                assert isinstance(x[0][0][key][0], dict)
+                for t in range(minT):
+                    ld_b_t = [x[bidx][t][key][0] for bidx in range(batch_size)]
+                    concat_hdict = _concatenate_list_hdict(
+                        lhds=ld_b_t, 
+                        concat_fn=partial(torch.cat, dim=0),
+                        preprocess_fn=(lambda x:torch.from_numpy(x).float() if isinstance(x, np.ndarray) else torch.ones(1, 1).float()*x),
+                    )
+                    rx[t][key] = [concat_hdict]
+            else:
+                for t in range(minT):
+                    rx[t][key] = x[0][0][key]
+        return rx
+
+    def compute_batched_reconstruction_loss(
+        self,
+        x:List[List[Any]],
+        y:List[List[torch.Tensor]],
+        mask:List[List[Any]]=None,
+        biasing:bool=False,
+        ) -> Dict[str,torch.Tensor]:
+        """
+        WARNING: this function resets the :attr hiddenstate_policy:! 
+        Beware of potentially erasing agent's current's internal states
+        N.B.: This should be resolved by the save_inner_state method.
+
+        :param x: 
+            List[List[object]] containing, for each actor, at each time step t an object
+            representing the observation of the current agent.
+            e.g.: the object can be a kwargs argument containing
+            expected argument to the :attr hiddenstate_policy:.
+        
+        :param y: 
+            List[List[torch.Tensor]] containing, for each actor, at each time step t an object
+            representing the signal to reconstruct.
+            Shape: signal_to_reconstruct_dim.
+        
+        :param mask:
+            List[List[object]] containing, for each actor, at each time step t an object
+            with batch_size dimensions and whose values are either
+            1 or 0. For all actor b, mask[b]==1 if and only if
+            the experience in x[t] is valid (e.g. episode not ended).
+        """
+        batch_size = len(x)
+        minT = min([len(xi) for xi in x])
+
+        batched_x, batched_y = self._batch(x, minT), self._batch(y, minT)
+        # minT x batch_size : object dim
+
+        self.iteration += 1
+
+        nbr_actors = self.hiddenstate_policy.get_nbr_actor()
+
+        if biasing:
+            hiddenstate_policy = self.hiddenstate_policy
+            self.hiddenstate_policy.save_inner_state()
+        else:
+            hiddenstate_policy = self.hiddenstate_policy.clone()
+        
+        L_rec = torch.zeros(batch_size)
+        L_mse = torch.zeros(batch_size)
+        per_actor_per_t_per_dim_acc = [[] for _ in range(batch_size)]
+        per_actor_rec_accuracy = torch.zeros(batch_size)
+
+        dataframe_dict = {
+            'actor_id': [],
+            'timestep': [],
+        }
+        
+        hiddenstate_policy.reset(batch_size)
+
+        labels_list = batched_y
+        # in range [0,1]
+        # minT x batch_size x signal_to_reconstruct_dim
+
+        if mask is None:
+            eff_mask = torch.ones((batch_size, minT))
+        else:
+            raise NotImplementedError
+            # Most usecase assume mask==None...
+            eff_mask = mask 
+
+        for t in range(minT):
+            m = eff_mask[:, t] 
+            labels = labels_list[t]
+            if biasing:
+                hs_t = hiddenstate_policy(batched_x[t])
+                # batch_size x hidden_state_dim
+            else:
+                with torch.no_grad():
+                    hs_t = hiddenstate_policy(batched_x[t]).detach()
+                # batch_size x hidden_state_dim
+                
+            logit_pred = self.prediction_net(hs_t.reshape(batch_size,-1))
+
+            m = m.to(hs_t.device)
+            if labels.device != logit_pred.device: labels = labels.to(logit_pred.device)    
+            ###                
+            pred = torch.sigmoid(logit_pred)
+            # batch_size x dim
+            if 'accuracy_pre_process_fn' not in self.config:
+                per_dim_acc_t = (((pred-5e-2<=labels).float()+(pred+5e-2>=labels)).float()>=2).float()
+            else:
+                import ipdb; ipdb.set_trace()
+                # check that acc pre pro fn is batched?
+                per_dim_acc_t = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
+            # batch_size x dim
+            for actor_id in range(batch_size):
+                per_actor_per_t_per_dim_acc[actor_id].append(per_dim_acc_t[actor_id:actor_id+1])
+            ###
+
+            L_rec_t = self.criterion(
+                input=logit_pred,
+                target=labels.detach(),
+            ).mean(dim=-1)
+            # batch_size 
+            L_mse_t = 0.5*torch.pow(pred-labels, 2.0).mean(dim=-1)
+            # batch_size
+
+            if L_rec.device != L_rec_t.device:    L_rec = L_rec.to(L_rec_t.device)
+            if L_mse.device != L_mse_t.device:    L_mse = L_mse.to(L_mse_t.device)
+            
+            L_rec += m*L_rec_t
+            L_mse += m*L_mse_t
+
+            for actor_id in range(batch_size):
+                dataframe_dict['actor_id'].append(actor_id)
+                dataframe_dict['timestep'].append(t)
+
+        for actor_id in range(batch_size):
+            per_actor_per_t_per_dim_acc[actor_id] = torch.cat(per_actor_per_t_per_dim_acc[actor_id], dim=0)
+            # timesteps x nbr_goal
+            #correct_pred_indices = torch.nonzero((per_actor_per_t_per_dim_acc[actor_id].sum(dim=-1)==self.signal_to_reconstruct_dim).float())
+            #per_actor_rec_accuracy[actor_id] = correct_pred_indices.shape[0]/T*100.0
+            per_actor_rec_accuracy[actor_id] = per_actor_per_t_per_dim_acc[actor_id].mean()*100.0
+            ###
+        
+        if biasing:
+            self.hiddenstate_policy.reset(nbr_actors, training=True)
+            self.hiddenstate_policy.restore_inner_state()
+
+        output_dict = {
+            'l_rec':L_rec,
+            'l_mse':L_mse,
+            'per_actor_rec_accuracy':per_actor_rec_accuracy, 
+        }
+
+        return output_dict
+
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
@@ -283,7 +462,8 @@ class ReconstructionFromHiddenStateModule(Module):
             mask = None
             
             ## Measure:
-            output_dict = self.compute_reconstruction_loss(
+            #output_dict = self.compute_reconstruction_loss(
+            output_dict = self.compute_batched_reconstruction_loss(
                 x=x, 
                 y=labels,
                 mask=mask,

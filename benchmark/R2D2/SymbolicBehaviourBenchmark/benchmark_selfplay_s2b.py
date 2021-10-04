@@ -849,7 +849,8 @@ def training_process(agent_config: Dict,
         'agent': agent_config,
         'seed': seed,
     }
-    wandb.init(project='META_RG_S2B', config=config)
+    project_name = task_config['project']
+    wandb.init(project=project_name, config=config)
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     trained_agents = train_and_evaluate(
@@ -901,12 +902,12 @@ def main():
     )
     
     #parser.add_argument("--speaker_rec", type=str, default="False",)
-    #parser.add_argument("--listener_rec", type=str, default="False",)
+    parser.add_argument("--listener_rec", type=str, default="False",)
     #parser.add_argument("--listener_comm_rec", type=str, default="False",)
     #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
-    #parser.add_argument("--listener_rec_biasing", type=str, default="False",)
+    parser.add_argument("--listener_rec_biasing", type=str, default="False",)
     #parser.add_argument("--listener_comm_rec_biasing", type=str, default="False",)
-    #parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
+    parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
     parser.add_argument("--use_rule_based_agent", type=str, default="False ",)
     parser.add_argument("--use_speaker_rule_based_agent", type=str, default="False",)
@@ -916,6 +917,11 @@ def main():
         default=10,
     )
  
+    parser.add_argument("--project", 
+        type=str, 
+        default="META_RG_S2B",
+    )
+
     parser.add_argument("--path_suffix", 
         type=str, 
         default="",
@@ -989,7 +995,12 @@ def main():
     args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
     args.use_rule_based_agent = True if "Tr" in args.use_rule_based_agent else False
     args.use_speaker_rule_based_agent = True if "Tr" in args.use_speaker_rule_based_agent else False
-    
+    args.listener_rec = True if "Tr" in args.listener_rec else False
+    args.listener_rec_biasing = True if "Tr" in args.listener_rec_biasing else False
+    if args.listener_rec:
+        if "dnc" in args.config:
+            args.node_id_to_extract = "memory"
+            
     dargs = vars(args)
     
     if args.sequence_replay_burn_in_ratio != 0.0:
