@@ -69,7 +69,7 @@ class ReconstructionFromHiddenStateModule(Module):
 
         self.iteration = 0
         self.sampling_fraction = 2
-        self.sampling_period = 25.0
+        self.sampling_period = 10.0 # 25.0
         
         if "build_signal_to_reconstruct_from_trajectory_fn" in self.config:
             self.build_signal_to_reconstruct_from_trajectory_fn = self.config["build_signal_to_reconstruct_from_trajectory_fn"]

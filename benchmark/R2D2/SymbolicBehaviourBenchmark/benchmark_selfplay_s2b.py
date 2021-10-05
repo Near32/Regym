@@ -941,7 +941,7 @@ def main():
     )
     parser.add_argument("--weights_entropy_lambda", 
         type=float, 
-        default=0.0,
+        default=0.001, #0.0,
     )
     parser.add_argument("--DNC_sparse_K", 
         type=int, 
@@ -958,6 +958,10 @@ def main():
     parser.add_argument("--sequence_replay_burn_in_ratio", 
         type=float, 
         default=0.0,
+    )
+    parser.add_argument("--listener_rec_period", 
+        type=int, 
+        default=10,
     )
     parser.add_argument("--n_step", 
         type=int, 
@@ -981,7 +985,7 @@ def main():
     #)
     parser.add_argument("--train_observation_budget", 
         type=float, 
-        default=5e5,
+        default=2e6,
     )
 
 
@@ -1012,7 +1016,7 @@ def main():
     print(dargs)
 
     from gpuutils import GpuUtils
-    GpuUtils.allocate(required_memory=10000, framework="torch")
+    GpuUtils.allocate(required_memory=6000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
