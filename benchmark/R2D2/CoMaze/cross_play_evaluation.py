@@ -6,6 +6,7 @@ import os
 import argparse
 import logging
 import yaml
+import random
 
 from tqdm import tqdm
 import matplotlib
@@ -43,7 +44,8 @@ def cross_play(population: List['Agent'],
                num_games_per_matchup: int,
                num_matrices: List[int],
                save_path: str=None,
-               show_progress: bool=True) \
+               show_progress: bool=True,
+               render_mode: str='rgb_array') \
         -> Tuple[np.ndarray, np.ndarray, float, float]:
     '''
     Cross-play is a "cheap proxy to evaluate whether a training method has
@@ -83,7 +85,8 @@ def cross_play(population: List['Agent'],
     '''
     cross_play_matrices = compute_cross_play_matrices(
         num_matrices, population, task, num_games_per_matchup,
-        show_progress)
+        show_progress,
+        render_mode=render_mode,)
     
     if save_path: pickle.dump(cross_play_matrices, open(save_path, 'wb'))
     
@@ -107,7 +110,8 @@ def compute_cross_play_matrices(num_matrices: int,
                                 population:Dict[str,regym.rl_algorithms.agents.agent.Agent],
                                 task: 'Task',
                                 num_games_per_matchup: int,
-                                show_progress: bool) -> List[np.ndarray]:
+                                show_progress: bool,
+                                render_mode: str='rgb_array') -> List[np.ndarray]:
     '''
     Computes a list, of length :param: num_matrices, of cross-play matrices
     on :param: task.  Each cross-play matrix is of shape NxN,
@@ -127,7 +131,8 @@ def compute_cross_play_matrices(num_matrices: int,
             population=population,
             task=task,
             num_games_per_matchup=num_games_per_matchup,
-            show_progress=show_progress
+            show_progress=show_progress,
+            render_mode=render_mode,
         )
         cross_play_matrices.append(cross_play_matrix)
     return cross_play_matrices
@@ -136,7 +141,8 @@ def compute_cross_play_matrices(num_matrices: int,
 def compute_cross_play_evaluation_matrix(population:Dict[str,regym.rl_algorithms.agents.agent.Agent],
                                          task: 'Task',
                                          num_games_per_matchup: int,
-                                         show_progress: bool=True) -> np.ndarray:
+                                         show_progress: bool=True,
+                                         render_mode: str='rgb_array') -> np.ndarray:
     '''
     Computes a cross-play matrix of shape NxN, where `n = len(population)`.
     Entry (i,j) represents the average performance of agents
@@ -164,7 +170,8 @@ def compute_cross_play_evaluation_matrix(population:Dict[str,regym.rl_algorithms
         pairwise_performance = compute_pairwise_performance(
             agent_vector=[p1_agent, p2_agent],
             task=task,
-            num_episodes=num_games_per_matchup
+            num_episodes=num_games_per_matchup,
+            render_mode=render_mode,
         )
         cross_play_matrix[i, j] = pairwise_performance
     return cross_play_matrix
@@ -172,15 +179,24 @@ def compute_cross_play_evaluation_matrix(population:Dict[str,regym.rl_algorithms
 
 def compute_pairwise_performance(agent_vector: List[regym.rl_algorithms.agents.agent.Agent],
                                  task: 'Task',  # TODO: change upstream
-                                 num_episodes: int) -> float:
+                                 num_episodes: int,
+                                 render_mode: str='rgb_array') -> float:
     '''
     Computes the average episode reward obtained by :param: agent_vector on
     :param: task over :param: num_episodes
     '''
     trajectory_metrics = test_agent(
-        env=task.env, agents=agent_vector, nbr_episode=num_episodes,
-        update_count=None, sum_writer=None, iteration=None, base_path=None,
-        requested_metrics=['mean_total_return', 'mean_total_pos_return']
+        env=task.env, 
+        agents=agent_vector, 
+        nbr_episode=num_episodes,
+        update_count=None, 
+        sum_writer=None, 
+        iteration=None, 
+        base_path='./',
+        requested_metrics=['mean_total_return', 'mean_total_pos_return'],
+        #save_traj=True,
+        #nbr_save_traj=1,
+        render_mode=render_mode,
     )
     return trajectory_metrics
 
@@ -254,12 +270,17 @@ def create_task_for_r2d2(task_config):
       previous_reward_action=task_config.get('previous_reward_action', False)
     )
     test_pixel_wrapping_fn = pixel_wrapping_fn
+    #video_recording_dirpath = './videos'
+    #video_recording_render_mode = 'human_comm'
     task = generate_task(task_config['env-id'],
       env_type=EnvType.MULTIAGENT_SIMULTANEOUS_ACTION,
       nbr_parallel_env=task_config['nbr_actor'],
       wrapping_fn=pixel_wrapping_fn,
       test_wrapping_fn=test_pixel_wrapping_fn,
-      gathering=False
+      gathering=False,
+      #train_video_recording_episode_period=1,
+      #train_video_recording_dirpath='./',
+      #train_video_recording_render_mode=video_recording_render_mode,
     )
     return task
 
@@ -300,6 +321,16 @@ if __name__ == '__main__':
     if not os.path.isdir(cross_play_config['population_path']):
         raise ValueError(f"CLI Argument 'population_path' does not point to an existing directory (Given: {cross_play_config['population_path']})")
     '''
+    seed = cross_play_config['seed']
+    
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    random.seed(seed)
+    
+    if hasattr(torch.backends, "cudnn"):
+      torch.backends.cudnn.deterministic = True
+      torch.backends.cudnn.benchmark = False
+
 
     task = create_task_for_r2d2(task_config)
     
@@ -319,6 +350,8 @@ if __name__ == '__main__':
          cross_play_config['num_matrices'],
          save_path=cross_play_config['save_path'],
          show_progress=True,
+         render_mode = 'human_comm',
+
      )
 
     matplotlib.use('TkAgg')

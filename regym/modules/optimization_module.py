@@ -102,13 +102,19 @@ class OptimizationModule(Module):
         
         if len(list(parameters)):
           if "sgd" in self.config["optimizer_type"].lower():
-            self.optimizer = optim.SGD(parameters, 
-                                        lr=self.config["learning_rate"])
+            self.optimizer = optim.SGD(
+                parameters, 
+                lr=self.config["learning_rate"],
+                weight_decay=config["weight_decay"],
+            )
           else:
-            self.optimizer = optim.Adam(parameters, 
-                                        lr=self.config["learning_rate"], 
-                                        #betas=(0.9, 0.999), 
-                                        eps=self.config["adam_eps"])
+            self.optimizer = optim.Adam(
+                parameters, 
+                lr=self.config["learning_rate"], 
+                #betas=(0.9, 0.999), 
+                eps=self.config["adam_eps"],
+                weight_decay=config["weight_decay"],
+            )
         else:
           self.optimizer = None 
         

@@ -75,8 +75,8 @@ class MultiStepCICMetricModule(Module):
         self.metric = self.config.get('metric', None)
 
         self.iteration = 0
-        self.sampling_fraction = 5
-        self.sampling_period = 10.0
+        self.sampling_fraction = 2
+        self.sampling_period = 20.0
 
         def message_zeroing_out_fn(
             x, 
@@ -230,7 +230,7 @@ class MultiStepCICMetricModule(Module):
             
             if self.biasing:
                 losses_dict = input_streams_dict["losses_dict"]
-                losses_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = [0.0001, L_pl]
+                losses_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1e-4, L_pl]
             else:
                 logs_dict[f"{mode}/{self.id}/PositiveListeningLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_pl.cpu()
             

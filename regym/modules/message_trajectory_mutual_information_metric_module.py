@@ -82,8 +82,8 @@ class MessageTrajectoryMutualInformationMetricModule(Module):
         self.dones = []
 
         self.iteration = 0
-        self.sampling_fraction = 5
-        self.sampling_period = 10.0
+        self.sampling_fraction = 2
+        self.sampling_period = 20.0
 
 
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
@@ -184,7 +184,7 @@ class MessageTrajectoryMutualInformationMetricModule(Module):
 
             if self.biasing:
                 losses_dict = input_streams_dict["losses_dict"]
-                losses_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_ps]
+                losses_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1e-3, L_ps]
             else:
                 logs_dict[f"{mode}/{self.id}/PositiveSignallingLoss/{'Eval' if filtering_signal else 'Sample'}"] = L_ps.cpu()
             
