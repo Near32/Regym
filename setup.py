@@ -46,6 +46,9 @@ setup(
       #'minerl',
       'celluloid',
       'sklearn',
+      'coloredlogs',
+      'scikit-image',
+      'h5py',
       'seaborn'
     ] + test_requirements,
 
