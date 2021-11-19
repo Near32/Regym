@@ -15,8 +15,7 @@ from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from functools import partial
 
-
-import torch
+import argparse
 import numpy as np
 import random
 
@@ -42,7 +41,6 @@ from rl_hiddenstate_policy import RLHiddenStatePolicy
 from regym.pubsub_manager import PubSubManager
 
 import wandb
-import argparse
 
 
 def make_rl_pubsubmanager(
@@ -411,7 +409,7 @@ def s2b_r2d2_wrap(
     ):
     env = s2b_wrap(
       env, 
-      combined_actions=True,
+      combined_actions=False,
       dict_obs_space=False,
     )
 
@@ -487,7 +485,7 @@ def train_and_evaluate(agents: List[object],
       config['sad'] = sad 
       config['vdn'] = vdn
       config['otherplay'] = otherplay
-      config['nbr_players'] = 2
+      config['nbr_players'] = 1
 
       # Hooks:
       ## S2B accuracy hook:
@@ -656,15 +654,6 @@ def training_process(agent_config: Dict,
     
     player2_harvest = task_config.get('player2_harvest', False)
     
-    use_rule_based_agent = task_config.get('use_rule_based_agent', False )
-    use_speaker_rule_based_agent = task_config.get('use_speaker_rule_based_agent', False)
-    
-    if use_rule_based_agent:
-      agent_config['vdn'] = False
-      agent_config['sad'] = False 
-      task_config['vdn'] = False 
-      task_config['vdn'] = False 
-
     if len(sys.argv) > 2:
       override_nite = [idx for idx, arg in enumerate(sys.argv) if "--node_id_to_extract" in arg]
       if len(override_nite):
@@ -696,9 +685,6 @@ def training_process(agent_config: Dict,
     else:
       base_path = os.path.join(base_path,"TRAINING")
     
-    if use_rule_based_agent:
-      base_path = os.path.join(base_path, f"WithPosDis{'Speaker' if use_speaker_rule_based_agent else 'Listener'}RBAgent")
-
     if pubsub:
       base_path = os.path.join(base_path,"PUBSUB")
     else:
@@ -721,6 +707,7 @@ def training_process(agent_config: Dict,
       base_path = os.path.join(base_path, path_suffix)
 
     print(f"Final Path: -- {base_path} --")
+    #import ipdb; ipdb.set_trace() 
 
     if not os.path.exists(base_path): os.makedirs(base_path)
 
@@ -773,7 +760,7 @@ def training_process(agent_config: Dict,
     video_recording_dirpath = os.path.join(base_path,'videos')
     video_recording_render_mode = 'human_comm'
     task = generate_task(task_config['env-id'],
-      env_type=EnvType.MULTIAGENT_SIMULTANEOUS_ACTION,
+      env_type=EnvType.SINGLE_AGENT,#MULTIAGENT_SIMULTANEOUS_ACTION,
       nbr_parallel_env=task_config['nbr_actor'],
       wrapping_fn=pixel_wrapping_fn,
       test_wrapping_fn=test_pixel_wrapping_fn,
@@ -793,10 +780,12 @@ def training_process(agent_config: Dict,
     sum_writer = base_path
     
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
-    if task_config.get("reload", 'None')!='None':
-      agent, offset_episode_count = check_path_for_agent(task_config["reload"])
-    else:
-      agent, offset_episode_count = check_path_for_agent(save_path1)
+    agent = None
+    offset_episode_count = 0
+    #if task_config.get("reload", 'None')!='None':
+    #  agent, offset_episode_count = check_path_for_agent(task_config["reload"])
+    #else:
+    #  agent, offset_episode_count = check_path_for_agent(save_path1)
     
     if agent is None: 
         agent = initialize_agents(
@@ -809,48 +798,14 @@ def training_process(agent_config: Dict,
       print(save_path1)
       agent.training = False
     
-    if "vdn" in agent_config \
-    and agent_config["vdn"]:
-      agents = [agent]
-    else:
-        if use_rule_based_agent:
-            if use_speaker_rule_based_agent:
-                rb_agent = build_WrappedPositionallyDisentangledSpeakerAgent( 
-                    player_idx=0,
-                    action_space_dim=task.env.action_space.n, 
-                    vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
-                    max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
-                    nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
-                    nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
-        
-                )
-                agents = [rb_agent, agent]
-            else:
-                rb_agent = build_WrappedPositionallyDisentangledListenerAgent( 
-                    player_idx=1,
-                    action_space_dim=task.env.action_space.n, 
-                    vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
-                    max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
-                    nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
-                    nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
-        
-                )
-                agents = [agent, rb_agent]
-        else:
-            agents = [agent, agent.get_async_actor(training=player2_harvest)]
-            # We can create non-training or training async actors.
-            # If traininging, then their experience is added to the replay buffer
-            # of the main agent, which might have some advantanges
-            # -given that it proposes decorrelated data-, but it may
-            # also have unknown disadvantages. Needs proper investigation.
+    agents = [agent]
     
     config = {
         'task':task_config, 
         'agent': agent_config,
-        'seed': seed,
+        'seed':seed,
     }
-    project_name = task_config['project']
-    wandb.init(project=project_name, config=config)
+    wandb.init(project='META_RG', config=config)
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     trained_agents = train_and_evaluate(
@@ -893,35 +848,13 @@ def load_configs(config_file_path: str):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger('Symbolic Behaviour Benchmark')
-
-    parser = argparse.ArgumentParser(description="S2B - Test.")
+    logger = logging.getLogger('Symbolic Behaviour Benchmark - Recall Test')
+    
+    parser = argparse.ArgumentParser(description="S2B - Recall Test.")
     parser.add_argument("--config", 
         type=str, 
-        default="./s2b_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
+        default="./recall_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
     )
-    
-    #parser.add_argument("--speaker_rec", type=str, default="False",)
-    parser.add_argument("--listener_rec", type=str, default="False",)
-    #parser.add_argument("--listener_comm_rec", type=str, default="False",)
-    #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
-    parser.add_argument("--listener_rec_biasing", type=str, default="False",)
-    #parser.add_argument("--listener_comm_rec_biasing", type=str, default="False",)
-    parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
-    #parser.add_argument("--player2_harvest", type=str, default="False",)
-    parser.add_argument("--use_rule_based_agent", type=str, default="False ",)
-    parser.add_argument("--use_speaker_rule_based_agent", type=str, default="False",)
-    
-    parser.add_argument("--seed", 
-        type=int, 
-        default=10,
-    )
- 
-    parser.add_argument("--project", 
-        type=str, 
-        default="META_RG_S2B",
-    )
-
     parser.add_argument("--path_suffix", 
         type=str, 
         default="",
@@ -941,7 +874,7 @@ def main():
     )
     parser.add_argument("--weights_entropy_lambda", 
         type=float, 
-        default=0.001, #0.0,
+        default=0.0,
     )
     parser.add_argument("--DNC_sparse_K", 
         type=int, 
@@ -951,6 +884,10 @@ def main():
         type=int, 
         default=20,
     )
+    parser.add_argument("--seed", 
+        type=int, 
+        default=10,
+    )
     parser.add_argument("--sequence_replay_overlap_length", 
         type=int, 
         default=10,
@@ -958,10 +895,6 @@ def main():
     parser.add_argument("--sequence_replay_burn_in_ratio", 
         type=float, 
         default=0.0,
-    )
-    parser.add_argument("--listener_rec_period", 
-        type=int, 
-        default=10,
     )
     parser.add_argument("--n_step", 
         type=int, 
@@ -979,13 +912,13 @@ def main():
         type=int, 
         default=128,
     )
-    #parser.add_argument("--critic_arch_feature_dim", 
-    #    type=int, 
-    #    default=32,
-    #)
+    parser.add_argument("--critic_arch_feature_dim", 
+        type=int, 
+        default=32,
+    )
     parser.add_argument("--train_observation_budget", 
         type=float, 
-        default=2e6,
+        default=5e5,
     )
 
 
@@ -997,14 +930,7 @@ def main():
     )
 
     args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
-    args.use_rule_based_agent = True if "Tr" in args.use_rule_based_agent else False
-    args.use_speaker_rule_based_agent = True if "Tr" in args.use_speaker_rule_based_agent else False
-    args.listener_rec = True if "Tr" in args.listener_rec else False
-    args.listener_rec_biasing = True if "Tr" in args.listener_rec_biasing else False
-    if args.listener_rec:
-        if "dnc" in args.config:
-            args.node_id_to_extract = "memory"
-            
+    
     dargs = vars(args)
     
     if args.sequence_replay_burn_in_ratio != 0.0:
@@ -1012,18 +938,17 @@ def main():
         dargs['burn_in'] = True 
     
     dargs['seed'] = int(dargs['seed'])
-    
+
     print(dargs)
 
     from gpuutils import GpuUtils
-    GpuUtils.allocate(required_memory=6000, framework="torch")
+    GpuUtils.allocate(required_memory=10000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
     
     for k,v in dargs.items():
-        experiment_config[k] = v
-    
+        if k in experiment_config:  experiment_config[k] = v
     print("Experiment config:")
     print(experiment_config)
 
@@ -1039,8 +964,8 @@ def main():
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
         for k,v in dargs.items():
-            task_config[k] = v
-            agent_config[k] = v
+            if k in task_config:  task_config[k] = v
+            if k in agent_config:  agent_config[k] = v
         
         print("Task config:")
         print(task_config)
@@ -1069,27 +994,6 @@ if __name__ == '__main__':
       
       from regym import CustomManager as Manager
       from multiprocessing.managers import SyncManager, MakeProxyType, public_methods
-      
-      # from regym.rl_algorithms.replay_buffers import SharedPrioritizedReplayStorage
-      # #SharedPrioritizedReplayStorageProxy = MakeProxyType("SharedPrioritizedReplayStorage", public_methods(SharedPrioritizedReplayStorage))
-      # Manager.register("SharedPrioritizedReplayStorage", 
-      #   SharedPrioritizedReplayStorage,# SharedPrioritizedReplayStorageProxy) 
-      #   exposed=[
-      #       "get_beta",
-      #       "get_tree_indices",
-      #       "cat",
-      #       "reset",
-      #       "add_key",
-      #       "total",
-      #       "__len__",
-      #       "priority",
-      #       "sequence_priority",
-      #       "update",
-      #       "add",
-      #       "sample",
-      #       ]
-      # )
-      # print("WARNING: SharedPrioritizedReplayStorage class has been registered with the RegymManager.")
 
       regym.RegymManager = Manager()
       regym.RegymManager.start()

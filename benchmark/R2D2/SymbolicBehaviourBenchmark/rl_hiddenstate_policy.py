@@ -33,13 +33,15 @@ def extract_subtrees(
 class RLHiddenStatePolicy(nn.Module):
     def __init__(
         self, 
-        agent:Agent
+        agent:Agent,
+        node_id_to_extract:Optional[str]="hidden",
         ):
         """
         
         """
         super(RLHiddenStatePolicy, self).__init__()
         self.model = agent
+        self.node_id_to_extract = node_id_to_extract
         # TODO remove or update the following as it does not matter
         # since we are only ever using one such actor...
         self.player_idx = 0
@@ -50,7 +52,7 @@ class RLHiddenStatePolicy(nn.Module):
         else:
             rnn_states = from_pred['next_rnn_states']
         # Extract 'hidden''s list:
-        hiddens = extract_subtrees(in_dict=rnn_states, node_id='hidden')
+        hiddens = extract_subtrees(in_dict=rnn_states, node_id=self.node_id_to_extract)
         # List[List[Tensor]]
         
         vdn = self.model.kwargs.get('vdn', False)

@@ -26,7 +26,7 @@ def layer_init(layer, w_scale=1.0):
     return layer
 '''
 
-def layer_init(layer, w_scale=1.0):
+def layer_init(layer, w_scale=1.0, init_type=None):
     for name, param in layer._parameters.items():
         if param is None or param.data is None: continue
         if 'bias' in name:
@@ -34,16 +34,15 @@ def layer_init(layer, w_scale=1.0):
             #layer._parameters[name].data.uniform_(-0.08,0.08)
             nn.init.constant_(layer._parameters[name].data, 0)
         else:
-            '''
-            nn.init.orthogonal_(layer._parameters[name].data)
-            layer._parameters[name].data.mul_(w_scale)
-            '''
+            if init_type=='ortho':
+                nn.init.orthogonal_(layer._parameters[name].data)
+                layer._parameters[name].data.mul_(w_scale)
+            else:           
+                # Xavier Normal init:
+                #nn.init.xavier_normal_(layer._parameters[name].data, gain=w_scale)
             
-            # Xavier Normal init:
-            #nn.init.xavier_normal_(layer._parameters[name].data, gain=w_scale)
-            
-            # Xavier Uniform init:
-            nn.init.xavier_uniform_(layer._parameters[name].data)#, gain=nn.init.calculate_gain("relu"))
+                # Xavier Uniform init:
+                nn.init.xavier_uniform_(layer._parameters[name].data)#, gain=nn.init.calculate_gain("relu"))
             
             '''
             

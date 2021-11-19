@@ -8,6 +8,9 @@ import numpy as np
 
 from .module import Module
 
+import wandb 
+
+
 def build_PerEpochLoggerModule(id:str,
                                config:Dict[str,object]=None,
                                input_stream_ids:Dict[str,str]=None) -> Module:
@@ -24,11 +27,12 @@ class PerEpochLoggerModule(Module):
 
         if input_stream_ids is None:
             input_stream_ids = {
-                "logger":"modules:logger:ref",
+                #"logger":"modules:logger:ref",
                 "losses_dict":"losses_dict",
                 "logs_dict":"logs_dict",
                 "epoch":"signals:epoch",
                 "update_count":"signals:update_count",
+                "agent_update_count":"signals:agent_update_count",
                 "mode":"signals:mode",
                 "end_of_dataset":"signals:end_of_dataset",  
                 # boolean: whether the current batch/datasample is the last of the current dataset/mode.
@@ -48,10 +52,6 @@ class PerEpochLoggerModule(Module):
                 # step in the communication round.
             }
 
-        assert "logger" in input_stream_ids.keys(),\
-               "PerEpochLoggerModule relies on 'logger' id.\n\
-                Not found in input_stream_ids."
-        
         assert "epoch" in input_stream_ids.keys(),\
                "PerEpochLoggerModule relies on 'epoch' id.\n\
                 Not found in input_stream_ids."
@@ -88,11 +88,10 @@ class PerEpochLoggerModule(Module):
         
         epoch = input_streams_dict["epoch"]
         update_count = input_streams_dict["update_count"]
+        agent_update_count = input_streams_dict["agent_update_count"]
         mode = input_streams_dict["mode"]
         global_it_step = input_streams_dict["global_it_step"]
         
-        logger = input_streams_dict["logger"]
-
         # Store new data:
         for key,value in logs_dict.items():
           if key not in self.storages:
@@ -125,12 +124,15 @@ class PerEpochLoggerModule(Module):
             if need_stats:
               averaged_value = values.mean()
               std_value = values.std()
-              logger.add_scalar(f"PerEpoch/{key}/Mean", averaged_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/Std", std_value, epoch)
+              wandb.log({f"PerEpoch/{key}/Mean":  averaged_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/Std":  std_value, "epoch":epoch}, commit=False)
               
-              logger.add_scalar(f"PerUpdate/{key}/Mean", averaged_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/Std", std_value, update_count)
+              wandb.log({f"PerUpdate/{key}/Mean":  averaged_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/Std":  std_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Mean":  averaged_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Std":  std_value, "agent_update_count":agent_update_count}, commit=False)
               
+ 
 
               median_value = np.nanpercentile(
                 values,
@@ -152,20 +154,26 @@ class PerEpochLoggerModule(Module):
               )
               iqr = q3_value-q1_value
               
-              logger.add_scalar(f"PerEpoch/{key}/Median", median_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/Q1", q1_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/Q3", q3_value, epoch)
-              logger.add_scalar(f"PerEpoch/{key}/IQR", iqr, epoch)
+              wandb.log({f"PerEpoch/{key}/Median":  median_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/Q1":  q1_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/Q3":  q3_value, "epoch":epoch}, commit=False)
+              wandb.log({f"PerEpoch/{key}/IQR":  iqr, "epoch":epoch}, commit=False)
               
-              logger.add_scalar(f"PerUpdate/{key}/Median", median_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/Q1", q1_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/Q3", q3_value, update_count)
-              logger.add_scalar(f"PerUpdate/{key}/IQR", iqr, update_count)
+              wandb.log({f"PerUpdate/{key}/Median":  median_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/Q1":  q1_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/Q3":  q3_value, "update_count":update_count}, commit=False)
+              wandb.log({f"PerUpdate/{key}/IQR":  iqr, "update_count":update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Median":  median_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Q1":  q1_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/Q3":  q3_value, "agent_update_count":agent_update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}/IQR":  iqr, "agent_update_count":agent_update_count}, commit=False)
               
+ 
               #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
             else:
-              logger.add_scalar(f"PerEpoch/{key}", valuelist[-1], epoch)
-              logger.add_scalar(f"PerUpdate/{key}", valuelist[-1], update_count)
+              wandb.log({f"PerEpoch/{key}":  valuelist[-1], "epoch":epoch}, commit=False)
+              wandb.log({f"PerUpdate/{key}":  valuelist[-1], "update_count":update_count}, commit=False)
+              wandb.log({f"PerAgentUpdate/{key}":  valuelist[-1], "agent_update_count":agent_update_count}, commit=False)
               
               # Remove the value form the logs_dict if it is present:
               logs_dict.pop(key, None)
@@ -173,15 +181,11 @@ class PerEpochLoggerModule(Module):
           # Reset epoch storages:
           self.storages = {}
 
-          # Flush data:
-          logger.flush()
-
-
         # Log new (rectified) data:
         for key,value in logs_dict.items():
           if isinstance(value, torch.Tensor): 
               value = value.mean().item()
-          logger.add_scalar(key, value, global_it_step)
-
+          wandb.log({key:  value, "global_it_step":global_it_step}, commit=False)
+        wandb.log({}, commit=True)
         return {}
         

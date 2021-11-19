@@ -18,6 +18,7 @@ from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
 from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage, SharedPrioritizedReplayStorage
 from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdict
 
+import wandb
 sum_writer = None
 
 class R2D2Algorithm(DQNAlgorithm):
@@ -158,11 +159,7 @@ class R2D2Algorithm(DQNAlgorithm):
 
         nbr_stored_experiences = nbr_stored_sequences*(self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
 
-        global summary_writer
-        if self.summary_writer is None:
-            self.summary_writer = summary_writer
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
+        wandb.log({'PerTrainingRequest/NbrStoredExperiences': nbr_stored_experiences}) #, self.train_request_count)
         #print(f"Train request: {self.train_request_count} // nbr_exp stored: {nbr_stored_experiences}")
         return nbr_stored_experiences
     
