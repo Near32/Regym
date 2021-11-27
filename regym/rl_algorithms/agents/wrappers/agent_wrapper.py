@@ -179,7 +179,23 @@ class DictHandlingAgentWrapper(AgentWrapper):
 
     def clone(self, training=None):
         return DictHandlingAgentWrapper(agent=self.agent.clone(training=training))
+    
+    def _reset_rnn_states(
+        self, 
+        algorithm: object, 
+        nbr_actor: int, 
+        actor_indices: Optional[List[int]]=[], 
+        vdn:Optional[bool]=None
+        ):
+        return self.agent._reset_rnn_states(
+            algorithm=algorithm,
+            nbr_actor=nbr_actor,
+            actor_indices=actor_indices,
+            vdn=vdn,
+        )
 
+
+     
 
 class SADAgentWrapper(AgentWrapper):
     def __init__(self, agent):

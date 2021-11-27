@@ -1059,7 +1059,10 @@ def compute_loss(states: torch.Tensor,
     wandb.log({'Training/MeanTrainingReward':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/MinTrainingReward':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/MaxTrainingReward':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
-    
+    if training_rewards.cpu().max().item() > 2:
+        import ipdb; ipdb.set_trace()
+        print("too high training reward suspicious...")
+
     #wandb.log({'Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().min().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/MaxTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().max().item(), "training_step":iteration_count}, commit=False)

@@ -135,7 +135,7 @@ def training_process(agent_config: Dict,
 
 
 def load_configs(config_file_path: str):
-    all_configs = yaml.load(open(config_file_path))
+    all_configs = yaml.safe_load(open(config_file_path))
 
     agents_config = all_configs['agents']
     experiment_config = all_configs['experiment']
@@ -167,7 +167,7 @@ def test():
                          benchmarking_record_episode_interval=int(float(experiment_config['benchmarking_record_episode_interval'])),
                          train_observation_budget=int(float(experiment_config['train_observation_budget'])),
                          base_path=path,
-                         video_recording_episode_period=int(float(experiment_config['video_recording_episode_period'])),
+                         video_recording_episode_period=int(float(experiment_config.get('video_recording_episode_period', 1e20))),
                          seed=experiment_config['seed'])
 
 if __name__ == '__main__':

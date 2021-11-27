@@ -512,6 +512,10 @@ class DQNAlgorithm(Algorithm):
 
             self.optimizer.zero_grad()
             
+            HER_target_clamping = self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False
+            if self.use_HER and 'HER_target_clamping' not in self.kwargs:
+                raise NotImplementedError
+
             loss, loss_per_item = self.loss_fn(sampled_states, 
                                           sampled_actions, 
                                           sampled_next_states,
@@ -528,7 +532,7 @@ class DQNAlgorithm(Algorithm):
                                           use_PER=self.use_PER,
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
-                                          HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
+                                          HER_target_clamping=HER_target_clamping,
                                           iteration_count=self.param_update_counter,
                                           summary_writer=self.summary_writer,
                                           kwargs=self.kwargs)
@@ -674,6 +678,8 @@ class DQNAlgorithm(Algorithm):
             self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 
     def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
+        if self.storages is None:
+            self.reset_storages()
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None
@@ -684,14 +690,18 @@ class DQNAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
-        cloned_algo = copy.deepcopy(self)
+        if self.target_model is None:
+            self.target_model = copy.deepcopy(self.model)
         
+        cloned_algo = copy.deepcopy(self)
+           
         if minimal:
             cloned_algo.target_model = None
 
         if not(with_replay_buffer): 
             self.storages = storages
-        
+            cloned_algo.reset_storages()
+
         self.summary_writer = sum_writer
         
         self._param_update_counter = param_update_counter

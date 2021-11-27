@@ -6,6 +6,8 @@ import copy
 from regym.rl_algorithms.algorithms.wrappers.algorithm_wrapper import AlgorithmWrapper
 from regym.rl_algorithms.utils import copy_hdict
 
+import wandb 
+
 
 def state_eq_goal_reward_fn2(state, goal, epsilon=1e-3):
     if torch.abs(state-goal).mean() < epsilon:
@@ -14,33 +16,70 @@ def state_eq_goal_reward_fn2(state, goal, epsilon=1e-3):
         return -torch.ones(1), state
 
 
-def state_eq_goal_reward_fn2(achieved_exp, desired_exp, _extract_goals_from_info_fn, epsilon=1e-3):
+def state_eq_goal_reward_fn2(
+        achieved_exp, 
+        target_exp, 
+        _extract_goal_from_info_fn,
+        goal_key="achieved_goal",
+        epsilon=1e-3):
+    """
+    :param goal_key: Str that is the key to the goal value from the info dict.
+        E.g. it is possible to use any key from the info dict as the goal.
+    """
     state = achieved_exp['succ_s']
     #goal = desired_exp['goals']['achieved_goals']['s']
     #goal = _extract_goals_from_rnn_states_fn(desired_exp['info'], goal_key="achieved_goal")
     #goal = torch.from_numpy(desired_exp['info']['achieved_goal']).float()
-    goal = _extract_goals_from_info_fn(desired_exp['info'], goal_key="achieved_goal")
+    goal = _extract_goal_from_info_fn(target_exp['info'], goal_key=goal_key)
     if torch.abs(state-goal).mean() < epsilon:
-        return torch.zeros(1,1), goal
+        return torch.zeros((1,1)), goal
     else:
-        return -torch.ones(1,1), goal
+        return -torch.ones((1,1)), goal
 
 
-def latent_based_goal_predicated_reward_fn2(achieved_exp, desired_exp, epsilon=1e-3):
-    raise NotImplementedError
-    state = achieved_exp['info']['latents']['succ_s']
-    goal = desired_exp['info']['latents']['achieved_goal']
+def latent_based_goal_predicated_reward_fn2(
+    achieved_exp, 
+    target_exp, 
+    _extract_goal_from_info_fn,
+    goal_key="achieved_goal",
+    epsilon=1e-3):
+    
+    achieved_goal = _extract_goal_from_info_fn(
+        achieved_exp['info'],
+        goal_key=goal_key,
+    )
+    target_goal = _extract_goal_from_info_fn(
+        target_exp['info'],
+        goal_key=goal_key,
+    )
     abs_fn = torch.abs 
-    if not(isinstance(state, torch.Tensor)):    abs_fn = np.abs
-    if abs_fn(state-goal).mean() < epsilon:
-        return torch.zeros(1), desired_exp['goals']['achieved_goals']['s']
+    if not(isinstance(achieved_goal, torch.Tensor)):    abs_fn = np.abs
+    if abs_fn(achieved_goal-target_goal).mean() < epsilon:
+        return torch.zeros((1,1)), target_goal
     else:
-        return -torch.ones(1), desired_exp['goals']['achieved_goals']['s']
+        return -torch.ones((1,1)), target_goal
 
 class HERAlgorithmWrapper2(AlgorithmWrapper):
-    def __init__(self, algorithm, extra_inputs_infos, strategy="future-4", goal_predicated_reward_fn=None):
+    def __init__(
+        self, 
+        algorithm, 
+        extra_inputs_infos, 
+        strategy="future-4", 
+        goal_predicated_reward_fn=None,
+        _extract_goal_from_info_fn=None,
+        achieved_goal_key_from_info="achieved_goal",
+        target_goal_key_from_info="target_goal",
+        ):
+        """
+        :param achieved_goal_key_from_info: Str of the key from the info dict
+            used to retrieve the *achieved* goal from the *desired*/target
+            experience's info dict.
+        :param target_goal_key_from_info: Str of the key from the info dict
+            used to replace the *target* goal into the HER-modified rnn/frame_states. 
+        """
         super(HERAlgorithmWrapper2, self).__init__(algorithm=algorithm)
         if goal_predicated_reward_fn is None:   goal_predicated_reward_fn = state_eq_goal_reward_fn2
+        if _extract_goal_from_info_fn is None:  _extract_goal_from_info_fn = self._extract_goal_from_info_default_fn
 
         self.extra_inputs_infos = extra_inputs_infos
 
@@ -49,9 +88,18 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         assert( ('future' in self.strategy or 'final' in self.strategy) and '-' in self.strategy)
         self.k = int(self.strategy.split('-')[-1])    
         self.goal_predicated_reward_fn = goal_predicated_reward_fn
+        self._extract_goal_from_info_fn = _extract_goal_from_info_fn
+        self.achieved_goal_key_from_info = achieved_goal_key_from_info
+        self.target_goal_key_from_info = target_goal_key_from_info
+
         self.episode_count = 0
 
-    def _update_goals_in_rnn_states(self, hdict:Dict, goal_value:torch.Tensor, goal_key:Optional[str]='desired_goal'):
+    def _update_goals_in_rnn_states(
+        self, 
+        hdict:Dict, 
+        goal_value:torch.Tensor, 
+        goal_key:Optional[str]='target_goal',
+        ):
         if goal_key in self.extra_inputs_infos:
             if not isinstance(self.extra_inputs_infos[goal_key]['target_location'][0], list):
                 self.extra_inputs_infos[goal_key]['target_location'] = [self.extra_inputs_infos[goal_key]['target_location']]
@@ -64,6 +112,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                 pointer[goal_key] = [goal_value]
         return hdict
 
+    """
     def _extract_goals_from_rnn_states(self, hdict:Dict, goal_key:Optional[str]='desired_goal'):
         import ipdb; ipdb.set_trace()
         assert goal_key in self.extra_inputs_infos
@@ -74,8 +123,13 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                 pointer[child_node] = {}
             pointer = pointer[child_node]
         return pointer[goal_key]
+    """
 
-    def _extract_goals_from_info(self, hdict:Dict, goal_key:Optional[str]='desired_goal'):
+    def _extract_goal_from_info_default_fn(
+        self, 
+        hdict:Dict, 
+        goal_key:Optional[str]='achieved_goal',
+        ):
         assert goal_key in hdict
         value = hdict[goal_key]
         postprocess_fn=(lambda x:torch.from_numpy(x).float() if isinstance(x, np.ndarray) else torch.ones(1, 1).float()*x)
@@ -97,10 +151,8 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
 
                 info = self.episode_buffer[actor_index][idx]['info']
                 rnn_states = self.episode_buffer[actor_index][idx]['rnn_states']
-                
-                #desired_goal = self.episode_buffer[actor_index][idx]['goals']['desired_goals']['s']
-                #desired_goal = info['desired_goal']
-                
+                # TODO: maybe consider handling the next_rnn_states ?
+
                 d2store = {
                     's':s, 
                     'a':a, 
@@ -110,15 +162,25 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                     
                     'rnn_states': copy_hdict(rnn_states),
                     'info': info,
-                    #'g':desired_goal
                 }
-                #self.algorithm.store(d2store, actor_index=actor_index)
+                
+                # Not storing now:
+                # we need to send whole trajectoriess all at once,
+                # without HER-modified experiences in between...
+                # previously: self.algorithm.store(d2store, actor_index=actor_index)
+                
+                # What is this -1 key?
+                # per_episode_d2store is collecting for each k values (of the HER) algo
+                # the HER-modified trajectories, where k is positive.
+                # So, we also need to store the normal trajectory: this is done
+                # at index k=-1 below:
                 if -1 not in per_episode_d2store: per_episode_d2store[-1] = []
                 per_episode_d2store[-1].append(d2store)
 
+                self.episode_count += 1
                 if self.algorithm.summary_writer is not None and all(non_terminal<=0.5):
-                    self.episode_count += 1
                     self.algorithm.summary_writer.add_scalar('PerEpisode/Success', 1+r.mean().item(), self.episode_count)
+                wandb.log({'PerEpisode/HER_Success': 1+r.mean().item()}, commit=True)
                 
 
                 for k in range(self.k):
@@ -127,11 +189,12 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                         #achieved_goal = self.episode_buffer[actor_index][-1]['goals']['achieved_goals']['s']
                         
                         achieved_exp = self.episode_buffer[actor_index][idx]
-                        desired_exp = self.episode_buffer[actor_index][-1]
-                        new_r, achieved_goal = self.goal_predicated_reward_fn(
+                        target_exp = self.episode_buffer[actor_index][-1]
+                        new_r, achieved_goal_from_target_exp = self.goal_predicated_reward_fn(
                             achieved_exp=achieved_exp, 
-                            desired_exp=desired_exp,
-                            _extract_goals_from_info_fn=self._extract_goals_from_info
+                            target_exp=target_exp,
+                            _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
+                            goal_key=self.achieved_goal_key_from_info,
                         )
                         
                         #new_non_terminal = torch.zeros(1) if all(new_r>-0.5) else torch.ones(1)
@@ -146,8 +209,8 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                             'rnn_states': copy_hdict(
                                 self._update_goals_in_rnn_states(
                                     hdict=rnn_states,
-                                    goal_value=achieved_goal,
-                                    goal_key='desired_goal',
+                                    goal_value=achieved_goal_from_target_exp,
+                                    goal_key=self.target_goal_key_from_info,
                                 )
                             ),
                             'info': info,
@@ -156,17 +219,19 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
 
                         if self.algorithm.summary_writer is not None:
                             self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_final', new_r.mean().item(), self.algorithm.get_update_count())
+                        wandb.log({'PerUpdate/HER_reward_final': new_r.mean().item()}, commit=True)
                     
                     if 'future' in self.strategy:
                         future_idx = np.random.randint(idx, episode_length)
                         #achieved_goal = self.episode_buffer[actor_index][future_idx]['goals']['achieved_goals']['s']
                         
                         achieved_exp = self.episode_buffer[actor_index][idx]
-                        desired_exp = self.episode_buffer[actor_index][future_idx]
-                        new_r, achieved_goal = self.goal_predicated_reward_fn(
+                        target_exp = self.episode_buffer[actor_index][future_idx]
+                        new_r, achieved_goal_from_target_exp = self.goal_predicated_reward_fn(
                             achieved_exp=achieved_exp, 
-                            desired_exp=desired_exp,
-                            _extract_goals_from_info_fn=self._extract_goals_from_info
+                            target_exp=target_exp,
+                            _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
+                            goal_key=self.achieved_goal_key_from_info,
                         )
 
                         new_non_terminal = torch.zeros_like(non_terminal) if all(new_r>-0.5) else torch.ones_like(non_terminal) 
@@ -180,21 +245,24 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                             'rnn_states': copy_hdict(
                                 self._update_goals_in_rnn_states(
                                     hdict=rnn_states,
-                                    goal_value=achieved_goal,
-                                    goal_key='desired_goal',
+                                    goal_value=achieved_goal_from_target_exp,
+                                    goal_key=self.target_goal_key_from_info,
                                 )
                             ),
                             'info': info,
-                            #'g':achieved_goal
                         }
                         
                         if self.algorithm.summary_writer is not None:
                             self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_future', new_r.mean().item(), self.algorithm.get_update_count())
+                        wandb.log({'PerUpdate/HER_reward_future': new_r.mean().item()}, commit=True)
                         
                     #self.algorithm.store(d2store, actor_index=actor_index)
                     if k not in per_episode_d2store: per_episode_d2store[k] = []
                     per_episode_d2store[k].append(d2store)
             
+            # Now that we have all the different trajectories,
+            # we can send them to the main algorithm as complete
+            # whole trajectories, one experience at a time.
             for key in per_episode_d2store:
                 for d2store in per_episode_d2store[key]:
                     self.algorithm.store(d2store, actor_index=actor_index)
@@ -203,10 +271,17 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
             # Reset episode buffer:
             self.episode_buffer[actor_index] = []
 
-    def clone(self):
+    def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
         return HERAlgorithmWrapper2(
-            algorithm=self.algorithm.clone(), 
+            algorithm=self.algorithm.clone(
+                with_replay_buffer=with_replay_buffer,
+                clone_proxies=clone_proxies,
+                minimal=minimal
+            ), 
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos),
             strategy=self.strategy, 
             goal_predicated_reward_fn=self.goal_predicated_reward_fn,
+            _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
+            achieved_goal_key_from_info=self.achieved_goal_key_from_info,
+            target_goal_key_from_info=self.target_goal_key_from_info,
         )

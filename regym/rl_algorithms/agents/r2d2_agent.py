@@ -189,15 +189,25 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
     if kwargs.get('use_HER', False):
         from regym.rl_algorithms.algorithms.wrappers import latent_based_goal_predicated_reward_fn2
-        goal_predicated_reward_fn = None
+        
+        goal_predicated_reward_fn = kwargs.get(
+            "HER_goal_predicated_reward_fn",
+            None,
+        )
+
         if kwargs.get('HER_use_latent', False):
             goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn2
+        elif goal_predicated_reward_fn is None:
+            raise NotImplementedError("need HER_use_latent=True")
 
         algorithm = HERAlgorithmWrapper2(
             algorithm=algorithm,
             strategy=kwargs['HER_strategy'],
             goal_predicated_reward_fn=goal_predicated_reward_fn,
             extra_inputs_infos=kwargs['extra_inputs_infos'],
+            _extract_goal_from_info_fn=kwargs.get("HER_extract_goal_from_info_fn", None),
+            achieved_goal_key_from_info=kwargs["HER_achieved_goal_key_from_info"],
+            target_goal_key_from_info=kwargs["HER_target_goal_key_from_info"],
         )
 
     

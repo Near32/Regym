@@ -216,6 +216,7 @@ class MARLEnvironmentModule(Module):
             outputs_stream_dict["signals:epoch"] = self.epoch
             outputs_stream_dict["signals:done_training"] = False
             
+            self.outputs_stream_dict = outputs_stream_dict
             return copy.deepcopy(outputs_stream_dict)
 
         """
@@ -342,6 +343,7 @@ class MARLEnvironmentModule(Module):
 
                     # bookkeeping:
                     outputs_stream_dict["trajectories"] = copy.deepcopy(self.trajectories)
+                    outputs_stream_dict["PerEpisodeBatch/MeanEpisodeLength"] = mean_episode_length
                     outputs_stream_dict["new_trajectories_published"] = True
                     self.epoch += 1
                     
@@ -430,11 +432,11 @@ class MARLEnvironmentModule(Module):
                     succ_info_key=self.succ_info_key,
                 )
 
-                if self.obs_count % 10000 == 0:
-                    for agent in self.agents:
-                      if not hasattr(agent, 'save'):    continue
-                      agent.save(minimal=True)
-                      print(f"Agent {agent} saved at: {agent.save_path}")
+            if self.obs_count % 5e3 == 0:
+                for agent in self.agents:
+                    if not hasattr(agent, 'save'):    continue
+                    agent.save(with_replay_buffer=False, minimal=True)
+                    print(f"Agent {agent} saved at: {agent.save_path}")
                     
         wandb.log({}, commit=True)
 
@@ -488,6 +490,7 @@ class MARLEnvironmentModule(Module):
         else:
             outputs_stream_dict["signals:done_training"] = False
         
+        self.outputs_stream_dict = outputs_stream_dict
         return copy.deepcopy(outputs_stream_dict)
             
 

@@ -1602,11 +1602,16 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
     def reset(self):
         self.previous_reward = np.zeros((1, 1))
         self.previous_action = np.zeros((1, self.nbr_actions))
-        infos = {}
+        reset_output = self.env.reset()
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = {}
         infos['previous_reward'] = copy.deepcopy(self.previous_reward)
         infos['previous_action'] = copy.deepcopy(self.previous_action)
     
-        return self.env.reset(), infos
+        return obs, infos
 
     def step(self, action):
         next_observation, reward, done, next_infos = self.env.step(action)
@@ -2194,12 +2199,13 @@ class ConfigVideoRecorder(VideoRecorder):
 
         self.render_mode = render_mode
 
-    def capture_frame(self):
+    def capture_frame(self, frame=None):
         if not self.functional: return 
         logger.debug('Capturing video frame: path=%s', self.path)
 
-        render_mode = self.render_mode
-        frame = self.env.render(mode=render_mode)
+        if frame is None:
+            render_mode = self.render_mode
+            frame = self.env.render(mode=render_mode)
 
         if frame is None:
             if self._async:
@@ -2219,10 +2225,13 @@ class ConfigVideoRecorder(VideoRecorder):
 
 
 class PeriodicVideoRecorderWrapper(gym.Wrapper):
-    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array',):
-        gym.Wrapper.__init__(self, env)
+    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array', record_obs=False):
+        env.metadata['render.modes'].append('rgb_array')
 
+        gym.Wrapper.__init__(self, env)
+         
         self.render_mode = render_mode
+        self.record_obs = record_obs
         self.episode_idx = 0
         self.base_dirpath = base_dirpath
         os.makedirs(self.base_dirpath, exist_ok=True)
@@ -2246,7 +2255,12 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
             self.is_video_enabled = True
         else:
             if self.is_video_enabled:
-                self.video_recorder.capture_frame()
+                frame = None
+                if self.record_obs:
+                    frame = env_output
+                    while isinstance(frame, list) or isinstance(frame, tuple):
+                        frame = frame[0]
+                self.video_recorder.capture_frame(frame=frame)
                 self.video_recorder.close()
                 del self.video_recorder
                 self.is_video_enabled = False
@@ -2254,10 +2268,16 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
         return env_output
 
     def step(self, action):
+        obs, reward, done, info = super(PeriodicVideoRecorderWrapper, self).step(action)
         if self.is_video_enabled:
-            self.video_recorder.capture_frame()
+            frame = None
+            if self.record_obs:
+                frame = obs
+                if isinstance(frame, list):
+                    frame = frame[0]
+            self.video_recorder.capture_frame(frame=frame)
 
-        return super(PeriodicVideoRecorderWrapper, self).step(action)
+        return obs, reward, done, info
 
 
 def baseline_ther_wrapper(env, 

@@ -277,7 +277,7 @@ def test_agent(
 
     wandb.log({'PerUpdate/Testing/MeanEpisodeLength':  mean_episode_length}) # update_count)
     wandb.log({'PerUpdate/Testing/StdEpisodeLength':  std_episode_length}) # update_count)
-
+    
     if save_traj:
         for actor_idx in range(nbr_save_traj):
             gif_traj = [ exp[0] for exp in trajectory[actor_idx]]

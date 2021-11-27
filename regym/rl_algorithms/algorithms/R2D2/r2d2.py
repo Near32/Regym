@@ -60,7 +60,6 @@ class R2D2Algorithm(DQNAlgorithm):
         
         self.storage_buffer_refresh_period = 32
         self.storage_buffers = [list() for _ in range(self.nbr_actor)]
-
         self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
 
@@ -74,6 +73,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
             """
 
+            self.storage_buffers = [list() for _ in range(self.nbr_actor)]
             self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
             self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]    
             
@@ -290,12 +290,13 @@ class R2D2Algorithm(DQNAlgorithm):
         '''
         Compute n-step returns, for each actor, separately,
         and then assembles experiences into sequences of experiences of length
-        `self.sequence_replay_unroll_length`, with an overlap of `self.sequence_replay_overlap_length`.
+        `self.sequence_replay_unroll_length`, with an overlap of 
+        `self.sequence_replay_overlap_length`.
 
         Note: No sequence being stored crosses the episode barrier. 
         If the input `exp_dict` is terminal, 
-        then the n-step buffer is dumped entirely in the sequence buffer and the sequence is committed 
-        to the relevant storage buffer.
+        then the n-step buffer is dumped entirely in the sequence buffer
+        and the sequence is committed to the relevant storage buffer.
         '''
         if False: #self.n_step>1:
             raise NotImplementedError
@@ -327,7 +328,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 #import ipdb; ipdb.set_trace()
             else:
                 current_exp_dict = exp_dict
-            
+                wandb.log({'Training/Storing/CurrentExp/MaxReward':  exp_dict['r'].cpu().max().item()}, commit=True)
             """
             # depr : goal update
             if self.goal_oriented and 'g' not in current_exp_dict:

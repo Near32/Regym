@@ -97,6 +97,17 @@ class THERAlgorithmWrapper(AlgorithmWrapper):
         self.nbr_handled_predictor_experience = 0
         self.batch_size = self.kwargs['THER_predictor_batch_size']
 
+    def parameters(self):
+        """
+        WARNING: this inherited method is not taking
+        into account the predictor attribute, by design,
+        because the predictor is fully-handled by this
+        current object.
+        N.B.: extensions with the computational graph
+        and stream handler should revoke that functionality.
+        """
+        return self.algorithm.parameters()
+    
     def _reset_predictor_storages(self):
         if self.predictor_storages is not None:
             for storage in self.predictor_storages: storage.reset()

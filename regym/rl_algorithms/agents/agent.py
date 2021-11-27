@@ -153,7 +153,13 @@ class Agent(object):
         if self.recurrent:
             _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor, actor_indices=indices, vdn=vdn)
 
-    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[], vdn:Optional[bool]=None):
+    def _reset_rnn_states(
+        self, 
+        algorithm: object, 
+        nbr_actor: int, 
+        actor_indices: Optional[List[int]]=[], 
+        vdn:Optional[bool]=None
+        ):
         # TODO: account for the indices in rnn states:
         if ((vdn is not None and vdn) or (vdn is None))\
         and "vdn" in self.algorithm.kwargs \

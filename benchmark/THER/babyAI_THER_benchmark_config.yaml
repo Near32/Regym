@@ -50,12 +50,28 @@ LargeMLP: &LargeMLP
                 target_location: ['critic_body', 'extra_inputs']
             },
             
+            'communication_channel':{
+                shape: [55,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            #'other_agent_id':{
+            #    shape: [10,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            'role_id':{
+                shape: [2,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
             'mode_id':{
                 shape: [2,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             'previous_game_result':{
                 shape: [2,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_game_reward':{
+                shape: [1,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             
@@ -81,25 +97,23 @@ LargeMLP: &LargeMLP
         #critic_arch_feature_dim: 32
         critic_arch_hidden_units: [128, 128]
 
-LargeCNN_SAD: &LargeCNN_SAD
-        sad: False
+LargeMLP_SAD: &LargeMLP_SAD
+        sad: True 
 
-        phi_arch: 'CNN' #-LSTM-RNN'
+        phi_arch: 'MLP' #-LSTM-RNN'
         actor_arch: 'None'
         critic_arch: 'LSTM-RNN'
         
         # Phi Body:
-        phi_arch_channels: ['BN32', 'BN64', 'BN64']
-        phi_arch_channels: [32, 64, 64]
-        phi_arch_kernels: [8, 4, 3]
+        #phi_arch_channels: ['BN32', 'BN64', 'BN64']
+        #phi_arch_channels: [32, 64, 64]
+        #phi_arch_kernels: [8, 4, 3]
         #phi_arch_kernels: [3, 3, 3]
-        phi_arch_strides: [4, 2, 1]
+        #phi_arch_strides: [4, 2, 1]
         #phi_arch_strides: [2, 2, 1]
-        phi_arch_paddings: [1, 1, 1]
-        phi_arch_feature_dim: 512
-
-        #phi_arch_feature_dim: 128
-        #phi_arch_hidden_units: [512, 256]
+        #phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 128
+        phi_arch_hidden_units: [512, 256]
 
         extra_inputs_infos: {
             'previous_reward':{
@@ -111,17 +125,33 @@ LargeCNN_SAD: &LargeCNN_SAD
                 target_location: ['critic_body', 'extra_inputs']
             },
 
+            'communication_channel':{
+                shape: [55,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
             'round_id':{
                 shape: [4,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
 
+            #'other_agent_id':{
+            #    shape: [10,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            'role_id':{
+                shape: [2,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
             'mode_id':{
                 shape: [2,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             'previous_game_result':{
                 shape: [2,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_game_reward':{
+                shape: [1,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             
@@ -134,6 +164,16 @@ LargeCNN_SAD: &LargeCNN_SAD
                 target_location: ['head', 'extra_inputs']
             },
 
+            ########################
+            # WITH SAD:
+            ########################
+            'greedy_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            ########################
+            ########################
+               
         }
 
         # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
@@ -149,8 +189,7 @@ LargeCNN_SAD: &LargeCNN_SAD
 
 
 r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
-        #'observation_resize_dim': 56, #(56,56),
-        observation_resize_dim: 32 #(56,56),
+        #observation_resize_dim: 21 #56
         
         dueling: True
         noisy: False 
@@ -193,65 +232,71 @@ r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLP
 
         sequence_replay_PER_eta: 0.9
 
-        <<: *LargeCNN_SAD
+        <<: *LargeMLP_SAD
         <<: *extra_hyperparameters
 
 
 experiment:
     tasks: [{
-        'env-id': 'IGLUSilentBuilderVisual-v0',
+        'env-id': 'SymbolicBehaviourBenchmark-ReceptiveConstructiveTestEnv-2Shots-v0',
+        #'env-id': 'SymbolicBehaviourBenchmark-ReceptiveConstructiveTestEnv-v0',
         'env-config': {
-            "action_space": "discrete",
+            "nbr_communication_rounds": 3,
+            "vocab_size": 6,
+            "max_sentence_length": 1,
+            "nbr_latents": 3,
+            "min_nbr_values_per_latent": 2,
+            "max_nbr_values_per_latent": 5,
+            "nbr_object_centric_samples": 1,
+            "nbr_distractors": 3,
+            "use_communication_channel_permutations": True,
+            "allow_listener_query": False,
         },
         
-        'run-id': 'TestBlockDense/Discrete+1Actors+CurrFakeReset-MFEL200+Obs32i+SparsePosReward+BlockDenseAct/',
+        'run-id': 'Train-Reward1/venv128/V6-MSL1-NCR3-L3Min2Max5-Distr3-OC1-CommPerm',
         
-        #'agent-id': '1step_0Ent_r2d2_AdamLR3m4_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPDNC_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
-        'agent-id': '3step_0Ent_r2d2_AdamLR3m4_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPDNC_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
+        #'agent-id': '3step_SAD_VDN_aID_1m3Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM2Res_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L150_O0_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
+        'agent-id': '3step_SAD_VDN_aID_1m3Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
         
-        #'nbr_actor': 128,
+        'nbr_actor': 128,
         #'nbr_actor': 100,
         #'nbr_actor': 64,
         #'nbr_actor': 32,
         #'nbr_actor': 16,
-        'nbr_actor': 1,
+        #'nbr_actor': 8,
         #'nbr_frame_skipping': 4,
         #'nbr_frame_stacking': 4,
         #'grayscale': True,
         #'single_life_episode': True, #False,
         #'nbr_max_random_steps': 30,
-        'sad': False, 
-        'vdn': False, 
+        #'sad': False, 
+        'sad': True,
+        #'vdn': False, 
+        'vdn': True,
+        #"otherplay": True,
         "otherplay": False,
         'clip_reward': False,
         'previous_reward_action': True,
-        'curriculum_fake_reset': True,
-        'max_fake_episode_length': 200, #'None', #100,
-        'sparse_positive_reward': True,
-        'block_dense_actions': True,
         #'observation_resize_dim': (21,21), #(56,56),
-        #'observation_resize_dim': 56, #(56,56),
-        #'observation_resize_dim': 56, 
-        #This value is DEPRECATED: use the one in agent config.
-        # Also, halfing it does increase 2 fold the processing speed...
+        'observation_resize_dim': 56, #(56,56),
         #
         'reload': 'None',
         },
     ]
-    experiment_id: 'r2d2_iglu_debug'
-    benchmarking_episodes: 1
-    benchmarking_interval: 1.0e10
-    benchmarking_record_episode_interval: 1.0e0 #'None' #1.0e1 #1.0e20
+    experiment_id: 'r2d2_s2b_debug'
+    benchmarking_episodes: 10
+    benchmarking_interval: 1.0e4
+    benchmarking_record_episode_interval: 'None' #1.0e1 #1.0e20
     #benchmarking_record_episode_interval: 1.0e20
-    train_observation_budget: 1.0e6
+    train_observation_budget: 1.0e7
     seed: 1
     
 agents:
-    3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeMLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone: &3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeMLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone
+    SAD_VDN_3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeMLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone: &SAD_VDN_3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeMLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone
         <<: *r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
         actor_models_update_steps_interval: 1 #considering only 1 actor's steps.
 
-        vdn: False
+        vdn: True 
         vdn_nbr_players: 2
 
         batch_size: 32
@@ -299,22 +344,25 @@ agents:
         eps_greedy_alpha: 7.0
     
     #3step_SAD_VDN_aID_1m3Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM2Res_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L150_O0_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
-    3step_0Ent_r2d2_AdamLR3m4_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPDNC_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
-        <<: *3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeMLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone
+    3step_SAD_VDN_aID_1m3Ent_r2d2_AdamLR6d25m5_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPLSTM_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone:
+        <<: *SAD_VDN_3step_r2d2_AdamLR6d25m5_EPS1d5m5_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m2OVER3p4_gamma997_LargeMLPLSTM_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_overNone_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone
         # DEBUG:
         min_capacity: 1e3    
         
-        weights_entropy_lambda: 0.0 
+        #weights_entropy_lambda: 0.0 
         #weights_entropy_lambda: 0.1
-        #weights_entropy_lambda: 0.001 #01
+        weights_entropy_lambda: 0.001 #01
     
-        vdn: False 
+        #vdn: False 
+        vdn: True 
         vdn_nbr_players: 2
-        sad: False 
+        #sad: False 
+        sad: True
+
         
-        #learning_rate: 6.25e-5
+        learning_rate: 6.25e-5
         #adam_eps: 1.5e-5
-        learning_rate: 3.0e-4
+        #learning_rate: 1.0e-3
         #adam_eps: 1.0e-8
         adam_eps: 1.0e-12
         #adam_eps: 1.0e-15
@@ -323,7 +371,6 @@ agents:
         #replay_capacity: 1e5 
         #min_capacity: 3e4 #in terms of experiences... #1e4
         
-        #n_step: 1
         n_step: 3
         #n_step: 7
 
@@ -364,26 +411,26 @@ agents:
         # critic_arch_hidden_units: [512]
 
         # Arch2:
-        # critic_arch: 'MLP-LSTM-RNN2'
-        # use_relu_after_rnn: False #True 
-        # use_residual_connection: True 
-        # critic_arch_linear_hidden_units: [512, 256]
-        # critic_arch_feature_dim: 128
-        # critic_arch_hidden_units: [128, 128]
+        critic_arch: 'MLP-LSTM-RNN2'
+        use_relu_after_rnn: False #True 
+        use_residual_connection: True 
+        critic_arch_linear_hidden_units: [512, 256]
+        critic_arch_feature_dim: 128
+        critic_arch_hidden_units: [128, 128]
 
         # Arch DNC:
         # critic_arch: 'DNC'
         # critic_arch_feature_dim: 128
-        #critic_arch_hidden_units: [128]
+        # critic_arch_hidden_units: [128]
         #critic_arch_hidden_units: [128, 128]
         # DNC_sparse_K: 0
 
         # Arch 3:
-        critic_arch: 'MLP-LSTM-RNN2'
-        use_relu_after_rnn: True 
-        critic_arch_linear_hidden_units: [256]
-        critic_arch_feature_dim: 128
-        critic_arch_hidden_units: [128]
+        # critic_arch: 'MLP-LSTM-RNN2'
+        # use_relu_after_rnn: True 
+        # critic_arch_linear_hidden_units: [128]
+        # critic_arch_feature_dim: 64
+        # critic_arch_hidden_units: [64]
 
         #Arch 4:
         # critic_arch: 'MLP-LSTM-RNN2'
@@ -394,61 +441,65 @@ agents:
         # critic_arch_feature_dim: 128
 
         extra_inputs_infos: {
-           'previous_reward':{
-               shape: [1,], 
-               target_location: ['critic_body', 'extra_inputs']
-           },
-           'previous_action':{
-               shape: ['task.action_dim',], 
-               target_location: ['critic_body', 'extra_inputs']
-           },
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
 
-           'chat':{
-               shape: [256,], 
-               target_location: ['critic_body', 'extra_inputs']
-           },
-         
-           #'action_mask':{
-           #    shape: ['task.action_dim',], 
-           #    target_location: ['critic_body', 'extra_inputs']
-           #},
-           #'legal_actions':{
-           #    shape: ['task.action_dim',], 
-           #    target_location: ['head', 'extra_inputs']
-           #},
-        }     
-        
+            'communication_channel':{
+                shape: [7,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'round_id':{
+                shape: [4,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            #'other_agent_id':{
+            #    shape: [10,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            'role_id':{
+                shape: [2,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'mode_id':{
+                shape: [2,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_game_result':{
+                shape: [2,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_game_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            
+            'action_mask':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'legal_actions':{
+                shape: ['task.action_dim',], 
+                target_location: ['head', 'extra_inputs']
+            },
 
-        # extra_inputs_infos: {
-        #      'previous_reward':{
-        #          shape: [1,], 
-        #          target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
-        #      },
-        #      'previous_action':{
-        #          shape: ['task.action_dim',], 
-        #          target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
-        #      },
-           
-        #      'round_id':{
-        #          shape: [2,], 
-        #          target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
-        #      },
-        #      'mode_id':{
-        #          shape: [2,], 
-        #          target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
-        #      },
-        #      'previous_game_result':{
-        #          shape: [2,], 
-        #          target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
-        #      },
-        #      
-        #      #'action_mask':{
-        #      #    shape: ['task.action_dim',], 
-        #      #    target_location: ['critic_body', 'dnc', 'dnc_controller', 'extra_inputs']
-        #      #},
-        #      #'legal_actions':{
-        #      #    shape: ['task.action_dim',], 
-        #      #    target_location: ['head', 'extra_inputs']
-        #      #},
-        #  }
-        
+            ########################
+            # WITH SAD:
+            ########################
+            #'greedy_action':{
+            #    shape: [31,], #[6223,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            ########################
+            ########################
+               
+        }
+    
+    
+    
+    

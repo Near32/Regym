@@ -19,6 +19,9 @@ class AlgorithmWrapper(Algorithm):
     def nbr_actor(self):
         return self.algorithm.nbr_actor
     
+    def parameters(self):
+        return self.algorithm.parameters()
+    
     def get_models(self):
         return self.algorithm.get_models()
 

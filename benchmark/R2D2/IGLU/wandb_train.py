@@ -2,14 +2,20 @@ from typing import Dict, Any, Optional, List, Callable
 
 import torch
 import sklearn 
+import gym
+import iglu
+
+from perceiver_lm.perceiver_io import LMCapsule
+from collections import OrderedDict
+from copy import deepcopy
 
 import logging
 import yaml
 import os
 import sys
-from typing import Dict
 
 import torch.multiprocessing
+import ray
 
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -23,29 +29,164 @@ import regym
 from regym.environments import generate_task, EnvType
 from regym.rl_loops.multiagent_loops import marl_loop
 from regym.util.experiment_parsing import initialize_agents
-
-import ray
-
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
 
-from regym.modules import ReconstructionFromHiddenStateModule, MultiReconstructionFromHiddenStateModule
+#from regym.modules import ReconstructionFromHiddenStateModule, MultiReconstructionFromHiddenStateModule
+from iglu_task_curriculum_module import build_IGLUTaskCurriculumModule, IGLUTaskCurriculumModule
 
 from regym.pubsub_manager import PubSubManager
 
 import wandb
-import gym
-import iglu
-
-from perceiver_io import LMCapsule
-from collections import OrderedDict
-from copy import deepcopy
 
 
 LanguageModelCapsule = None
 
-class IgluActionWrapper(gym.ActionWrapper):
+# TODO: figure out the actual air.id:
+# eventhough the doc says air.id=-1, the actual data are showing 0...
+air_block_offset = 0
+reward_divider = 60 #600 when using inverted...
 
+def IGLU_goal_predicated_reward_fn(
+    achieved_exp,
+    target_exp,
+    _extract_goal_from_info_fn,
+    goal_key,
+    epsilon=1e-3,
+    ):
+    """
+    This reward function is always negative,
+    and it is maximized when the target goal 
+    is achieved.
+
+    HYP1: target goals that consist of empty
+    grids are also able to maximize this
+    reward function, without any actions
+    from the agent.
+    It might incentivise the agent to do
+    strictly nothing...
+    """
+    achieved_goal = _extract_goal_from_info_fn(
+        achieved_exp['info'],
+        goal_key=goal_key,
+    )
+    target_goal = _extract_goal_from_info_fn(
+        target_exp['info'],
+        goal_key=goal_key,
+    )
+
+    # Preprocessing: air.id=-1...
+    # assuming grids:
+    global air_block_offset
+    target_goal += air_block_offset
+    achieved_goal += air_block_offset 
+
+    abs_diff = np.abs(target_goal-achieved_goal).sum()  
+    reward = -abs_diff
+
+    global reward_divider
+    reward /= reward_divider
+
+    # sparsification:
+    if reward < -epsilon:
+        reward = -1 
+    if reward > 0:
+        raise NotImplementedError
+    
+    return reward*torch.ones(1,1), target_goal
+
+def IGLU_inverted_goal_predicated_reward_fn(
+    achieved_exp,
+    target_exp,
+    _extract_goal_from_info_fn,
+    goal_key,
+    epsilon=1e-3,
+    ):
+    """
+    This reward function is always positive,
+    and it is maximized when the target goal 
+    is achieved and that target goal contains
+    a lot of blocks.
+
+    HYP1: target goals that consist of empty
+    grids are minimizing this reward function.
+    """
+    achieved_goal = _extract_goal_from_info_fn(
+        achieved_exp['info'],
+        goal_key=goal_key,
+    )
+    target_goal = _extract_goal_from_info_fn(
+        target_exp['info'],
+        goal_key=goal_key,
+    )
+
+    # assuming grids:
+    # mapping air.id=>0
+    global air_block_offset
+    target_goal += air_block_offset
+    achieved_goal += air_block_offset
+
+    target_goal_size = target_goal.sum()
+    abs_diff = np.abs(target_goal-achieved_goal).sum()
+    reward = target_goal_size - abs_diff
+    
+    global reward_divider
+    reward /= reward_divider
+    
+    # sparsification?
+    # if reward > -epsilon:
+    #    reward = 0
+        
+    return reward*torch.ones(1,1), target_goal
+
+
+class IGLUHERGoalPredicatedRewardWrapper(gym.Wrapper):
+    def __init__(self, env, inverted=False, epsilon=1e-3):
+        super().__init__(env)
+        self.inverted = inverted
+        self.epsilon = epsilon
+    
+    def reset(self, **args):
+        obs, info = self.env.reset(**args)
+        
+        # There is not 'target_grid' available on the reset...
+        info['target_grid'] = info['grid'].reshape((1,-1))
+        info['grid'] = info['grid'].reshape((1,-1))
+        
+        return obs, info
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+
+        global air_block_offset
+        target_goal = info['target_grid']+air_block_offset
+        achieved_goal = info['grid']+air_block_offset
+        
+        target_goal_size = target_goal.sum()
+        abs_diff = np.abs(target_goal-achieved_goal).sum()
+        
+        if self.inverted:
+            reward = target_goal_size - abs_diff
+        else:
+            reward = (-1)*abs_diff
+
+        global reward_divider
+        reward /= reward_divider 
+        
+        if not self.inverted:
+            # sparsification:
+            if reward < -self.epsilon:
+                reward = -1
+            if reward > 0:
+                raise NotImplementedError
+    
+        info['target_grid'] = info['target_grid'].reshape((1,-1))
+        info['grid'] = info['grid'].reshape((1,-1))   
+
+        return obs, reward, done, info
+
+
+class IgluActionWrapper(gym.ActionWrapper):
     def __init__(self, env):
         super().__init__(env)
         self.noop_dict = OrderedDict({
@@ -60,38 +201,252 @@ class IgluActionWrapper(gym.ActionWrapper):
             'use': np.array(0),
         })
 
+        """
         self.actions_list = [
-            ('attack', np.array(1)),
-            ('back', np.array(1)),
+            {'attack': np.array(1)},
+            {'back': np.array(1)},
 
-            ('camera', np.array([5.0, 0.0])),
-            ('camera', np.array([-5.0, 0.0])),
-            ('camera', np.array([0.0, 5.0])),
-            ('camera', np.array([0.0, -5.0])),
-            ('camera', np.array([0.0, 0.0])), # noop
+            {'camera': np.array([5.0, 0.0])},
+            {'camera': np.array([-5.0, 0.0])},
+            {'camera': np.array([0.0, 5.0])},
+            {'camera': np.array([0.0, -5.0])},
+            {'camera': np.array([0.0, 0.0])}, # noop
 
-            ('forward', np.array(1)),
+            {'forward': np.array(1)},
             # 'hotbar', np.array(0),
             # ('hotbar', np.array(1)),
             # 'hotbar', np.array(2),
             # 'hotbar', np.array(3),
             # 'hotbar', np.array(4),
             # 'hotbar', np.array(5),
-            ('jump', np.array(1)),
-            ('left', np.array(1)),
-            ('right', np.array(1)),
-            ('use', np.array(1)),
+            {'jump': np.array(1)},
+            {'left': np.array(1)},
+            {'right': np.array(1)},
+            {'use': np.array(1)},
+        ]
+        """
+        self.actions_list = [
+            {'attack': np.array(1)},
+            {'back': np.array(1)},
+
+            {'camera': np.array([5.0, 0.0])},
+            {'camera': np.array([-5.0, 0.0])},
+            {'camera': np.array([0.0, 5.0])},
+            {'camera': np.array([0.0, -5.0])},
+            #{'camera': np.array([0.0, 0.0])}, # noop
+
+            {'forward': np.array(1)},
+
+            {'hotbar': np.array(0)},
+            {'hotbar': np.array(1)},
+            {'hotbar': np.array(2)},
+            {'hotbar': np.array(3)},
+            {'hotbar': np.array(4)},
+            {'hotbar': np.array(5)},
+            
+            {'jump': np.array(1)},
+            {'left': np.array(1)},
+            {'right': np.array(1)},
+            
+            {'use': np.array(1)},
         ]
 
         self.action_space = gym.spaces.Discrete(len(self.actions_list))
 
     def action(self, action):
         result = deepcopy(self.noop_dict)
-        result.update({self.actions_list[action][0]: self.actions_list[action][1]})
+        result.update(self.actions_list[action])
         return result
 
     def reverse_action(self, action):
         pass
+
+
+class IgluBlockDenseActionWrapper(gym.ActionWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.noop_dict = OrderedDict({
+            'attack': np.array(0),
+            'back': np.array(0),
+            'camera': np.array([0, 0]),
+            'forward': np.array(0),
+            'hotbar': np.array(0),
+            'jump': np.array(0),
+            'left': np.array(0),
+            'right': np.array(0),
+            'use': np.array(0),
+        })
+        
+        """
+            {'hotbar': np.array(0), 'use': np.array(1)},
+            {'hotbar': np.array(1), 'use': np.array(1)},
+            {'hotbar': np.array(2), 'use': np.array(1)},
+            {'hotbar': np.array(3), 'use': np.array(1)},
+            {'hotbar': np.array(4), 'use': np.array(1)},
+            {'hotbar': np.array(5), 'use': np.array(1)},
+       """
+            
+        self.actions_list = [
+            {'attack': np.array(1)},
+            {'back': np.array(1)},
+
+            {'camera': np.array([5.0, 0.0])},
+            {'camera': np.array([-5.0, 0.0])},
+            {'camera': np.array([0.0, 5.0])},
+            {'camera': np.array([0.0, -5.0])},
+            #{'camera': np.array([0.0, 0.0])}, # noop
+
+            {'forward': np.array(1)},
+            
+            {'hotbar': np.array(0), 'use': np.array(1), 'camera': np.array([0.5, 0.0])},
+            {'hotbar': np.array(1), 'use': np.array(1), 'camera': np.array([-0.5, 0.0])},
+            {'hotbar': np.array(2), 'use': np.array(1), 'camera': np.array([0.5, 0.0])},
+            {'hotbar': np.array(3), 'use': np.array(1), 'camera': np.array([-0.5, 0.0])},
+            {'hotbar': np.array(4), 'use': np.array(1), 'camera': np.array([0.5, 0.0])},
+            {'hotbar': np.array(5), 'use': np.array(1), 'camera': np.array([-0.5, 0.0])},
+                         
+            {'jump': np.array(1)},
+            {'left': np.array(1)},
+            {'right': np.array(1)},
+            
+            {'use': np.array(1)},
+        ]
+
+        self.action_space = gym.spaces.Discrete(len(self.actions_list))
+
+    def action(self, action):
+        result = deepcopy(self.noop_dict)
+        result.update(self.actions_list[action])
+        return result
+
+    def reverse_action(self, action):
+        pass
+
+
+class FakeResetWrapper(gym.Wrapper):
+    def __init__(
+        self, 
+        env, 
+        max_episode_length=None,
+        fake=False,
+        ):
+        super().__init__(env)
+        self.fake = fake 
+
+        self.fake_reset = False
+        self.fake_reset_obs = None 
+        self.fake_reset_info = None
+        self.reset_outputs_info = False 
+        self.max_episode_length = max_episode_length
+
+        self.obs_counter = 0
+
+    def reset(self, **args):
+        """
+        WARNING: This wrapper assumes that the reset
+        method delivers both an observation
+        and a dictionnary info.
+        """
+        self.obs_counter = 1
+
+        if self.fake_reset:
+            self.fake_reset = False
+            if self.reset_outputs_info:
+                return self.fake_reset_obs, self.fake_reset_info
+            else:
+                return self.fake_reset_obs
+        else:
+            reset_output = self.env.reset(**args)
+            self.reset_outputs_info = isinstance(reset_output, tuple)
+            return reset_output
+
+    def step(self, action):
+        self.obs_counter += 1
+        obs, reward, done, info = self.env.step(action)
+        
+        if self.max_episode_length is not None\
+        and not done\
+        and self.obs_counter >= self.max_episode_length:
+            if self.fake:
+                self.fake_reset = True
+                self.fake_reset_obs = obs
+                self.fake_reset_info = info
+            done = True
+
+        return obs, reward, done, info
+
+class IGLUCurriculumFakeResetWrapper(gym.Wrapper):
+    def __init__(
+        self, 
+        env, 
+        max_episode_length=None,
+        sparse_positive_reward=False,
+        ):
+        super().__init__(env)
+        
+        self.fake_reset = False
+        self.fake_reset_obs = None 
+        self.fake_reset_info = None
+        self.reset_outputs_info = False 
+        self.max_episode_length = max_episode_length
+        self.sparse_positive_reward = sparse_positive_reward
+
+        self.obs_counter = 0
+
+    def reset(self, **args):
+        """
+        WARNING: This wrapper assumes that the reset
+        method delivers both an observation
+        and a dictionnary info.
+        """
+        self.obs_counter = 1
+
+        if self.fake_reset:
+            self.fake_reset = False
+            if self.reset_outputs_info:
+                return self.fake_reset_obs, self.fake_reset_info
+            else:
+                return self.fake_reset_obs
+        else:
+            reset_output = self.env.reset(**args)
+            self.reset_outputs_info = isinstance(reset_output, tuple)
+            return reset_output
+
+    def step(self, action):
+        self.obs_counter += 1
+        obs, reward, done, info = self.env.step(action)
+        
+        if reward>2 or reward<-2:
+            #TODO: debug this situation,
+            # which has its roots in the reward handler...
+            reward = 0
+            #import ipdb; ipdb.set_trace()
+        
+        if reward == -1:
+            # we assume that this reward prevents the agent
+            # from trying to lay down blocks:
+            reward = 0
+        
+        if self.sparse_positive_reward\
+        and reward < 1:
+            reward = 0
+        if self.sparse_positive_reward\
+        and reward > 1:
+            reward = 2
+       
+        if reward>1 or reward<-1:
+            self.fake_reset=True
+            self.fake_reset_obs = obs
+            self.fake_reset_info = info
+            done = True
+        
+        if self.max_episode_length is not None\
+        and not done\
+        and self.obs_counter >= self.max_episode_length:
+            done = True
+            reward = 0
+
+        return obs, reward, done, info
 
 
 class PovOnlyWrapper(gym.Wrapper):
@@ -155,15 +510,25 @@ def wrap_iglu(
     clip_reward=False,
     previous_reward_action=True,
     trajectory_wrapping=False,
+    curriculum_fake_reset=False,
+    max_episode_length=None,
+    sparse_positive_reward=False,
+    block_dense_actions=False,
+    use_HER=False,
+    inverted_goal_predicated_reward=False,
     ):
     env = gym.make('IGLUSilentBuilder-v0', max_steps=1000, )
     #env.update_taskset(TaskSet(preset=[task]))
     env = ChatEmbeddingWrapper(env)
     env = PovOnlyWrapper(env)
-    env = IgluActionWrapper(env)
+    if block_dense_actions:
+        env = IgluBlockDenseActionWrapper(env)
+    else:
+        env = IgluActionWrapper(env)
     
     # Clip reward to (-1,0,+1)
-    env = ClipRewardEnv(env)
+    if clip_reward:
+        env = ClipRewardEnv(env)
     
     # The agent deals with discrete actions so we want this wrapper to be the last one:
     if previous_reward_action:
@@ -175,6 +540,24 @@ def wrap_iglu(
         # input action is discrete, propagated action is continuous, 
         # infos={inventory, previous_reward, previous_action(ohe) (if traj_wrap: current_action(d))}
     
+    if curriculum_fake_reset:
+        env = IGLUCurriculumFakeResetWrapper(
+            env,
+            max_episode_length=max_episode_length,
+            sparse_positive_reward=sparse_positive_reward,
+        )
+    elif max_episode_length is not None:
+        env = FakeResetWrapper(
+            env=env,
+            max_episode_length=max_episode_length,
+        )
+
+    if use_HER:
+        env = IGLUHERGoalPredicatedRewardWrapper(
+            env,
+            inverted_goal_predicated_reward,
+        )
+
     return env
 
 
@@ -184,7 +567,7 @@ def check_path_for_agent(filepath):
     offset_episode_count = 0
     if os.path.isfile(filepath):
         print('==> loading checkpoint {}'.format(filepath))
-        agent = torch.load(filepath)
+        agent = torch.load(filepath).clone(with_replay_buffer=True)
         offset_episode_count = agent.episode_count
         #setattr(agent, 'episode_count', offset_episode_count)
         print('==> loaded checkpoint {}'.format(filepath))
@@ -266,6 +649,19 @@ def make_rl_pubsubmanager(
         input_stream_ids=envm_input_stream_ids
     )
     
+    if config["use_task_curriculum"]:
+        tcm_id = "IGLUTaskCurriculumModule_0"
+        tcm_config = {
+            "task":config["task"],
+            "max_episode_length":config["max_episode_length"],
+        }
+        tcm_input_stream_ids = None
+        modules[tcm_id] = build_IGLUTaskCurriculumModule(
+            id=tcm_id,
+            config=tcm_config,
+            input_stream_ids=tcm_input_stream_ids,
+        )
+        
     pipelines = config.pop("pipelines")
     
     pipelines["rl_loop_0"] = [
@@ -273,6 +669,9 @@ def make_rl_pubsubmanager(
     ]
     for rlam_id in rlam_ids:
       pipelines['rl_loop_0'].append(rlam_id)
+    
+    if config["use_task_curriculum"]:
+        pipelines['rl_loop_0'].append(tcm_id)
 
     optim_id = "global_optim"
     optim_config = {
@@ -311,6 +710,8 @@ def make_rl_pubsubmanager(
 
 
 def train_and_evaluate(
+    agent_config: Dict[str,Any],
+    task_config: Dict[str,Any],
     agent: object, 
     task: object, 
     sum_writer: object, 
@@ -322,7 +723,7 @@ def train_and_evaluate(
     test_nbr_episode: int = 10,
     benchmarking_record_episode_interval: int = None,
     step_hooks=[],
-    render_mode="rgb_array",
+    render_mode="human",
     ):
     
     config = {
@@ -345,12 +746,20 @@ def train_and_evaluate(
     config['test_nbr_episode'] = test_nbr_episode
     config['benchmarking_record_episode_interval'] = benchmarking_record_episode_interval
     config['render_mode'] = render_mode
-    config['save_traj_length_divider'] =1
+    config['save_traj_length_divider'] = 5
     config['sad'] = False
     config['vdn'] = False
     config['otherplay'] = False
     config['nbr_players'] = 1
     config['step_hooks'] = [] 
+    
+    # Task Curriculum:
+    config["use_task_curriculum"] = task_config["task_curriculum"]
+    config["max_episode_length"] = task_config["max_fake_episode_length"]
+    if not isinstance(config["max_episode_length"], int)\
+    and config["use_task_curriculum"]:
+        raise NotImplementedError
+        config["max_episode_length"] = 1000
 
     agents = [agent]
 
@@ -377,6 +786,7 @@ def train_and_evaluate(
     task.test_env.close()
 
     return trained_agents
+
 
 def training_process(
     agent_config: Dict, 
@@ -470,13 +880,51 @@ def training_process(
       torch.backends.cudnn.deterministic = True
       torch.backends.cudnn.benchmark = False
 
+    max_episode_length = None
+    if task_config["max_fake_episode_length"]!='None':
+        print("WARNING: Using M(F)SL.")
+        max_episode_length = int(task_config["max_fake_episode_length"])
+        #assert(task_config["curriculum_fake_reset"])
+    
+    sparse_positive_reward = task_config["sparse_positive_reward"]
+    if sparse_positive_reward:
+        print("WARNING: Using SparsePosReward.")
+        assert(task_config["curriculum_fake_reset"]) 
+
+    inverted_goal_predicated_reward = task_config["inverted_goal_predicated_reward"]
+    if inverted_goal_predicated_reward:
+        print("WARNING: Using InvertedGoalPredRewardFN.")
+        assert(agent_config["use_HER"]) 
+        agent_config['HER_goal_predicated_reward_fn'] = IGLU_inverted_goal_predicated_reward_fn
+    else:
+        print("WARNING: Using NegativeGoalPredRewardFN.")
+        agent_config['HER_goal_predicated_reward_fn'] = IGLU_goal_predicated_reward_fn
+            
     pixel_wrapping_fn = partial(
         wrap_iglu,
         #size=task_config['observation_resize_dim'], 
         clip_reward=task_config['clip_reward'],
         previous_reward_action=task_config["previous_reward_action"],
+        curriculum_fake_reset=task_config["curriculum_fake_reset"],
+        max_episode_length=max_episode_length,
+        sparse_positive_reward=sparse_positive_reward,
+        block_dense_actions=task_config["block_dense_actions"],
+        use_HER=agent_config['use_HER'],
+        inverted_goal_predicated_reward=inverted_goal_predicated_reward,
     )
-    test_pixel_wrapping_fn = pixel_wrapping_fn
+
+    test_pixel_wrapping_fn =partial(
+        wrap_iglu,
+        #size=task_config['observation_resize_dim'], 
+        clip_reward=False,
+        previous_reward_action=task_config["previous_reward_action"],
+        curriculum_fake_reset=False,
+        max_episode_length=None,
+        sparse_positive_reward=False,
+        block_dense_actions=task_config["block_dense_actions"],
+        use_HER=agent_config['use_HER'],
+        inverted_goal_predicated_reward=inverted_goal_predicated_reward,
+    )
     
     """
     pixel_wrapping_fn = partial(
@@ -505,7 +953,7 @@ def training_process(
     """
 
     video_recording_dirpath = os.path.join(base_path,'videos')
-    video_recording_render_mode = 'rgb_array'
+    video_recording_render_mode = 'human'
     task = generate_task(
       task_config['env-id'],
       env_type=EnvType.SINGLE_AGENT,
@@ -555,6 +1003,10 @@ def training_process(
       agent, offset_episode_count = check_path_for_agent(save_path1)
     
     if agent is None: 
+        if agent_config['use_HER']:
+            print("WARNING: Using HER.")
+            agent_config['HER_achieved_goal_key_from_info'] = "grid"
+            agent_config['HER_target_goal_key_from_info'] = "target_grid"
         agent = initialize_agents(
           task=task,
           agent_configurations={task_config['agent-id']: agent_config}
@@ -583,6 +1035,8 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
 
     trained_agent = train_and_evaluate(
+        agent_config=agent_config,
+        task_config=task_config,
         agent=agent,
         task=task,
         sum_writer=sum_writer,
