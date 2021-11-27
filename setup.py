@@ -50,7 +50,7 @@ setup(
       'coloredlogs',
       'scikit-image',
       'h5py',
-      'seaborn'
+      'seaborn',
       'pyglet',
     ] + test_requirements,
 

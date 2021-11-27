@@ -5,14 +5,14 @@ setup(
     name='perceiver-io-pytorch',
     version='0.1.4',
     packages=['perceiver_io'],
-    package_dir={'': 'src'},
+    #package_dir={'': 'src'},
     url='https://github.com/esceptico/perceiver-io',
     license='MIT',
     author='Timur Ganiev',
     author_email='ganiev.tmr@gmail.com',
     description='Unofficial Perceiver IO implementation',
     install_requires=[
-        'torch==1.9.0',
+        #'torch==1.9.0',
         'einops==0.3.0'
     ]
 )
