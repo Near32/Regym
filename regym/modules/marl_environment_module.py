@@ -103,6 +103,14 @@ class MARLEnvironmentModule(Module):
 
         for player_idx in range(self.nbr_agents):
             setattr(self, f"player_{player_idx}", dict())
+        
+        self.run_mean_total_return = None
+        self.run_mean_window_size = 100
+        self.prev_run_mean_total_return_on_save = None
+        self.reset_running_mean()
+
+    def reset_running_mean(self):
+        self.prev_mean_total_returns = []
 
     def initialisation(self, input_streams_dict: Dict[str,object]) -> None:
         self.init = True
@@ -147,6 +155,7 @@ class MARLEnvironmentModule(Module):
             for a in range(self.nbr_actors)
         ]
         self.trajectories = list()
+        self.total_successes = list()
         self.total_returns = list()
         self.positive_total_returns = list()
         self.total_int_returns = list()
@@ -207,8 +216,11 @@ class MARLEnvironmentModule(Module):
                 pidx_d['observations'] = None
                 pidx_d['infos'] = None
                 pidx_d['actions'] = None
+                
                 pidx_d['succ_observations'] = self.observations[pidx]
                 pidx_d['succ_infos'] = self.info[pidx]  
+                #pidx_d['observations'] = self.observations[pidx]
+                #pidx_d['infos'] = self.info[pidx]  
                 pidx_d['rewards'] = None
                 pidx_d['dones'] = None
             
@@ -259,10 +271,81 @@ class MARLEnvironmentModule(Module):
                 input_streams_dict,
                 outputs_stream_dict
             )
+        if self.vdn:
+            obs = self.nonvdn_observations
+            act = nonvdn_actions
+            succ_obs = nonvdn_succ_observations
+            rew = nonvdn_reward
+            d = nonvdn_done
+            info = self.nonvdn_info
+            succ_info = nonvdn_succ_info
+        else:
+            obs = self.observations
+            act = actions
+            succ_obs = succ_observations
+            rew = reward
+            d = done
+            info = self.info
+            succ_info = succ_info
+        
+        outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
+        outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
+        outputs_stream_dict[self.action_key] = actions 
+        outputs_stream_dict[self.reward_key] = reward 
+        outputs_stream_dict[self.done_key] = done 
+        outputs_stream_dict[self.succ_obs_key] = succ_observations
+        outputs_stream_dict[self.succ_info_key] = succ_info
+
+        if self.vdn:
+            outputs_stream_dict["observations"] = copy.deepcopy(self.nonvdn_observations)
+            outputs_stream_dict["info"] = copy.deepcopy(self.nonvdn_info)
+            outputs_stream_dict["actions"] = nonvdn_actions 
+            outputs_stream_dict["reward"] = nonvdn_reward 
+            outputs_stream_dict["done"] = nonvdn_done 
+            outputs_stream_dict["succ_observations"] = nonvdn_succ_observations
+            outputs_stream_dict["succ_info"] = nonvdn_succ_info
+
+        # Prepare player dicts for RLAgent modules:
+        for pidx in range(self.nbr_agents):
+            pidx_d = getattr(self, f"player_{pidx}")
+            pidx_d['observations'] = self.observations[pidx]
+            pidx_d['infos'] = self.info[pidx] 
+            pidx_d['actions'] = actions[pidx]
+            pidx_d['succ_observations'] = succ_observations[pidx]
+            pidx_d['succ_infos'] = succ_info[pidx] 
+            pidx_d['rewards'] = reward[pidx]
+            pidx_d['dones'] = done
 
         for actor_index in range(self.nbr_actors):
             self.obs_count += 1
             self.pbar.update(1)
+
+            for player_index in range(self.nbr_players):
+                pa_obs = obs[player_index][actor_index:actor_index+1]
+                pa_a = act[player_index][actor_index:actor_index+1]
+                pa_r = rew[player_index][actor_index:actor_index+1]
+                pa_succ_obs = succ_obs[player_index][actor_index:actor_index+1]
+                pa_done = d[actor_index:actor_index+1]
+                pa_int_r = 0.0
+                
+                """
+                pa_info = _extract_from_rnn_states(
+                    self.info[player_index],
+                    actor_index,
+                    post_process_fn=None
+                )
+                """
+                pa_info = info[player_index][actor_index]
+
+                """
+                if getattr(agent.algorithm, "use_rnd", False):
+                    get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
+                    if callable(get_intrinsic_reward):
+                        pa_int_r = agent.get_intrinsic_reward(actor_index)
+                """    
+                self.per_actor_per_player_trajectories[actor_index][player_index].append( 
+                    (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) 
+                )
 
             # Bookkeeping of the actors whose episode just ended:
             done_condition = ('real_done' in succ_info[0][actor_index] \
@@ -292,6 +375,8 @@ class MARLEnvironmentModule(Module):
                 # Only care about logging player 0:
                 player_id = 0 
                 traj = self.trajectories[-1][player_id]
+                # assumes HER-typed reward: i.e. 0== success, -1 otherwise:
+                self.total_successes.append(float((traj[-1][2].item() >= 0.0)))
                 self.total_returns.append(sum([ exp[2] for exp in traj]))
                 self.positive_total_returns.append(sum([ exp[2] if exp[2]>0 else 0.0 for exp in traj]))
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))
@@ -320,6 +405,7 @@ class MARLEnvironmentModule(Module):
                     std_ext_positive_return = math.sqrt( sum( [math.pow( r-mean_positive_total_return ,2) for r in self.positive_total_returns]) / len(self.positive_total_returns) )
                     mean_total_int_return = sum( self.total_int_returns) / len(self.trajectories)
                     std_int_return = math.sqrt( sum( [math.pow( r-mean_total_int_return ,2) for r in self.total_int_returns]) / len(self.total_int_returns) )
+                    mean_episode_successes = sum(self.total_successes) / len(self.trajectories)
                     mean_episode_length = sum( self.episode_lengths) / len(self.trajectories)
                     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in self.episode_lengths]) / len(self.episode_lengths) )
 
@@ -334,6 +420,10 @@ class MARLEnvironmentModule(Module):
                     wandb.log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return, "update_count":self.update_count}, commit=False)
                     wandb.log({'PerEpisodeBatch/MeanTotalIntReturn':  mean_total_int_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
 
+                    wandb.log({'PerEpisodeBatch/MeanEpisodeSuccesses':  mean_episode_successes, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb.log({'PerObservation/MeanEpisodeSuccesses':  mean_episode_successes, "obs_count":self.obs_count}, commit=False)
+                    wandb.log({'PerUpdate/MeanEpisodeSuccesses':  mean_episode_successes, "update_count":self.update_count}, commit=False)
+                    
                     wandb.log({'PerEpisodeBatch/MeanEpisodeLength':  mean_episode_length, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
                     wandb.log({'PerObservation/MeanEpisodeLength':  mean_episode_length, "obs_count":self.obs_count}, commit=False)
                     wandb.log({'PerUpdate/MeanEpisodeLength':  mean_episode_length, "update_count":self.update_count}, commit=False)
@@ -344,11 +434,13 @@ class MARLEnvironmentModule(Module):
                     # bookkeeping:
                     outputs_stream_dict["trajectories"] = copy.deepcopy(self.trajectories)
                     outputs_stream_dict["PerEpisodeBatch/MeanEpisodeLength"] = mean_episode_length
+                    outputs_stream_dict["PerEpisodeBatch/MeanEpisodeSuccess"] = mean_episode_successes
                     outputs_stream_dict["new_trajectories_published"] = True
                     self.epoch += 1
                     
                     # reset :
                     self.trajectories = list()
+                    self.total_successes = list()
                     self.total_returns = list()
                     self.positive_total_returns = list()
                     self.total_int_returns = list()
@@ -358,49 +450,7 @@ class MARLEnvironmentModule(Module):
                     list() for p in range(self.nbr_players)
                 ]
 
-            if self.vdn:
-                obs = self.nonvdn_observations
-                act = nonvdn_actions
-                succ_obs = nonvdn_succ_observations
-                rew = nonvdn_reward
-                d = nonvdn_done
-                info = self.nonvdn_info
-            else:
-                obs = self.observations
-                act = actions
-                succ_obs = succ_observations
-                rew = reward
-                d = done
-                info = self.info
             
-            for player_index in range(self.nbr_players):
-                pa_obs = obs[player_index][actor_index:actor_index+1]
-                pa_a = act[player_index][actor_index:actor_index+1]
-                pa_r = rew[player_index][actor_index:actor_index+1]
-                pa_succ_obs = succ_obs[player_index][actor_index:actor_index+1]
-                pa_done = d[actor_index:actor_index+1]
-                pa_int_r = 0.0
-                
-                """
-                pa_info = _extract_from_rnn_states(
-                    self.info[player_index],
-                    actor_index,
-                    post_process_fn=None
-                )
-                """
-                pa_info = info[player_index][actor_index]
-
-                """
-                if getattr(agent.algorithm, "use_rnd", False):
-                    get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
-                    if callable(get_intrinsic_reward):
-                        pa_int_r = agent.get_intrinsic_reward(actor_index)
-                """    
-                self.per_actor_per_player_trajectories[actor_index][player_index].append( 
-                    (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) 
-                )
-
-
             if self.config['test_nbr_episode'] != 0 \
             and self.obs_count % self.config['test_obs_interval'] == 0:
                 save_traj = False
@@ -432,48 +482,46 @@ class MARLEnvironmentModule(Module):
                     succ_info_key=self.succ_info_key,
                 )
 
-            if self.obs_count % 5e3 == 0:
+            if self.obs_count % 1e3 == 0\
+            and ((self.prev_run_mean_total_return_on_save is not None\
+            and self.run_mean_total_return is not None\
+            and self.prev_run_mean_total_return_on_save > self.run_mean_total_return)\
+            or (self.prev_run_mean_total_return_on_save is None\
+            and self.run_mean_total_return is not None)):
+                print(f"Saving agents on hopefully better running mean total return:")
+                print(f"prev: {self.prev_run_mean_total_return_on_save} || now: {self.run_mean_total_return}")
+                self.prev_run_mean_total_return_on_save = self.run_mean_total_return
+                self.reset_running_mean()
+ 
                 for agent in self.agents:
                     if not hasattr(agent, 'save'):    continue
+                    save_path = agent.save_path
+                    
+                    #agent.save_path += f"{self.episode_count}Episodes"
                     agent.save(with_replay_buffer=False, minimal=True)
                     print(f"Agent {agent} saved at: {agent.save_path}")
+                    """
+                    # No longer care about the episode since always taking best...
+                    agent.save_path = os.path.join(
+                        wandb.run.dir,
+                        os.path.basename(agent.save_path),
+                    )
+                    os.makedirs(os.path.dirname(agent.save_path), exist_ok=True)
+                    agent.save(with_replay_buffer=False, minimal=True)
+                    artifact = wandb.Artifact(agent.name[:127], type='model')
+                    artifact.add_file(agent.save_path)
+                    wandb.run.log_artifact(artifact)
+                    print(f"Agent {agent} saved at: {agent.save_path}")
+                    """
+                    agent.save_path = save_path
                     
         wandb.log({}, commit=True)
-
-        outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
-        outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
-        outputs_stream_dict[self.action_key] = actions 
-        outputs_stream_dict[self.reward_key] = reward 
-        outputs_stream_dict[self.done_key] = done 
-        outputs_stream_dict[self.succ_obs_key] = succ_observations
-        outputs_stream_dict[self.succ_info_key] = succ_info
-
-        if self.vdn:
-            outputs_stream_dict["observations"] = copy.deepcopy(self.nonvdn_observations)
-            outputs_stream_dict["info"] = copy.deepcopy(self.nonvdn_info)
-            outputs_stream_dict["actions"] = nonvdn_actions 
-            outputs_stream_dict["reward"] = nonvdn_reward 
-            outputs_stream_dict["done"] = nonvdn_done 
-            outputs_stream_dict["succ_observations"] = nonvdn_succ_observations
-            outputs_stream_dict["succ_info"] = nonvdn_succ_info
-
-        # Prepare player dicts for RLAgent modules:
-        for pidx in range(self.nbr_agents):
-            pidx_d = getattr(self, f"player_{pidx}")
-            pidx_d['observations'] = self.observations[pidx]
-            pidx_d['infos'] = self.info[pidx] 
-            pidx_d['actions'] = actions[pidx]
-            pidx_d['succ_observations'] = succ_observations[pidx]
-            pidx_d['succ_infos'] = succ_info[pidx] 
-            pidx_d['rewards'] = reward[pidx]
-            pidx_d['dones'] = done
 
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)
         if self.vdn:
             self.nonvdn_observations = copy.deepcopy(nonvdn_succ_observations)
             self.nonvdn_info = copy.deepcopy(nonvdn_succ_info)
-
 
         outputs_stream_dict["signals:mode"] = 'train'
         outputs_stream_dict["signals:epoch"] = self.epoch
@@ -490,6 +538,15 @@ class MARLEnvironmentModule(Module):
         else:
             outputs_stream_dict["signals:done_training"] = False
         
+        if outputs_stream_dict["new_trajectories_published"]:
+            # Compute new running mean total_return:
+            curr_mean_total_return = outputs_stream_dict["PerEpisodeBatch/MeanEpisodeLength"]
+            self.prev_mean_total_returns.append(curr_mean_total_return)
+            if len(self.prev_mean_total_returns) >= self.run_mean_window_size:
+                self.prev_mean_total_returns.pop(0)
+            
+            self.run_mean_total_return = np.mean(self.prev_mean_total_returns)
+
         self.outputs_stream_dict = outputs_stream_dict
         return copy.deepcopy(outputs_stream_dict)
             

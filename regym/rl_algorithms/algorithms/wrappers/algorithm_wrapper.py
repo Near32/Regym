@@ -21,9 +21,18 @@ class AlgorithmWrapper(Algorithm):
     
     def parameters(self):
         return self.algorithm.parameters()
-    
+   
+    def get_optimizer(self):
+        return self.algorithm.get_optimizer()
+
+    def set_optimizer(self, optimizer):
+        self.algorithm.set_optimizer(optimizer=optimizer)
+
     def get_models(self):
         return self.algorithm.get_models()
+
+    def set_models(self, models_dict):
+        return self.algorithm.set_models(models_dict)
 
     def get_epsilon(self, nbr_steps, strategy='exponential'):
         return self.algorithm.get_epsilon(nbr_steps, strategy=strategy)

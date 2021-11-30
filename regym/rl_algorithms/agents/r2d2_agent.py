@@ -35,7 +35,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
     def _query_action(self, state, infos=None, as_logit=False):
         return DQNAgent.query_action(self, state=state, infos=infos, as_logit=as_logit)
 
-    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -57,6 +57,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             done=done,
             goals=goals,
             infos=infos,
+            succ_infos=succ_infos,
         )
 
     def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
@@ -208,6 +209,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             _extract_goal_from_info_fn=kwargs.get("HER_extract_goal_from_info_fn", None),
             achieved_goal_key_from_info=kwargs["HER_achieved_goal_key_from_info"],
             target_goal_key_from_info=kwargs["HER_target_goal_key_from_info"],
+            filtering_fn=kwargs["HER_filtering_fn"],
         )
 
     

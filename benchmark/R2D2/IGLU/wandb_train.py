@@ -34,6 +34,7 @@ from regym.modules import MARLEnvironmentModule, RLAgentModule
 
 #from regym.modules import ReconstructionFromHiddenStateModule, MultiReconstructionFromHiddenStateModule
 from iglu_task_curriculum_module import build_IGLUTaskCurriculumModule, IGLUTaskCurriculumModule
+from iglu_task_curriculum_module import IGLUTaskCurriculumWrapper
 
 from regym.pubsub_manager import PubSubManager
 
@@ -67,11 +68,11 @@ def IGLU_goal_predicated_reward_fn(
     strictly nothing...
     """
     achieved_goal = _extract_goal_from_info_fn(
-        achieved_exp['info'],
+        achieved_exp['succ_info'],
         goal_key=goal_key,
     )
     target_goal = _extract_goal_from_info_fn(
-        target_exp['info'],
+        target_exp['succ_info'],
         goal_key=goal_key,
     )
 
@@ -165,23 +166,36 @@ class IGLUHERGoalPredicatedRewardWrapper(gym.Wrapper):
         target_goal_size = target_goal.sum()
         abs_diff = np.abs(target_goal-achieved_goal).sum()
         
-        if self.inverted:
-            reward = target_goal_size - abs_diff
+        if reward>=2:
+            # if the max int. is increased, then it is a win:
+            # HYP: when target contains many blocks,
+            # then a modular reward is provided for any increase towards goal.
+            #TODO: implement max int situtation...
+            reward = 0
         else:
-            reward = (-1)*abs_diff
+            if self.inverted:
+                reward = target_goal_size - abs_diff
+            else:
+                reward = (-1)*abs_diff
 
-        global reward_divider
-        reward /= reward_divider 
+            global reward_divider
+            reward /= reward_divider 
         
-        if not self.inverted:
-            # sparsification:
-            if reward < -self.epsilon:
-                reward = -1
-            if reward > 0:
-                raise NotImplementedError
+            if not self.inverted:
+                # sparsification:
+                if reward < -self.epsilon:
+                    reward = -1
+                if reward > 0:
+                    raise NotImplementedError
     
         info['target_grid'] = info['target_grid'].reshape((1,-1))
         info['grid'] = info['grid'].reshape((1,-1))   
+        
+        """
+        # TODO: Testing was done using:
+        if (info['grid']>1).sum().item()>0:
+            reward = 0
+        """
 
         return obs, reward, done, info
 
@@ -298,12 +312,12 @@ class IgluBlockDenseActionWrapper(gym.ActionWrapper):
 
             {'forward': np.array(1)},
             
-            {'hotbar': np.array(0), 'use': np.array(1), 'camera': np.array([0.5, 0.0])},
-            {'hotbar': np.array(1), 'use': np.array(1), 'camera': np.array([-0.5, 0.0])},
-            {'hotbar': np.array(2), 'use': np.array(1), 'camera': np.array([0.5, 0.0])},
-            {'hotbar': np.array(3), 'use': np.array(1), 'camera': np.array([-0.5, 0.0])},
-            {'hotbar': np.array(4), 'use': np.array(1), 'camera': np.array([0.5, 0.0])},
-            {'hotbar': np.array(5), 'use': np.array(1), 'camera': np.array([-0.5, 0.0])},
+            {'hotbar': np.array(0), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(1), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(2), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(3), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(4), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(5), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
                          
             {'jump': np.array(1)},
             {'left': np.array(1)},
@@ -328,7 +342,7 @@ class FakeResetWrapper(gym.Wrapper):
         self, 
         env, 
         max_episode_length=None,
-        fake=False,
+        fake=True,
         ):
         super().__init__(env)
         self.fake = fake 
@@ -349,7 +363,8 @@ class FakeResetWrapper(gym.Wrapper):
         """
         self.obs_counter = 1
 
-        if self.fake_reset:
+        if self.fake\
+        and self.fake_reset:
             self.fake_reset = False
             if self.reset_outputs_info:
                 return self.fake_reset_obs, self.fake_reset_info
@@ -504,6 +519,112 @@ class ChatEmbeddingWrapper(gym.Wrapper):
         return obs, reward, done, info
     
 
+class ErrorCatchingWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.previous_valid_exp = None
+    def reset(self, **args):
+        obs = self.env.reset(**args)
+        return obs
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        if info.get("error", False):
+            print("//////////////////////////////////////////////////////")
+            print("WARNING: IGLU ENV ERROR CAUGHT.")
+            print("//////////////////////////////////////////////////////")
+            if self.previous_valid_exp is not None:
+                return self.previous_valid_exp
+            else:
+                import ipdb; ipdb.set_trace()
+        self.previous_valid_exp = (obs, reward, True, info)
+        return obs, reward, done, info
+
+class Vocabulary(object):
+    def __init__(self):
+        self.vocabulary = set('key ball red green blue purple \
+            yellow grey verydark dark neutral light verylight \
+            tiny small medium large giant get go fetch go get \
+            a fetch a you must fetch a'.split(' '))
+        self.vocabulary = set([w.lower() for w in vocabulary])
+        
+        # Make padding_idx=0:
+        self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
+
+        self.w2idx = {}
+        self.idx2w = {}
+        for idx, w in enumerate(self.vocabulary):
+            self.w2idx[w] = idx
+            self.idx2w[idx] = w 
+        
+    def __len__(self):
+        return len(self.vocabulary)
+    
+    def contains(self, w):
+        return (w in self.vocabulary)
+    
+    def add(self, w):
+        self.vocabulary.append(w)
+        self.w2idx[w] = len(self.vocabulary)-1
+        self.idx2w[len(self.vocabulary)-1] = w 
+            
+ 
+global_vocabulary = Vocabulary()
+
+class TextualGoal2IdxWrapper(gym.ObservationWrapper):
+    """
+    """
+    def __init__(
+        self, 
+        env, 
+        max_sentence_length=256, 
+        vocabulary=None, 
+        observation_keys_mapping={'chat':'chat'},
+        ):
+        gym.ObservationWrapper.__init__(self, env)
+        self.max_sentence_length = max_sentence_length
+        self.observation_keys_mapping = observation_keys_mapping
+
+        global global_vocabulary
+        self.vocabulary = global_vocabulary
+        
+        self.observation_space = env.observation_space
+        
+        for obs_key, map_key in self.observation_keys_mapping.items():
+            self.observation_space.spaces[map_key] = gym.spaces.MultiDiscrete([len(self.vocabulary)]*self.max_sentence_length)
+    
+    @property
+    def w2idx(self, w):
+        return self.vocabulary.w2idx[w]
+
+    @property
+    def idx2w(self, idx):
+        return self.vocabulary.idx2w[idx]
+
+    def observation(self, observation):
+        import ipdb; ipdb.set_trace()
+        for obs_key, map_key in self.observation_keys_mapping.items():
+            t_goal = [w.lower() for w in observation[obs_key].split(' ')]
+            
+            for w in t_goal:
+                if not self.vocabulary.contains(w):
+                    # Increase the vocabulary as we train:
+                    self.vocabulary.add(w)
+
+            idx_goal = self.w2idx['PAD']*np.ones(shape=(self.max_sentence_length), dtype=np.long)
+            final_idx = min(self.max_sentence_length, len(t_goal))
+            for idx in range(final_idx):
+                idx_goal[idx] = self.w2idx[t_goal[idx]]
+            # Add 'EoS' token:
+            idx_goal[final_idx] = self.w2idx['EoS']
+            #padded_idx_goal = nn.utils.rnn.pad_sequence(idx_goal, padding_value=self.w2idx["PAD"])
+            #observation[map_key] = padded_idx_goal
+            
+            observation[map_key] = idx_goal
+            
+        return observation
+
+
 from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoWrapper
 def wrap_iglu(
     env,
@@ -515,11 +636,25 @@ def wrap_iglu(
     sparse_positive_reward=False,
     block_dense_actions=False,
     use_HER=False,
+    task_curriculum=False,
     inverted_goal_predicated_reward=False,
+    use_THER=False,
     ):
     env = gym.make('IGLUSilentBuilder-v0', max_steps=1000, )
+    env = ErrorCatchingWrapper(env)
+    if task_curriculum:
+        env = IGLUTaskCurriculumWrapper(env)
+
     #env.update_taskset(TaskSet(preset=[task]))
-    env = ChatEmbeddingWrapper(env)
+    if use_THER:
+        #TODO: set hyperparameters...
+        env = TextualGoal2IdxWrapper(
+            env=env,
+            max_sentence_length=256,
+            vocabulary=None,
+        )
+    else:
+        env = ChatEmbeddingWrapper(env)
     env = PovOnlyWrapper(env)
     if block_dense_actions:
         env = IgluBlockDenseActionWrapper(env)
@@ -550,6 +685,7 @@ def wrap_iglu(
         env = FakeResetWrapper(
             env=env,
             max_episode_length=max_episode_length,
+            fake=False, #only used for max episode length here...
         )
 
     if use_HER:
@@ -775,17 +911,29 @@ def train_and_evaluate(
     if len(sys.argv) > 2:
       save_replay_buffer = any(['save_replay_buffer' in arg for arg in sys.argv])
 
+    """
     try:
-        for agent in trained_agents:
+        for agent in agents:
             agent.save(with_replay_buffer=save_replay_buffer)
             print(f"Agent saved at: {agent.save_path}")
     except Exception as e:
         print(e)
+    """
 
     task.env.close()
     task.test_env.close()
 
-    return trained_agents
+    return agents
+
+
+def IGLU_HER_filtering_fn(
+    d2store,
+    episode_buffer,
+    achieved_goal_from_target_exp,
+    **kwargs,
+    ):
+    goal_size = (achieved_goal_from_target_exp+air_block_offset).sum().item()
+    return goal_size>0
 
 
 def training_process(
@@ -910,8 +1058,11 @@ def training_process(
         sparse_positive_reward=sparse_positive_reward,
         block_dense_actions=task_config["block_dense_actions"],
         use_HER=agent_config['use_HER'],
+        task_curriculum=task_config['task_curriculum'],
         inverted_goal_predicated_reward=inverted_goal_predicated_reward,
+        use_THER=agent_config['use_THER'],
     )
+
 
     test_pixel_wrapping_fn =partial(
         wrap_iglu,
@@ -923,7 +1074,9 @@ def training_process(
         sparse_positive_reward=False,
         block_dense_actions=task_config["block_dense_actions"],
         use_HER=agent_config['use_HER'],
+        task_curriculum=task_config['task_curriculum'],
         inverted_goal_predicated_reward=inverted_goal_predicated_reward,
+        use_THER=agent_config['use_THER'],
     )
     
     """
@@ -991,6 +1144,10 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
+    
+    if agent_config['use_THER']:
+        global global_vocabulary
+        agent_config['vocabulary_instance'] = global_vocabulary
 
     regym.RegymSummaryWriterPath = base_path 
     #regym.RegymSummaryWriter = GlobalSummaryWriter(base_path)
@@ -1007,10 +1164,19 @@ def training_process(
             print("WARNING: Using HER.")
             agent_config['HER_achieved_goal_key_from_info'] = "grid"
             agent_config['HER_target_goal_key_from_info'] = "target_grid"
+            agent_config['HER_filtering_fn'] = IGLU_HER_filtering_fn
         agent = initialize_agents(
           task=task,
           agent_configurations={task_config['agent-id']: agent_config}
         )[0]
+        # Reload model only:
+        if task_config['reload_model']!='None':
+            print("RELOADING MODEL ONLY.")
+            prev_agent, offset_episode_count = check_path_for_agent(task_config['reload_model'])
+            agent.algorithm.set_models(prev_agent.algorithm.get_models())
+            agent.algorithm.set_optimizer(prev_agent.algorithm.get_optimizer())
+            print(f"MODEL ONLY RELOADED : from : {task_config['reload_model']}")
+    
     agent.save_path = save_path1
     
     if test_only:
@@ -1112,11 +1278,11 @@ def main():
     #)
     parser.add_argument("--sequence_replay_unroll_length", 
         type=int, 
-        default=20,
+        default=5,
     )
     parser.add_argument("--sequence_replay_overlap_length", 
         type=int, 
-        default=10,
+        default=0,
     )
     parser.add_argument("--sequence_replay_burn_in_ratio", 
         type=float, 
@@ -1148,9 +1314,21 @@ def main():
     #)
     parser.add_argument("--train_observation_budget", 
         type=float, 
-        default=2e6,
+        default=1e4,
     )
-
+    parser.add_argument("--nbr_training_iteration_per_cycle", 
+        type=int, 
+        default=40,
+    )
+    parser.add_argument("--nbr_episode_per_cycle", 
+        type=int, 
+        default=16,
+    )
+    parser.add_argument("--observation_resize_dim", 
+        type=int, 
+        default=32,
+    )
+ 
 
     args = parser.parse_args()
     

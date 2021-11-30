@@ -418,6 +418,13 @@ agents:
         # critic_arch_hidden_units: [256]
         # critic_arch_linear_post_hidden_units: [256]
         # critic_arch_feature_dim: 128
+        
+        extra_bodies:
+           chat_body:
+               arch: 'EmbeddingRNN'
+               vocab_size: 4096
+               hidden_units: [256,]
+               embedding_size: 64
 
         extra_inputs_infos: {
            'previous_reward':{
@@ -430,14 +437,19 @@ agents:
            },
 
            'chat':{
-               shape: [256,], 
-               target_location: ['critic_body', 'extra_inputs']
+               shape: [256,] # 256 tokens .... 
+               target_location: ['chat_body', 'extra_inputs']
            },
            
-           'target_grid':{
-               shape: [1089,],
-               target_location: ['critic_body', 'extra_inputs']
-           },
+           #'chat':{
+           #    shape: [256,], 
+           #    target_location: ['critic_body', 'extra_inputs']
+           #},
+           
+           #'target_grid':{
+           #    shape: [1089,],
+           #    target_location: ['critic_body', 'extra_inputs']
+           #},
 
            #'action_mask':{
            #    shape: ['task.action_dim',], 

@@ -6,6 +6,55 @@ from iglu.tasks import RandomTasks
 
 import wandb
 
+import gym
+
+class IGLUTaskCurriculumWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+        self.current_nbr_max_blocks = None
+        self.current_height_levels = None
+        self.allow_float = None
+        self.current_max_dist = None
+        self.current_max_nbr_unique_colors = None
+         
+    def update_curriculum(
+        self,
+        max_blocks,
+        height_levels,
+        allow_float,
+        max_dist, 
+        num_colors,
+        ):
+        
+        self.current_nbr_max_blocks=max_blocks
+        self.current_height_levels=height_levels
+        self.allow_float=allow_float
+        self.current_max_dist=max_dist 
+        self.current_max_nbr_unique_colors=num_colors
+        
+        self.reset_counters()
+
+    def reset_counters(self):
+        self.used_blocks_counter = 0
+        
+    def reset(self, **kwargs):
+        self.reset_counters()
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        
+        if action['use'].item() == 1:
+            if obs['grid'][self.current_height_levels:, ...].sum().item() > 0:
+                done = True 
+
+        self.used_blocks_counter = (obs['grid']>0).sum().item()
+        
+        if self.used_blocks_counter >= self.current_nbr_max_blocks:
+            done = True
+
+        return obs, reward, done, info
+                     
 
 def build_IGLUTaskCurriculumModule(
     id:str,
@@ -49,8 +98,12 @@ class IGLUTaskCurriculumModule(Module):
         self.update_count = 0
         self.task = self.config['task']
 
+        """
         self.episode_length_threshold = 0.6*self.config["max_episode_length"]
         self.run_mean_episode_length = self.config["max_episode_length"]
+        """
+        self.episode_success_threshold = 0.7
+        self.run_mean_episode_success = 0.0
         self.run_mean_window = 50
         self.reset_running_mean()
 
@@ -84,9 +137,19 @@ class IGLUTaskCurriculumModule(Module):
                     num_colors=self.current_max_nbr_unique_colors,
                 )
             )
+            # Updating wrapper's vitals:
+            while not isinstance(env, IGLUTaskCurriculumWrapper):
+                env = env.env
+            env.update_curriculum(
+               max_blocks=self.current_nbr_max_blocks,
+               height_levels=self.current_height_levels,
+               allow_float=self.allow_float,
+               max_dist=self.current_max_dist, 
+               num_colors=self.current_max_nbr_unique_colors,
+            ) 
     
     def reset_running_mean(self):
-        self.prev_mean_episode_lengths = [self.run_mean_episode_length]*self.run_mean_window
+        self.prev_mean_episode_successes = [0.0]*self.run_mean_window
 
     def save(self, path):
         torch.save(self, os.path.join(path, self.id+".module"))
@@ -116,14 +179,15 @@ class IGLUTaskCurriculumModule(Module):
 
         if new_trajectory_batch_published:
             # Compute new running mean episode length:
-            curr_mean_episode_length = RL_env_outputs["PerEpisodeBatch/MeanEpisodeLength"]
-            self.prev_mean_episode_lengths.append(curr_mean_episode_length)
-            self.prev_mean_episode_lengths.pop(0)
+            curr_mean_episode_success = RL_env_outputs["PerEpisodeBatch/MeanEpisodeSuccess"]
+            self.prev_mean_episode_successes.append(curr_mean_episode_success)
+            self.prev_mean_episode_successes.pop(0)
 
-            self.run_mean_episode_length = np.mean(self.prev_mean_episode_lengths)
+            self.run_mean_episode_success = np.mean(self.prev_mean_episode_successes)
             
-            # Test whether RM ep. length is above threshold:
-            if self.run_mean_episode_length < self.episode_length_threshold: 
+            # Test whether RM ep. success is above threshold:
+            if self.run_mean_episode_success >= self.episode_success_threshold: 
+                print(f"IGLUTaskCurriculumModule: mean_episode_success:{self.run_mean_episode_success} >= threshold: {self.episode_success_threshold}")
                 # Reset running mean:
                 self.reset_running_mean()
                 # and increase the number of blocks:
@@ -136,6 +200,7 @@ class IGLUTaskCurriculumModule(Module):
                 # Update envs:
                 for env_idx, env in enumerate(self.task.env.env_processes):#+self.task.test_env.env_processes:
                     print(f"IGLUTaskCurriculumModule: UPDATING TASKSET for env {env_idx+1}/{len(self.task.env.env_processes)} : ....")
+                    # Updating Taskset:
                     env.update_taskset(
                         RandomTasks(
                             max_blocks=self.current_nbr_max_blocks,
@@ -145,11 +210,21 @@ class IGLUTaskCurriculumModule(Module):
                             num_colors=self.current_max_nbr_unique_colors,
                         )
                     )
+                    # Updating wrapper's vitals:
+                    while not isinstance(env, IGLUTaskCurriculumWrapper):
+                        env = env.env
+                    env.update_curriculum(
+                       max_blocks=self.current_nbr_max_blocks,
+                       height_levels=self.current_height_levels,
+                       allow_float=self.allow_float,
+                       max_dist=self.current_max_dist, 
+                       num_colors=self.current_max_nbr_unique_colors,
+                    ) 
                     print(f"IGLUTaskCurriculumModule: UPDATING TASKSET for env {env_idx+1}/{len(self.task.env.env_processes)} : DONE.")
             
             datad = {
-                "IGLUTaskCurriculum/RunningMeanEpisodeLength": self.run_mean_episode_length,
-                "IGLUTaskCurriculum/EpisodeLengthThreshold": self.episode_length_threshold,
+                "IGLUTaskCurriculum/RunningMeanEpisodeSuccess": self.run_mean_episode_success,
+                "IGLUTaskCurriculum/EpisodeSuccessThreshold": self.episode_success_threshold,
                 "IGLUTaskCurriculum/RunningMeanWindowSize": self.run_mean_window,
                 "IGLUTaskCurriculum/MaxNbrBlocks":self.current_nbr_max_blocks,
                 "IGLUTaskCurriculum/HeightLevels":self.current_height_levels,

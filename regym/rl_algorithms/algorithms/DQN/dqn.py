@@ -18,7 +18,7 @@ from . import dqn_loss, ddqn_loss
 import regym
 from ..algorithm import Algorithm
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
-from ...networks import hard_update, random_sample
+from ...networks import hard_update, soft_update, random_sample
 from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
 
 
@@ -151,6 +151,12 @@ class DQNAlgorithm(Algorithm):
         else:
             self._param_update_counter.set(val)
     
+    def set_optimizer(self, optimizer):
+        self.optimizer.load_state_dict(optimizer.state_dict())
+
+    def get_optimizer(self):
+        return self.optimizer
+
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
 
@@ -355,10 +361,12 @@ class DQNAlgorithm(Algorithm):
         
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}) # self.param_update_counter)
         
-        if self.target_update_count > self.target_update_interval:
+        if self.use_HER and self.kwargs.get("HER_soft_update", False):
+            soft_update(self.target_model, self.model, tau=0.95) 
+        elif self.target_update_count > self.target_update_interval:
             self.target_update_count = 0
             hard_update(self.target_model,self.model)
-
+        
     def retrieve_values_from_storages(self, minibatch_size: int):
         '''
         Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
@@ -700,7 +708,9 @@ class DQNAlgorithm(Algorithm):
 
         if not(with_replay_buffer): 
             self.storages = storages
-            cloned_algo.reset_storages()
+            # the following line might increase the size of the clone algo:
+            if not minimal:
+                cloned_algo.reset_storages()
 
         self.summary_writer = sum_writer
         

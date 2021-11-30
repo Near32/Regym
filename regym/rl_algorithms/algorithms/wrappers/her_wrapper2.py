@@ -45,11 +45,11 @@ def latent_based_goal_predicated_reward_fn2(
     epsilon=1e-3):
     
     achieved_goal = _extract_goal_from_info_fn(
-        achieved_exp['info'],
+        achieved_exp['succ_info'],
         goal_key=goal_key,
     )
     target_goal = _extract_goal_from_info_fn(
-        target_exp['info'],
+        target_exp['succ_info'],
         goal_key=goal_key,
     )
     abs_fn = torch.abs 
@@ -69,6 +69,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         _extract_goal_from_info_fn=None,
         achieved_goal_key_from_info="achieved_goal",
         target_goal_key_from_info="target_goal",
+        filtering_fn="None",
         ):
         """
         :param achieved_goal_key_from_info: Str of the key from the info dict
@@ -82,6 +83,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         if _extract_goal_from_info_fn is None:  _extract_goal_from_info_fn = self._extract_goal_from_info_default_fn
 
         self.extra_inputs_infos = extra_inputs_infos
+        self.filtering_fn = filtering_fn 
 
         self.episode_buffer = [[] for i in range(self.algorithm.get_nbr_actor())]
         self.strategy = strategy
@@ -150,6 +152,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                 non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
 
                 info = self.episode_buffer[actor_index][idx]['info']
+                succ_info = self.episode_buffer[actor_index][idx]['succ_info']
                 rnn_states = self.episode_buffer[actor_index][idx]['rnn_states']
                 # TODO: maybe consider handling the next_rnn_states ?
 
@@ -162,6 +165,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                     
                     'rnn_states': copy_hdict(rnn_states),
                     'info': info,
+                    'succ_info': succ_info,
                 }
                 
                 # Not storing now:
@@ -180,7 +184,8 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                 self.episode_count += 1
                 if self.algorithm.summary_writer is not None and all(non_terminal<=0.5):
                     self.algorithm.summary_writer.add_scalar('PerEpisode/Success', 1+r.mean().item(), self.episode_count)
-                wandb.log({'PerEpisode/HER_Success': 1+r.mean().item()}, commit=True)
+                if all(non_terminal<=0.5):
+                    wandb.log({'PerEpisode/HER_Success': 1+r.mean().item()}, commit=False)
                 
 
                 for k in range(self.k):
@@ -214,6 +219,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                                 )
                             ),
                             'info': info,
+                            'succ_info': succ_info,
                             #'g':achieved_goal
                         }
 
@@ -250,6 +256,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                                 )
                             ),
                             'info': info,
+                            'succ_info': succ_info,
                         }
                         
                         if self.algorithm.summary_writer is not None:
@@ -257,6 +264,16 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                         wandb.log({'PerUpdate/HER_reward_future': new_r.mean().item()}, commit=True)
                         
                     #self.algorithm.store(d2store, actor_index=actor_index)
+                    valid_exp = True
+                    if self.filtering_fn != "None":
+                        kwargs = {
+                            "d2store":d2store,
+                            "episode_buffer":self.episode_buffer[actor_index],
+                            "achieved_goal_from_target_exp":achieved_goal_from_target_exp,
+                        }
+                        valid_exp = self.filtering_fn(**kwargs)
+                    if not valid_exp:   continue
+                    
                     if k not in per_episode_d2store: per_episode_d2store[k] = []
                     per_episode_d2store[k].append(d2store)
             
@@ -266,7 +283,9 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
             for key in per_episode_d2store:
                 for d2store in per_episode_d2store[key]:
                     self.algorithm.store(d2store, actor_index=actor_index)
-                
+                wandb.log({f'PerEpisode/HER_traj_length/{key}': len(per_episode_d2store[key])}, commit=False)
+                if key>=0:
+                    wandb.log({'PerEpisode/HER_IGLU_nbr_blocks': (achieved_goal_from_target_exp>0).sum().item()})
             
             # Reset episode buffer:
             self.episode_buffer[actor_index] = []

@@ -59,6 +59,17 @@ def generate_model(
     kwargs: Dict,
     head_type: str="CategoricalQNet") -> nn.Module:
     
+    extra_bodies = {}
+    import ipdb; ipdb.set_trace()
+    if 'extra_bodies' in kwargs:
+        for extra_body_id, extra_body_config in kwargs['extra_bodies'].items():
+            if extra_body_config['arch'] == 'EmbeddingRNN':
+                extra_bodies[extra_body_id] = EmbeddingRNN(
+                    voc_size=extra_body_config['vocab_size'],
+                    hidden_units=extra_body_config['hidden_units'],
+                    num_layers=extra_body_config.get('num_layers', 1),
+                )
+
     phi_body = None
     if isinstance(task.observation_shape, int):
         input_dim = task.observation_shape
@@ -853,7 +864,8 @@ def generate_model(
             goal_oriented=kwargs['goal_oriented'] if 'goal_oriented' in kwargs else False,
             goal_shape=goal_shape,
             goal_phi_body=goal_phi_body,
-            extra_inputs_infos=extra_inputs_infos_final_critic_layer
+            extra_inputs_infos=extra_inputs_infos_final_critic_layer,
+            extra_bodies=extra_bodies,
         )
     elif head_type=="CategoricalActorCriticNet":
         model = CategoricalActorCriticNet(

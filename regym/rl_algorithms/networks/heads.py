@@ -62,7 +62,8 @@ class CategoricalQNet(nn.Module):
         goal_shape=None,
         goal_phi_body=None,
         layer_init_fn=layer_init,
-        extra_inputs_infos: Dict={}):
+        extra_inputs_infos: Dict={},
+        extra_bodies: Dict={}):
         """
         :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
         """
@@ -75,12 +76,16 @@ class CategoricalQNet(nn.Module):
         self.dueling = dueling
         self.noisy = noisy 
         self.goal_oriented = goal_oriented
+        self.extra_bodies = extra_body
 
         if phi_body is None: phi_body = DummyBody(state_dim)
         self.phi_body = phi_body
         
         critic_input_shape = self.phi_body.get_feature_shape()
-        
+        if len(self.extra_bodies):
+            for extra_body in self.extra_bodies.values():
+                critic_input_shape += extra_body.get_feature_shape()
+
         self.goal_oriented = False 
         """
         # depr: goal update
@@ -156,6 +161,19 @@ class CategoricalQNet(nn.Module):
 
             phi = torch.cat([phi, gphi], dim=1)
         """
+        extra_outputs = {}
+        import ipdb; ipdb.set_trace()
+        for extra_body_id, extra_body in self.extra_bodies.items():
+            if rnn_states is not None and extra_body_id in rnn_states:
+                extra_outputs[extra_body_id], \
+                rnn_states[extra_body_id] = extra_body((obs, rnn_states[extra_body]))
+            else:
+                extra_outputs[extra_body_id] = extra_body(obs)
+        
+        if len(extra_outputs):
+            # Concatenate with phi output:
+            extra_outputs = [v[0].to(phi.dtype).to(phi.device) for v in extra_outputs.values()]
+            phi = torch.cat([phi]+extra_outputs, dim=-1)
 
         if rnn_states is not None and 'critic_body' in rnn_states:
             phi_v, next_rnn_states['critic_body'] = self.critic_body( (phi, rnn_states['critic_body']) )

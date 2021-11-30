@@ -83,6 +83,7 @@ class RLAgentModule(Module):
                 succ_s=self.new_observations,
                 done=input_streams_dict['dones'],
                 infos=self.infos,
+                succ_infos=copy.deepcopy(self.new_infos),
             )
 
         # TODO: maybe reset everything if no attr observations:

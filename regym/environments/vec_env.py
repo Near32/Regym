@@ -340,8 +340,10 @@ class VecEnv():
         if self.env_processes is not None:
             for env_index in range(len(self.env_processes)):
                 if self.env_processes[env_index] is None: continue
-                self.env_processes[env_index].close()
-
+                try:
+                    self.env_processes[env_index].close()
+                except Exception as e:
+                    print(f"VEC_ENV:CLOSING: {e}")
         self.env_queues = [None]*self.nbr_parallel_env
         self.env_configs = [None]*self.nbr_parallel_env
         self.env_processes = [None]*self.nbr_parallel_env

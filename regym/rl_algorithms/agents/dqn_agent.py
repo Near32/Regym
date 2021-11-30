@@ -56,7 +56,7 @@ class DQNAgent(Agent):
     def get_update_count(self):
         return self.algorithm.unwrapped.get_update_count()
 
-    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None, prediction=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -226,6 +226,8 @@ class DQNAgent(Agent):
             # Similarly, infos is not sync with batch_index, purposefully...
             if infos is not None:
                 exp_dict['info'] = infos[actor_index]
+            if succ_infos is not None:
+                exp_dict['succ_info'] = succ_infos[actor_index]
 
             #########################################################################
             #########################################################################
@@ -282,7 +284,7 @@ class DQNAgent(Agent):
         if self.training \
         and self.handled_experiences > self.kwargs['min_capacity'] \
         and self.algorithm.unwrapped.stored_experiences() > self.kwargs['min_capacity'] \
-        and (period_count_check % period_check == 0 or not(self.async_actor)):
+        and (period_count_check % period_check == 0 and not(self.async_actor)):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
                 minibatch_size *= self.replay_period
