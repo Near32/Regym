@@ -233,7 +233,7 @@ experiment:
         #'nbr_actor': 16,
         'nbr_actor': 1,
         #'nbr_frame_skipping': 4,
-        'framestacking': 1, #3
+        'nbr_frame_stacking': 1, #3
         #'grayscale': True,
         #'single_life_episode': True, #False,
         #'nbr_max_random_steps': 30,

@@ -1276,7 +1276,7 @@ def training_process(
     pixel_wrapping_fn = partial(
         wrap_iglu,
         #size=task_config['observation_resize_dim'], 
-        stack=task_config['framestacking'],
+        stack=task_config['nbr_frame_stacking'],
         clip_reward=task_config['clip_reward'],
         previous_reward_action=task_config["previous_reward_action"],
         curriculum_fake_reset=task_config["curriculum_fake_reset"],
@@ -1294,7 +1294,7 @@ def training_process(
     test_pixel_wrapping_fn =partial(
         wrap_iglu,
         #size=task_config['observation_resize_dim'], 
-        stack=task_config['framestacking'],
+        stack=task_config['nbr_frame_stacking'],
         clip_reward=False,
         previous_reward_action=task_config["previous_reward_action"],
         curriculum_fake_reset=False,
