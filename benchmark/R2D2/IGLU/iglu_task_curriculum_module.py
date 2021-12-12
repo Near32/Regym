@@ -1,4 +1,5 @@
 from typing import Dict, List 
+from collections import OrderedDict
 
 import numpy as np
 from regym.modules import Module
@@ -39,7 +40,22 @@ class IGLUTaskCurriculumWrapper(gym.Wrapper):
         
     def reset(self, **kwargs):
         self.reset_counters()
-        return self.env.reset(**kwargs)
+        _ = self.env.reset(**kwargs)
+        
+        self.lower_cam_action = OrderedDict({
+            'attack': np.array(0),
+            'back': np.array(0),
+            'camera': np.array([15.0, 0]),
+            'forward': np.array(0),
+            'hotbar': np.array(0),
+            'jump': np.array(0),
+            'left': np.array(0),
+            'right': np.array(0),
+            'use': np.array(0),
+        })
+
+        obs, reward, done, info = self.env.step(self.lower_cam_action)
+        return obs
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
@@ -50,7 +66,17 @@ class IGLUTaskCurriculumWrapper(gym.Wrapper):
 
         self.used_blocks_counter = (obs['grid']>0).sum().item()
         
-        if self.used_blocks_counter >= self.current_nbr_max_blocks:
+        """
+        Previously: >=
+        Now: the hypothesis is that by checking if the number of blocks
+        used is greater than the limit, the agent can actually experience
+        seeing any block and associate their colours to the action (rather
+        than having to learn this later during the curriculum), and also
+        it enables it to remove blocks and change the colour over one
+        episode.
+        """
+        #if self.used_blocks_counter >= self.current_nbr_max_blocks:
+        if self.used_blocks_counter > self.current_nbr_max_blocks:
             done = True
 
         return obs, reward, done, info

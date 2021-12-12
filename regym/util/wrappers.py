@@ -232,11 +232,19 @@ Adapted from:
 https://github.com/chainer/chainerrl/blob/master/chainerrl/wrappers/atari_wrappers.py
 '''
 class LazyFrames(object):
-    def __init__(self, frames):
+    def __init__(self, frames, axis=-1):
         self._frames = frames
+        self.axis = -1
     
+    @property
+    def shape(self):
+        shape = list(self._frames[0].shape)
+        for frame in self._frames[1:]:
+            shape[self.axis] += frame.shape[self.axis]
+        return tuple(shape)
+
     def __array__(self, dtype=None):
-        out = np.concatenate(self._frames, axis=-1)
+        out = np.concatenate(self._frames, axis=self.axis)
         if dtype is not None:
             out = out.astype(dtype)
         return out
@@ -618,6 +626,34 @@ class FrameStack(gym.Wrapper):
         obs, reward, done, info = self.env.step(action)
         self.observations.append(obs)        
         return self._get_obs(), reward, done, info
+
+class FrameStackWrapper(gym.Wrapper):
+    def __init__(self, env, stack=4,):
+        gym.Wrapper.__init__(self,env)
+        self.stack = stack if stack is not None else 1
+        self.observations = deque([], maxlen=self.stack)
+        
+        assert(isinstance(self.env.observation_space, gym.spaces.Box))
+        
+        low_obs_space = np.repeat(self.env.observation_space.low, self.stack, axis=-1)
+        high_obs_space = np.repeat(self.env.observation_space.high, self.stack, axis=-1)
+        self.observation_space = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.dtype)
+
+    def _get_obs(self, obs):
+        while len(self.observations) < self.stack:
+            self.observations.append(obs)
+        return LazyFrames(list(self.observations))
+    
+    def reset(self, **kwargs):
+        '''
+        Expects obs, infos as input and returns similarly...
+        '''
+        obs, infos = self.env.reset(**kwargs)
+        return self._get_obs(obs), infos
+
+    def step(self, action):
+        obs, reward, done, infos = self.env.step(action)
+        return self._get_obs(obs), reward, done, infos
 
 
 # https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L12

@@ -209,6 +209,8 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             _extract_goal_from_info_fn=kwargs.get("HER_extract_goal_from_info_fn", None),
             achieved_goal_key_from_info=kwargs["HER_achieved_goal_key_from_info"],
             target_goal_key_from_info=kwargs["HER_target_goal_key_from_info"],
+            achieved_latent_goal_key_from_info=kwargs.get("HER_achieved_latent_goal_key_from_info", None),
+            target_latent_goal_key_from_info=kwargs.get("HER_target_latent_goal_key_from_info", None),
             filtering_fn=kwargs["HER_filtering_fn"],
         )
 

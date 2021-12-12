@@ -76,7 +76,7 @@ class CategoricalQNet(nn.Module):
         self.dueling = dueling
         self.noisy = noisy 
         self.goal_oriented = goal_oriented
-        self.extra_bodies = extra_body
+        self.extra_bodies = extra_bodies
 
         if phi_body is None: phi_body = DummyBody(state_dim)
         self.phi_body = phi_body
@@ -162,7 +162,7 @@ class CategoricalQNet(nn.Module):
             phi = torch.cat([phi, gphi], dim=1)
         """
         extra_outputs = {}
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         for extra_body_id, extra_body in self.extra_bodies.items():
             if rnn_states is not None and extra_body_id in rnn_states:
                 extra_outputs[extra_body_id], \

@@ -69,6 +69,8 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         _extract_goal_from_info_fn=None,
         achieved_goal_key_from_info="achieved_goal",
         target_goal_key_from_info="target_goal",
+        achieved_latent_goal_key_from_info=None,
+        target_latent_goal_key_from_info=None,
         filtering_fn="None",
         ):
         """
@@ -93,6 +95,8 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         self._extract_goal_from_info_fn = _extract_goal_from_info_fn
         self.achieved_goal_key_from_info = achieved_goal_key_from_info
         self.target_goal_key_from_info = target_goal_key_from_info
+        self.achieved_latent_goal_key_from_info = achieved_latent_goal_key_from_info
+        self.target_latent_goal_key_from_info = target_latent_goal_key_from_info
 
         self.episode_count = 0
 
@@ -100,18 +104,23 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         self, 
         hdict:Dict, 
         goal_value:torch.Tensor, 
+        latent_goal_value:Optional[torch.Tensor]=None,
         goal_key:Optional[str]='target_goal',
+        latent_goal_key:Optional[str]=None,
         ):
-        if goal_key in self.extra_inputs_infos:
-            if not isinstance(self.extra_inputs_infos[goal_key]['target_location'][0], list):
-                self.extra_inputs_infos[goal_key]['target_location'] = [self.extra_inputs_infos[goal_key]['target_location']]
-            for tl in self.extra_inputs_infos[goal_key]['target_location']:
-                pointer = hdict
-                for child_node in tl:
-                    if child_node not in pointer:
-                        pointer[child_node] = {}
-                    pointer = pointer[child_node]
-                pointer[goal_key] = [goal_value]
+        goals = {goal_key:goal_value}
+        if latent_goal_key is not None: goals[latent_goal_key] = latent_goal_value
+        for gkey, gvalue in goals.items():
+            if gkey in self.extra_inputs_infos:
+                if not isinstance(self.extra_inputs_infos[gkey]['target_location'][0], list):
+                    self.extra_inputs_infos[gkey]['target_location'] = [self.extra_inputs_infos[gkey]['target_location']]
+                for tl in self.extra_inputs_infos[gkey]['target_location']:
+                    pointer = hdict
+                    for child_node in tl:
+                        if child_node not in pointer:
+                            pointer[child_node] = {}
+                        pointer = pointer[child_node]
+                    pointer[gkey] = [gvalue]
         return hdict
 
     """
@@ -141,6 +150,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
         self.episode_buffer[actor_index].append(exp_dict)
         
         if not(exp_dict['non_terminal']):
+            self.episode_count += 1
             episode_length = len(self.episode_buffer[actor_index])
             per_episode_d2store = {}
 
@@ -178,10 +188,29 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                 # the HER-modified trajectories, where k is positive.
                 # So, we also need to store the normal trajectory: this is done
                 # at index k=-1 below:
-                if -1 not in per_episode_d2store: per_episode_d2store[-1] = []
-                per_episode_d2store[-1].append(d2store)
+                valid_exp = True
+                if self.filtering_fn != "None":
+                    achieved_exp = self.episode_buffer[actor_index][idx]
+                    target_exp = self.episode_buffer[actor_index][-1]
+                    _ , achieved_goal_from_target_exp, \
+                    achieved_latent_goal_from_target_exp = self.goal_predicated_reward_fn(
+                        achieved_exp=achieved_exp, 
+                        target_exp=target_exp,
+                        _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
+                        goal_key=self.achieved_goal_key_from_info,
+                        latent_goal_key=self.achieved_latent_goal_key_from_info,
+                    )
+                    kwargs = {
+                        "d2store":d2store,
+                        "episode_buffer":self.episode_buffer[actor_index],
+                        "achieved_goal_from_target_exp":achieved_goal_from_target_exp,
+                        "achieved_latent_goal_from_target_exp":achieved_latent_goal_from_target_exp,
+                    }
+                    valid_exp = self.filtering_fn(**kwargs)
+                if valid_exp:                    
+                    if -1 not in per_episode_d2store: per_episode_d2store[-1] = []
+                    per_episode_d2store[-1].append(d2store)
 
-                self.episode_count += 1
                 if self.algorithm.summary_writer is not None and all(non_terminal<=0.5):
                     self.algorithm.summary_writer.add_scalar('PerEpisode/Success', 1+r.mean().item(), self.episode_count)
                 if all(non_terminal<=0.5):
@@ -192,14 +221,15 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                     d2store = {}
                     if 'final' in self.strategy:
                         #achieved_goal = self.episode_buffer[actor_index][-1]['goals']['achieved_goals']['s']
-                        
                         achieved_exp = self.episode_buffer[actor_index][idx]
                         target_exp = self.episode_buffer[actor_index][-1]
-                        new_r, achieved_goal_from_target_exp = self.goal_predicated_reward_fn(
+                        new_r, achieved_goal_from_target_exp, \
+                        achieved_latent_goal_from_target_exp = self.goal_predicated_reward_fn(
                             achieved_exp=achieved_exp, 
                             target_exp=target_exp,
                             _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
                             goal_key=self.achieved_goal_key_from_info,
+                            latent_goal_key=self.achieved_latent_goal_key_from_info,
                         )
                         
                         #new_non_terminal = torch.zeros(1) if all(new_r>-0.5) else torch.ones(1)
@@ -215,7 +245,9 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                                 self._update_goals_in_rnn_states(
                                     hdict=rnn_states,
                                     goal_value=achieved_goal_from_target_exp,
+                                    latent_goal_value=achieved_latent_goal_from_target_exp,
                                     goal_key=self.target_goal_key_from_info,
+                                    latent_goal_key=self.target_latent_goal_key_from_info,
                                 )
                             ),
                             'info': info,
@@ -228,11 +260,13 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                         wandb.log({'PerUpdate/HER_reward_final': new_r.mean().item()}, commit=True)
                     
                     if 'future' in self.strategy:
+                        raise NotImplementedError
                         future_idx = np.random.randint(idx, episode_length)
                         #achieved_goal = self.episode_buffer[actor_index][future_idx]['goals']['achieved_goals']['s']
                         
                         achieved_exp = self.episode_buffer[actor_index][idx]
                         target_exp = self.episode_buffer[actor_index][future_idx]
+                        # TODO:
                         new_r, achieved_goal_from_target_exp = self.goal_predicated_reward_fn(
                             achieved_exp=achieved_exp, 
                             target_exp=target_exp,
@@ -252,7 +286,9 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                                 self._update_goals_in_rnn_states(
                                     hdict=rnn_states,
                                     goal_value=achieved_goal_from_target_exp,
+                                    latent_goal_value=achieved_latent_goal_from_target_exp,
                                     goal_key=self.target_goal_key_from_info,
+                                    latent_goal_key=self.target_latent_goal_key_from_info,
                                 )
                             ),
                             'info': info,
@@ -270,6 +306,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                             "d2store":d2store,
                             "episode_buffer":self.episode_buffer[actor_index],
                             "achieved_goal_from_target_exp":achieved_goal_from_target_exp,
+                            "achieved_latent_goal_from_target_exp":achieved_latent_goal_from_target_exp,
                         }
                         valid_exp = self.filtering_fn(**kwargs)
                     if not valid_exp:   continue
@@ -284,6 +321,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                 for d2store in per_episode_d2store[key]:
                     self.algorithm.store(d2store, actor_index=actor_index)
                 wandb.log({f'PerEpisode/HER_traj_length/{key}': len(per_episode_d2store[key])}, commit=False)
+                # TODO: implement callback/hooks ...
                 if key>=0:
                     wandb.log({'PerEpisode/HER_IGLU_nbr_blocks': (achieved_goal_from_target_exp>0).sum().item()})
             

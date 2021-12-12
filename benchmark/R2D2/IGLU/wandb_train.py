@@ -46,13 +46,72 @@ LanguageModelCapsule = None
 # TODO: figure out the actual air.id:
 # eventhough the doc says air.id=-1, the actual data are showing 0...
 air_block_offset = 0
-reward_divider = 60 #600 when using inverted...
+reward_divider = 10 #60 #600 when using inverted...
 
-def IGLU_goal_predicated_reward_fn(
+BUILD_ZONE_SIZE_X = 11
+BUILD_ZONE_SIZE_Z = 11
+
+class MaxIntersectionComputation:
+    def __init__(self, target_grid):
+        self.target_grid = target_grid
+    
+        self.init()
+
+    def init(self):
+        self.target_size = (self.target_grid != 0).sum().item()
+        self.target_grids = [self.target_grid]
+        self.admissible = [[] for _ in range(4)]
+        # fill self.target_grids with four rotations of the original grid around the vertical axis
+        for _ in range(3):
+            self.target_grids.append(np.zeros(self.target_grid.shape, dtype=np.int32))
+            for x in range(BUILD_ZONE_SIZE_X):
+                for z in range(BUILD_ZONE_SIZE_Z):
+                    self.target_grids[-1][:, z, BUILD_ZONE_SIZE_X - x - 1] \
+                        = self.target_grids[-2][:, x, z]
+        # (dx, dz) is admissible iff the translation of target grid by (dx, dz) preserve (== doesn't cut)
+        # target structure within original (unshifted) target grid
+        for i in range(4):
+            for dx in range(-BUILD_ZONE_SIZE_X + 1, BUILD_ZONE_SIZE_X):
+                for dz in range(-BUILD_ZONE_SIZE_Z + 1, BUILD_ZONE_SIZE_Z):
+                    sls_target = self.target_grids[i][:, max(dx, 0):BUILD_ZONE_SIZE_X + min(dx, 0),
+                                                         max(dz, 0):BUILD_ZONE_SIZE_Z + min(dz, 0):]
+                    if (sls_target != 0).sum().item() == self.target_size:
+                        self.admissible[i].append((dx, dz))
+    
+    def set_target_grid(self, target_grid):
+        target_grid = target_grid.reshape((9,11,11))
+        if not isinstance(target_grid, np.ndarray): target_grid = target_grid.numpy()
+        if not isinstance(self.target_grid, np.ndarray): self.target_grid = self.target_grid.numpy()
+
+        if (target_grid-self.target_grid).sum().item() != 0:
+            self.target_grid = target_grid
+            self.init()
+
+    def maximal_intersection(self, grid):
+        grid = grid.reshape((9,11,11))
+        max_int = 0
+        for i, admissible in enumerate(self.admissible):
+            for dx, dz in admissible:
+                x_sls = slice(max(dx, 0), BUILD_ZONE_SIZE_X + min(dx, 0))
+                z_sls = slice(max(dz, 0), BUILD_ZONE_SIZE_Z + min(dz, 0))
+                sls_target = self.target_grids[i][:, x_sls, z_sls]
+
+                x_sls = slice(max(-dx, 0), BUILD_ZONE_SIZE_X + min(-dx, 0))
+                z_sls = slice(max(-dz, 0), BUILD_ZONE_SIZE_Z + min(-dz, 0))
+                sls_grid = grid[:, x_sls, z_sls]
+                intersection = ((sls_target == sls_grid) & (sls_target != 0)).sum().item()
+                if intersection > max_int:
+                    max_int = intersection
+        return max_int
+
+MaxIntComputer = MaxIntersectionComputation( np.zeros((9,11,11)))
+
+def IGLU_maxint_goal_predicated_reward_fn(
     achieved_exp,
     target_exp,
     _extract_goal_from_info_fn,
     goal_key,
+    latent_goal_key=None,
     epsilon=1e-3,
     ):
     """
@@ -75,6 +134,83 @@ def IGLU_goal_predicated_reward_fn(
         target_exp['succ_info'],
         goal_key=goal_key,
     )
+    
+    achieved_latent_goal = None
+    target_latent_goal = None
+    if latent_goal_key is not None:
+        achieved_latent_goal = _extract_goal_from_info_fn(
+            achieved_exp['succ_info'],
+            goal_key=latent_goal_key,
+        )
+        target_latent_goal = _extract_goal_from_info_fn(
+            target_exp['succ_info'],
+            goal_key=latent_goal_key,
+        )
+    
+    # Preprocessing: air.id=-1...
+    # assuming grids:
+    global air_block_offset
+    target_goal += air_block_offset
+    achieved_goal += air_block_offset 
+
+    global MaxIntComputer
+    MaxIntComputer.set_target_grid(target_goal)
+    max_int = MaxIntComputer.maximal_intersection(achieved_goal)
+    
+    reward = max_int-MaxIntComputer.target_size
+    
+    global reward_divider
+    reward /= reward_divider
+
+    # sparsification:
+    if reward < -epsilon:
+        reward = -1 
+    if reward > 0:
+        raise NotImplementedError
+    
+    return reward*torch.ones(1,1), target_goal, target_latent_goal
+
+def IGLU_goal_predicated_reward_fn(
+    achieved_exp,
+    target_exp,
+    _extract_goal_from_info_fn,
+    goal_key,
+    latent_goal_key=None,
+    epsilon=1e-3,
+    ):
+    """
+    This reward function is always negative,
+    and it is maximized when the target goal 
+    is achieved.
+
+    HYP1: target goals that consist of empty
+    grids are also able to maximize this
+    reward function, without any actions
+    from the agent.
+    It might incentivise the agent to do
+    strictly nothing...
+    """
+    achieved_goal = _extract_goal_from_info_fn(
+        achieved_exp['succ_info'],
+        goal_key=goal_key,
+    )
+    target_goal = _extract_goal_from_info_fn(
+        target_exp['succ_info'],
+        goal_key=goal_key,
+    )
+    
+    achieved_latent_goal = None
+    target_latent_goal = None
+    if latent_goal_key is not None:
+        achieved_latent_goal = _extract_goal_from_info_fn(
+            achieved_exp['succ_info'],
+            goal_key=latent_goal_key,
+        )
+        target_latent_goal = _extract_goal_from_info_fn(
+            target_exp['succ_info'],
+            goal_key=latent_goal_key,
+        )
+    
 
     # Preprocessing: air.id=-1...
     # assuming grids:
@@ -94,8 +230,9 @@ def IGLU_goal_predicated_reward_fn(
     if reward > 0:
         raise NotImplementedError
     
-    return reward*torch.ones(1,1), target_goal
+    return reward*torch.ones(1,1), target_goal, target_latent_goal
 
+# TODO: update as above with latent goals...
 def IGLU_inverted_goal_predicated_reward_fn(
     achieved_exp,
     target_exp,
@@ -112,6 +249,8 @@ def IGLU_inverted_goal_predicated_reward_fn(
     HYP1: target goals that consist of empty
     grids are minimizing this reward function.
     """
+    raise NotImplementedError
+
     achieved_goal = _extract_goal_from_info_fn(
         achieved_exp['info'],
         goal_key=goal_key,
@@ -141,6 +280,39 @@ def IGLU_inverted_goal_predicated_reward_fn(
     return reward*torch.ones(1,1), target_goal
 
 
+class IGLUGoalOHEWrapper(gym.Wrapper):
+    def __init__(self, env):
+        super().__init__(env)
+    
+    def reset(self, **args):
+        obs, info = self.env.reset(**args)
+        
+        info['target_grid_ohe'] = self._ohe_encoding(info['target_grid'].reshape((1,-1)))
+        info['grid_ohe'] = self._ohe_encoding(info['grid'].reshape((1,-1)))   
+        
+        return obs, info
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+
+        info['target_grid_ohe'] = self._ohe_encoding(info['target_grid'].reshape((1,-1)))
+        info['grid_ohe'] = self._ohe_encoding(info['grid'].reshape((1,-1)))   
+        
+        return obs, reward, done, info
+
+    def _ohe_encoding(
+        self,
+        grid,
+        ):
+        grid = np.expand_dims(grid, axis=-1)
+        # (1, 1089, 1)
+        grid_ohe = np.zeros((1,1089,7))
+        np.put_along_axis(grid_ohe,indices=grid,values=1,axis=-1)
+        # Removing the air-related encoding:
+        grid_ohe = grid_ohe[...,1:].reshape((1,-1))
+        return grid_ohe
+
+
 class IGLUHERGoalPredicatedRewardWrapper(gym.Wrapper):
     def __init__(self, env, inverted=False, epsilon=1e-3):
         super().__init__(env)
@@ -162,11 +334,59 @@ class IGLUHERGoalPredicatedRewardWrapper(gym.Wrapper):
         global air_block_offset
         target_goal = info['target_grid']+air_block_offset
         achieved_goal = info['grid']+air_block_offset
+    
+        #reward = self._reward_fn1(target_goal, achieved_goal)
+        reward = self._maxint_reward_fn(target_goal, achieved_goal)
+
+        info['target_grid'] = info['target_grid'].reshape((1,-1))
+        info['grid'] = info['grid'].reshape((1,-1))   
         
+        """
+        # TODO: Testing was done using:
+        if (info['grid']>1).sum().item()>0:
+            reward = 0
+        """
+
+        return obs, reward, done, info
+
+    def _maxint_reward_fn(
+        self,
+        target_goal,
+        achieved_goal,
+        ):
         target_goal_size = target_goal.sum()
         abs_diff = np.abs(target_goal-achieved_goal).sum()
         
-        if reward>=2:
+        global MaxIntComputer
+        MaxIntComputer.set_target_grid(target_goal)
+        max_int = MaxIntComputer.maximal_intersection(achieved_goal)
+    
+        reward = max_int-MaxIntComputer.target_size
+    
+        global reward_divider
+        reward /= reward_divider
+
+        # sparsification:
+        if reward < -self.epsilon:
+            reward = -1 
+        if reward > 0:
+            raise NotImplementedError
+    
+        return reward
+
+    def _reward_fn1(
+        self,
+        target_goal,
+        achieved_goal,
+        ):
+        target_goal_size = target_goal.sum()
+        abs_diff = np.abs(target_goal-achieved_goal).sum()
+        
+        # the following sends a different message than the 
+        # HER predicate fn above which expects exact
+        # correspondance between grid and target grid, 
+        # rather than max int...
+        if False: #reward>=2:
             # if the max int. is increased, then it is a win:
             # HYP: when target contains many blocks,
             # then a modular reward is provided for any increase towards goal.
@@ -187,17 +407,7 @@ class IGLUHERGoalPredicatedRewardWrapper(gym.Wrapper):
                     reward = -1
                 if reward > 0:
                     raise NotImplementedError
-    
-        info['target_grid'] = info['target_grid'].reshape((1,-1))
-        info['grid'] = info['grid'].reshape((1,-1))   
-        
-        """
-        # TODO: Testing was done using:
-        if (info['grid']>1).sum().item()>0:
-            reward = 0
-        """
-
-        return obs, reward, done, info
+        return reward
 
 
 class IgluActionWrapper(gym.ActionWrapper):
@@ -292,14 +502,13 @@ class IgluBlockDenseActionWrapper(gym.ActionWrapper):
         })
         
         """
-            {'hotbar': np.array(0), 'use': np.array(1)},
-            {'hotbar': np.array(1), 'use': np.array(1)},
-            {'hotbar': np.array(2), 'use': np.array(1)},
-            {'hotbar': np.array(3), 'use': np.array(1)},
-            {'hotbar': np.array(4), 'use': np.array(1)},
-            {'hotbar': np.array(5), 'use': np.array(1)},
-       """
-            
+            {'hotbar': np.array(0), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(1), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(2), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(3), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(4), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+            {'hotbar': np.array(5), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
+        """            
         self.actions_list = [
             {'attack': np.array(1)},
             {'back': np.array(1)},
@@ -312,13 +521,13 @@ class IgluBlockDenseActionWrapper(gym.ActionWrapper):
 
             {'forward': np.array(1)},
             
-            {'hotbar': np.array(0), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
-            {'hotbar': np.array(1), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
-            {'hotbar': np.array(2), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
-            {'hotbar': np.array(3), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
-            {'hotbar': np.array(4), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
-            {'hotbar': np.array(5), 'use': np.array(1), 'camera': np.array([1.0, 0.0])},
-                         
+            {'hotbar': np.array(0), 'use': np.array(1)},
+            {'hotbar': np.array(1), 'use': np.array(1)},
+            {'hotbar': np.array(2), 'use': np.array(1)},
+            {'hotbar': np.array(3), 'use': np.array(1)},
+            {'hotbar': np.array(4), 'use': np.array(1)},
+            {'hotbar': np.array(5), 'use': np.array(1)},
+              
             {'jump': np.array(1)},
             {'left': np.array(1)},
             {'right': np.array(1)},
@@ -546,7 +755,7 @@ class Vocabulary(object):
             yellow grey verydark dark neutral light verylight \
             tiny small medium large giant get go fetch go get \
             a fetch a you must fetch a'.split(' '))
-        self.vocabulary = set([w.lower() for w in vocabulary])
+        self.vocabulary = set([w.lower() for w in self.vocabulary])
         
         # Make padding_idx=0:
         self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
@@ -625,9 +834,15 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         return observation
 
 
-from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoWrapper
+from regym.util.wrappers import (
+    ClipRewardEnv, 
+    PreviousRewardActionInfoWrapper,
+    FrameStackWrapper,
+)
+
 def wrap_iglu(
     env,
+    stack=1,
     clip_reward=False,
     previous_reward_action=True,
     trajectory_wrapping=False,
@@ -639,6 +854,7 @@ def wrap_iglu(
     task_curriculum=False,
     inverted_goal_predicated_reward=False,
     use_THER=False,
+    use_OHE=False,
     ):
     env = gym.make('IGLUSilentBuilder-v0', max_steps=1000, )
     env = ErrorCatchingWrapper(env)
@@ -693,6 +909,13 @@ def wrap_iglu(
             env,
             inverted_goal_predicated_reward,
         )
+    
+    if use_OHE:
+        env = IGLUGoalOHEWrapper(env)
+    
+    if stack > 1:
+        env = FrameStackWrapper(env, stack=stack)
+    
 
     return env
 
@@ -932,6 +1155,7 @@ def IGLU_HER_filtering_fn(
     achieved_goal_from_target_exp,
     **kwargs,
     ):
+    global air_block_offset
     goal_size = (achieved_goal_from_target_exp+air_block_offset).sum().item()
     return goal_size>0
 
@@ -1046,27 +1270,31 @@ def training_process(
         agent_config['HER_goal_predicated_reward_fn'] = IGLU_inverted_goal_predicated_reward_fn
     else:
         print("WARNING: Using NegativeGoalPredRewardFN.")
-        agent_config['HER_goal_predicated_reward_fn'] = IGLU_goal_predicated_reward_fn
+        #agent_config['HER_goal_predicated_reward_fn'] = IGLU_goal_predicated_reward_fn
+        agent_config['HER_goal_predicated_reward_fn'] = IGLU_maxint_goal_predicated_reward_fn
             
     pixel_wrapping_fn = partial(
         wrap_iglu,
         #size=task_config['observation_resize_dim'], 
+        stack=task_config['framestacking'],
         clip_reward=task_config['clip_reward'],
         previous_reward_action=task_config["previous_reward_action"],
         curriculum_fake_reset=task_config["curriculum_fake_reset"],
         max_episode_length=max_episode_length,
         sparse_positive_reward=sparse_positive_reward,
         block_dense_actions=task_config["block_dense_actions"],
-        use_HER=agent_config['use_HER'],
+        use_HER=task_config.get('use_HER_reward', False),
         task_curriculum=task_config['task_curriculum'],
         inverted_goal_predicated_reward=inverted_goal_predicated_reward,
-        use_THER=agent_config['use_THER'],
+        use_THER=agent_config.get('use_THER', False),
+        use_OHE=task_config.get('use_OHE', False),
     )
 
 
     test_pixel_wrapping_fn =partial(
         wrap_iglu,
         #size=task_config['observation_resize_dim'], 
+        stack=task_config['framestacking'],
         clip_reward=False,
         previous_reward_action=task_config["previous_reward_action"],
         curriculum_fake_reset=False,
@@ -1076,7 +1304,8 @@ def training_process(
         use_HER=agent_config['use_HER'],
         task_curriculum=task_config['task_curriculum'],
         inverted_goal_predicated_reward=inverted_goal_predicated_reward,
-        use_THER=agent_config['use_THER'],
+        use_THER=agent_config.get('use_THER', False),
+        use_OHE=task_config.get('use_OHE', False),
     )
     
     """
@@ -1145,7 +1374,7 @@ def training_process(
 
     agent_config['nbr_actor'] = task_config['nbr_actor']
     
-    if agent_config['use_THER']:
+    if agent_config.get('use_THER', False):
         global global_vocabulary
         agent_config['vocabulary_instance'] = global_vocabulary
 
@@ -1164,6 +1393,9 @@ def training_process(
             print("WARNING: Using HER.")
             agent_config['HER_achieved_goal_key_from_info'] = "grid"
             agent_config['HER_target_goal_key_from_info'] = "target_grid"
+            if task_config.get('use_OHE', False):
+                agent_config['HER_achieved_latent_goal_key_from_info'] = "grid_ohe"
+                agent_config['HER_target_latent_goal_key_from_info'] = "target_grid_ohe"
             agent_config['HER_filtering_fn'] = IGLU_HER_filtering_fn
         agent = initialize_agents(
           task=task,
@@ -1193,7 +1425,7 @@ def training_process(
         'seed': seed,
     }
     project_name = task_config['project']
-    wandb.init(project=project_name, config=config)
+    wandb.init(project=project_name, config=config, settings=wandb.Settings(start_method='fork'))
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     #/////////////////////////////////////////////////////////////////
