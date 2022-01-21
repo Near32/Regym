@@ -681,7 +681,7 @@ def training_process(agent_config: Dict,
         task_config["reload"] = sys.argv[override_reload_argv[0]+1]
         print(f"NEW RELOAD PATH: {task_config['reload']}")
 
-      path_suffix_argv = [idx for idx, arg in enumerate(sys.argv) if '--path_suffix' in arg]
+      path_suffix_argv = [idx for idx, arg in enumerate(sys.argv) if '--path_suffix' in arg and '=' not in arg]
       if len(path_suffix_argv):
         path_suffix = sys.argv[path_suffix_argv[0]+1]
         print(f"ADDITIONAL PATH SUFFIX: {path_suffix}")
@@ -988,7 +988,7 @@ def main():
     )
     parser.add_argument("--nbr_actor", 
         type=int, 
-        default=4,
+        default=1,
     )
     parser.add_argument("--batch_size", 
         type=int, 
@@ -1004,6 +1004,11 @@ def main():
     )
     
     parser.add_argument("--nbr_object_centric_samples", 
+        type=int, 
+        default=1,
+    )
+    
+    parser.add_argument("--nbr_distractors", 
         type=int, 
         default=1,
     )

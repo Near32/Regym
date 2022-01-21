@@ -16,7 +16,9 @@ parameters:
         seed:
                 values: [10, 20, 30]
         nbr_object_centric_samples:
-                values: [16, 1, 4]
+                values: [1, 2, 4, 8]
+        nbr_distractors:
+                values: [1, 2]
         sampling_strategy:
                 values: [
                         "component-focused-1shot",
@@ -48,4 +50,4 @@ parameters:
         critic_arch_feature_dim:
                 values: [128]
         train_observation_budget:
-                values: [1.0e7]
+                values: [2.0e6]
