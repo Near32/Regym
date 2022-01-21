@@ -156,8 +156,7 @@ class Agent(object):
     def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[], vdn:Optional[bool]=None):
         # TODO: account for the indices in rnn states:
         if ((vdn is not None and vdn) or (vdn is None))\
-        and "vdn" in self.algorithm.kwargs \
-        and self.algorithm.kwargs["vdn"]:
+        and self.algorithm.kwargs.get("vdn", False):
             nbr_players = self.algorithm.kwargs["vdn_nbr_players"]
             nbr_envs = nbr_actor
             nbr_actor *= nbr_players
