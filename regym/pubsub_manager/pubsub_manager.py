@@ -5,6 +5,7 @@ import glob
 
 import torch
 
+import wandb
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
@@ -171,7 +172,9 @@ class PubSubManager(object):
             
             for pipe_id, pipeline in self.pipelines.items():
                 self.stream_handler.serve(pipeline)
-            
+           
+            wandb.log({}, commit=True)
+
             self.stream_handler.reset("losses_dict")
             self.stream_handler.reset("logs_dict")    
             

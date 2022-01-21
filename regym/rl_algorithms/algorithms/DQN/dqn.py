@@ -21,7 +21,6 @@ from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, random_sample
 from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
 
-
 import wandb
 summary_writer = None 
 
@@ -287,7 +286,7 @@ class DQNAlgorithm(Algorithm):
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
-        wandb.log({'PerTrainingRequest/NbrStoredExperiences':  nbr_stored_experiences}) # self.train_request_count)
+        wandb.log({'PerTrainingRequest/NbrStoredExperiences':  nbr_stored_experiences}, commit=False) # self.train_request_count)
         
         return nbr_stored_experiences
 
@@ -342,7 +341,7 @@ class DQNAlgorithm(Algorithm):
         samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
         end = time.time()
 
-        wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
 
 
         if self.noisy:  
@@ -353,7 +352,7 @@ class DQNAlgorithm(Algorithm):
         self.optimize_model(minibatch_size, samples)
         end = time.time()
         
-        wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
         if self.target_update_count > self.target_update_interval:
             self.target_update_count = 0
@@ -540,9 +539,14 @@ class DQNAlgorithm(Algorithm):
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
-                wandb.log({'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item()}) # self.param_update_counter)
-                wandb.log({'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item()}) # self.param_update_counter)
-                wandb.log({'PerUpdate/PER_Beta':  beta}) # self.param_update_counter)
+                wandb_data = copy.deepcopy(wandb.run.history._data)
+                wandb.run.history._data = {}
+                wandb.log({
+                    'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item(),
+                    'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item(),
+                    'PerUpdate/PER_Beta':  beta
+                }) # self.param_update_counter)
+                wandb.run.history._data = wandb_data
 
             self.param_update_counter += 1 
 
@@ -559,7 +563,7 @@ class DQNAlgorithm(Algorithm):
             )
 
         end = time.time()
-        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
 
 
     def compute_td_error(self, samples: Dict):
@@ -646,7 +650,7 @@ class DQNAlgorithm(Algorithm):
 
         end = time.time()
         
-        wandb.log({'PerUpdate/TimeComplexity/TDErrorComputation':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/TDErrorComputation':  end-start}, commit=False) # self.param_update_counter)
         
         return loss, loss_per_item 
 

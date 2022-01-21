@@ -159,7 +159,7 @@ class R2D2Algorithm(DQNAlgorithm):
 
         nbr_stored_experiences = nbr_stored_sequences*(self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
 
-        wandb.log({'PerTrainingRequest/NbrStoredExperiences': nbr_stored_experiences}) #, self.train_request_count)
+        wandb.log({'PerTrainingRequest/NbrStoredExperiences': nbr_stored_experiences}, commit=False) #, self.train_request_count)
         #print(f"Train request: {self.train_request_count} // nbr_exp stored: {nbr_stored_experiences}")
         return nbr_stored_experiences
     

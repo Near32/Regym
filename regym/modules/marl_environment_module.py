@@ -114,7 +114,7 @@ class MARLEnvironmentModule(Module):
         self.agents = input_streams_dict["current_agents"].agents
         self.sad = self.config.get('sad', False)
         self.vdn = self.config.get('vdn', False)
-
+        self.saving_obs_period = self.config.get('saving_obs_period', 1e6) 
 
         self.obs_key = "observations"
         self.info_key = "info"
@@ -430,13 +430,13 @@ class MARLEnvironmentModule(Module):
                     succ_info_key=self.succ_info_key,
                 )
 
-                if self.obs_count % 10000 == 0:
+                if self.obs_count % self.saving_obs_period == 0:
                     for agent in self.agents:
                       if not hasattr(agent, 'save'):    continue
                       agent.save(minimal=True)
                       print(f"Agent {agent} saved at: {agent.save_path}")
                     
-        wandb.log({}, commit=True)
+        #wandb.log({}, commit=True)
 
         outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
         outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)

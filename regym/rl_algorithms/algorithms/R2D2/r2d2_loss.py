@@ -1036,6 +1036,8 @@ def compute_loss(states: torch.Tensor,
     
     end = time.time()
 
+    wandb_data = copy.deepcopy(wandb.run.history._data)
+    wandb.run.history._data = {}
     wandb.log({'Training/TimeComplexity':  end-start, "training_step":iteration_count}, commit=False)
     
     if study_qa_values_discrepancy:
@@ -1086,6 +1088,7 @@ def compute_loss(states: torch.Tensor,
         wandb.log({'Training/PER_Beta':  PER_beta, "training_step":iteration_count}, commit=False)
     
     wandb.log({}, commit=True)
+    wandb.run.history._data = wandb_data
 
     return loss, loss_per_item
 

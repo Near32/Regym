@@ -186,6 +186,7 @@ class PerEpochLoggerModule(Module):
           if isinstance(value, torch.Tensor): 
               value = value.mean().item()
           wandb.log({key:  value, "global_it_step":global_it_step}, commit=False)
-        wandb.log({}, commit=True)
+        #wandb.log({}, commit=True)
+        
         return {}
         

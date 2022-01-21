@@ -238,20 +238,20 @@ def test_agent(
     #update_count = agent.get_update_count()
 
     for idx, (ext_ret, ext_pos_ret, int_ret) in enumerate(zip(total_return, positive_total_return, total_int_return)):
-        wandb.log({'PerObservation/Testing/TotalReturn':  ext_ret}) # iteration*len(trajectory)+idx)
-        wandb.log({'PerObservation/Testing/PositiveTotalReturn':  ext_pos_ret}) # iteration*len(trajectory)+idx)
-        wandb.log({'PerObservation/Testing/TotalIntReturn':  int_ret}) # iteration*len(trajectory)+idx)
-        wandb.log({'PerUpdate/Testing/TotalReturn':  ext_ret}) # update_count)
-        wandb.log({'PerUpdate/Testing/PositiveTotalReturn':  ext_pos_ret}) # update_count)
-        wandb.log({'PerUpdate/Testing/TotalIntReturn':  int_ret}) # update_count)
+        wandb.log({'PerObservation/Testing/TotalReturn':  ext_ret}, commit=False) # iteration*len(trajectory)+idx)
+        wandb.log({'PerObservation/Testing/PositiveTotalReturn':  ext_pos_ret}, commit=False) # iteration*len(trajectory)+idx)
+        wandb.log({'PerObservation/Testing/TotalIntReturn':  int_ret}, commit=False) # iteration*len(trajectory)+idx)
+        wandb.log({'PerUpdate/Testing/TotalReturn':  ext_ret}, commit=False) # update_count)
+        wandb.log({'PerUpdate/Testing/PositiveTotalReturn':  ext_pos_ret}, commit=False) # update_count)
+        wandb.log({'PerUpdate/Testing/TotalIntReturn':  int_ret}, commit=False) # update_count)
 
-    wandb.log({'PerObservation/Testing/StdIntReturn':  std_int_return}) # iteration)
-    wandb.log({'PerObservation/Testing/StdExtReturn':  std_ext_return}) # iteration)
-    wandb.log({'PerObservation/Testing/StdExtPosReturn':  std_ext_positive_return}) # iteration)
+    wandb.log({'PerObservation/Testing/StdIntReturn':  std_int_return}, commit=False) # iteration)
+    wandb.log({'PerObservation/Testing/StdExtReturn':  std_ext_return}, commit=False) # iteration)
+    wandb.log({'PerObservation/Testing/StdExtPosReturn':  std_ext_positive_return}, commit=False) # iteration)
 
-    wandb.log({'PerUpdate/Testing/StdIntReturn':  std_int_return}) # update_count)
-    wandb.log({'PerUpdate/Testing/StdExtReturn':  std_ext_return}) # update_count)
-    wandb.log({'PerUpdate/Testing/StdExtPosReturn':  std_ext_positive_return}) # update_count)
+    wandb.log({'PerUpdate/Testing/StdIntReturn':  std_int_return}, commit=False) # update_count)
+    wandb.log({'PerUpdate/Testing/StdExtReturn':  std_ext_return}, commit=False) # update_count)
+    wandb.log({'PerUpdate/Testing/StdExtPosReturn':  std_ext_positive_return}, commit=False) # update_count)
 
     episode_lengths = [ len(t) for t in trajectory]
     mean_episode_length = sum( episode_lengths) / len(trajectory)
@@ -264,19 +264,19 @@ def test_agent(
         requested_metrics
     )
 
-    wandb.log({'PerObservation/Testing/MeanTotalReturn':  mean_total_return}) # iteration)
-    wandb.log({'PerObservation/Testing/MeanPositiveTotalReturn':  mean_positive_total_return}) # iteration)
-    wandb.log({'PerObservation/Testing/MeanTotalIntReturn':  mean_total_int_return}) # iteration)
+    wandb.log({'PerObservation/Testing/MeanTotalReturn':  mean_total_return}, commit=False) # iteration)
+    wandb.log({'PerObservation/Testing/MeanPositiveTotalReturn':  mean_positive_total_return}, commit=False) # iteration)
+    wandb.log({'PerObservation/Testing/MeanTotalIntReturn':  mean_total_int_return}, commit=False) # iteration)
 
-    wandb.log({'PerUpdate/Testing/MeanTotalReturn':  mean_total_return}) # update_count)
-    wandb.log({'PerUpdate/Testing/MeanPositiveTotalReturn':  mean_positive_total_return}) # update_count)
-    wandb.log({'PerUpdate/Testing/MeanTotalIntReturn':  mean_total_int_return}) # update_count)
+    wandb.log({'PerUpdate/Testing/MeanTotalReturn':  mean_total_return}, commit=False) # update_count)
+    wandb.log({'PerUpdate/Testing/MeanPositiveTotalReturn':  mean_positive_total_return}, commit=False) # update_count)
+    wandb.log({'PerUpdate/Testing/MeanTotalIntReturn':  mean_total_int_return}, commit=False) # update_count)
 
-    wandb.log({'PerObservation/Testing/MeanEpisodeLength':  mean_episode_length}) # iteration)
-    wandb.log({'PerObservation/Testing/StdEpisodeLength':  std_episode_length}) # iteration)
+    wandb.log({'PerObservation/Testing/MeanEpisodeLength':  mean_episode_length}, commit=False) # iteration)
+    wandb.log({'PerObservation/Testing/StdEpisodeLength':  std_episode_length}, commit=False) # iteration)
 
-    wandb.log({'PerUpdate/Testing/MeanEpisodeLength':  mean_episode_length}) # update_count)
-    wandb.log({'PerUpdate/Testing/StdEpisodeLength':  std_episode_length}) # update_count)
+    wandb.log({'PerUpdate/Testing/MeanEpisodeLength':  mean_episode_length}, commit=False) # update_count)
+    wandb.log({'PerUpdate/Testing/StdEpisodeLength':  std_episode_length}, commit=False) # update_count)
 
     if save_traj:
         for actor_idx in range(nbr_save_traj):
@@ -599,6 +599,7 @@ def gather_experience_parallel(
 
         for actor_index in range(nbr_actors):
             obs_count += 1
+            wandb.log({"obs_count": obs_count}, commit=False)
             pbar.update(1)
 
             for hook in step_hooks:
@@ -628,6 +629,7 @@ def gather_experience_parallel(
             done_condition = ('real_done' in succ_info[0][actor_index] and succ_info[0][actor_index]['real_done']) or ('real_done' not in succ_info[0][actor_index] and done[actor_index])
             if done_condition:
                 update_count = agents[0].get_update_count()
+                wandb.log({"update_count": update_count}, commit=False)
                 episode_count += 1
                 episode_count_record += 1
                 #succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
@@ -645,13 +647,13 @@ def gather_experience_parallel(
                 total_int_returns.append(sum([ exp[3] for exp in trajectories[-1]]))
                 episode_lengths.append(len(trajectories[-1]))
 
-                wandb.log({'Training/TotalReturn':  total_returns[-1]}) # episode_count)
-                wandb.log({'PerObservation/TotalReturn':  total_returns[-1]}) # obs_count)
-                wandb.log({'PerUpdate/TotalReturn':  total_returns[-1]}) # update_count)
+                wandb.log({'Training/TotalReturn':  total_returns[-1]}, commit=False) # episode_count)
+                wandb.log({'PerObservation/TotalReturn':  total_returns[-1]}, commit=False) # obs_count)
+                wandb.log({'PerUpdate/TotalReturn':  total_returns[-1]}, commit=False) # update_count)
                 
-                wandb.log({'Training/PositiveTotalReturn':  positive_total_returns[-1]}) # episode_count)
-                wandb.log({'PerObservation/PositiveTotalReturn':  positive_total_returns[-1]}) # obs_count)
-                wandb.log({'PerUpdate/PositiveTotalReturn':  positive_total_returns[-1]}) # update_count)
+                wandb.log({'Training/PositiveTotalReturn':  positive_total_returns[-1]}, commit=False) # episode_count)
+                wandb.log({'PerObservation/PositiveTotalReturn':  positive_total_returns[-1]}, commit=False) # obs_count)
+                wandb.log({'PerUpdate/PositiveTotalReturn':  positive_total_returns[-1]}, commit=False) # update_count)
                 
                 if actor_index == 0:
                     sample_episode_count += 1
@@ -671,23 +673,23 @@ def gather_experience_parallel(
                     mean_episode_length = sum( episode_lengths) / len(trajectories)
                     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in episode_lengths]) / len(episode_lengths) )
 
-                    wandb.log({'Training/StdIntReturn':  std_int_return}) # episode_count // nbr_actors)
-                    wandb.log({'Training/StdExtReturn':  std_ext_return}) # episode_count // nbr_actors)
+                    wandb.log({'Training/StdIntReturn':  std_int_return}, commit=False) # episode_count // nbr_actors)
+                    wandb.log({'Training/StdExtReturn':  std_ext_return}, commit=False) # episode_count // nbr_actors)
 
-                    wandb.log({'Training/MeanTotalReturn':  mean_total_return}) # episode_count // nbr_actors)
-                    wandb.log({'PerObservation/MeanTotalReturn':  mean_total_return}) # obs_count)
-                    wandb.log({'PerUpdate/MeanTotalReturn':  mean_total_return}) # update_count)
-                    wandb.log({'Training/MeanPositiveTotalReturn':  mean_positive_total_return}) # episode_count // nbr_actors)
-                    wandb.log({'PerObservation/MeanPositiveTotalReturn':  mean_positive_total_return}) # obs_count)
-                    wandb.log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return}) # update_count)
-                    wandb.log({'Training/MeanTotalIntReturn':  mean_total_int_return}) # episode_count // nbr_actors)
+                    wandb.log({'Training/MeanTotalReturn':  mean_total_return}, commit=False) # episode_count // nbr_actors)
+                    wandb.log({'PerObservation/MeanTotalReturn':  mean_total_return}, commit=False) # obs_count)
+                    wandb.log({'PerUpdate/MeanTotalReturn':  mean_total_return}, commit=False) # update_count)
+                    wandb.log({'Training/MeanPositiveTotalReturn':  mean_positive_total_return}, commit=False) # episode_count // nbr_actors)
+                    wandb.log({'PerObservation/MeanPositiveTotalReturn':  mean_positive_total_return}, commit=False) # obs_count)
+                    wandb.log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return}, commit=False) # update_count)
+                    wandb.log({'Training/MeanTotalIntReturn':  mean_total_int_return}, commit=False) # episode_count // nbr_actors)
 
-                    wandb.log({'Training/MeanEpisodeLength':  mean_episode_length}) # episode_count // nbr_actors)
-                    wandb.log({'PerObservation/MeanEpisodeLength':  mean_episode_length}) # obs_count)
-                    wandb.log({'PerUpdate/MeanEpisodeLength':  mean_episode_length}) # update_count)
-                    wandb.log({'Training/StdEpisodeLength':  std_episode_length}) # episode_count // nbr_actors)
-                    wandb.log({'PerObservation/StdEpisodeLength':  std_episode_length}) # obs_count)
-                    wandb.log({'PerUpdate/StdEpisodeLength':  std_episode_length}) # update_count)
+                    wandb.log({'Training/MeanEpisodeLength':  mean_episode_length}, commit=False) # episode_count // nbr_actors)
+                    wandb.log({'PerObservation/MeanEpisodeLength':  mean_episode_length}, commit=False) # obs_count)
+                    wandb.log({'PerUpdate/MeanEpisodeLength':  mean_episode_length}, commit=False) # update_count)
+                    wandb.log({'Training/StdEpisodeLength':  std_episode_length}, commit=False) # episode_count // nbr_actors)
+                    wandb.log({'PerObservation/StdEpisodeLength':  std_episode_length}, commit=False) # obs_count)
+                    wandb.log({'PerUpdate/StdEpisodeLength':  std_episode_length}, commit=False) # update_count)
 
                     # reset :
                     trajectories = list()

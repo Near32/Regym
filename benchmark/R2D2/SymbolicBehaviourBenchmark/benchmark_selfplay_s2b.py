@@ -796,7 +796,9 @@ def training_process(agent_config: Dict,
     if task_config.get("reload", 'None')!='None':
       agent, offset_episode_count = check_path_for_agent(task_config["reload"])
     else:
-      agent, offset_episode_count = check_path_for_agent(save_path1)
+      agent = None
+      offset_episode_count = 0
+      #agent, offset_episode_count = check_path_for_agent(save_path1)
     
     if agent is None: 
         agent = initialize_agents(
@@ -890,6 +892,19 @@ def load_configs(config_file_path: str):
 
     return experiment_config, agents_config, envs_config
 
+def str2bool(instr):
+    if isinstance(instr, bool):
+        return instr
+    if isinstance(instr, str):
+        instr = instr.lower()
+        if 'true' in instr:
+            return True
+        elif 'false' in instr:
+            return False
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -902,15 +917,15 @@ def main():
     )
     
     #parser.add_argument("--speaker_rec", type=str, default="False",)
-    parser.add_argument("--listener_rec", type=str, default="False",)
+    parser.add_argument("--listener_rec", type=str2bool, default="False",)
     #parser.add_argument("--listener_comm_rec", type=str, default="False",)
     #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
-    parser.add_argument("--listener_rec_biasing", type=str, default="False",)
+    parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     #parser.add_argument("--listener_comm_rec_biasing", type=str, default="False",)
     parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
-    parser.add_argument("--use_rule_based_agent", type=str, default="False ",)
-    parser.add_argument("--use_speaker_rule_based_agent", type=str, default="False",)
+    parser.add_argument("--use_rule_based_agent", type=str2bool, default="False ",)
+    parser.add_argument("--use_speaker_rule_based_agent", type=str2bool, default="False",)
     
     parser.add_argument("--seed", 
         type=int, 
@@ -927,7 +942,7 @@ def main():
         default="",
     )
     parser.add_argument("--simplified_DNC", 
-        type=str, 
+        type=str2bool, 
         default="False",
     )
     parser.add_argument("--learning_rate", 
@@ -979,13 +994,29 @@ def main():
         type=int, 
         default=128,
     )
-    #parser.add_argument("--critic_arch_feature_dim", 
-    #    type=int, 
-    #    default=32,
-    #)
+    parser.add_argument("--critic_arch_feature_dim", 
+        type=int, 
+        default=32,
+    )
     parser.add_argument("--train_observation_budget", 
         type=float, 
-        default=2e6,
+        default=1e6, #2e6,
+    )
+    
+    parser.add_argument("--nbr_object_centric_samples", 
+        type=int, 
+        default=1,
+    )
+    
+    parser.add_argument("--sampling_strategy",
+        type=str,
+        default=None,
+        choices=[
+            None,
+            "component-focused-1shot",
+            "component-focused-2shots",
+            "component-focused-3shots",
+        ],
     )
 
 
@@ -996,11 +1027,12 @@ def main():
         args.sequence_replay_unroll_length-5,
     )
 
-    args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
-    args.use_rule_based_agent = True if "Tr" in args.use_rule_based_agent else False
-    args.use_speaker_rule_based_agent = True if "Tr" in args.use_speaker_rule_based_agent else False
-    args.listener_rec = True if "Tr" in args.listener_rec else False
-    args.listener_rec_biasing = True if "Tr" in args.listener_rec_biasing else False
+    #args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
+    #args.use_rule_based_agent = True if "Tr" in args.use_rule_based_agent else False
+    #args.use_speaker_rule_based_agent = True if "Tr" in args.use_speaker_rule_based_agent else False
+    #args.listener_rec = True if "Tr" in args.listener_rec else False
+    #args.listener_rec_biasing = True if "Tr" in args.listener_rec_biasing else False
+    
     if args.listener_rec:
         if "dnc" in args.config:
             args.node_id_to_extract = "memory"
@@ -1015,8 +1047,8 @@ def main():
     
     print(dargs)
 
-    from gpuutils import GpuUtils
-    GpuUtils.allocate(required_memory=6000, framework="torch")
+    #from gpuutils import GpuUtils
+    #GpuUtils.allocate(required_memory=20000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
@@ -1041,7 +1073,10 @@ def main():
         for k,v in dargs.items():
             task_config[k] = v
             agent_config[k] = v
-        
+            
+            if k in task_config.get('env-config', {}):
+                task_config['env-config'][k] = v
+
         print("Task config:")
         print(task_config)
 
