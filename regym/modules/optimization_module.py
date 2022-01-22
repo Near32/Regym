@@ -105,7 +105,7 @@ class OptimizationModule(Module):
             self.optimizer = optim.SGD(
                 parameters, 
                 lr=self.config["learning_rate"],
-                weight_decay=config["weight_decay"],
+                weight_decay=config.get("weight_decay", 0.0),
             )
           else:
             self.optimizer = optim.Adam(
@@ -113,7 +113,7 @@ class OptimizationModule(Module):
                 lr=self.config["learning_rate"], 
                 #betas=(0.9, 0.999), 
                 eps=self.config["adam_eps"],
-                weight_decay=config["weight_decay"],
+                weight_decay=config.get("weight_decay", 0.0),
             )
         else:
           self.optimizer = None 
