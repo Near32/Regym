@@ -69,7 +69,7 @@ class ReconstructionFromHiddenStateModule(Module):
 
         self.iteration = 0
         self.sampling_fraction = 2
-        self.sampling_period = 10.0 # 25.0
+        self.sampling_period = self.config.get('sampling_period', 10.0) # 25.0
         
         if "build_signal_to_reconstruct_from_trajectory_fn" in self.config:
             self.build_signal_to_reconstruct_from_trajectory_fn = self.config["build_signal_to_reconstruct_from_trajectory_fn"]
@@ -345,8 +345,6 @@ class ReconstructionFromHiddenStateModule(Module):
             if 'accuracy_pre_process_fn' not in self.config:
                 per_dim_acc_t = (((pred-5e-2<=labels).float()+(pred+5e-2>=labels)).float()>=2).float()
             else:
-                import ipdb; ipdb.set_trace()
-                # check that acc pre pro fn is batched?
                 per_dim_acc_t = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
             # batch_size x dim
             for actor_id in range(batch_size):

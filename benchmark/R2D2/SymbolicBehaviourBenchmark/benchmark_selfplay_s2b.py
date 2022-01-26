@@ -48,6 +48,7 @@ import argparse
 def make_rl_pubsubmanager(
     agents,
     config, 
+    task_config=None, 
     logger=None,
     load_path=None,
     save_path=None,
@@ -161,6 +162,10 @@ def make_rl_pubsubmanager(
         traj: List[List[Any]],
         player_id:int,
         ) -> List[torch.Tensor]:
+        """
+        Aims to reconstruct the current communication and the previous one form the hidden state,
+        in order to make sure that the memory is preserved from one step to the next...
+        """
         likelihoods = []
         previous_com = None
         for exp in traj[player_id]:
@@ -192,19 +197,22 @@ def make_rl_pubsubmanager(
     else:
       print("WARNING: NOT biasing Speaker's Reconstruction.")
     
+    env_config_hp = task_config['env-config']
     rec_p0_config = {
       "biasing":speaker_rec_biasing,
       "nbr_players":len(agents),
       "player_id":0,
       'use_cuda':True,
-      "signal_to_reconstruct_dim": 4*3,
+      "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
+      'sampling_period':task_config['speaker_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[0],
           node_id_to_extract=node_id_to_extract,
       ),
       "build_signal_to_reconstruct_from_trajectory_fn": build_signal_to_reconstruct_from_trajectory_fn,
     }
-    
+   
+
     if speaker_rec and not(use_multi_rec):
       modules[rec_p0_id] = ReconstructionFromHiddenStateModule(
         id=rec_p0_id,
@@ -235,7 +243,8 @@ def make_rl_pubsubmanager(
       "nbr_players":len(agents),
       "player_id":1,
       'use_cuda':True,
-      "signal_to_reconstruct_dim": 4*3,
+      "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
+      'sampling_period':task_config['listener_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
           node_id_to_extract=node_id_to_extract,
@@ -272,9 +281,10 @@ def make_rl_pubsubmanager(
         pred:torch.Tensor, 
         target:torch.Tensor,
         ):
-        # Reshape into (sentence_length, vocab_size):
-        target = target.reshape(-1, 7)
-        pred = pred.reshape(-1, 7)
+        batch_size = pred.shape[0]
+        # Reshape into (bs*sentence_length, vocab_size):
+        target = target.reshape(-1, (env_config_hp.get('vocab_size', 5)+1))
+        pred = pred.reshape(-1, (env_config_hp.get('vocab_size', 5)+1))
         
         # Retrieve target idx:
         target_idx = target.max(dim=-1, keepdim=True)[1]
@@ -289,8 +299,8 @@ def make_rl_pubsubmanager(
         )
         '''
         pred_idx = pred.max(dim=-1, keepdim=True)[1]
-        acc = (target_idx == pred_idx).float().reshape(1,-1)
-        # (1, sentence_length)
+        acc = (target_idx == pred_idx).float().reshape(batch_size,-1)
+        # (batch_size, sentence_length)
         
         return acc
 
@@ -299,7 +309,10 @@ def make_rl_pubsubmanager(
       "nbr_players":len(agents),
       "player_id":1,
       'use_cuda':True,
-      "signal_to_reconstruct_dim": 7*2,
+      # Multiply by 2 because we reconstr. current and previous comm.:
+      "signal_to_reconstruct_dim": 2*(env_config_hp.get('vocab_size', 5)+1)*env_config_hp.get('max_sentence_length', 1),
+      #"signal_to_reconstruct_dim": 7*2,
+      'sampling_period':task_config['listener_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
           node_id_to_extract=node_id_to_extract, 
@@ -321,7 +334,7 @@ def make_rl_pubsubmanager(
         multi_rec_p1_id = 'multi_rec_p1'
         rec_dicts = {}
         rec_p1_config = {
-            "signal_to_reconstruct_dim":4*3,
+            "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
             "build_signal_to_reconstruct_from_trajectory_fn":build_signal_to_reconstruct_from_trajectory_fn,
         }
         rec_dicts[rec_p1_id] = rec_p1_config
@@ -439,6 +452,7 @@ def check_path_for_agent(filepath):
 
 def train_and_evaluate(agents: List[object], 
                        task: object, 
+                       task_config: Dict[str, object],
                        sum_writer: object, 
                        base_path: str, 
                        offset_episode_count: int = 0,
@@ -555,6 +569,7 @@ def train_and_evaluate(agents: List[object],
       pubsubmanager = make_rl_pubsubmanager(
         agents=agents,
         config=config,
+        task_config=task_config,
         speaker_rec=speaker_rec,
         listener_rec=listener_rec,
         listener_comm_rec=listener_comm_rec,
@@ -858,6 +873,7 @@ def training_process(agent_config: Dict,
     trained_agents = train_and_evaluate(
       agents=agents,
       task=task,
+      task_config=task_config,
       sum_writer=sum_writer,
       base_path=base_path,
       offset_episode_count=offset_episode_count,
@@ -918,10 +934,10 @@ def main():
     
     #parser.add_argument("--speaker_rec", type=str, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
-    #parser.add_argument("--listener_comm_rec", type=str, default="False",)
+    parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
     #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
-    #parser.add_argument("--listener_comm_rec_biasing", type=str, default="False",)
+    parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
     parser.add_argument("--use_rule_based_agent", type=str2bool, default="False ",)
@@ -956,7 +972,7 @@ def main():
     )
     parser.add_argument("--weights_entropy_lambda", 
         type=float, 
-        default=0.001, #0.0,
+        default=0.0, #0.001, #0.0,
     )
     parser.add_argument("--DNC_sparse_K", 
         type=int, 
@@ -975,6 +991,10 @@ def main():
         default=0.0,
     )
     parser.add_argument("--listener_rec_period", 
+        type=int, 
+        default=10,
+    )
+    parser.add_argument("--speaker_rec_period", 
         type=int, 
         default=10,
     )
@@ -1021,8 +1041,14 @@ def main():
             "component-focused-1shot",
             "component-focused-2shots",
             "component-focused-3shots",
+            "component-focused-4shots",
+            "component-focused-8shots",
         ],
     )
+    
+    parser.add_argument("--descriptive", type=str2bool, default="False")
+    parser.add_argument("--provide_listener_feedback", type=str2bool, default="False")
+    
 
 
     args = parser.parse_args()
@@ -1031,6 +1057,9 @@ def main():
         args.sequence_replay_overlap_length,
         args.sequence_replay_unroll_length-5,
     )
+    
+    if args.use_speaker_rule_based_agent:
+        args.use_rule_based_agent = True 
 
     #args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
     #args.use_rule_based_agent = True if "Tr" in args.use_rule_based_agent else False
