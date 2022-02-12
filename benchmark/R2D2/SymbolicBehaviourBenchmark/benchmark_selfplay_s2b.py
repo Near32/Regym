@@ -748,6 +748,7 @@ def training_process(agent_config: Dict,
         os.path.join(base_path, "task_config.yaml"), 'w',
         encoding='utf8',
       ),
+
     )
     yaml.dump(
       agent_config, 
@@ -900,7 +901,10 @@ def training_process(agent_config: Dict,
 
 
 def load_configs(config_file_path: str):
-    all_configs = yaml.load(open(config_file_path))
+    all_configs = yaml.load(
+        open(config_file_path),
+        Loader=yaml.Loader,
+    )
 
     agents_config = all_configs['agents']
     experiment_config = all_configs['experiment']

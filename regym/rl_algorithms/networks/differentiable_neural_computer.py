@@ -1026,8 +1026,7 @@ class DNCBody(nn.Module) :
             slots_read=read_vec,
         )
 
-        if not self.simplified:
-            dnc_state_dict['dnc_body']['prev_read_vec'] = [read_vec.reshape(batch_size, -1)]
+        dnc_state_dict['dnc_body']['prev_read_vec'] = [read_vec.reshape(batch_size, -1)]
         
         if self.sparse_K!=0:
             written_memory_state = asp(written_memory_state, K=self.sparse_K)

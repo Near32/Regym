@@ -33,6 +33,9 @@ setup(
     install_requires=[
       'gym',
       'ray',
+      'coloredlogs'
+      'scikit-image',
+      'h5py',
       'matplotlib',
       'docopt',
       'pyyaml',
