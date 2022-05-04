@@ -138,6 +138,8 @@ class OptimizationModule(Module):
         :returns:
             - outputs_stream_dict: 
         """
+        torch.set_grad_enabled(True)
+
         outputs_stream_dict = {}
 
         losses_dict = input_streams_dict["losses_dict"]
@@ -173,5 +175,7 @@ class OptimizationModule(Module):
         
             outputs_stream_dict['signals:update_count'] = self.update_count
         
+        torch.set_grad_enabled(False)
+
         return outputs_stream_dict
         

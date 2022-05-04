@@ -468,18 +468,18 @@ class ExtraInputsHandlingAgent(Agent):
             recursive_inplace_update(self.rnn_states, hdict)
         return self._take_action(state, infos=hdict, as_logit=as_logit)
 
-    def query_action(self, state, infos=None, as_logit=False):
+    def query_action(self, state, infos=None, as_logit=False, training=False):
         hdict = None
         if infos:# and not self.training:
             agent_infos = [info for info in infos if info is not None]
             hdict = self._build_dict_from(lhdict=agent_infos)
             recursive_inplace_update(self.rnn_states, hdict)
-        return self._query_action(state, infos=hdict, as_logit=as_logit)
+        return self._query_action(state, infos=hdict, as_logit=as_logit, training=training)
 
-    def _take_action(self, state, infos=None):
+    def _take_action(self, state, infos=None, training=False):
         raise NotImplementedError
 
-    def _query_action(self, state, infos=None):
+    def _query_action(self, state, infos=None, as_logit=False, training=False):
         raise NotImplementedError
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):

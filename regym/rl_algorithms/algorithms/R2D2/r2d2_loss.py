@@ -41,26 +41,26 @@ actual long-term dependencies in more memory-critical domains (e.g. on DMLab)."
 
 """
 
+def identity_value_function_rescaling(x):
+    return x 
+
 def value_function_rescaling(x):
     '''
     Value function rescaling (table 2).
     '''
-    return x
-    #return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
+    return torch.sign(x) * (torch.sqrt(torch.abs(x) + 1.) - 1.) + eps * x
 
 
 def inverse_value_function_rescaling(x):
     '''
     See Proposition A.2 in paper "Observe and Look Further".
     '''
-    return x
-    '''
     return torch.sign(x) * (
         (
             (torch.sqrt(1. + 4. * eps * (torch.abs(x) + 1. + eps)) - 1.) / (2. * eps)
         ).pow(2.0) - 1.
     )
-    '''
+    
     
 
 def extract_rnn_states_from_time_indices(
@@ -172,7 +172,7 @@ def unrolled_inferences_deprecated(model: torch.nn.Module,
                         use_zero_initial_states: bool=False,
                         extras: bool=False,
                         map_keys:List[str]=None):
-    '''
+    """
     Compute feed-forward inferences on the :param model: of the :param states: with the rnn_states used as burn_in values.
     NOTE: The function also computes the inferences using the rnn states used when gathering the states, in order to 
     later allow a computation of the Q-value discrepency $$\Delta Q$$ (see end of page 4).
@@ -194,7 +194,7 @@ def unrolled_inferences_deprecated(model: torch.nn.Module,
                                     when the recurrent cell states are sampled from the unrolled sequence.
     :return burned_in_rnn_states_inputs: Hierarchy of dictionnaries containing the final hidden and cell states of the recurrent
                                         submodules contained in :param model:, with shape (batch_size, unroll_dim=1, ...).
-    '''
+    """
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
 
@@ -517,7 +517,7 @@ def compute_n_step_bellman_target_depr(
     # as opposed to using mixed n-step values... 
     #unscaled_targetQ_Sipn_onlineGreedyAction[:, -kwargs['n_step']:] = 0
     
-    '''
+    """
     training_non_terminals_ipn = torch.cat(
         [   # :k+1 since k \in [0, n_step-1], and np.zeros(length)[:0] has shape (0,)...
             training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
@@ -527,7 +527,7 @@ def compute_n_step_bellman_target_depr(
         ]*(training_non_terminals.shape[1]-kwargs['n_step']),
         dim=1,
     )
-    '''
+    """
     training_non_terminals_ipnm1 = torch.cat(
         [   
             training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
@@ -740,6 +740,12 @@ def compute_loss(states: torch.Tensor,
         )
     """
                 
+    if kwargs['r2d2_use_value_function_rescaling']:
+        inv_vfr = inverse_value_function_rescaling
+        vfr = value_function_rescaling
+    else:
+        inv_vfr = identity_value_function_rescaling
+        vfr = identity_value_function_rescaling
 
     start = time.time()
 
@@ -880,7 +886,7 @@ def compute_loss(states: torch.Tensor,
     )
     # (batch_size, unroll_dim, /player_dim,/ 1)
     
-    unscaled_targetQ_Si_A_values = inverse_value_function_rescaling(training_target_predictions[qa_values_key])
+    unscaled_targetQ_Si_A_values = inv_vfr(training_target_predictions[qa_values_key])
     # (batch_size, training_length, /player_dim,/ num_actions)
     
     # Double Q learning target:
@@ -901,7 +907,7 @@ def compute_loss(states: torch.Tensor,
     )
     """
 
-    unscaled_Q_Si_Ai_value = inverse_value_function_rescaling(Q_Si_Ai_value)
+    unscaled_Q_Si_Ai_value = inv_vfr(Q_Si_Ai_value)
 
     if False:
         if len(training_rewards.shape) > 3:
@@ -967,8 +973,8 @@ def compute_loss(states: torch.Tensor,
         #unscaled_bellman_target_Sipn_onlineGreedyAction = unscaled_bellman_target_Sipn_onlineGreedyAction.sum(dim=2)
         assert len(unscaled_bellman_target_Sipn_onlineGreedyAction.shape) == 3  
     
-    Q_Si_Ai_value = value_function_rescaling(unscaled_Q_Si_Ai_value)    
-    scaled_bellman_target_Sipn_onlineGreedyAction = value_function_rescaling(unscaled_bellman_target_Sipn_onlineGreedyAction)
+    Q_Si_Ai_value = vfr(unscaled_Q_Si_Ai_value)    
+    scaled_bellman_target_Sipn_onlineGreedyAction = vfr(unscaled_bellman_target_Sipn_onlineGreedyAction)
     
     # Compute loss:
     # MSE ?
@@ -1036,8 +1042,8 @@ def compute_loss(states: torch.Tensor,
     
     end = time.time()
 
-    wandb_data = copy.deepcopy(wandb.run.history._data)
-    wandb.run.history._data = {}
+    #wandb_data = copy.deepcopy(wandb.run.history._data)
+    #wandb.run.history._data = {}
     wandb.log({'Training/TimeComplexity':  end-start, "training_step":iteration_count}, commit=False)
     
     if study_qa_values_discrepancy:
@@ -1088,7 +1094,7 @@ def compute_loss(states: torch.Tensor,
         wandb.log({'Training/PER_Beta':  PER_beta, "training_step":iteration_count}, commit=False)
     
     wandb.log({}, commit=True)
-    wandb.run.history._data = wandb_data
+    #wandb.run.history._data = wandb_data
 
     return loss, loss_per_item
 

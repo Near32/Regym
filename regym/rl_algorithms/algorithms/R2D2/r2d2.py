@@ -297,6 +297,8 @@ class R2D2Algorithm(DQNAlgorithm):
         then the n-step buffer is dumped entirely in the sequence buffer and the sequence is committed 
         to the relevant storage buffer.
         '''
+        torch.set_grad_enabled(False)
+
         if False: #self.n_step>1:
             raise NotImplementedError
             # Append to deque:
@@ -376,6 +378,8 @@ class R2D2Algorithm(DQNAlgorithm):
 
         #TODO: update to use Ray and get_tree_indices...
         '''
+        torch.set_grad_enabled(False)
+
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)

@@ -70,6 +70,8 @@ class DQNAgent(Agent):
         :param infos: Dictionnary of information from the environment.
         :param prediction: Dictionnary of tensors containing the model's output at the current state.
         '''
+        torch.set_grad_enabled(False)
+
         if "sad" in self.kwargs \
         and self.kwargs["sad"]:
             a = a["action"]
@@ -335,7 +337,9 @@ class DQNAgent(Agent):
 
         return nbr_updates
 
-    def take_action(self, state, infos=None, as_logit=False):
+    def take_action(self, state, infos=None, as_logit=False, training=False):
+        torch.set_grad_enabled(training)
+
         if self.async_actor:
             # Update the algorithm's model if needs be:
             if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
@@ -367,7 +371,7 @@ class DQNAgent(Agent):
             self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
 
 
-        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'], training=training)
         
         """
         # depr : goal update
@@ -434,10 +438,12 @@ class DQNAgent(Agent):
 
         return actions
 
-    def query_action(self, state, infos=None, as_logit=False):
+    def query_action(self, state, infos=None, as_logit=False, training=False):
         """
         Query's the model in training mode...
         """
+        torch.set_grad_enabled(training)
+
         if self.async_actor:
             # Update the algorithm's model if needs be:
             if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
@@ -467,7 +473,7 @@ class DQNAgent(Agent):
             self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
 
 
-        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'], training=training)
         
         """
         # depr : goal update

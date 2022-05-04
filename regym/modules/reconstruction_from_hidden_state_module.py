@@ -120,6 +120,8 @@ class ReconstructionFromHiddenStateModule(Module):
             1 or 0. For all actor b, mask[b]==1 if and only if
             the experience in x[t] is valid (e.g. episode not ended).
         """
+        torch.set_grad_enabled(True)
+
         batch_size = len(x)
         self.iteration += 1
 
@@ -207,6 +209,8 @@ class ReconstructionFromHiddenStateModule(Module):
         if biasing:
             self.hiddenstate_policy.reset(nbr_actors, training=True)
             self.hiddenstate_policy.restore_inner_state()
+        
+        torch.set_grad_enabled(False)
 
         output_dict = {
             'l_rec':L_rec,
@@ -283,8 +287,10 @@ class ReconstructionFromHiddenStateModule(Module):
             List[List[object]] containing, for each actor, at each time step t an object
             with batch_size dimensions and whose values are either
             1 or 0. For all actor b, mask[b]==1 if and only if
-            the experience in x[t] is valid (e.g. episode not ended).
+            the experience in x[t] is valid, i.e. message is not only made of EoS_id==0.
         """
+        torch.set_grad_enabled(True)
+
         batch_size = len(x)
         minT = min([len(xi) for xi in x])
 
@@ -318,7 +324,13 @@ class ReconstructionFromHiddenStateModule(Module):
         # minT x batch_size x signal_to_reconstruct_dim
 
         if mask is None:
-            eff_mask = torch.ones((batch_size, minT))
+            if 'masking_fn' in self.config:
+                eff_mask = self.config['masking_fn'](
+                    x=batched_x,
+                    y=batched_y,
+                )
+            else:
+                eff_mask = torch.ones((batch_size, minT))
         else:
             raise NotImplementedError
             # Most usecase assume mask==None...
@@ -342,13 +354,20 @@ class ReconstructionFromHiddenStateModule(Module):
             ###                
             pred = torch.sigmoid(logit_pred)
             # batch_size x dim
+            
             if 'accuracy_pre_process_fn' not in self.config:
                 per_dim_acc_t = (((pred-5e-2<=labels).float()+(pred+5e-2>=labels)).float()>=2).float()
             else:
-                per_dim_acc_t = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
+                out_d = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
+                per_dim_acc_t = out_d['acc']
+                if 'mask' in out_d:
+                    m = out_d['mask'].detach()
             # batch_size x dim
+
             for actor_id in range(batch_size):
-                per_actor_per_t_per_dim_acc[actor_id].append(per_dim_acc_t[actor_id:actor_id+1])
+                # Only consider acc when valid (i.e. filtered in) :
+                if m[actor_id].item() > 0.5:
+                    per_actor_per_t_per_dim_acc[actor_id].append(per_dim_acc_t[actor_id:actor_id+1])
             ###
 
             L_rec_t = self.criterion(
@@ -380,6 +399,8 @@ class ReconstructionFromHiddenStateModule(Module):
         if biasing:
             self.hiddenstate_policy.reset(nbr_actors, training=True)
             self.hiddenstate_policy.restore_inner_state()
+        
+        torch.set_grad_enabled(False)
 
         output_dict = {
             'l_rec':L_rec,
@@ -425,6 +446,7 @@ class ReconstructionFromHiddenStateModule(Module):
                             'state':exp[0], # for _ in range(self.nbr_players)], # see environment_module for indices...
                             'infos':[exp[6]], # for _ in range(self.nbr_players)],
                             'as_logit':True,
+                            'training':True,
                         }
                         for exp in traj[self.player_id]
                     ]    
@@ -476,6 +498,7 @@ class ReconstructionFromHiddenStateModule(Module):
             L_mse = output_dict['l_mse']
 
             logs_dict[f"{mode}/{self.id}/ReconstructionAccuracy/{'Eval' if filtering_signal else 'Sample'}"] = rec_accuracy.mean()
+            
             #logs_dict[f"{mode}/{self.id}/ReconstructionMSELoss/{'Eval' if filtering_signal else 'Sample'}"] = L_mse.mean()
             logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/BCE/{'Eval' if filtering_signal else 'Sample'}"] = L_rec.mean()
 

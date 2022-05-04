@@ -294,6 +294,8 @@ class DQNAlgorithm(Algorithm):
         '''
         Compute n-step return for the first element of `self.n_step_buffer` deque.
         '''
+        torch.set_grad_enabled(False)
+
         truncated_n_step_return = self.n_step_buffers[actor_index][-1]['r']
         for exp_dict in reversed(list(self.n_step_buffers[actor_index])[:-1]):
             truncated_n_step_return = exp_dict['r'] + self.GAMMA * truncated_n_step_return * exp_dict['non_terminal']
@@ -364,6 +366,8 @@ class DQNAlgorithm(Algorithm):
         This function samples from each storage, concatenate the sampled elements on the batch dimension,
         and maintains the hierarchy of dictionnaries.
         '''
+        torch.set_grad_enabled(False)
+
         keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
 
         fulls = {}
@@ -446,6 +450,7 @@ class DQNAlgorithm(Algorithm):
             optimisation_minibatch_size = minibatch_size*self.nbr_actor
 
         start = time.time()
+        torch.set_grad_enabled(True)
 
         #beta = self.storages[0].get_beta() if self.use_PER else 1.0
         beta = 1.0
@@ -539,16 +544,18 @@ class DQNAlgorithm(Algorithm):
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
-                wandb_data = copy.deepcopy(wandb.run.history._data)
-                wandb.run.history._data = {}
+                #wandb_data = copy.deepcopy(wandb.run.history._data)
+                #wandb.run.history._data = {}
                 wandb.log({
                     'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item(),
                     'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item(),
                     'PerUpdate/PER_Beta':  beta
                 }) # self.param_update_counter)
-                wandb.run.history._data = wandb_data
+                #wandb.run.history._data = wandb_data
 
             self.param_update_counter += 1 
+
+        torch.set_grad_enabled(False)
 
         if self.use_PER :
             sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)

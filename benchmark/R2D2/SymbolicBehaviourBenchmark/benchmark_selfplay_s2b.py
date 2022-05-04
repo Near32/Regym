@@ -169,7 +169,7 @@ def make_rl_pubsubmanager(
         likelihoods = []
         previous_com = None
         for exp in traj[player_id]:
-            current_com = torch.from_numpy(exp[-1]['communication_channel'])
+            current_com = torch.from_numpy(exp[6]['communication_channel'])
             if previous_com is None:    previous_com = current_com
 
             target_pred = torch.cat([previous_com, current_com], dim=-1)
@@ -282,12 +282,17 @@ def make_rl_pubsubmanager(
         target:torch.Tensor,
         ):
         batch_size = pred.shape[0]
-        # Reshape into (bs*sentence_length, vocab_size):
+        # Reshape into (bs*sentence_length, vocab_size+|{EoS}|):
         target = target.reshape(-1, (env_config_hp.get('vocab_size', 5)+1))
         pred = pred.reshape(-1, (env_config_hp.get('vocab_size', 5)+1))
         
         # Retrieve target idx:
         target_idx = target.max(dim=-1, keepdim=True)[1]
+        # (bs*sentence_length, 1)
+        mask = target_idx.reshape(batch_size, -1).sum(dim=-1, keepdim=False) 
+        # (bs )
+        # Filter out when the message is only made of EoS symbols:
+        mask = (mask != torch.zeros_like(mask)).float()
         
         pred_distr = pred.softmax(dim=-1)
 
@@ -302,7 +307,12 @@ def make_rl_pubsubmanager(
         acc = (target_idx == pred_idx).float().reshape(batch_size,-1)
         # (batch_size, sentence_length)
         
-        return acc
+        out_d = {
+            'acc': acc,
+            'mask': mask,
+        }
+
+        return out_d
 
     comm_rec_p1_config = {
       "biasing":listener_comm_rec_biasing,
@@ -936,13 +946,17 @@ def main():
         default="./s2b_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
     )
     
+    parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
+    
     #parser.add_argument("--speaker_rec", type=str, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
     #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
-    parser.add_argument("--node_id_to_extract", type=str, default="hidden",) #"memory"
+    parser.add_argument("--node_id_to_extract", type=str, default="hidden",
+            help="'hidden'/'memory', with 'memory' being used for DNC-based architecture.\n\
+            It is automatically toggled to 'memory' if 'config' path contains 'dnc'.") #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
     parser.add_argument("--use_rule_based_agent", type=str2bool, default="False ",)
     parser.add_argument("--use_speaker_rule_based_agent", type=str2bool, default="False",)
@@ -1025,6 +1039,16 @@ def main():
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=1e6, #2e6,
+    )
+    
+    parser.add_argument("--vocab_size",
+        type=int,
+        default=6,
+    )
+    
+    parser.add_argument("--max_nbr_values_per_latent",
+        type=int,
+        default=5,
     )
     
     parser.add_argument("--nbr_object_centric_samples", 

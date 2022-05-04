@@ -33,7 +33,7 @@ setup(
     install_requires=[
       'gym',
       'ray',
-      'coloredlogs'
+      'coloredlogs',
       'scikit-image',
       'h5py',
       'matplotlib',

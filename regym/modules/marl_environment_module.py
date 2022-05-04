@@ -14,6 +14,7 @@ from regym.util.wrappers import SADVecEnvWrapper
 
 from regym.rl_algorithms.utils import _extract_from_rnn_states
 
+import torch
 from torch.multiprocessing import Process 
 import ray 
 
@@ -170,6 +171,8 @@ class MARLEnvironmentModule(Module):
     def compute(self, input_streams_dict:Dict[str,object]) -> Dict[str,object] :
         """
         """
+        torch.set_grad_enabled(False)
+
         outputs_stream_dict = {}
         outputs_stream_dict["new_trajectories_published"] = False 
         outputs_stream_dict['reset_actors'] = []
@@ -262,6 +265,7 @@ class MARLEnvironmentModule(Module):
         for actor_index in range(self.nbr_actors):
             self.obs_count += 1
             self.pbar.update(1)
+            wandb.log({'Training/NbrTrajectoriesQueued': len(self.trajectories)}, commit=False)
 
             # Bookkeeping of the actors whose episode just ended:
             done_condition = ('real_done' in succ_info[0][actor_index] \
@@ -269,6 +273,52 @@ class MARLEnvironmentModule(Module):
             or ('real_done' not in succ_info[0][actor_index] \
                 and done[actor_index])
             if done_condition:
+                if self.vdn:
+                    obs = self.nonvdn_observations
+                    act = nonvdn_actions
+                    succ_obs = nonvdn_succ_observations
+                    rew = nonvdn_reward
+                    d = nonvdn_done
+                    info = self.nonvdn_info
+                    succ_info = self.nonvdn_succ_info
+                else:
+                    obs = self.observations
+                    act = actions
+                    succ_obs = succ_observations
+                    rew = reward
+                    d = done
+                    info = self.info
+                    succ_info = succ_info
+            
+                for player_index in range(self.nbr_players):
+                    pa_obs = obs[player_index][actor_index:actor_index+1]
+                    pa_a = act[player_index][actor_index:actor_index+1]
+                    pa_r = rew[player_index][actor_index:actor_index+1]
+                    pa_succ_obs = succ_obs[player_index][actor_index:actor_index+1]
+                    pa_done = d[actor_index:actor_index+1]
+                    pa_int_r = 0.0
+                
+                    """
+                    pa_info = _extract_from_rnn_states(
+                        self.info[player_index],
+                        actor_index,
+                        post_process_fn=None
+                    )
+                    """
+                    pa_info = info[player_index][actor_index]
+                    pa_succ_info = succ_info[player_index][actor_index]
+
+                    """
+                    if getattr(agent.algorithm, "use_rnd", False):
+                        get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
+                        if callable(get_intrinsic_reward):
+                            pa_int_r = agent.get_intrinsic_reward(actor_index)
+                    """    
+                    self.per_actor_per_player_trajectories[actor_index][player_index].append( 
+                        (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info, pa_succ_info) 
+                    )
+                    
+
                 self.update_count = self.agents[0].get_update_count()
                 self.episode_count += 1
                 self.episode_count_record += 1
@@ -355,7 +405,8 @@ class MARLEnvironmentModule(Module):
                 self.per_actor_per_player_trajectories[actor_index] = [
                     list() for p in range(self.nbr_players)
                 ]
-
+            
+            # Re-assignement is necessary, as succ_obs and succ_info have changed if done_condition==True...
             if self.vdn:
                 obs = self.nonvdn_observations
                 act = nonvdn_actions
@@ -363,6 +414,7 @@ class MARLEnvironmentModule(Module):
                 rew = nonvdn_reward
                 d = nonvdn_done
                 info = self.nonvdn_info
+                succ_info = self.nonvdn_succ_info
             else:
                 obs = self.observations
                 act = actions
@@ -370,6 +422,7 @@ class MARLEnvironmentModule(Module):
                 rew = reward
                 d = done
                 info = self.info
+                succ_info = succ_info
             
             for player_index in range(self.nbr_players):
                 pa_obs = obs[player_index][actor_index:actor_index+1]
@@ -387,6 +440,7 @@ class MARLEnvironmentModule(Module):
                 )
                 """
                 pa_info = info[player_index][actor_index]
+                pa_succ_info = succ_info[player_index][actor_index]
 
                 """
                 if getattr(agent.algorithm, "use_rnd", False):
@@ -395,7 +449,7 @@ class MARLEnvironmentModule(Module):
                         pa_int_r = agent.get_intrinsic_reward(actor_index)
                 """    
                 self.per_actor_per_player_trajectories[actor_index][player_index].append( 
-                    (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) 
+                    (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info, pa_succ_info) 
                 )
 
 
