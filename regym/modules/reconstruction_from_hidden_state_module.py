@@ -63,6 +63,8 @@ class ReconstructionFromHiddenStateModule(Module):
             input_stream_ids=input_stream_ids
         )
 
+        self.rec_threshold = config.get("rec_threshold", 5e-2)
+
         self.biasing = self.config.get('biasing', False)
         self.nbr_players = self.config.get('nbr_players', 2)
         self.player_id = self.config.get('player_id', 0)
@@ -174,7 +176,7 @@ class ReconstructionFromHiddenStateModule(Module):
                 pred = torch.sigmoid(logit_pred)
                 # 1x dim
                 if 'accuracy_pre_process_fn' not in self.config:
-                    per_dim_acc_t = (((pred-5e-2<=labels).float()+(pred+5e-2>=labels)).float()>=2).float()
+                    per_dim_acc_t = (((pred-self.rec_threshold<=labels).float()+(pred+self.rec_threshold>=labels)).float()>=2).float()
                 else:
                     per_dim_acc_t = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
                 # 1x dim

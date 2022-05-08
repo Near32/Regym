@@ -200,6 +200,7 @@ def make_rl_pubsubmanager(
     env_config_hp = task_config['env-config']
     rec_p0_config = {
       "biasing":speaker_rec_biasing,
+      "rec_threshold": task_config.get("rec_threshold", 5e-2),
       "nbr_players":len(agents),
       "player_id":0,
       'use_cuda':True,
@@ -240,6 +241,7 @@ def make_rl_pubsubmanager(
     
     rec_p1_config = {
       "biasing":listener_rec_biasing,
+      "rec_threshold": task_config.get("rec_threshold", 5e-2),
       "nbr_players":len(agents),
       "player_id":1,
       'use_cuda':True,
@@ -948,10 +950,15 @@ def main():
     
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
     
+    parser.add_argument("--rec_threshold", 
+        type=float, 
+        default=5e-2,
+    )
     #parser.add_argument("--speaker_rec", type=str, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
     #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
+    parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--node_id_to_extract", type=str, default="hidden",
@@ -982,7 +989,7 @@ def main():
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
-        default=1e-3,
+        default=6.25e-5,
     )
     parser.add_argument("--weights_decay_lambda", 
         type=float, 
@@ -1038,7 +1045,7 @@ def main():
     )
     parser.add_argument("--train_observation_budget", 
         type=float, 
-        default=1e6, #2e6,
+        default=5e6, #2e6,
     )
     
     parser.add_argument("--vocab_size",
@@ -1095,6 +1102,15 @@ def main():
     #args.listener_rec = True if "Tr" in args.listener_rec else False
     #args.listener_rec_biasing = True if "Tr" in args.listener_rec_biasing else False
     
+    if args.listener_multimodal_rec_biasing:
+        args.listener_rec_biasing = True
+        args.listener_comm_rec_biasing = True
+
+    if args.listener_rec_biasing:
+        args.listener_rec = True
+    if args.listener_comm_rec_biasing:
+        args.listener_comm_rec = True 
+
     if args.listener_rec:
         if "dnc" in args.config:
             args.node_id_to_extract = "memory"

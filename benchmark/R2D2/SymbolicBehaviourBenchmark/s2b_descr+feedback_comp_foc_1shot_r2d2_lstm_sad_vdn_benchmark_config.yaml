@@ -243,9 +243,11 @@ experiment:
         'env-config': {
             "nbr_communication_rounds": 1,
             "vocab_size": 6, #20,
-            "max_sentence_length": 4, #3
+            #"max_sentence_length": 4, #3
+            "max_sentence_length": 3,
             "descriptive": True,
-            "nbr_latents": 4, #3
+            #"nbr_latents": 4, #3
+            "nbr_latents": 3,
             "min_nbr_values_per_latent": 2,
             "max_nbr_values_per_latent": 5,
             "nbr_object_centric_samples": 1,
@@ -455,7 +457,8 @@ agents:
             },
 
             'communication_channel':{
-                shape: [28], #[63,], #[21,], 
+                #shape: [28], #[63,], 
+                shape: [21], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             'round_id':{
