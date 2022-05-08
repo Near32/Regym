@@ -1050,9 +1050,19 @@ def main():
     
     parser.add_argument("--vocab_size",
         type=int,
-        default=6,
+        default=None,
     )
     
+    parser.add_argument("--nbr_latents",
+        type=int,
+        default=3,
+    )
+    
+    parser.add_argument("--max_sentence_length",
+        type=int,
+        default=None,
+    )
+ 
     parser.add_argument("--max_nbr_values_per_latent",
         type=int,
         default=5,
@@ -1083,11 +1093,21 @@ def main():
     
     parser.add_argument("--descriptive", type=str2bool, default="False")
     parser.add_argument("--provide_listener_feedback", type=str2bool, default="False")
-    
 
 
     args = parser.parse_args()
     
+    if args.max_sentence_length is not None:
+        assert args.max_sentence_length >= args.nbr_latents
+    else:
+        args.max_sentence_length = args.nbr_latents 
+    
+    if args.max_nbr_values_per_latent is not None:
+        if args.vocab_size is None:
+            args.vocab_size = args.max_nbr_values_per_latent+1
+        else:
+            assert args.vocab_size > args.max_nbr_values_per_latent
+     
     args.sequence_replay_overlap_length = min(
         args.sequence_replay_overlap_length,
         args.sequence_replay_unroll_length-5,
@@ -1149,12 +1169,18 @@ def main():
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
         for k,v in dargs.items():
+            if v is None:   continue
             task_config[k] = v
             agent_config[k] = v
             
             if k in task_config.get('env-config', {}):
                 task_config['env-config'][k] = v
-
+            
+        if 'extra_inputs_infos' in agent_config:
+            if 'communication_channel' in agent_config['extra_inputs_infos']:
+                comm_channel_length = (args.vocab_size+1)*args.max_sentence_length
+                agent_config['extra_inputs_infos']['communication_channel']['shape'] = [comm_channel_length]
+        
         print("Task config:")
         print(task_config)
 

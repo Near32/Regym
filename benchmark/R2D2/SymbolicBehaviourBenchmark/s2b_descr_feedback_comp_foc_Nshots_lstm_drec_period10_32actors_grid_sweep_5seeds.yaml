@@ -14,7 +14,7 @@ parameters:
         config:
                 values: ["s2b_descr+feedback_comp_foc_1shot_r2d2_lstm_sad_vdn_benchmark_config.yaml"]
         seed:
-                values: [10, 20, 30, 40, 50]
+                values: [10, 20, 30]
         nbr_object_centric_samples:
                 values: [1, 4, 16]
         descriptive:
@@ -42,7 +42,7 @@ parameters:
         listener_comm_rec:
                 values: [True]
         listener_multimodal_rec_biasing:
-                values: [True]
+                values: [True, False]
         learning_rate:
                 values: [6.25e-5]
         batch_size:
@@ -63,3 +63,8 @@ parameters:
                 values: [False]
         train_observation_budget:
                 values: [5.0e6]
+        nbr_latents:
+                values: [3]
+        max_nbr_values_per_latent:
+                values: [5, 10]
+
