@@ -3,7 +3,7 @@ entity: near3213
 program: benchmark_selfplay_s2b.py
 command:
         - ${env}
-        - /scratch/kyd500/rg_env/bin/python
+        - /scratch/kyd500/Regym/benchmark/R2D2/SymbolicBehaviourBenchmark/metarg_venv/bin/python
         - ${program}
         - ${args}
 method: grid
@@ -34,7 +34,7 @@ parameters:
         use_speaker_rule_based_agent:
                 values: [True]
         rec_threshold:
-                value: [2.0e-2]
+                values: [2.0e-2]
         listener_rec_period:
                 values: [10]
         listener_rec:
