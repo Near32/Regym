@@ -373,7 +373,7 @@ agents:
         adam_eps: 1.0e-12
         #adam_eps: 1.0e-15
 
-        replay_capacity: 5e5 #163840 #2e13*20 #5242880 # in terms of experience #1e6
+        replay_capacity: 5e4 #5e5
         #replay_capacity: 1e5 
         #min_capacity: 3e4 #in terms of experiences... #1e4
         

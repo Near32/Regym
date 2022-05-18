@@ -1023,6 +1023,10 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--replay_capacity", 
+        type=float, 
+        default=5e5,
+    )
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
