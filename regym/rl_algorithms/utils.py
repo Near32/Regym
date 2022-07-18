@@ -5,7 +5,7 @@ import copy
 
 
 def is_leaf(node: Dict):
-    return all([ not isinstance(node[key], dict) for key in node.keys()])
+    return any([ not isinstance(node[key], dict) for key in node.keys()])
 
 
 def recursive_inplace_update(
@@ -73,11 +73,22 @@ def copy_hdict(in_dict: Dict):
     Makes a copy of :param in_dict:.
     '''
     if in_dict is None: return None
+    
     out_dict = {key: {} for key in in_dict}
+    need_reg = False
+    if isinstance(in_dict, list):
+        out_dict = {'dummy':{}}
+        in_dict = {'dummy':in_dict}
+        need_reg = True 
+
     recursive_inplace_update(
         in_dict=out_dict,
         extra_dict=in_dict,
     )
+
+    if need_reg:
+        out_dict = out_dict['dummy']
+
     return out_dict
 
 def extract_subtree(in_dict: Dict,
@@ -229,30 +240,35 @@ def _concatenate_list_hdict(
                 out_queue.insert(0, out_pointer[k])
         else:
             for k in pointers[0]:
-                # Previously assigned as a dictionnary in 145 or 165...
-                out_pointer[k] = []
-                # Since we are at a leaf then value is
-                # either numpy or numpy.float64
-                # or list of tensors:
-                if isinstance(pointers[0][k], list):
-                    for idx in range(len(pointers[0][k])):
+                try:
+                    # Previously assigned as a dictionnary in 145 or 165...
+                    out_pointer[k] = []
+                    # Since we are at a leaf then value is
+                    # either numpy or numpy.float64
+                    # or list of tensors:
+                    if isinstance(pointers[0][k], list):
+                        for idx in range(len(pointers[0][k])):
+                            concat_list = [
+                                preprocess_fn(pointer[k][idx])
+                                for pointer in pointers if k in pointer
+                            ]
+                            out_pointer[k].append(
+                                concat_fn(concat_list)
+                            )
+                    else:
                         concat_list = [
-                            preprocess_fn(pointer[k][idx])
+                            preprocess_fn(pointer[k])
                             for pointer in pointers if k in pointer
                         ]
-                        out_pointer[k].append(
-                            concat_fn(concat_list)
-                        )
-                else:
-                    concat_list = [
-                        preprocess_fn(pointer[k])
-                        for pointer in pointers if k in pointer
-                    ]
-                    try:
-                        out_pointer[k] = concat_fn(concat_list)
-                    except Exception as e:
+                        try:
+                            out_pointer[k] = concat_fn(concat_list)
+                        except Exception as e:
+                            # the concat_fn may fail, silently...
+                            # e.g.: shape of elements are not all the same...
+                            pass
+                except Exception as e:
                         # the concat_fn may fail, silently...
-                        # e.g.: shape of elements are not all the same...
+                        # e.g.: neither a list nor a compatible stuff....
                         pass
     return out_hd
 

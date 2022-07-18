@@ -100,17 +100,25 @@ class VDNVecEnvWrapper(object):
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
 
+    def render(self, render_mode="rgb_array", env_indices=None) :
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+
+    def close(self):
+        return self.env.close()
+
     def reset(self, **kwargs):
-        next_obs, next_infos = self.env.reset(**kwargs)
-        
+        input_dict = self.env.reset(**kwargs)
+        nvdn_next_obs = input_dict["observations"]
+        nvdn_next_infos = input_dict["info"]
+
         vdn_obs = np.concatenate(
-            next_obs,
+            nvdn_next_obs,
             axis=0
         )
         next_obs = [vdn_obs]
 
         list_infos = []
-        for li in next_infos:
+        for li in nvdn_next_infos:
             for k in range(len(li)):
                 list_infos.append(li[k])
         """
@@ -124,7 +132,15 @@ class VDNVecEnvWrapper(object):
         """
         next_infos = [list_infos]
 
-        return next_obs, next_infos
+        output_dict = {
+            "observations":nvdn_next_obs,
+            "info":nvdn_next_infos,
+
+            "vdn_observations":next_obs,
+            "vdn_info":next_infos,
+        }
+
+        return output_dict
 
     def step(self, action, **kwargs):
         assert isinstance(action, list) and len(action)==1, "action argument must be a singleton list of dictionnary (SAD) or tensor."
@@ -150,27 +166,34 @@ class VDNVecEnvWrapper(object):
                 a = action[0][pidx*nbr_env:(pidx+1)*nbr_env, ...]
                 env_action.append(a)
 
-        next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
-        
+        nonvdn_action = env_action
+        env_output_dict = self.env.step(env_action, **kwargs)
+        if "actions" in env_output_dict:
+            nonvdn_action = env_output_dict["actions"]
+        nvdn_next_obs = env_output_dict["succ_observations"]
+        nvdn_reward = env_output_dict["reward"]
+        nvdn_done = env_output_dict["done"]
+        nvdn_next_infos = env_output_dict["succ_info"]
+
         next_obs = [
             np.concatenate(
-                next_obs,
+                nvdn_next_obs,
                 axis=0
             )
         ]
         # 1 x (batch_size*num_player, ...)
 
-        reward_shape = reward[0].shape
+        reward_shape = nvdn_reward[0].shape
         reward = [
             np.concatenate(
-                reward,
+                nvdn_reward,
                 axis=0
             )
         ]
         # 1 x (batch_size*num_player, ...)
         
         list_infos = []
-        for li in next_infos:
+        for li in nvdn_next_infos:
             for k in range(len(li)):
                 list_infos.append(li[k])
         
@@ -185,7 +208,21 @@ class VDNVecEnvWrapper(object):
         # 1 x key x (batch_size*num_player, ...)
         """
 
-        return next_obs, reward, done, next_infos
+        output_dict = {
+            "actions":nonvdn_action,
+
+            "succ_observations":nvdn_next_obs, 
+            "reward":nvdn_reward, 
+            "done":nvdn_done, 
+            "succ_info":nvdn_next_infos,
+
+            "vdn_succ_observations":next_obs, 
+            "vdn_reward":reward, 
+            "vdn_done":nvdn_done, 
+            "vdn_succ_info":next_infos
+        }
+
+        return output_dict
 
 
 # # Wrappers:
@@ -1687,6 +1724,12 @@ class SADVecEnvWrapper_depr(object):
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
 
+    def render(self, render_mode="rgb_array", env_indices=None):
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+    
+    def close(self):
+        return self.env.close() 
+
     def reset(self, **kwargs):
         next_obs, next_infos = self.env.reset(**kwargs)
         
@@ -1725,7 +1768,7 @@ class SADVecEnvWrapper_depr(object):
         return next_obs, reward, done, next_infos
 
 class SADVecEnvWrapper(object):
-    def __init__(self, env, nbr_actions):
+    def __init__(self, env, nbr_actions, otherplay=False):
         """
         Simplified Action Decoder wrapper expects the action argument for
         the step method to be a list of dictionnary containing the following keys:
@@ -1738,6 +1781,7 @@ class SADVecEnvWrapper(object):
         an extra player_offset tensor.
         """
         self.env = env
+        self.otherplay=otherplay
         self.nbr_actions = nbr_actions
         self.nbr_players = None
         self.current_player_idx = None
@@ -1748,11 +1792,21 @@ class SADVecEnvWrapper(object):
     def set_nbr_envs(self, nbr_envs):
         self.env.set_nbr_envs(nbr_envs)
 
-    def reset(self, **kwargs):
-        next_obs, next_infos = self.env.reset(**kwargs)
+    def render(self, render_mode="rgb_array", env_indices=None):
+        return self.env.render(render_mode=render_mode, env_indices=env_indices)
+    
+    def close(self):
+        return self.env.close()
         
+    def reset(self, **kwargs):
+        input_dict = self.env.reset(**kwargs)
+        next_obs = input_dict["observations"]
+        next_infos = input_dict["info"]
+
         self.nbr_players = len(next_obs)
-        self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        self.current_player_idx = None 
+        if 'current_player' in next_infos[0][0]:
+            self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
         # (nbr_env, )
 
         for player_idx in range(2):
@@ -1764,7 +1818,12 @@ class SADVecEnvWrapper(object):
                     axis=-1,
                 )
         
-        return next_obs, next_infos
+        output_dict = {
+            "observations":next_obs, 
+            "info":next_infos,
+        }
+
+        return output_dict
 
     def step(self, action, **kwargs):
         assert isinstance(action, list), "action argument must be a list of dictionnary (or tensors if test-time...)."
@@ -1776,15 +1835,46 @@ class SADVecEnvWrapper(object):
         else:
             env_action = action
 
-        next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
-        
+        #next_obs, reward, done, next_infos = self.env.step(env_action, **kwargs)
+        env_output_dict = self.env.step(env_action, **kwargs)
+        next_obs = env_output_dict["succ_observations"]
+        reward = env_output_dict["reward"]
+        done = env_output_dict["done"]
+        next_infos = env_output_dict["succ_info"]
+
         for player_idx in range(self.nbr_players):
             for env_idx in range(len(next_infos[player_idx])):
-                current_player = self.current_player_idx[env_idx] 
+                current_player = None
+                if self.current_player_idx is not None:
+                    current_player = self.current_player_idx[env_idx]
+                else:
+                    # assuming self.nbr_players==2...
+                    current_player = self.nbr_players-(player_idx+1) 
                 relative_current_player_idx = (current_player-player_idx) % self.nbr_players
                 if isinstance(action[0], dict):
                     #ga = action[other_idx]["greedy_action"][env_idx]
                     ga = action[current_player]["greedy_action"][env_idx]
+                    if self.otherplay:
+                        # expects env to be wrapped with DiscreteCombinedActionWrapper:
+                        dcaw_env = self.env.env_processes[env_idx]
+                        while not hasattr(dcaw_env, "_decode_action"):
+                            dcaw_env = dcaw_env.env 
+                        # expects other play wrapper:
+                        ow_env = dcaw_env.env
+                        # decode current player's action in the original env:
+                        decoded_ga = ow_env._decode_action( 
+                            action=dcaw_env._decode_action(ga),
+                            player_id=current_player,
+                        )
+                        # encode current player's action into other player's env:
+                        otherplayer_encoded_ga = dcaw_env._encode_action(
+                            action_dict=ow_env._encode_action(
+                                action=decoded_ga,
+                                player_id=player_idx, # other player's view point
+                            )
+                        )
+                        # int
+                        ga = otherplayer_encoded_ga
                 else:
                     #ga = action[other_idx][env_idx]
                     ga = action[current_player][env_idx]
@@ -1798,10 +1888,22 @@ class SADVecEnvWrapper(object):
                 )
 
         # update:
-        self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        if 'current_player' in next_infos[0][0]:
+            self.current_player_idx = [i["current_player"].item() for i in next_infos[0]]
+        else:
+            self.current_player_idx = None 
         # (nbr_env, )
         
-        return next_obs, reward, done, next_infos
+        output_dict = {
+            "actions":env_action, #non-sad actions
+
+            "succ_observations":next_obs, 
+            "reward":reward, 
+            "done":done, 
+            "succ_info":next_infos,
+        }
+
+        return output_dict
 
 
 

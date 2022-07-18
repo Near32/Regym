@@ -6,9 +6,12 @@ import torch
 import ray
 
 from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
-from regym.rl_algorithms.agents.dqn_agent import DQNAgent, generate_model
+from regym.rl_algorithms.agents.dqn_agent import DQNAgent
+from regym.rl_algorithms.agents.utils import generate_model, parse_and_check
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
+
+from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2
 
 
 class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
@@ -26,8 +29,11 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             algorithm=algorithm
         )
 
-    def _take_action(self, state, infos=None):
-        return DQNAgent.take_action(self, state=state, infos=infos)
+    def _take_action(self, state, infos=None, as_logit=False):
+        return DQNAgent.take_action(self, state=state, infos=infos, as_logit=as_logit)
+
+    def _query_action(self, state, infos=None, as_logit=False):
+        return DQNAgent.query_action(self, state=state, infos=infos, as_logit=as_logit)
 
     def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
         '''
@@ -102,6 +108,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             algorithm=cloned_algo,
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos)
         )
+        clone.save_path = self.save_path
         clone.async_learner = False
         clone.async_actor = True
 
@@ -139,44 +146,6 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         clone.nbr_steps = self.nbr_steps
         return clone
 
-
-def parse_and_check(kwargs: Dict,
-                    task: 'regym.environments.Task'):
-
-    # Extra Inputs:
-    kwargs['task'] = task
-
-    extra_inputs = kwargs['extra_inputs_infos']
-    for key in extra_inputs:
-        shape = extra_inputs[key]['shape']
-        for idxdim, dimvalue in enumerate(shape):
-            if isinstance(dimvalue, str):
-                path = dimvalue.split('.')
-                if len(path) > 1:
-                    pointer = kwargs
-                    for el in path:
-                        try:
-                            if hasattr(pointer, el):
-                                pointer = getattr(pointer, el)
-                            elif el in pointer:
-                                pointer = pointer[el]
-                            else:
-                                raise RuntimeError
-                        except:
-                            raise RuntimeError
-                else:
-                    pointer = path
-
-                try:
-                    pointer = int(pointer)
-                except Exception as e:
-                    print('Exception during parsing and checking:', e)
-                    raise e
-                shape[idxdim] = pointer
-
-    kwargs['task'] = None
-    
-    return kwargs
 
 def build_R2D2_Agent(task: 'regym.environments.Task',
                      config: Dict,
@@ -218,6 +187,20 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         name=f"{agent_name}_algo",
     )
 
+    if kwargs.get('use_HER', False):
+        from regym.rl_algorithms.algorithms.wrappers import latent_based_goal_predicated_reward_fn2
+        goal_predicated_reward_fn = None
+        if kwargs.get('HER_use_latent', False):
+            goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn2
+
+        algorithm = HERAlgorithmWrapper2(
+            algorithm=algorithm,
+            strategy=kwargs['HER_strategy'],
+            goal_predicated_reward_fn=goal_predicated_reward_fn,
+            extra_inputs_infos=kwargs['extra_inputs_infos'],
+        )
+
+    
     agent = R2D2Agent(
         name=agent_name,
         algorithm=algorithm,

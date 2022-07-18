@@ -56,7 +56,18 @@ def reset_noisy_layer(module):
         module._reset_noise()
 
 class ConvolutionalBody(nn.Module):
-    def __init__(self, input_shape, feature_dim=256, channels=[3, 3], kernel_sizes=[1], strides=[1], paddings=[0], dropout=0.0, non_linearities=[nn.ReLU]):
+    def __init__(
+        self, 
+        input_shape, 
+        feature_dim=256, 
+        channels=[3, 3], 
+        kernel_sizes=[1], 
+        strides=[1], 
+        paddings=[0], 
+        dropout=0.0, 
+        non_linearities=[nn.ReLU],
+        extra_inputs_infos: Dict={},
+        ):
         '''
         Default input channels assume a RGB image (3 channels).
 
@@ -70,6 +81,8 @@ class ConvolutionalBody(nn.Module):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
+
+        TODO: update calls to this constructor to use extra_inputs_infos if needs be...
         '''
         super(ConvolutionalBody, self).__init__()
         self.dropout = dropout
@@ -89,6 +102,13 @@ class ConvolutionalBody(nn.Module):
         h_dim = input_shape[1]
         w_dim = input_shape[2]
         in_ch = channels[0]
+        
+        for key in extra_inputs_infos:
+            shape = extra_inputs_infos[key]['shape']
+            assert isinstance(shape, list)
+            assert shape[1]==h_dim and shape[2]==w_dim            
+            in_ch += shape[-1]
+
         for idx, (cfg, k, s, p) in enumerate(zip(channels[1:], kernel_sizes, strides, paddings)):
             if cfg == 'M':
                 layer = nn.MaxPool2d(kernel_size=k, stride=s)
@@ -144,6 +164,16 @@ class ConvolutionalBody(nn.Module):
         return self.features(x)
 
     def forward(self, x, non_lin_output=True):
+        if isinstance(x, tuple):
+            x, frame_states = inputs[0], copy_hdict(inputs[1])
+            extra_inputs = extract_subtree(
+                in_dict=frame_states,
+                node_id='extra_inputs',
+            )
+
+            extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+            if len(extra_inputs): x = torch.cat([x]+extra_inputs, dim=-1)
+
         feat_map = self._compute_feat_map(x)
 
         # View -> Reshape
@@ -1402,6 +1432,7 @@ class LinearLstmBody2(nn.Module):
         gate=F.relu,
         dropout=0.0,
         add_non_lin_final_layer=False,
+        use_residual_connection=False,
         layer_init_fn=layer_init,
         extra_inputs_infos: Dict={},
         ):
@@ -1420,6 +1451,7 @@ class LinearLstmBody2(nn.Module):
         '''
         super(LinearLstmBody2, self).__init__()
         self.state_dim = state_dim
+        self.use_residual_connection = use_residual_connection
 
         # verify featureshape = feature_dim
         linear_input_dim = self.state_dim
@@ -1433,6 +1465,7 @@ class LinearLstmBody2(nn.Module):
         
         if self.linear_hidden_units is None:
             raise NotImplementedError
+            # DummyBody?
         else:
             if isinstance(self.linear_hidden_units, tuple):
                 self.linear_hidden_units = list(self.linear_hidden_units)
@@ -1457,6 +1490,8 @@ class LinearLstmBody2(nn.Module):
             self.linear_post_hidden_units = self.linear_post_hidden_units + [feature_dim]
 
             linear_post_input_dim = self.lstm_body.get_feature_shape()    
+            if self.use_residual_connection: linear_post_input_dim += self.linear_body.get_feature_shape()
+
             self.linear_body_post = FCBody(
                 state_dim=linear_post_input_dim,
                 hidden_units=self.linear_post_hidden_units,
@@ -1495,6 +1530,9 @@ class LinearLstmBody2(nn.Module):
         
         x, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
 
+        if self.use_residual_connection:
+            x = torch.cat([features, x], dim=-1)
+
         if self.linear_post_hidden_units is not None:
             x = self.linear_body_post(x)
 
@@ -1507,10 +1545,17 @@ class LinearLstmBody2(nn.Module):
         return self.state_dim
 
     def get_feature_shape(self):
+        fs = 0
+        if self.use_residual_connection:
+            fs += self.linear_body.get_feature_shape()
+
         if self.linear_post_hidden_units is None:
-            return self.lstm_body.get_feature_shape()
+            fs += self.lstm_body.get_feature_shape()
         else:
-            return self.linear_body_post.get_feature_shape()
+            fs += self.linear_body_post.get_feature_shape()
+
+        return fs
+
 
 class LSTMBody(nn.Module):
     def __init__(

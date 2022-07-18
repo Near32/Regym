@@ -10,6 +10,7 @@ from regym.rl_algorithms.utils import is_leaf
 class Algorithm(object):
     def __init__(self, name="algo"):
         self.name = name
+        self.unwrapped = self
 
     def get_models(self):
         raise NotImplementedError
@@ -23,5 +24,8 @@ class Algorithm(object):
     def get_update_count(self):
         raise NotImplementedError
 
+    def parameters(self):
+        raise NotImplementedError
+        
     def clone(self, with_replay_buffer=False):
         raise NotImplementedError

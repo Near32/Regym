@@ -1,19 +1,41 @@
-from copy import deepcopy
+from typing import Dict, List 
+
+import copy
+import time 
+from functools import partial 
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F 
 
-from ...networks import random_sample
+import ray
+
+import regym
+from ..algorithm import Algorithm
+from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices
+from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdict
+from ...networks import hard_update, random_sample
 from ...replay_buffers import Storage
+
 from . import ppo_loss, rnd_loss, ppo_vae_loss
 from . import ppo_actor_loss, ppo_critic_loss
 
+
 summary_writer = None 
 
-class PPOAlgorithm():
-    def __init__(self, kwargs, model, optimizer=None, target_intr_model=None, predict_intr_model=None, sum_writer=None):
+
+class PPOAlgorithm(Algorithm):
+    def __init__(
+        self, 
+        kwargs, 
+        model, 
+        optimizer=None, 
+        target_intr_model=None, 
+        predict_intr_model=None, 
+        sum_writer=None,
+        name="ppo_algo"):
         '''
         TODO specify which values live inside of kwargs
         Refer to original paper for further explanation: https://arxiv.org/pdf/1707.06347.pdf
@@ -31,8 +53,13 @@ class PPOAlgorithm():
         adam_eps: (float), Small Epsilon value used for ADAM optimizer. Prevents numerical instability when v^{hat} (Second momentum estimator) is near 0.
         model: (Pytorch nn.Module) Used to represent BOTH policy network and value network
         '''
-        self.kwargs = deepcopy(kwargs)
+        super(PPOAlgorithm, self).__init__(name=name)
+
+        self.train_request_count =0 
+
+        self.kwargs = copy.deepcopy(kwargs)
         self.nbr_actor = self.kwargs['nbr_actor']
+        
         self.use_rnd = False
         if target_intr_model is not None and predict_intr_model is not None:
             self.use_rnd = True
@@ -56,7 +83,7 @@ class PPOAlgorithm():
         self.ext_reward_std = 1.0
             
         self.use_vae = False
-        if 'use_vae' in self.kwargs and kwargs['use_vae']:
+        if 'use_vae' in self.kwargs and self.kwargs['use_vae']:
             self.use_vae = True
 
         self.model = model
@@ -72,14 +99,17 @@ class PPOAlgorithm():
             if self.use_rnd: parameters = list(parameters)+list(self.predict_intr_model.parameters())
             # Tuning learning rate with respect to the number of actors:
             # Following: https://arxiv.org/abs/1705.04862
-            lr = kwargs['learning_rate'] 
-            if kwargs['lr_account_for_nbr_actor']:
+            lr = self.kwargs['learning_rate'] 
+            if self.kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
             print(f"Learning rate: {lr}")
-            self.optimizer = optim.Adam(parameters, lr=lr, eps=kwargs['adam_eps'])
+            self.optimizer = optim.Adam(parameters, lr=lr, eps=float(self.kwargs['adam_eps']))
         else: self.optimizer = optimizer
 
-        self.recurrent = False
+        # DEPRECATED in order to allow extra_inputs infos 
+        # stored in the rnn_states that acts as frame_states...
+        #self.recurrent = False
+        self.recurrent = True
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
         # elements that do not concern the model trained by this algorithm, given that it is now use-able inside I2A...
         self.recurrent_nn_submodule_names = [hyperparameter for hyperparameter, value in self.kwargs.items() if isinstance(value, str) and 'RNN' in value]
@@ -89,10 +119,48 @@ class PPOAlgorithm():
         self.reset_storages()
 
         global summary_writer
-        summary_writer = sum_writer
-        self.param_update_counter = 0
-        self.actor_param_update_counter = 0
-        self.critic_param_update_counter = 0
+        if sum_writer is not None: summary_writer = sum_writer
+        self.summary_writer = summary_writer
+        if regym.RegymManager is not None:
+            from regym import RaySharedVariable
+            try:
+                self._param_update_counter = ray.get_actor(f"{self.name}.param_update_counter")
+            except ValueError:  # Name is not taken.
+                self._param_update_counter = RaySharedVariable.options(name=f"{self.name}.param_update_counter").remote(0)
+        else:
+            from regym import SharedVariable
+            self._param_update_counter = SharedVariable(0)
+    
+    @property
+    def param_update_counter(self):
+        if isinstance(self._param_update_counter, ray.actor.ActorHandle):
+            return ray.get(self._param_update_counter.get.remote())    
+        else:
+            return self._param_update_counter.get()
+
+    @param_update_counter.setter
+    def param_update_counter(self, val):
+        if isinstance(self._param_update_counter, ray.actor.ActorHandle):
+            self._param_update_counter.set.remote(val) 
+        else:
+            self._param_update_counter.set(val)
+    
+    def get_models(self):
+        return {'model': self.model}
+
+    def set_models(self, models_dict):
+        if "model" in models_dict:
+            hard_update(self.model, models_dict["model"])
+        
+    def get_nbr_actor(self):
+        nbr_actor = self.nbr_actor
+        return nbr_actor
+
+    def set_nbr_actor(self, nbr_actor):
+        self.nbr_actor = nbr_actor
+
+    def get_update_count(self):
+        return self.param_update_counter
 
     def reset_storages(self, nbr_actor=None):
         if nbr_actor is not None:
@@ -100,6 +168,7 @@ class PPOAlgorithm():
 
         if self.storages is not None:
             for storage in self.storages: storage.reset()
+            return 
 
         self.storages = []
         for i in range(self.nbr_actor):
@@ -114,7 +183,25 @@ class PPOAlgorithm():
                 self.storages[-1].add_key('int_adv')
                 self.storages[-1].add_key('target_int_f')
 
+    def stored_experiences(self):
+        self.train_request_count += 1
+        nbr_stored_experiences = sum([len(storage) for storage in self.storages])
+
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
+        
+        return nbr_stored_experiences
+
     def train(self):
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        if summary_writer is None:
+            summary_writer = self.summary_writer
+            
         # Compute Returns and Advantages:
         for idx, storage in enumerate(self.storages): 
             if len(storage) <= 1: continue
@@ -130,38 +217,52 @@ class PPOAlgorithm():
                 for ob in storage.s: self.update_obs_mean_std(ob)
         
                 
-        states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states = self.retrieve_values_from_storages()
+        # states, actions, next_states, log_probs_old, returns, advantages, std_advantages, \
+        # int_returns, int_advantages, std_int_advantages, \
+        # target_random_features, rnn_states = self.retrieve_values_from_storages()
+        start = time.time()
+        samples = self.retrieve_values_from_storages()
+        end = time.time()
 
-        if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/RetrieveValuesFn', end-start, self.param_update_counter)
 
+        #if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
+
+        start = time.time()
         for it in range(self.kwargs['optimization_epochs']):
-            self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
+            self.optimize_model(samples)
+            #self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
+        end = time.time()
+        
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizeModelFn', end-start, self.param_update_counter)
         
         self.reset_storages()
 
-    def reformat_rnn_states(self, rnn_states):
-        '''
-        This function reformats the :param rnn_states: into 
-        a dict of dict of list of batched rnn_states.
-        :param rnn_states: list of dict of dict of list: each element is an rnn_state where:
-            - the first dictionnary has the name of the recurrent module in the architecture
-              as keys.
-            - the second dictionnary has the keys 'hidden', 'cell'.
-            - the items of this second dictionnary are lists of actual hidden/cell states for the GRU/LSTMBody.
-        '''
-        reformated_rnn_states = {k: {'hidden': [list()], 'cell': [list()]} for k in rnn_states[0]}
-        for rnn_state in rnn_states:
-            for k in rnn_state:
-                hstates, cstates = rnn_state[k]['hidden'], rnn_state[k]['cell']
-                for idx_layer, (h, c) in enumerate(zip(hstates, cstates)):
-                    reformated_rnn_states[k]['hidden'][0].append(h)
-                    reformated_rnn_states[k]['cell'][0].append(c)
-        for k in reformated_rnn_states:
-            hstates, cstates = reformated_rnn_states[k]['hidden'], reformated_rnn_states[k]['cell']
-            hstates = torch.cat(hstates[0], dim=0)
-            cstates = torch.cat(cstates[0], dim=0)
-            reformated_rnn_states[k] = {'hidden': [hstates], 'cell': [cstates]}
-        return reformated_rnn_states
+    # def reformat_rnn_states(self, rnn_states):
+    #     '''
+    #     This function reformats the :param rnn_states: into 
+    #     a dict of dict of list of batched rnn_states.
+    #     :param rnn_states: list of dict of dict of list: each element is an rnn_state where:
+    #         - the first dictionnary has the name of the recurrent module in the architecture
+    #           as keys.
+    #         - the second dictionnary has the keys 'hidden', 'cell'.
+    #         - the items of this second dictionnary are lists of actual hidden/cell states for the GRU/LSTMBody.
+    #     '''
+    #     reformated_rnn_states = {k: {'hidden': [list()], 'cell': [list()]} for k in rnn_states[0]}
+    #     for rnn_state in rnn_states:
+    #         for k in rnn_state:
+    #             hstates, cstates = rnn_state[k]['hidden'], rnn_state[k]['cell']
+    #             for idx_layer, (h, c) in enumerate(zip(hstates, cstates)):
+    #                 reformated_rnn_states[k]['hidden'][0].append(h)
+    #                 reformated_rnn_states[k]['cell'][0].append(c)
+    #     for k in reformated_rnn_states:
+    #         hstates, cstates = reformated_rnn_states[k]['hidden'], reformated_rnn_states[k]['cell']
+    #         hstates = torch.cat(hstates[0], dim=0)
+    #         cstates = torch.cat(cstates[0], dim=0)
+    #         reformated_rnn_states[k] = {'hidden': [hstates], 'cell': [cstates]}
+    #     return reformated_rnn_states
 
     def normalize_ext_rewards(self, storage_idx):
         normalized_ext_rewards = []
@@ -263,65 +364,72 @@ class PPOAlgorithm():
         self.update_int_return_mean_std(int_returns.detach().cpu())
 
     def retrieve_values_from_storages(self):
-        full_states = []
-        full_actions = []
-        full_log_probs_old = []
-        full_returns = []
-        full_advantages = []
-        full_rnn_states = None
-        full_next_states = None
-        full_int_returns = None
-        full_int_advantages = None
-        full_target_random_features = None
-        full_std_int_advantages = None
+        '''
+        Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
+        This function samples from each storage, concatenate the sampled elements on the batch dimension,
+        and maintains the hierarchy of dictionnaries.
+        '''
+        keys=['s', 'a', 'log_pi_a', 'ret', 'adv']
+
+        fulls = {}
+        
         if self.use_rnd:
-            full_next_states = []
-            full_int_returns = []
-            full_int_advantages = []
-            full_target_random_features = []
-        if self.recurrent:
-            full_rnn_states = []
+            keys += ['succ_s', 'int_ret', 'int_adv', 'target_int_f']
             
+        if self.recurrent:
+            keys += ['rnn_states'] #, 'next_rnn_states']
+        
+        """
+        if self.goal_oriented:
+            keys += ['g']
+        """
+
+        for key in keys:    
+            fulls[key] = []
+
         for storage in self.storages:
             # Check that there is something in the storage 
-            if len(storage) <= 1: continue
-            cat = storage.cat(['s', 'a', 'log_pi_a', 'ret', 'adv'])
-            states, actions, log_probs_old, returns, advantages = map(lambda x: torch.cat(x, dim=0), cat)
-            full_states.append(states)
-            full_actions.append(actions)
-            full_log_probs_old.append(log_probs_old)
-            full_returns.append(returns[:-1])
-            full_advantages.append(advantages[:-1])
-            # Contain next state return and dummy advantages: so the size is N+1 spots: 
-            # not used during optimization, but necessary to compute the returns and advantages of previous states....
-            if self.use_rnd:
-                cat = storage.cat(['succ_s', 'int_ret', 'int_adv', 'target_int_f'])
-                next_states, int_returns, int_advantages, target_random_features = map(lambda x: torch.cat(x, dim=0), cat)
-                full_next_states.append(next_states)
-                full_int_returns.append(int_returns[:-1])
-                full_int_advantages.append(int_advantages[:-1])
-                full_target_random_features.append(target_random_features)
-            if self.recurrent:
-                rnn_states = storage.cat(['rnn_states'])[0]
-                full_rnn_states += rnn_states
+            storage_size = len(storage)
+                
+            if storage_size <= 1: continue
+            sample = storage.cat(keys)
             
-        full_states = torch.cat(full_states, dim=0)
-        full_actions = torch.cat(full_actions, dim=0)
-        full_log_probs_old = torch.cat(full_log_probs_old, dim=0)
-        full_returns = torch.cat(full_returns, dim=0)
-        full_advantages = torch.cat(full_advantages, dim=0)
-        full_std_advantages = self.standardize(full_advantages).squeeze()
-        if self.use_rnd:
-            full_next_states = torch.cat(full_next_states, dim=0)
-            full_int_returns = torch.cat(full_int_returns, dim=0)
-            full_int_advantages = torch.cat(full_int_advantages, dim=0)
-            full_target_random_features = torch.cat(full_target_random_features, dim=0)
-            full_std_int_advantages = self.standardize(full_int_advantages).squeeze()
-            
-        return full_states, full_actions, full_next_states, full_log_probs_old, \
-               full_returns, full_advantages, full_std_advantages, \
-               full_int_returns, full_int_advantages, full_std_int_advantages, \
-               full_target_random_features, full_rnn_states
+            values = {}
+            for key, value in zip(keys, sample):
+                #value = value.tolist()
+                if isinstance(value[0], dict): 
+                    value = _concatenate_list_hdict(
+                        lhds=value, 
+                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        preprocess_fn=(lambda x:x),
+                    )
+                else:
+                    value = torch.cat(value, dim=0)
+                values[key] = value 
+
+            for key, value in values.items():
+                fulls[key].append(value)
+        
+        keys = list(fulls.keys())
+        for key in keys:
+            value = fulls[key]
+            if len(value) >1:
+                if isinstance(value[0], dict):
+                    value = _concatenate_list_hdict(
+                        lhds=value, 
+                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        preprocess_fn=(lambda x:x),
+                    )
+                else:
+                    value = torch.cat(value, dim=0)
+            else:
+                value = value[0]
+
+            fulls[key] = value
+            if 'adv' in key:
+                fulls[f'std_{key}'] = self.standardize(value).squeeze()
+
+        return fulls
 
     def standardize(self, x):
         stable_eps = 1e-30
@@ -412,25 +520,48 @@ class PPOAlgorithm():
         if self.running_counter_obs >= self.update_period_obs:
           self.running_counter_obs = 0
 
-    def optimize_model(self, states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states=None):
+    #def optimize_model(self, states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states=None):
+    def optimize_model(self, samples):
         global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        
         # What is this: create dictionary to store length of each part of the recurrent submodules of the current model
-        nbr_layers_per_rnn = None
-        if self.recurrent:
-            nbr_layers_per_rnn = {recurrent_submodule_name: len(rnn_states[recurrent_submodule_name]['hidden'])
-                                  for recurrent_submodule_name in rnn_states}
+        # nbr_layers_per_rnn = None
+        # if self.recurrent:
+        #     nbr_layers_per_rnn = {recurrent_submodule_name: len(rnn_states[recurrent_submodule_name]['hidden'])
+        #                           for recurrent_submodule_name in rnn_states}
+
+        start = time.time()
+
+        states = samples['s']
+        rnn_states = samples['rnn_states']
+        actions = samples['a']
+        log_probs_old = samples['log_pi_a']
+        returns = samples['ret']
+        advantages = samples['adv']
+        std_advantages = samples['std_adv']
+
+        if self.use_rnd:
+            next_states = samples['succ_s']
+            int_returns = samples['int_ret']
+            int_advantages = samples['int_adv']
+            std_int_advantages = samples['std_int_adv']
+            target_random_features = samples['target_int_f']
 
         if self.kwargs['mini_batch_size'] == 'None':
-            sampler = [np.arange(advantages.size(0))]
+            sampler = [np.arange(samples['s'].size(0))]
         else: 
-            sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
+            sampler = random_sample(np.arange(samples['s'].size(0)), self.kwargs['mini_batch_size'])
+            #sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
             
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
             
             sampled_rnn_states = None
             if self.recurrent:
-                sampled_rnn_states = self.calculate_rnn_states_from_batch_indices(rnn_states, batch_indices, nbr_layers_per_rnn)
+                #sampled_rnn_states = self.calculate_rnn_states_from_batch_indices(rnn_states, batch_indices, nbr_layers_per_rnn)
+                sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
 
             sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
             sampled_actions = actions[batch_indices].cuda() if self.kwargs['use_cuda'] else actions[batch_indices]
@@ -486,7 +617,7 @@ class PPOAlgorithm():
                                              pred_intr_model=self.predict_intr_model,
                                              intrinsic_reward_ratio=self.kwargs['rnd_loss_int_ratio'],
                                              iteration_count=self.param_update_counter,
-                                             summary_writer=summary_writer )
+                                             summary_writer=self.summary_writer )
             elif self.use_vae:
                 loss = ppo_vae_loss.compute_loss(sampled_states, 
                                              sampled_actions, 
@@ -501,7 +632,7 @@ class PPOAlgorithm():
                                              vae_weight=self.kwargs['vae_weight'],
                                              model=self.model,
                                              iteration_count=self.param_update_counter,
-                                             summary_writer=summary_writer)
+                                             summary_writer=self.summary_writer)
             else:
                 loss = ppo_loss.compute_loss(sampled_states, 
                                              sampled_actions, 
@@ -516,7 +647,7 @@ class PPOAlgorithm():
                                              value_weight=self.kwargs['value_weight'],
                                              model=self.model,
                                              iteration_count=self.param_update_counter,
-                                             summary_writer=summary_writer)
+                                             summary_writer=self.summary_writer)
 
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
@@ -531,16 +662,80 @@ class PPOAlgorithm():
                         summary_writer.add_histogram(f"Training/{name}", param.grad.cpu(), self.param_update_counter)
                 '''
                 if self.use_rnd:
-                    summary_writer.add_scalar('Training/IntRewardMean', self.int_reward_mean.cpu().item(), self.param_update_counter)
-                    summary_writer.add_scalar('Training/IntRewardStd', self.int_reward_std.cpu().item(), self.param_update_counter)
+                    self.summary_writer.add_scalar('Training/IntRewardMean', self.int_reward_mean.cpu().item(), self.param_update_counter)
+                    self.summary_writer.add_scalar('Training/IntRewardStd', self.int_reward_std.cpu().item(), self.param_update_counter)
 
-    def calculate_rnn_states_from_batch_indices(self, rnn_states, batch_indices, nbr_layers_per_rnn):
-        sampled_rnn_states = {k: {'hidden': [None]*nbr_layers_per_rnn[k], 'cell': [None]*nbr_layers_per_rnn[k]} for k in rnn_states}
-        for recurrent_submodule_name in sampled_rnn_states:
-            for idx in range(nbr_layers_per_rnn[recurrent_submodule_name]):
-                sampled_rnn_states[recurrent_submodule_name]['hidden'][idx] = rnn_states[recurrent_submodule_name]['hidden'][idx][batch_indices].cuda() if self.kwargs['use_cuda'] else rnn_states[recurrent_submodule_name]['hidden'][idx][batch_indices]
-                sampled_rnn_states[recurrent_submodule_name]['cell'][idx]   = rnn_states[recurrent_submodule_name]['cell'][idx][batch_indices].cuda() if self.kwargs['use_cuda'] else rnn_states[recurrent_submodule_name]['cell'][idx][batch_indices]
-        return sampled_rnn_states
+        end = time.time()
+        if self.summary_writer is not None:
+            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizationLoss', end-start, self.param_update_counter)
+            self.summary_writer.flush()
+
+        return
+
+    # def calculate_rnn_states_from_batch_indices(self, rnn_states, batch_indices, nbr_layers_per_rnn):
+    #     sampled_rnn_states = {k: {'hidden': [None]*nbr_layers_per_rnn[k], 'cell': [None]*nbr_layers_per_rnn[k]} for k in rnn_states}
+    #     for recurrent_submodule_name in sampled_rnn_states:
+    #         for idx in range(nbr_layers_per_rnn[recurrent_submodule_name]):
+    #             sampled_rnn_states[recurrent_submodule_name]['hidden'][idx] = rnn_states[recurrent_submodule_name]['hidden'][idx][batch_indices].cuda() if self.kwargs['use_cuda'] else rnn_states[recurrent_submodule_name]['hidden'][idx][batch_indices]
+    #             sampled_rnn_states[recurrent_submodule_name]['cell'][idx]   = rnn_states[recurrent_submodule_name]['cell'][idx][batch_indices].cuda() if self.kwargs['use_cuda'] else rnn_states[recurrent_submodule_name]['cell'][idx][batch_indices]
+    #     return sampled_rnn_states
+
+    def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
+        if not(with_replay_buffer): 
+            storages = self.storages
+            self.storages = None
+            
+        sum_writer = self.summary_writer
+        self.summary_writer = None
+        
+        param_update_counter = self._param_update_counter
+        self._param_update_counter = None 
+
+        cloned_algo = copy.deepcopy(self)
+        
+        if not(with_replay_buffer): 
+            self.storages = storages
+        
+        self.summary_writer = sum_writer
+        
+        self._param_update_counter = param_update_counter
+        cloned_algo._param_update_counter = param_update_counter
+
+        # Goes through all variables 'Proxy' (dealing with multiprocessing)
+        # contained in this class and removes them from clone
+        if not(clone_proxies):
+            proxy_key_values = [
+                (key, value) 
+                for key, value in cloned_algo.__dict__.items() 
+                if ('Proxy' in str(type(value)))
+            ]
+            for key, value in proxy_key_values:
+                setattr(cloned_algo, key, None)
+
+        return cloned_algo
+
+    def async_actor(self):        
+        storages = self.storages
+        self.storages = None
+        
+        sum_writer = self.summary_writer
+        self.summary_writer = None
+        
+        param_update_counter = self._param_update_counter
+        self._param_update_counter = None 
+
+        cloned_algo = copy.deepcopy(self)
+        
+        self.storages = storages
+        cloned_algo.storages = storages
+
+        self.summary_writer = sum_writer
+        cloned_algo.summary_writer = sum_writer
+
+        self._param_update_counter = param_update_counter
+        cloned_algo._param_update_counter = param_update_counter
+
+        return cloned_algo
 
     @staticmethod
     def check_mandatory_kwarg_arguments(kwargs: dict):

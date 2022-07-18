@@ -63,7 +63,9 @@ def compute_loss(states: torch.Tensor,
     '''
     # Sample actions from the current model outputs: which is actually the training batch action 'actions' (cf bodies.py CategoricalQNet)
     current_actions = prediction["a"]
-    state_action_values_g = state_action_values.gather(dim=1, index=current_actions.unsqueeze(1)).squeeze(1)
+    if len(current_actions.shape) != 2:
+        current_actions = current_actions.unsqueeze(1)
+    state_action_values_g = state_action_values.gather(dim=1, index=current_actions).squeeze(1)
     
 
     ############################

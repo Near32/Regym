@@ -684,8 +684,8 @@ def compute_loss(states: torch.Tensor,
                  model: torch.nn.Module,
                  target_model: torch.nn.Module,
                  gamma: float = 0.99,
-                 weights_decay_lambda: float = 1.0,
-                 weights_entropy_lambda: float = 0.1,
+                 weights_decay_lambda: float = 0.0,
+                 weights_entropy_lambda: float = 0.0,
                  use_PER: bool = False,
                  PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
@@ -965,13 +965,7 @@ def compute_loss(states: torch.Tensor,
     
     Q_Si_Ai_value = value_function_rescaling(unscaled_Q_Si_Ai_value)    
     scaled_bellman_target_Sipn_onlineGreedyAction = value_function_rescaling(unscaled_bellman_target_Sipn_onlineGreedyAction)
-    '''
-    # TODO: decide how to handle HER augmentation...
-    if HER_target_clamping:
-        # clip the target to [-50,0]
-        expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)
-    '''
-
+    
     # Compute loss:
     # MSE ?
     """
@@ -980,6 +974,13 @@ def compute_loss(states: torch.Tensor,
     """
 
     # Abs:
+    if HER_target_clamping:
+        # clip the unscaled target to [-50,0]
+        unscaled_bellman_target_Sipn_onlineGreedyAction = torch.clamp(
+            unscaled_bellman_target_Sipn_onlineGreedyAction, 
+            -1. / (1 - gamma),
+            0.0
+        )
     td_error = torch.abs(unscaled_bellman_target_Sipn_onlineGreedyAction.detach() - unscaled_Q_Si_Ai_value)
     scaled_td_error = torch.abs(scaled_bellman_target_Sipn_onlineGreedyAction.detach() - Q_Si_Ai_value)
     assert list(td_error.shape) == [batch_size, training_length, 1]
@@ -1008,14 +1009,19 @@ def compute_loss(states: torch.Tensor,
     assert kwargs["r2d2_loss_masking"], "r2d2_loss_masking must be True for this test."
     if kwargs["r2d2_loss_masking"]:
         mask = torch.ones_like(diff_squared)
-        
+        """
         assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
         if kwargs['r2d2_loss_masking_n_step_regularisation']:
             mask[:, -kwargs["n_step"]:, ...] = 0
 
         # maybe but 1 back:
         mask[:,-1, ...] = (1-training_non_terminals[:,-1,...])
-        
+        """
+        # Combined:
+        assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
+        if kwargs['r2d2_loss_masking_n_step_regularisation']:
+            mask[:, -kwargs["n_step"]:, ...] = (1-training_non_terminals[:,-kwargs['n_step']:,...])
+
         loss_per_item = loss_per_item*mask
         loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
     else:

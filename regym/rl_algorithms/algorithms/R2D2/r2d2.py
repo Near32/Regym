@@ -84,7 +84,10 @@ class R2D2Algorithm(DQNAlgorithm):
         self.storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
         if self.recurrent:  keys += ['rnn_states']
+        """
+        # depr : goal update
         if self.goal_oriented:    keys += ['g']
+        """
         
         # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         circular_keys={'succ_s':'s'}
@@ -328,8 +331,11 @@ class R2D2Algorithm(DQNAlgorithm):
             else:
                 current_exp_dict = exp_dict
             
+            """
+            # depr : goal update
             if self.goal_oriented and 'g' not in current_exp_dict:
                 current_exp_dict['g'] = current_exp_dict['goals']['desired_goals']['s']
+            """
 
             # Store in relevant sequence buffer:
             self.sequence_replay_buffers[actor_index].append(current_exp_dict)

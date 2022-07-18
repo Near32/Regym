@@ -55,11 +55,20 @@ def run_episode(env, agent, training, max_episode_length=math.inf):
     return trajectory
 
 
-def run_episode_parallel(env,
-                            agent,
-                            training,
-                            max_episode_length=1e30,
-                            env_configs=None):
+def run_episode_parallel(
+    env,
+    agent,
+    training,
+    max_episode_length=1e30,
+    env_configs=None,
+    save_traj=False,
+    render_mode="rgb_array",
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info"):
     '''
     Runs a single multi-agent rl loop until termination.
     The observations vector is of length n, where n is the number of agents
@@ -71,8 +80,11 @@ def run_episode_parallel(env,
     :param env_configs: configuration dictionnary to use when resetting the environments.
     :returns: Trajectory (o,a,r,o')
     '''
-    observations, info = env.reset(env_configs=env_configs)
-
+    #observations, info = env.reset(env_configs=env_configs)
+    env_reset_output_dict = env.reset(env_configs=env_configs)
+    observations = env_reset_output_dict[obs_key]
+    info = env_reset_output_dict[info_key]
+    
     nbr_actors = env.get_nbr_envs()
     agent.set_nbr_actor(nbr_actors)
     agent.reset_actors()
@@ -83,12 +95,18 @@ def run_episode_parallel(env,
     #generator = tqdm(range(int(max_episode_length))) if max_episode_length != math.inf else range(int(1e20))
     #for step in generator:
     for step in range(int(max_episode_length)):
+        realdone = []
         action = agent.take_action(
             state=observations,
             infos=info
         )
         
-        succ_observations, reward, done, succ_info = env.step(action, only_progress_non_terminated=True)
+        #succ_observations, reward, done, succ_info = env.step(action, only_progress_non_terminated=True)
+        env_output_dict = env.step(actions, only_progress_non_terminated=True)
+        succ_observations = env_output_dict[succ_obs_key]
+        reward = env_output_dict[reward_key]
+        done = env_output_dict[done_key]
+        succ_info = env_output_dict[succ_info_key]
 
         if training:
             agent.handle_experience(
@@ -105,27 +123,37 @@ def run_episode_parallel(env,
         for actor_index in range(nbr_actors):
             if previous_done[actor_index]:
                 continue
-            batch_index +=1
+            #batch_index +=1
+            # since `only_progress_non_terminated=True`:
+            batch_index = actor_index 
 
             # Bookkeeping of the actors whose episode just ended:
             d = done[actor_index]
             if ('real_done' in succ_info[actor_index]):
                 d = succ_info[actor_index]['real_done']
+                realdone.append(d)
 
             if d and not(previous_done[actor_index]):
                 batch_idx_done_actors_among_not_done.append(batch_index)
 
             pa_obs = observations[batch_index]
+            pa_info = info[0][batch_index]
+            if save_traj:
+                pa_obs = env.render(render_mode, env_indices=[batch_index])[0]
+            
             pa_a = action[batch_index]
             pa_r = reward[batch_index]
             pa_succ_obs = succ_observations[batch_index]
             pa_done = done[actor_index]
             pa_int_r = 0.0
+
             if getattr(agent.algorithm, "use_rnd", False):
                 get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
                 if callable(get_intrinsic_reward):
                     pa_int_r = agent.get_intrinsic_reward(actor_index)
-            per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
+            
+            if not previous_done[actor_index]:
+                per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) )
 
         observations = copy.deepcopy(succ_observations)
         info = copy.deepcopy(succ_info)
@@ -147,22 +175,50 @@ def run_episode_parallel(env,
             if info[idx] is None:   del info[idx]
         """
 
-        if len(info):
-            allrealdone =  all([i['real_done'] if 'real_done' in i else False for i in info])
+        if len(realdone):
+            allrealdone =  all(realdone)
         if alldone or allrealdone:
             break
 
     return per_actor_trajectories
 
-def test_agent(env, agent, update_count, nbr_episode, sum_writer, iteration, base_path, nbr_save_traj=1, save_traj=False):
+def test_agent(
+    env, 
+    agent, 
+    update_count, 
+    nbr_episode, 
+    sum_writer, 
+    iteration, 
+    base_path, 
+    nbr_save_traj=1, 
+    save_traj=False,
+    render_mode="rgb_array",
+    save_traj_length_divider=1,
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info",
+    ):
     max_episode_length = 1e4
     env.set_nbr_envs(nbr_episode)
 
-    trajectory = run_episode_parallel(env,
-                                      agent,
-                                      training=False,
-                                      max_episode_length=max_episode_length,
-                                      env_configs=None)
+    trajectory = run_episode_parallel(
+        env,
+        agent,
+        training=False,
+        max_episode_length=max_episode_length,
+        env_configs=None,
+        save_traj=save_traj,
+        render_mode=render_mode,
+        obs_key=obs_key,
+        succ_obs_key=succ_obs_key,
+        reward_key=reward_key,
+        done_key=done_key,
+        info_key=info_key,
+        succ_info_key=succ_info_key,
+    )
 
     total_return = [ sum([ exp[2] for exp in t]) for t in trajectory]
     mean_total_return = sum( total_return) / len(trajectory)
@@ -209,7 +265,14 @@ def test_agent(env, agent, update_count, nbr_episode, sum_writer, iteration, bas
             gif_traj = [ exp[0] for exp in trajectory[actor_idx]]
             gif_data = [np.cumsum([ exp[2] for exp in trajectory[actor_idx]])]
             begin = time.time()
-            save_traj_with_graph(gif_traj, gif_data, episode=iteration, actor_idx=actor_idx, path=base_path)
+            save_traj_with_graph(
+                gif_traj, 
+                gif_data, 
+                divider=save_traj_length_divider,
+                episode=iteration, 
+                actor_idx=actor_idx, 
+                path=base_path
+            )
             end = time.time()
             eta = end-begin
             print(f'{actor_idx+1} / {nbr_save_traj} :: Time: {eta} sec.')
@@ -228,6 +291,7 @@ def async_gather_experience_parallel(
     base_path='./',
     benchmarking_record_episode_interval=None,
     step_hooks=[]):
+    raise NotImplementedError('needs to be updated with dictionnary output from vec_env..')
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -309,6 +373,7 @@ def async_gather_experience_parallel1(
     base_path='./',
     benchmarking_record_episode_interval=None,
     step_hooks=[]):
+    raise NotImplementedError('needs to be updated with dictionnary output from vec_env..')
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -385,17 +450,30 @@ def learner_loop(
     return agent
 
 #@ray.remote(num_gpus=0.5)
-def gather_experience_parallel(task,
-                                agent,
-                                training,
-                                max_obs_count=1e7,
-                                test_obs_interval=1e4,
-                                test_nbr_episode=10,
-                                env_configs=None,
-                                sum_writer=None,
-                                base_path='./',
-                                benchmarking_record_episode_interval=None,
-                                step_hooks=[]):
+def gather_experience_parallel(
+    task,
+    agent,
+    training,
+    max_obs_count=1e7,
+    test_obs_interval=1e4,
+    test_nbr_episode=10,
+    env_configs=None,
+    sum_writer=None,
+    base_path='./',
+    benchmarking_record_episode_interval=None,
+    save_traj_length_divider=1,
+    render_mode="rgb_array",
+    step_hooks=[],
+    sad=False,
+    vdn=False,
+    nbr_players=2,
+    obs_key="observations",
+    succ_obs_key="succ_observations",
+    reward_key="reward",
+    done_key="done",
+    info_key="info",
+    succ_info_key="succ_info",
+    ):
     '''
     Runs a single multi-agent rl loop until the number of observation, `max_obs_count`, is reached.
     The observations vector is of length n, where n is the number of agents.
@@ -415,7 +493,10 @@ def gather_experience_parallel(task,
     env = task.env
     test_env = task.test_env
 
-    observations, info = env.reset(env_configs=env_configs)
+    #observations, info = env.reset(env_configs=env_configs)
+    env_reset_output_dict = env.reset(env_configs=env_configs)
+    observations = env_reset_output_dict[obs_key]
+    info = env_reset_output_dict[info_key]
 
     nbr_actors = env.get_nbr_envs()
     agent.set_nbr_actor(nbr_actors)
@@ -438,15 +519,26 @@ def gather_experience_parallel(task,
     if isinstance(sum_writer, str):
         sum_writer_path = os.path.join(sum_writer, 'actor.log')
         sum_writer = SummaryWriter(sum_writer_path, flush_secs=1)
-        agent.algorithm.summary_writer = sum_writer
-
+        #agent.algorithm.summary_writer = sum_writer
+        if agent.training:
+            agent.algorithm.unwrapped.summary_writer = sum_writer
+        else:
+            algo = getattr(agent, "algorithm", None)
+            if algo is not None:
+                agent.algorithm.unwrapped.summary_writer = None 
+    
     while True:
         action = agent.take_action(
             state=observations,
             infos=info
         )
         
-        succ_observations, reward, done, succ_info = env.step(action)
+        #succ_observations, reward, done, succ_info = env.step(action)
+        env_output_dict = env.step(action)
+        succ_observations = env_output_dict[succ_obs_key]
+        reward = env_output_dict[reward_key]
+        done = env_output_dict[done_key]
+        succ_info = env_output_dict[succ_info_key]
 
         if training:
             agent.handle_experience(
@@ -465,7 +557,23 @@ def gather_experience_parallel(task,
             for hook in step_hooks:
                 hook(env, agent, obs_count)
 
+            pa_obs = observations[actor_index]
+            pa_a = action[actor_index]
+            pa_r = reward[actor_index]
+            pa_succ_obs = succ_observations[actor_index]
+            pa_done = done[actor_index]
+            pa_int_r = 0.0
+
+            if getattr(agent.algorithm, "use_rnd", False):
+                get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
+                if callable(get_intrinsic_reward):
+                    pa_int_r = agent.get_intrinsic_reward(actor_index)
+
+            per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
+
+            #////////////////////////////////////////////////////////////////////////////////////////
             # Bookkeeping of the actors whose episode just ended:
+            #////////////////////////////////////////////////////////////////////////////////////////
             if done[actor_index]:
                 agent.reset_actors(indices=[actor_index])
 
@@ -473,17 +581,11 @@ def gather_experience_parallel(task,
             if done_condition:
                 update_count = agent.get_update_count()
                 episode_count += 1
-                #################
-                # Previously:
-                #################
-                #succ_observations[actor_index], succ_info[actor_index] = env.reset(env_configs=env_configs, env_indices=[actor_index])
-                # account for list formatting of infos:
-                #succ_info[actor_index] = succ_info[actor_index][0]
-                #agent.reset_actors(indices=[actor_index])
-                #################
-                # New:
-                #################
-                succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                #succ_observations, succ_info = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                env_reset_output_dict = env.reset(env_configs=env_configs, env_indices=[actor_index])
+                succ_observations = env_reset_output_dict[obs_key]
+                succ_info = env_reset_output_dict[info_key]
+                
                 agent.reset_actors(indices=[actor_index])
                 #################
                 
@@ -499,10 +601,10 @@ def gather_experience_parallel(task,
                     sum_writer.add_scalar('PerUpdate/TotalReturn', total_returns[-1], update_count)
                     if actor_index == 0:
                         sample_episode_count += 1
-                    sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
-                    sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
-                    sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], update_count)
-                    sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
+                    ##sum_writer.add_scalar(f'data/reward_{actor_index}', total_returns[-1], sample_episode_count)
+                    #sum_writer.add_scalar(f'PerObservation/Actor_{actor_index}_Reward', total_returns[-1], obs_count)
+                    #sum_writer.add_scalar(f'PerUpdate/Actor_{actor_index}_Reward', total_returns[-1], update_count)
+                    #sum_writer.add_scalar('Training/TotalIntReturn', total_int_returns[-1], episode_count)
                     sum_writer.flush()
 
                 if len(trajectories) >= nbr_actors:
@@ -538,19 +640,8 @@ def gather_experience_parallel(task,
 
                 per_actor_trajectories[actor_index] = list()
 
-            pa_obs = observations[actor_index]
-            pa_a = action[actor_index]
-            pa_r = reward[actor_index]
-            pa_succ_obs = succ_observations[actor_index]
-            pa_done = done[actor_index]
-            pa_int_r = 0.0
-
-            if getattr(agent.algorithm, "use_rnd", False):
-                get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
-                if callable(get_intrinsic_reward):
-                    pa_int_r = agent.get_intrinsic_reward(actor_index)
-            per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done) )
-
+            #////////////////////////////////////////////////////////////////////////////////////////
+            #////////////////////////////////////////////////////////////////////////////////////////
 
             if test_nbr_episode != 0 and obs_count % test_obs_interval == 0:
                 save_traj = False
@@ -558,14 +649,18 @@ def gather_experience_parallel(task,
                     save_traj = (obs_count%benchmarking_record_episode_interval==0)
                 # TECHNICAL DEBT: clone_agent.get_update_count is failing because the update count param is None
                 # haven't figured out why is the cloning function making it None...
-                test_agent(env=test_env,
-                            agent=agent.clone(training=False),
-                            update_count=agent.get_update_count(),
-                            nbr_episode=test_nbr_episode,
-                            sum_writer=sum_writer,
-                            iteration=obs_count,
-                            base_path=base_path,
-                            save_traj=save_traj)
+                test_agent(
+                    env=test_env,
+                    agent=agent.clone(training=False),
+                    update_count=agent.get_update_count(),
+                    nbr_episode=test_nbr_episode,
+                    sum_writer=sum_writer,
+                    iteration=obs_count,
+                    base_path=base_path,
+                    save_traj=save_traj,
+                    render_mode=render_mode,
+                    save_traj_length_divider=save_traj_length_divider
+                )
 
         observations = copy.deepcopy(succ_observations)
         info = copy.deepcopy(succ_info)

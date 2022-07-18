@@ -6,7 +6,7 @@ import os
 import copy
 
 import torch
-import minerl
+#import minerl
 
 import regym
 from .dqn_agent import generate_model
@@ -14,10 +14,9 @@ from .r2d2_agent import R2D2Agent, build_R2D2_Agent, parse_and_check
 from ..algorithms.R2D3 import R2D3Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction
 
-from regym.util.minerl import get_action_set, generate_action_parser, MineRLTrajectoryBasedEnv, trajectory_based_rl_loop, get_good_demo_names
+#from regym.util.minerl import get_action_set, generate_action_parser, MineRLTrajectoryBasedEnv, trajectory_based_rl_loop, get_good_demo_names
 from regym.util.wrappers import minerl2020_wrap_env
 from regym.environments.vec_env import VecEnv
-from sklearn.metrics import pairwise_distances
 import numpy as np
 
 class R2D3Agent(R2D2Agent):
@@ -71,6 +70,7 @@ class MineRLTrajectoryEnvironmentCreator():
         self.next_env_pointer = 0  # Next environment index to create
 
         self.envs = []
+        import minerl
         for trajectory_name in self.trajectory_names:
             data_pipeline = minerl.data.make(task_name)
             data_iterator = data_pipeline.load_data(trajectory_name)
@@ -85,11 +85,12 @@ class MineRLTrajectoryEnvironmentCreator():
         return env
 
 def action_parser(action, action_set):
-  true_action = action['vector'] if isinstance(action, dict) else action
-  dis = pairwise_distances(action_set, true_action.reshape(1, -1))
-  discrete_action = np.argmin(dis, axis=0)
-  # (1,)
-  return discrete_action
+    from sklearn.metrics import pairwise_distances
+    true_action = action['vector'] if isinstance(action, dict) else action
+    dis = pairwise_distances(action_set, true_action.reshape(1, -1))
+    discrete_action = np.argmin(dis, axis=0)
+    # (1,)
+    return discrete_action
 
 def load_demonstrations_into_replay_buffer(
       agent,
