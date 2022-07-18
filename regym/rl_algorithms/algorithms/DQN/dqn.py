@@ -346,7 +346,8 @@ class DQNAlgorithm(Algorithm):
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
 
 
-        if self.noisy:  
+        if self.noisy \
+        and hasattr(self.model, "reset_noise"):
             self.model.reset_noise()
             self.target_model.reset_noise()
 
