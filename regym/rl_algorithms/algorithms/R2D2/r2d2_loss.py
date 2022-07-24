@@ -304,7 +304,9 @@ def batched_unrolled_inferences(
     if len(states.shape)==4 or len(states.shape)==6:
         vdn = True 
         num_players = states.shape[2]
-
+    
+    import ipdb; ipdb.set_trace()
+    # TODO: how to let ArchiModel be recognised as recurrent model?
     recurrent_module_in_phi_body = 'phi_body' in rnn_states and ('lstm' in rnn_states['phi_body'] or 'gru' in rnn_states['phi_body']) 
     extra_inputs_in_phi_body = 'phi_body' in rnn_states and 'extra_inputs' in rnn_states['phi_body']
     if rnn_states is None or not(recurrent_module_in_phi_body):
@@ -1001,6 +1003,9 @@ def compute_loss(states: torch.Tensor,
         td_error = td_error.sum(dim=2)
         scaled_td_error = scaled_td_error.sum(dim=2)
     """
+    
+    import ipdb; ipdb.set_trace()
+    # Verify that the loss is of the correct shape etc...
 
     # Hanabi_SAD repo does not use the scaled values:
     loss_per_item = td_error

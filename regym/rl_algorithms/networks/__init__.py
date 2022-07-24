@@ -8,6 +8,7 @@ from .bodies import NoisyLinear
 from .neural_turing_machine import NTMBody
 from .differentiable_neural_computer import DNCBody
 
+from .heads import DuelingLayer, EPS
 from .heads import SquashedGaussianActorNet, GaussianActorNet, CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
 from .heads import QNet, CategoricalQNet, InstructionPredictor
 from .heads import EnsembleQNet

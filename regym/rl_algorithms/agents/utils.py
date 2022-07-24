@@ -15,6 +15,31 @@ import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
 
+import Archi
+from Archi import load_model
+
+
+def retrieve_value(path, kwargs):
+    path = path.split('.')
+    if len(path) > 1:
+        pointer = kwargs
+        for el in path:
+            if hasattr(pointer, el):
+                pointer = getattr(pointer, el)
+            elif el in pointer:
+                pointer = pointer[el]
+            else:
+                raise RuntimeError
+    else:
+        pointer = path
+    try:
+        pointer = int(pointer)
+    except Exception as e:
+        print(f"Exception during retrieving of value: {path} :", e)
+        raise e
+    return pointer 
+
+    
 def parse_and_check(kwargs: Dict,
                     task: 'regym.environments.Task'):
 
@@ -26,28 +51,7 @@ def parse_and_check(kwargs: Dict,
         shape = extra_inputs[key]['shape']
         for idxdim, dimvalue in enumerate(shape):
             if isinstance(dimvalue, str):
-                path = dimvalue.split('.')
-                if len(path) > 1:
-                    pointer = kwargs
-                    for el in path:
-                        try:
-                            if hasattr(pointer, el):
-                                pointer = getattr(pointer, el)
-                            elif el in pointer:
-                                pointer = pointer[el]
-                            else:
-                                raise RuntimeError
-                        except:
-                            raise RuntimeError
-                else:
-                    pointer = path
-
-                try:
-                    pointer = int(pointer)
-                except Exception as e:
-                    print('Exception during parsing and checking:', e)
-                    raise e
-                shape[idxdim] = pointer
+                shape[idxdim] = retrieve_value(dimvalue, kwargs)
 
     kwargs['task'] = None
     
@@ -55,6 +59,28 @@ def parse_and_check(kwargs: Dict,
 
 
 def generate_model(
+    task: 'regym.environments.Task',
+    kwargs: Dict,
+    head_type: str="CategoricalQNet") -> nn.Module:
+
+    if "ArchiModel" in kwargs:
+        return generate_archi_model(task, kwargs)
+    else:
+        return _generate_model(task, kwargs, head_type)
+
+
+def generate_archi_model(
+    task: 'regym.environments.Task',
+    kwargs: Dict) -> Archi.Model:
+
+    config = kwargs["ArchiModel"]
+    model = load_model(config)
+    model = model.share_memory()
+
+    return model 
+
+
+def _generate_model(
     task: 'regym.environments.Task', 
     kwargs: Dict,
     head_type: str="CategoricalQNet") -> nn.Module:
