@@ -15,8 +15,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
 
-import Archi
-from Archi import load_model
+from regym.thirdparty.Archi.Archi import Model as ArchiModel 
+from regym.thirdparty.Archi.Archi import load_model
 
 
 def retrieve_value(path, kwargs):
@@ -71,11 +71,11 @@ def generate_model(
 
 def generate_archi_model(
     task: 'regym.environments.Task',
-    kwargs: Dict) -> Archi.Model:
+    kwargs: Dict) -> ArchiModel:
 
     config = kwargs["ArchiModel"]
     model = load_model(config)
-    model = model.share_memory()
+    #model = model.share_memory()
 
     return model 
 
@@ -912,5 +912,5 @@ def _generate_model(
     else:
         raise NotImplementedError
 
-    model.share_memory()
+    #model.share_memory()
     return model

@@ -42,14 +42,15 @@ setup(
       'pip',
       'tensorboardx',
       'opencv-python',
-      'torch==1.8.1',
+      'torch',#==1.8.1',
       'torchvision',
       'cvxopt',
       'scipy',
       #'minerl',
       'celluloid',
       'sklearn',
-      'seaborn'
+      'seaborn',
+      'wandb=0.12.21',
     ] + test_requirements,
 
     python_requires=">=3.6",

@@ -6,6 +6,9 @@ from functools import partial
 import regym
 from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
 
+from regym.thirdparty.Archi.Archi import Model as ArchiModel
+
+
 import ray
 
 def named_children(cm):
@@ -171,7 +174,11 @@ class Agent(object):
         new_rnn_states = {}
         kwargs = {'cuda': False, 'repeat':nbr_actor}
         for name, model in algorithm.get_models().items():
-            if "model" in name and model is not None:
+            if "model" not in name: continue
+            if model is None:   continue
+            if isinstance(model, ArchiModel):
+                new_rnn_states = model.get_reset_states(kwargs=kwargs)
+            else:
                 look_for_keys_and_apply( 
                     model, 
                     keys=lookedup_keys, 

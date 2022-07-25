@@ -549,19 +549,19 @@ def train_and_evaluate(agents: List[object],
                 values,
                 q=50,
                 axis=None,
-                interpolation="nearest"
+                method="nearest"
             )
             q1_value = np.nanpercentile(
                 values,
                 q=25,
                 axis=None,
-                interpolation="lower"
+                method="lower"
             )
             q3_value = np.nanpercentile(
                 values,
                 q=75,
                 axis=None,
-                interpolation="higher"
+                method="higher"
             )
             iqr = q3_value-q1_value
               

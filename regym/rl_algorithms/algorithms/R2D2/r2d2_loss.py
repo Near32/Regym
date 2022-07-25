@@ -305,8 +305,6 @@ def batched_unrolled_inferences(
         vdn = True 
         num_players = states.shape[2]
     
-    import ipdb; ipdb.set_trace()
-    # TODO: how to let ArchiModel be recognised as recurrent model?
     recurrent_module_in_phi_body = 'phi_body' in rnn_states and ('lstm' in rnn_states['phi_body'] or 'gru' in rnn_states['phi_body']) 
     extra_inputs_in_phi_body = 'phi_body' in rnn_states and 'extra_inputs' in rnn_states['phi_body']
     if rnn_states is None or not(recurrent_module_in_phi_body):
@@ -387,6 +385,8 @@ def batched_unrolled_inferences(
     
     burn_in_rnn_states_inputs = init_rnn_states_inputs
     unrolled_rnn_states_inputs = init_rnn_states_inputs
+    import ipdb; ipdb.set_trace()
+    # Check that burn_in_rnn_states_inputs contains value_memory etc ?
 
     unrolled_prediction = None
     with torch.set_grad_enabled(grad_enabler):
@@ -405,6 +405,8 @@ def batched_unrolled_inferences(
 
             # Bookkeeping: update the rnn states:
             ## Handle next step's extra inputs:
+            import ipdb; ipdb.set_trace()
+            # TODO: check that rnn_states contain value_memory:
             burn_in_rnn_states_inputs = extract_rnn_states_from_time_indices(
                 rnn_states, 
                 time_indices_start=unroll_id+1,  #sample for next step...
@@ -424,6 +426,8 @@ def batched_unrolled_inferences(
                 np.where(non_terminals_input.cpu().numpy()==1)[0]
             ).to(non_terminals_input.device)
             
+            import ipdb; ipdb.set_trace()
+            # TODO: check that fn updates the value_memory :
             recursive_inplace_update(
                 in_dict=burn_in_rnn_states_inputs,
                 extra_dict=burn_in_prediction['next_rnn_states'],
@@ -760,7 +764,13 @@ def compute_loss(states: torch.Tensor,
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
         )
-        training_rnn_states = extract_rnn_states_from_time_indices(
+        _burn_in_rnn_states = extract_rnn_states_from_time_indices(
+            rnn_states, 
+            time_indices_start=0,
+            time_indices_end=kwargs['sequence_replay_burn_in_length'],
+            preprocess_fn= (lambda x:x.detach()),
+        )
+        _training_rnn_states = extract_rnn_states_from_time_indices(
             rnn_states, 
             time_indices_start=kwargs['sequence_replay_burn_in_length'],
             time_indices_end=kwargs['sequence_replay_unroll_length'],
@@ -791,7 +801,7 @@ def compute_loss(states: torch.Tensor,
             model=model, 
             states=burn_in_states, 
             non_terminals=burn_in_non_terminals,
-            rnn_states=rnn_states,
+            rnn_states=_burn_in_rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
             extras=False,
@@ -806,14 +816,14 @@ def compute_loss(states: torch.Tensor,
             model=target_model, 
             states=burn_in_states, 
             non_terminals=burn_in_non_terminals,
-            rnn_states=rnn_states,
+            rnn_states=_burn_in_rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
             extras=False,
             map_keys=map_keys,
         )
 
-        # Replace the bruned in rnn states in the training rnn states:
+        # Replace the burned in rnn states in the training rnn states:
         training_rnn_states = replace_rnn_states_at_time_indices(
             rnn_states_batched=training_rnn_states, 
             replacing_rnn_states_batched=burned_in_rnn_states_inputs, 

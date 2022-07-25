@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional, List, Callable, Union
 import torch
+import numpy as np
 from functools import partial
 import copy
 
@@ -58,13 +59,17 @@ def recursive_inplace_update(
                 # the same data space (i.e. modifying one will leave the other intact), make
                 # sure to use the clone() method, as list comprehension does not create new tensors.
                 listvalue = [value.clone() for value in extra_dict[node_key][leaf_key]]
+                if leaf_key not in in_dict[node_key]:
+                    # initializing here, and preprocessing below...
+                    in_dict[node_key][leaf_key] = listvalue
                 if batch_mask_indices is None or batch_mask_indices==[]:
                     in_dict[node_key][leaf_key]= listvalue
                 else:
                     for vidx in range(len(in_dict[node_key][leaf_key])):
                         v = listvalue[vidx]
                         if leaf_key not in in_dict[node_key]:   continue
-                        new_v = v[batch_mask_indices, ...].clone()
+                        new_v = v[batch_mask_indices, ...].clone().to(in_dict[node_key][leaf_key][vidx].device)
+                        #new_v = v[batch_mask_indices, ...].clone()
                         if preprocess_fn is not None:   new_v = preprocess_fn(new_v)
                         in_dict[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v
 
@@ -255,7 +260,7 @@ def _concatenate_list_hdict(
                             out_pointer[k].append(
                                 concat_fn(concat_list)
                             )
-                    else:
+                    elif isinstance(pointers[0][k], np.ndarray):
                         concat_list = [
                             preprocess_fn(pointer[k])
                             for pointer in pointers if k in pointer
@@ -265,11 +270,15 @@ def _concatenate_list_hdict(
                         except Exception as e:
                             # the concat_fn may fail, silently...
                             # e.g.: shape of elements are not all the same...
-                            pass
+                            raise e
+                            #pass
+                    else:
+                        continue
                 except Exception as e:
                         # the concat_fn may fail, silently...
                         # e.g.: neither a list nor a compatible stuff....
-                        pass
+                        import ipdb; ipdb.set_trace()
+                        print(f"Warning: concatenate_list_hdict encounter an incompatibel element : {k} / issue : {e}")
     return out_hd
 
 

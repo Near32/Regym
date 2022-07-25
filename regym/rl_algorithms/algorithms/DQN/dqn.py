@@ -24,6 +24,48 @@ from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _c
 import wandb
 summary_writer = None 
 
+def archi_concat_fn(x):
+    if isinstance(x[0], torch.Tensor):
+        return torch.cat(x, dim=0)   # concatenate on the unrolling dimension (axis=1).
+    
+    assert isinstance(x[0], np.ndarray) and isinstance(x[0][0], torch.Tensor)
+    
+    batch_size = len(x)
+
+    # Identify the dimension(s) where torch.Tensors are different:
+    # Store the maximal value...
+    # Expand the other 
+
+    max_dim_value_shape = None
+    max_dim_value_shapes = {}
+    nbr_dims = len(x[0][0].shape)
+
+    diff_dims = {bidx:[] for bidx in range(batch_size)}
+    max_dim_values = {bidx:{} for bidx in range(batch_size)}
+    for bidx in range(len(x)):
+        for idx_dim in range(nbr_dims):
+            list_dim_values = [x[bidx][idx_t].shape[idx_dim] for idx_t in range(len(x[bidx]))]
+            if any([dv!=x[bidx][0].shape[idx_dim] for dv in list_dim_values]):
+                diff_dims[bidx].append(idx_dim)
+                max_dim_values[bidx][idx_dim] = max(list_dim_values)
+                
+                max_dim_value_shapes[bidx] = x[bidx][0].shape
+                max_dim_value_shapes[bidx][idx_dim] = max_dim_values[idx_dim]
+
+    # Assumption: it is on memory element dimension only that there is discrepancies:
+    assert len(diff_dims) == 1 and diff_dims[0]==2
+    # TODO: finish :
+    max_dim_value_shape = 
+    for bidx in range(len(x)):
+        for unroll_id, el in enumerate(x[bidx]):
+            new_x = torch.zeros(max_dim_value_shape)
+            new_x[:,:,:x[bidx][unroll_id].shape[2],...] = x[bidx][unroll_id]
+            x[bidx][unroll_id] = new_w
+        # unrolling dim concatenation:
+        x[bidx] = torch.cat(x[bidx].tolist(), dim=1)
+    # batch concatenation:
+    return torch.cat(x, dim=0)
+
 
 class DQNAlgorithm(Algorithm):
     def __init__(self, kwargs, model, target_model=None, optimizer=None, loss_fn=dqn_loss.compute_loss, sum_writer=None, name='dqn_algo'):
@@ -64,7 +106,7 @@ class DQNAlgorithm(Algorithm):
             target_model = copy.deepcopy(self.model)
 
         self.target_model = target_model
-        self.target_model.share_memory()
+        #self.target_model.share_memory()
 
         hard_update(self.target_model, self.model)
         if self.use_cuda:
@@ -415,7 +457,8 @@ class DQNAlgorithm(Algorithm):
                 if isinstance(value[0], dict): 
                     value = _concatenate_list_hdict(
                         lhds=value, 
-                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        #concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        concat_fn=archi_concat_fn,
                         preprocess_fn=(lambda x:x),
                     )
                 else:

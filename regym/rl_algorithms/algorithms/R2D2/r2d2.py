@@ -21,6 +21,16 @@ from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdic
 import wandb
 sum_writer = None
 
+
+def concat_fn(x):
+    if x[0].shape==x[1].shape:
+        return torch.cat(x, dim=1)
+    nplist = np.empty(len(x), dtype=object)
+    for idx, v in enumerate(x):
+        nplist[idx] = v
+    return nplist
+
+
 class R2D2Algorithm(DQNAlgorithm):
     def __init__(self, 
                  kwargs: Dict[str, Any], 
@@ -176,7 +186,10 @@ class R2D2Algorithm(DQNAlgorithm):
                 values = [sequence_buffer[i][key] for i in range(len(sequence_buffer))]
                 value = _concatenate_list_hdict(
                     lhds=values, 
-                    concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
+                    #concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
+                    #TODO: verify that unrolling on list is feasible:
+                    #concat_fn=(lambda x: torch.cat(x, dim=1) if x[0].shape==x[1].shape else np.array(x, dtype=object)),
+                    concat_fn=concat_fn,
                     preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
                 )
             else:
