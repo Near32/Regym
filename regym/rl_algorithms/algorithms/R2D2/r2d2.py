@@ -205,6 +205,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 self.sequence_replay_buffers[actor_index].append(copy.deepcopy(self.sequence_replay_buffers[actor_index][-1]))
 
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
+            self.param_obs_counter += (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
             if self.use_PER:
                 if self.kwargs['PER_compute_initial_priority']:
                     """
@@ -326,7 +327,6 @@ class R2D2Algorithm(DQNAlgorithm):
                 current_exp_dict['r'] = truncated_n_step_return
                 
                 #condition_state = torch.all(self.n_step_buffers[actor_index][0]['s']==self.n_step_buffers[actor_index][-1]['s'])
-                #import ipdb; ipdb.set_trace()
             else:
                 current_exp_dict = exp_dict
             

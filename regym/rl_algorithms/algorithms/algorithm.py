@@ -23,6 +23,9 @@ class Algorithm(object):
 
     def get_update_count(self):
         raise NotImplementedError
+    
+    def get_obs_count(self):
+        raise NotImplementedError
 
     def parameters(self):
         raise NotImplementedError

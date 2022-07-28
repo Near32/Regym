@@ -7,6 +7,8 @@ import regym
 from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
 
 import ray
+import wandb 
+
 
 def named_children(cm):
     for name, m in cm._modules.items():
@@ -112,6 +114,9 @@ class Agent(object):
         return self.handled_experiences
 
     def get_update_count(self):
+        raise NotImplementedError
+    
+    def get_obs_count(self):
         raise NotImplementedError
 
     def get_nbr_actor(self):
@@ -398,6 +403,8 @@ class Agent(object):
                 minimal=minimal), 
             self.save_path
         )
+        print(f"Saving in W&B : {self.save_path}")
+        wandb.save(self.save_path, base_path=wandb.run.dir)
 
 
 

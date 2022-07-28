@@ -48,13 +48,17 @@ class DQNAgent(Agent):
 
         # Number of interaction/step with/in the environment:
         self.nbr_steps = 0
-
-        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 1e5
+        
+        # With respect to the number of observations:
+        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 5e5
         
         self.previous_save_quotient = -1
 
     def get_update_count(self):
         return self.algorithm.unwrapped.get_update_count()
+
+    def get_obs_count(self):
+        return self.algorithm.unwrapped.get_obs_count()
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
         '''
@@ -328,12 +332,17 @@ class DQNAgent(Agent):
                     self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
                 else:
                     self.actor_learner_shared_dict.set(actor_learner_shared_dict)
-
-            if self.async_learner\
+            
+            #print("SAVING STAT:", self.saving_interval, self.previous_save_quotient, self.algorithm.unwrapped.get_obs_count())
+            obs_count = self.algorithm.unwrapped.get_obs_count()
+            if not self.async_actor\
             and self.save_path is not None \
-            and (self.algorithm.unwrapped.get_update_count() // self.saving_interval) != self.previous_save_quotient:
-                self.previous_save_quotient = self.algorithm.unwrapped.get_update_count() // self.saving_interval
+            and (obs_count // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = obs_count // self.saving_interval
+                original_save_path = self.save_path
+                self.save_path = original_save_path.split(".agent")[0]+"."+str(int(self.previous_save_quotient))+".agent"
                 self.save()
+                self.save_path = original_save_path
 
         return nbr_updates
 

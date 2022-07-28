@@ -172,8 +172,19 @@ class PubSubManager(object):
             
             for pipe_id, pipeline in self.pipelines.items():
                 self.stream_handler.serve(pipeline)
-           
-            wandb.log({}, commit=True)
+            
+            # Logging synchronously:
+            ld = {}
+            for k,v in self.stream_handler["logs_dict"].items():
+                ld[k] = v 
+                #print(k, type(v))
+            for k,v in self.stream_handler["losses_dict"].items():
+                ld[k] = v 
+                #print(f"loss : {k} :", type(v))
+            for k,v in self.stream_handler["signals"].items():
+                ld[k] = v
+                #print(f"signal : {k} :", type(v), v)
+            wandb.log(ld, commit=True)
 
             self.stream_handler.reset("losses_dict")
             self.stream_handler.reset("logs_dict")    

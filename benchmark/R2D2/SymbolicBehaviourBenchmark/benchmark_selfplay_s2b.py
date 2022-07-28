@@ -549,19 +549,19 @@ def train_and_evaluate(agents: List[object],
                 values,
                 q=50,
                 axis=None,
-                interpolation="nearest"
+                method="nearest"
             )
             q1_value = np.nanpercentile(
                 values,
                 q=25,
                 axis=None,
-                interpolation="lower"
+                method="lower"
             )
             q3_value = np.nanpercentile(
                 values,
                 q=75,
                 axis=None,
-                interpolation="higher"
+                method="higher"
             )
             iqr = q3_value-q1_value
               
@@ -732,9 +732,9 @@ def training_process(agent_config: Dict,
       base_path = os.path.join(base_path,"NOPUBSUB")
     
     if speaker_rec:
-      base_path = os.path.join(base_path,f"SpeakerReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p3' if speaker_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"SpeakerReconstructionFrom-{node_id_to_extract}-{'Biasing-1p3' if speaker_rec_biasing else ''}-BigArch")
     if listener_rec:
-      base_path = os.path.join(base_path,f"ListenerReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p0' if listener_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"ListenerReconstructionFrom-{node_id_to_extract}-{'Biasing-1p0' if listener_rec_biasing else ''}-BigArch")
     if listener_comm_rec:
       base_path = os.path.join(base_path,f"ListenerCommunicationChannelReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p0' if listener_comm_rec_biasing else ''}-BigArch")
      
@@ -881,6 +881,11 @@ def training_process(agent_config: Dict,
     }
     project_name = task_config['project']
     wandb.init(project=project_name, config=config)
+    for agent in agents:
+        if not hasattr(agent, "save_path"):  continue
+        agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
+        os.makedirs(agent.save_path, exist_ok=True)
+        agent.save_path += "/checkpoint.agent"
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     trained_agents = train_and_evaluate(
@@ -985,6 +990,10 @@ def main():
     parser.add_argument("--simplified_DNC", 
         type=str2bool, 
         default="False",
+    )
+    parser.add_argument("--saving_interval", 
+        type=float, 
+        default=5e5,
     )
     parser.add_argument("--learning_rate", 
         type=float, 

@@ -886,5 +886,5 @@ def generate_model(
     else:
         raise NotImplementedError
 
-    model.share_memory()
+    #model.share_memory()
     return model

@@ -64,7 +64,7 @@ class DQNAlgorithm(Algorithm):
             target_model = copy.deepcopy(self.model)
 
         self.target_model = target_model
-        self.target_model.share_memory()
+        #self.target_model.share_memory()
 
         hard_update(self.target_model, self.model)
         if self.use_cuda:
@@ -127,11 +127,14 @@ class DQNAlgorithm(Algorithm):
             from regym import RaySharedVariable
             try:
                 self._param_update_counter = ray.get_actor(f"{self.name}.param_update_counter")
+                self._param_obs_counter = ray.get_actor(f"{self.name}.param_obs_counter")
             except ValueError:  # Name is not taken.
                 self._param_update_counter = RaySharedVariable.options(name=f"{self.name}.param_update_counter").remote(0)
+                self._param_obs_counter = RaySharedVariable.options(name=f"{self.name}.param_obs_counter").remote(0)
         else:
             from regym import SharedVariable
             self._param_update_counter = SharedVariable(0)
+            self._param_obs_counter = SharedVariable(0)
 
     def parameters(self):
         return self.model.parameters()
@@ -149,6 +152,20 @@ class DQNAlgorithm(Algorithm):
             self._param_update_counter.set.remote(val) 
         else:
             self._param_update_counter.set(val)
+    
+    @property
+    def param_obs_counter(self):
+        if isinstance(self._param_obs_counter, ray.actor.ActorHandle):
+            return ray.get(self._param_obs_counter.get.remote())    
+        else:
+            return self._param_obs_counter.get()
+
+    @param_obs_counter.setter
+    def param_obs_counter(self, val):
+        if isinstance(self._param_obs_counter, ray.actor.ActorHandle):
+            self._param_obs_counter.set.remote(val) 
+        else:
+            self._param_obs_counter.set(val)
     
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
@@ -169,6 +186,9 @@ class DQNAlgorithm(Algorithm):
 
     def get_update_count(self):
         return self.param_update_counter
+    
+    def get_obs_count(self):
+        return self.param_obs_counter
 
     def reset_epsilon(self):
         self.epsend = self.kwargs['epsend']
@@ -329,6 +349,8 @@ class DQNAlgorithm(Algorithm):
             self.storages[actor_index].add(current_exp_dict, priority=init_sampling_priority)
         else:
             self.storages[actor_index].add(current_exp_dict)
+        
+        self.param_obs_counter += 1 
 
     def train(self, minibatch_size:int=None):
         global summary_writer
@@ -696,6 +718,9 @@ class DQNAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
+        param_obs_counter = self._param_obs_counter
+        self._param_obs_counter = None 
+
         cloned_algo = copy.deepcopy(self)
         
         if minimal:
@@ -708,6 +733,9 @@ class DQNAlgorithm(Algorithm):
         
         self._param_update_counter = param_update_counter
         cloned_algo._param_update_counter = param_update_counter
+
+        self._param_obs_counter = param_obs_counter
+        cloned_algo._param_obs_counter = param_obs_counter
 
         # Goes through all variables 'Proxy' (dealing with multiprocessing)
         # contained in this class and removes them from clone

@@ -42,7 +42,7 @@ setup(
       'pip',
       'tensorboardx',
       'opencv-python',
-      'torch==1.8.1',
+      'torch==1.12.0',
       'torchvision',
       'cvxopt',
       'scipy',
