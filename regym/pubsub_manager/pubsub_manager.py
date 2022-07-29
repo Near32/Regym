@@ -184,7 +184,11 @@ class PubSubManager(object):
             for k,v in self.stream_handler["signals"].items():
                 ld[k] = v
                 #print(f"signal : {k} :", type(v), v)
-            wandb.log(ld, commit=True)
+            
+            try:
+                wandb.log(ld, commit=True)
+            except Exception as e:
+                print(f"PUBSUB MANAGER: Exception when W&B logging: {e}")
 
             self.stream_handler.reset("losses_dict")
             self.stream_handler.reset("logs_dict")    
