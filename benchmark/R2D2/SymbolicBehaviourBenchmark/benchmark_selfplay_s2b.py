@@ -462,6 +462,23 @@ def check_path_for_agent(filepath):
     return agent, offset_episode_count
 
 
+def check_wandb_path_for_agent(file_path, run_path):
+    try:
+        agent_ref = wandb.restore(name=file_path, run_path=run_path)
+    except Exception as e:
+        agent_ref = None
+        raise e
+    agent = None
+    offset_episode_count = 0
+    if agent_ref is not None:
+        print(f"==> loading checkpoint {run_path}/{file_path}")
+        agent = torch.load(agent_ref.name)
+        offset_episode_count = agent.episode_count
+        #setattr(agent, 'episode_count', offset_episode_count)
+        print(f"==> loaded checkpoint {run_path}/{file_path}")
+    return agent, offset_episode_count
+
+
 def train_and_evaluate(agents: List[object], 
                        task: object, 
                        task_config: Dict[str, object],
@@ -823,6 +840,11 @@ def training_process(agent_config: Dict,
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     if task_config.get("reload", 'None')!='None':
       agent, offset_episode_count = check_path_for_agent(task_config["reload"])
+    elif task_config.get("reload_wandb_run_path", 'None') != 'None':
+      agent, offset_episode_count = check_wandb_path_for_agent(
+        file_path=task_config["reload_wandb_file_path"],
+        run_path=task_config["reload_wandb_run_path"],
+      ) 
     else:
       agent = None
       offset_episode_count = 0
@@ -983,6 +1005,17 @@ def main():
         default="META_RG_S2B",
     )
 
+    parser.add_argument("--test_only", type=str2bool, default="False")
+    parser.add_argument("--reload_wandb_run_path", 
+        type=str, 
+        default="None",
+    )
+
+    parser.add_argument("--reload_wandb_file_path", 
+        type=str, 
+        default="None",
+    )
+
     parser.add_argument("--path_suffix", 
         type=str, 
         default="",
@@ -1059,6 +1092,10 @@ def main():
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=5e6, #2e6,
+    )
+    parser.add_argument("--benchmarking_interval", 
+        type=float, 
+        default=1e4,
     )
     
     parser.add_argument("--vocab_size",
