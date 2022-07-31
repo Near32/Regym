@@ -463,6 +463,10 @@ def check_path_for_agent(filepath):
 
 
 def check_wandb_path_for_agent(file_path, run_path):
+    if os.path.exists('./'+file_path):
+        print(f"WARNING:CHECKPOINT PATH DUPLICATE EXISTS: ./{file_path}")
+        os.remove('./'+file_path)
+        print(f"WARNING: DUPLICATE PATH DELETED: ./{file_path}")
     try:
         agent_ref = wandb.restore(name=file_path, run_path=run_path)
     except Exception as e:
@@ -473,6 +477,7 @@ def check_wandb_path_for_agent(file_path, run_path):
     if agent_ref is not None:
         print(f"==> loading checkpoint {run_path}/{file_path}")
         agent = torch.load(agent_ref.name)
+        os.remove('./'+file_path)
         offset_episode_count = agent.episode_count
         #setattr(agent, 'episode_count', offset_episode_count)
         print(f"==> loaded checkpoint {run_path}/{file_path}")
