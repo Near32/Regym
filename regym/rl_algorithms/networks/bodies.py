@@ -1557,6 +1557,177 @@ class LinearLstmBody2(nn.Module):
         return fs
 
 
+class LinearLstmAttentionBody2(LinearLstmBody2):
+    def __init__(
+        self, 
+        state_dim, 
+        feature_dim=256, 
+        linear_hidden_units=None,
+        linear_post_hidden_units=None,
+        hidden_units=(256,), 
+        non_linearities=[nn.ReLU], 
+        gate=F.relu,
+        dropout=0.0,
+        add_non_lin_final_layer=False,
+        use_residual_connection=False,
+        max_history_length=32,
+        iteration_to_slot_divider=1,
+        layer_init_fn=layer_init,
+        extra_inputs_infos: Dict={},
+        ):
+        '''
+        
+        :param state_dim: dimensions of the input.
+        :param feature_dim: integer size of the output.
+        :param channels: list of number of channels for each convolutional layer,
+                with the initial value being the number of channels of the input.
+        :param kernel_sizes: list of kernel sizes for each convolutional layer.
+        :param strides: list of strides for each convolutional layer.
+        :param paddings: list of paddings for each convolutional layer.
+        :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
+        :param non_linearities: list of non-linear nn.Functional functions to use
+                after each convolutional layer.
+        '''
+        super(LinearLstmAttentionBody2, self).__init__(
+            state_dim=state_dim, 
+            feature_dim=feature_dim, 
+            linear_hidden_units=linear_hidden_units,
+            linear_post_hidden_units=linear_post_hidden_units,
+            hidden_units=hidden_units, 
+            non_linearities=non_linearities, 
+            gate=gate,
+            dropout=dropout,
+            add_non_lin_final_layer=add_non_lin_final_layer,
+            use_residual_connection=use_residual_connection,
+            layer_init_fn=layer_init_fn,
+            extra_inputs_infos=extra_inputs_infos,
+        )
+
+        self.max_history_length = max_history_length
+        self.iteration_to_slot_divider = iteration_to_slot_divider
+
+        if self.linear_post_hidden_units is not None:
+            if isinstance(self.linear_post_hidden_units, tuple):
+                self.linear_post_hidden_units = list(self.linear_post_hidden_units)
+            self.linear_post_hidden_units = self.linear_post_hidden_units + [feature_dim]
+
+            linear_post_input_dim = self.lstm_body.get_feature_shape()    
+            if self.use_residual_connection: linear_post_input_dim += self.linear_body.get_feature_shape()
+            linear_post_input_dim *= 2
+
+            self.linear_body_post = FCBody(
+                state_dim=linear_post_input_dim,
+                hidden_units=self.linear_post_hidden_units,
+                non_linearities=non_linearities,
+                dropout=dropout,
+                add_non_lin_final_layer=add_non_lin_final_layer,
+                layer_init_fn=layer_init_fn
+            )
+
+
+    def forward(self, inputs):
+        '''
+        :param inputs: input to LSTM cells. Structured as (feed_forward_input, {hidden: hidden_states, cell: cell_states}).
+        hidden_states: list of hidden_state(s) one for each self.layers.
+        cell_states: list of hidden_state(s) one for each self.layers.
+        '''
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
+        batch_size = x.shape[0]
+
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
+        
+        extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+        if len(extra_inputs): x = torch.cat([x]+extra_inputs, dim=-1)
+
+        features = self.linear_body(x)
+        
+        recurrent_neurons = _extract_from_rnn_states(
+            rnn_states_batched=frame_states,
+            batch_idx=None,
+            map_keys=['hidden', 'cell'],
+        )
+        
+        xout, recurrent_neurons['lstm_body'] = self.lstm_body( (features, recurrent_neurons['lstm_body']))
+
+        if self.use_residual_connection:
+            xout = torch.cat([features, xout], dim=-1)
+        
+        # Content-based Attention:
+        history = frame_states['att']['history'][0].to(x.dtype).to(x.device)
+        # (batch_size x history_length x dim) 
+        iteration = frame_states['att']['iteration'][0].to(x.dtype).to(x.device)
+        # (batch_size x 1) 
+        
+        hxout = xout.reshape((batch_size, 1, -1)) 
+        att_weights = F.cosine_similarity(hxout, history, dim=-1).softmax(dim=-1)
+        # (batch_size x history_length)
+        context = torch.sum(att_weights.unsqueeze(-1)*history, dim=1, keepdim=False)
+        # (batch_size x feature_dim)
+        out = torch.cat([hxout.squeeze(1), context], dim=-1)
+        # (batch_size x 2*feature_dim)
+
+        updated_iteration = iteration+1
+        # reset memory slot if reached the last one:
+        mask = (updated_iteration >= self.max_history_length).float()
+        updated_iteration *= (1-mask)
+        
+        updated_history = history.clone()
+        updated_history.scatter_(
+            dim=1,
+            index=torch.div(
+                updated_iteration.unsqueeze(-1).repeat(1, 1, history.shape[-1]), 
+                self.iteration_to_slot_divider, 
+                rounding_mode="floor",
+            ).long(),
+            src=hxout,
+        )
+        recurrent_neurons['att'] = {
+            'history': [updated_history],
+            'iteration': [updated_iteration],
+        }
+
+        if self.linear_post_hidden_units is not None:
+            out = self.linear_body_post(out)
+        
+        return out, recurrent_neurons
+
+    def get_reset_states(self, cuda=False, repeat=1):
+        hdict = {'lstm_body': self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)}
+        shape = 0
+        for hs in self.lstm_body.hidden_units:  shape += hs
+        shape += self.lstm_body.get_feature_shape()
+        h = torch.zeros(repeat, self.max_history_length, shape)
+        it = torch.zeros(repeat, 1)
+        if cuda:    h = h.cuda()
+        hdict['att'] = {
+            'history': [h],
+            'iteration': [it],
+        }
+        return hdict
+
+    def get_input_shape(self):
+        return self.state_dim
+
+    def get_feature_shape(self):
+        fs = 0
+        if self.use_residual_connection:
+            fs += self.linear_body.get_feature_shape()
+
+        if self.linear_post_hidden_units is None:
+            fs += self.lstm_body.get_feature_shape()
+            fs *= 2
+        else:
+            fs = self.linear_body_post.get_feature_shape()
+
+        return fs
+
+
 class LSTMBody(nn.Module):
     def __init__(
         self, 

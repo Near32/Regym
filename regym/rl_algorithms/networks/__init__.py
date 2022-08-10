@@ -3,6 +3,7 @@ from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreproces
 from .bodies import FCBody, FCBody2, LSTMBody, GRUBody, EmbeddingRNNBody, CaptionRNNBody 
 from .bodies import ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
 from .bodies import LinearLinearBody, LinearLstmBody, LinearLstmBody2
+from .bodies import LinearLstmAttentionBody2
 from .bodies import NoisyLinear
 
 from .neural_turing_machine import NTMBody

@@ -16,13 +16,14 @@ def named_children(cm):
             yield name, m
 
 
-def look_for_keys_and_apply(cm, keys, prefix='', accum: Optional[Dict]=dict(), apply_fn: Optional[Callable]=None, kwargs: Optional[Dict]={}):
+def look_for_keys_and_apply(cm, keys: Optional[List[str]]=[], prefix='', accum: Optional[Dict]=dict(), apply_fn: Optional[Callable]=None, kwargs: Optional[Dict]={}):
     for name, m in named_children(cm):
         accum[name] = {}
         look_for_keys_and_apply(m, keys=keys, prefix=prefix+'.'+name, accum=accum[name], apply_fn=apply_fn, kwargs=kwargs)
-        if any( [key in m._get_name() for key in keys]):
-            if isinstance(apply_fn, str):   apply_fn = getattr(m, apply_fn, None)
-            if apply_fn is not None:    accum[name] = apply_fn(**kwargs)
+        fn = apply_fn
+        if isinstance(fn, str):   fn = getattr(m,fn, None)
+        if any( [key in m._get_name() for key in keys]) or fn is not None:    
+            accum[name] = fn(**kwargs)
         elif accum[name]=={}:
             del accum[name]
 
@@ -172,14 +173,14 @@ class Agent(object):
                         new_actor_indices.append(aidx+nbr_envs*pidx)
                 actor_indices = new_actor_indices
 
-        lookedup_keys = ['LSTM', 'GRU', 'NTM', 'DNC']
+        #lookedup_keys = ['LSTM', 'GRU', 'NTM', 'DNC']
         new_rnn_states = {}
         kwargs = {'cuda': False, 'repeat':nbr_actor}
         for name, model in algorithm.get_models().items():
             if "model" in name and model is not None:
                 look_for_keys_and_apply( 
                     model, 
-                    keys=lookedup_keys, 
+                    #keys=lookedup_keys, 
                     accum=new_rnn_states, 
                     apply_fn='get_reset_states', 
                     kwargs=kwargs
