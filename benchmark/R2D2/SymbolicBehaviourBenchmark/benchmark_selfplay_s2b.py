@@ -715,11 +715,12 @@ def training_process(agent_config: Dict,
       task_config['vdn'] = False 
 
     if len(sys.argv) > 2:
+      """
       override_nite = [idx for idx, arg in enumerate(sys.argv) if "--node_id_to_extract" in arg]
       if len(override_nite):
           node_id_to_extract = sys.argv[override_nite[0]+1]
           print(f"NEW NODE ID TO EXTRACT FOR REC: {node_id_to_extract}")
-
+      """
       override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--new_seed' in arg]
       if len(override_seed_argv_idx):
         seed = int(sys.argv[override_seed_argv_idx[0]+1])
@@ -993,8 +994,11 @@ def main():
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
-    parser.add_argument("--node_id_to_extract", type=str, default="hidden",
-            help="'hidden'/'memory', with 'memory' being used for DNC-based architecture.\n\
+    parser.add_argument("--node_id_to_extract", 
+            type=str, 
+            default="hidden",
+            choices=["hidden","cell","memory","hidden,cell"],
+            help="'hidden'/'cell'/'memory', or combination separated by comma, with 'memory' being used for DNC-based architecture.\n\
             It is automatically toggled to 'memory' if 'config' path contains 'dnc'.") #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
     parser.add_argument("--use_rule_based_agent", type=str2bool, default="False ",)

@@ -922,7 +922,7 @@ class ConvolutionalLstmBody(nn.Module):
         return x, recurrent_neurons
 
     def get_reset_states(self, cuda=False, repeat=1):
-        return self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
+        return {'lstm_body': self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)}
     
     def get_input_shape(self):
         #return self.input_shape
@@ -969,7 +969,7 @@ class ConvolutionalGruBody(ConvolutionalBody):
         return x, recurrent_neurons
         
     def get_reset_states(self, cuda=False, repeat=1):
-        return self.gru_body.get_reset_states(cuda=cuda, repeat=repeat)
+        return {'gru_body': self.gru_body.get_reset_states(cuda=cuda, repeat=repeat)}
 
     def get_input_shape(self):
         return self.input_shape
@@ -1411,7 +1411,7 @@ class LinearLstmBody(nn.Module):
         return x, recurrent_neurons
 
     def get_reset_states(self, cuda=False, repeat=1):
-        return self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
+        return {'lstm_body': self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)}
     
     def get_input_shape(self):
         return self.state_dim
@@ -1539,7 +1539,7 @@ class LinearLstmBody2(nn.Module):
         return x, recurrent_neurons
 
     def get_reset_states(self, cuda=False, repeat=1):
-        return self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)
+        return {'lstm_body': self.lstm_body.get_reset_states(cuda=cuda, repeat=repeat)}
     
     def get_input_shape(self):
         return self.state_dim
