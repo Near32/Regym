@@ -463,7 +463,7 @@ class ExtraInputsHandlingAgent(Agent):
             concat_fn=partial(torch.cat, dim=0),
             preprocess_fn=(lambda x:torch.from_numpy(x).float() if isinstance(x, np.ndarray) else torch.ones(1, 1).float()*x),
         )
-
+        
         out_hdict = self._init_hdict(init=concat_hdict)
 
         return out_hdict

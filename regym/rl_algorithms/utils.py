@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional, List, Callable, Union
 import torch
+import numpy as np
 from functools import partial
 import copy
 
@@ -57,16 +58,25 @@ def recursive_inplace_update(
                 # RATHER, to generate copies that lets gradient flow but do not share
                 # the same data space (i.e. modifying one will leave the other intact), make
                 # sure to use the clone() method, as list comprehension does not create new tensors.
-                listvalue = [value.clone() for value in extra_dict[node_key][leaf_key]]
+                listvalue = [value.clone() for value in extra_dict[node_key][leaf_key] if value != {}]
                 if batch_mask_indices is None or batch_mask_indices==[]:
                     in_dict[node_key][leaf_key]= listvalue
                 else:
                     for vidx in range(len(in_dict[node_key][leaf_key])):
                         v = listvalue[vidx]
                         if leaf_key not in in_dict[node_key]:   continue
+                        sparse_v = False
+                        if v.is_sparse:
+                            sparse_v = True
+                            v = v.to_dense()
                         new_v = v[batch_mask_indices, ...].clone()
                         if preprocess_fn is not None:   new_v = preprocess_fn(new_v)
+                        if in_dict[node_key][leaf_key][vidx].is_sparse:
+                            in_dict[node_key][leaf_key][vidx] = in_dict[node_key][leaf_key][vidx].to_dense()
                         in_dict[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v
+                        if sparse_v:
+                            v = v.to_sparse()
+                            in_dict[node_key][leaf_key][vidx] = in_dict[node_key][leaf_key][vidx].to_sparse()
 
 def copy_hdict(in_dict: Dict):
     '''
@@ -132,9 +142,17 @@ def _extract_from_rnn_states(rnn_states_batched: Dict,
                     rnn_states[recurrent_submodule_name][key] = []
                     for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
                         value = rnn_states_batched[recurrent_submodule_name][key][idx]
+                        sparse_v = False
+                        if value.is_sparse:
+                            sparse_v = True
+                            value = value.to_dense()
                         if batch_idx is not None:
                             value = value[batch_idx,...].unsqueeze(0)
-                        rnn_states[recurrent_submodule_name][key].append(post_process_fn(value))
+                        new_value = post_process_fn(value)
+                        if sparse_v:
+                            value = value.to_sparse()
+                            new_value = new_value.to_sparse()
+                        rnn_states[recurrent_submodule_name][key].append(new_value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_from_rnn_states(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
@@ -159,9 +177,16 @@ def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
                 if key in rnn_states_batched[recurrent_submodule_name]:
                     rnn_states[recurrent_submodule_name][key] = []
                     for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
-                        value = rnn_states_batched[recurrent_submodule_name][key][idx][batch_indices,...]
-                        if use_cuda: value = value.cuda()
-                        rnn_states[recurrent_submodule_name][key].append(value)
+                        value = rnn_states_batched[recurrent_submodule_name][key][idx]
+                        sparse_v = False
+                        if value.is_sparse:
+                            sparse_v = True
+                            value = value.to_dense()
+                        new_value = value[batch_indices,...]
+                        if use_cuda: new_value = new_value.cuda()
+                        if sparse_v:
+                            new_value = new_value.to_sparse()
+                        rnn_states[recurrent_submodule_name][key].append(new_value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name],
@@ -240,36 +265,47 @@ def _concatenate_list_hdict(
                 out_queue.insert(0, out_pointer[k])
         else:
             for k in pointers[0]:
-                try:
-                    # Previously assigned as a dictionnary in 145 or 165...
+                #try:
+                # Since we are at a leaf then value is
+                # either numpy or numpy.float64
+                # or list of tensors:
+                if isinstance(pointers[0][k], list):
                     out_pointer[k] = []
-                    # Since we are at a leaf then value is
-                    # either numpy or numpy.float64
-                    # or list of tensors:
-                    if isinstance(pointers[0][k], list):
-                        for idx in range(len(pointers[0][k])):
-                            concat_list = [
-                                preprocess_fn(pointer[k][idx])
+                    for idx in range(len(pointers[0][k])):
+                        concat_list = [ 
+                                pointer[k][idx].to_dense() if getattr(pointer[k][idx], "is_sparse", False) else pointer[k][idx]
                                 for pointer in pointers if k in pointer
-                            ]
-                            out_pointer[k].append(
-                                concat_fn(concat_list)
-                            )
-                    else:
-                        concat_list = [
-                            preprocess_fn(pointer[k])
-                            for pointer in pointers if k in pointer
                         ]
-                        try:
-                            out_pointer[k] = concat_fn(concat_list)
-                        except Exception as e:
-                            # the concat_fn may fail, silently...
-                            # e.g.: shape of elements are not all the same...
-                            pass
-                except Exception as e:
-                        # the concat_fn may fail, silently...
-                        # e.g.: neither a list nor a compatible stuff....
-                        pass
+                        concat_list = [
+                            preprocess_fn(v)
+                            for v in concat_list
+                        ]
+                        out_v = concat_fn(concat_list)
+                        if getattr(pointers[0][k][idx], "is_sparse", False):
+                            out_v = out_v.to_sparse()
+                        out_pointer[k].append(out_v)
+                elif isinstance(pointers[0][k], np.ndarray) \
+                or isinstance(pointers[0][k], torch.Tensor):
+                    out_pointer[k] = []
+                    concat_list = [ 
+                            pointer[k].to_dense() if getattr(pointer[k], "is_sparse", False) else pointer[k]
+                            for pointer in pointers if k in pointer
+                    ]
+                    concat_list = [
+                        preprocess_fn(v)
+                        for v in concat_list
+                    ]
+                    out_v = concat_fn(concat_list)
+                    if getattr(pointers[0][k], "is_sparse", False):
+                        out_v = out_v.to_sparse()
+                    out_pointer[k] = out_v
+                else:
+                    #print(f"Key {k} found of type : {type(pointers[0][k])}")
+                    continue
+                #except Exception as e:
+                #        # the concat_fn may fail, silently...
+                #        # e.g.: neither a list nor a compatible stuff....
+                #        pass
     return out_hd
 
 

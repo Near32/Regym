@@ -75,7 +75,12 @@ class ReconstructionFromHiddenStateModule(Module):
         
         if "build_signal_to_reconstruct_from_trajectory_fn" in self.config:
             self.build_signal_to_reconstruct_from_trajectory_fn = self.config["build_signal_to_reconstruct_from_trajectory_fn"]
-        self.criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
+        
+        if "MSE" in self.config.get("reconstruction_loss", "BCE"):
+            self.criterion = torch.nn.MSELoss(reduction='none')
+        else: 
+            self.criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
+        
         self.signal_to_reconstruct_dim = self.config["signal_to_reconstruct_dim"]
         self.hiddenstate_policy = self.config["hiddenstate_policy"]
         self.hidden_state_dim = self.hiddenstate_policy.get_hidden_state_dim()
@@ -354,11 +359,14 @@ class ReconstructionFromHiddenStateModule(Module):
             m = m.to(hs_t.device)
             if labels.device != logit_pred.device: labels = labels.to(logit_pred.device)    
             ###                
-            pred = torch.sigmoid(logit_pred)
+            if 'BCE' in self.config.get("reconstruction_loss", 'BCE'):
+                pred = torch.sigmoid(logit_pred)
+            else:
+                pred = logit_pred
             # batch_size x dim
             
             if 'accuracy_pre_process_fn' not in self.config:
-                per_dim_acc_t = (((pred-5e-2<=labels).float()+(pred+5e-2>=labels)).float()>=2).float()
+                per_dim_acc_t = (((pred-self.rec_threshold<=labels).float()+(pred+self.rec_threshold>=labels)).float()>=2).float()
             else:
                 out_d = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
                 per_dim_acc_t = out_d['acc']
@@ -501,13 +509,14 @@ class ReconstructionFromHiddenStateModule(Module):
 
             logs_dict[f"{mode}/{self.id}/ReconstructionAccuracy/{'Eval' if filtering_signal else 'Sample'}"] = rec_accuracy.mean()
             
-            #logs_dict[f"{mode}/{self.id}/ReconstructionMSELoss/{'Eval' if filtering_signal else 'Sample'}"] = L_mse.mean()
-            logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/BCE/{'Eval' if filtering_signal else 'Sample'}"] = L_rec.mean()
+            logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/MSE/{'Eval' if filtering_signal else 'Sample'}"] = L_mse.mean()
+            #logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/BCE/{'Eval' if filtering_signal else 'Sample'}"] = L_rec.mean()
 
 
             losses_dict = input_streams_dict["losses_dict"]
             #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rec]
-            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/MSE/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_mse]
+            #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/MSE/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_mse]
+            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{self.config.get('reconstruction_loss', 'BCE')}/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rec]
  
         return outputs_stream_dict
     

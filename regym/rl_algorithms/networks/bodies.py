@@ -1659,7 +1659,9 @@ class LinearLstmAttentionBody2(LinearLstmBody2):
             xout = torch.cat([features, xout], dim=-1)
         
         # Content-based Attention:
-        history = frame_states['att']['history'][0].to(x.dtype).to(x.device)
+        history = frame_states['att']['history'][0]
+        #history = history.to_dense()
+        history = history.to(x.dtype).to(x.device)
         # (batch_size x history_length x dim) 
         iteration = frame_states['att']['iteration'][0].to(x.dtype).to(x.device)
         # (batch_size x 1) 
@@ -1688,7 +1690,7 @@ class LinearLstmAttentionBody2(LinearLstmBody2):
             src=hxout,
         )
         recurrent_neurons['att'] = {
-            'history': [updated_history],
+            'history': [updated_history],#.to_sparse()],
             'iteration': [updated_iteration],
         }
 
@@ -1706,7 +1708,7 @@ class LinearLstmAttentionBody2(LinearLstmBody2):
         it = torch.zeros(repeat, 1)
         if cuda:    h = h.cuda()
         hdict['att'] = {
-            'history': [h],
+            'history': [h],#.to_sparse()],
             'iteration': [it],
         }
         return hdict

@@ -156,9 +156,11 @@ def make_rl_pubsubmanager(
         ) -> List[torch.Tensor]:
         labels = []
         for exp in traj[player_id]:
-            labels.append(torch.from_numpy((1+exp[0])*0.5))
+            #labels.append(torch.from_numpy((1+exp[0])*0.5))
+            # TODO: investigate NO RESCALING context, whether it helps :
+            labels.append(torch.from_numpy(exp[0]))
         return labels
-    def build_comm_to_reconstruct_from_trajectory_fn(
+    def build_double_comm_to_reconstruct_from_trajectory_fn(
         traj: List[List[Any]],
         player_id:int,
         ) -> List[torch.Tensor]:
@@ -176,6 +178,19 @@ def make_rl_pubsubmanager(
             likelihoods.append(target_pred)
 
             previous_com = current_com
+        return likelihoods
+
+    def build_comm_to_reconstruct_from_trajectory_fn(
+        traj: List[List[Any]],
+        player_id:int,
+        ) -> List[torch.Tensor]:
+        """
+        Aims to reconstruct the current communication only...
+        """
+        likelihoods = []
+        for exp in traj[player_id]:
+            target_pred = torch.from_numpy(exp[6]['communication_channel'])
+            likelihoods.append(target_pred)
         return likelihoods
 
 
@@ -204,6 +219,7 @@ def make_rl_pubsubmanager(
       "nbr_players":len(agents),
       "player_id":0,
       'use_cuda':True,
+      "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
       'sampling_period':task_config['speaker_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
@@ -245,6 +261,7 @@ def make_rl_pubsubmanager(
       "nbr_players":len(agents),
       "player_id":1,
       'use_cuda':True,
+      "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
       'sampling_period':task_config['listener_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
@@ -322,7 +339,8 @@ def make_rl_pubsubmanager(
       "player_id":1,
       'use_cuda':True,
       # Multiply by 2 because we reconstr. current and previous comm.:
-      "signal_to_reconstruct_dim": 2*(env_config_hp.get('vocab_size', 5)+1)*env_config_hp.get('max_sentence_length', 1),
+      "reconstruction_loss":"BCE",
+      "signal_to_reconstruct_dim": (env_config_hp.get('vocab_size', 5)+1)*env_config_hp.get('max_sentence_length', 1), #*2
       #"signal_to_reconstruct_dim": 7*2,
       'sampling_period':task_config['listener_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
