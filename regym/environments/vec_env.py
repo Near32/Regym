@@ -203,7 +203,12 @@ class VecEnv():
         
         return copy.deepcopy(output_dict)
 
-    def step(self, action_vector, only_progress_non_terminated=True):
+    def step(self, action_vector, only_progress_non_terminated=True, online_reset=False):
+        """
+        :param online_reset:    boolean that specifies whether to reset terminated environment 
+                                on the fly in this function (after ignoring the currently 
+                                provided action), or not.
+        """
         observations = []
         rewards = []
         infos = []
@@ -211,7 +216,22 @@ class VecEnv():
         
         batch_env_index = -1
         for env_index in range(len(self.env_queues) ):
-            if not(self.gathering) and self.dones[env_index] and not(only_progress_non_terminated):
+            if not(self.gathering) \
+            and self.dones[env_index] \
+            and not(only_progress_non_terminated):
+                continue
+            elif self.gathering \
+            and self.dones[env_index] \
+            and only_progress_non_terminated:
+                batch_env_index += 1
+                self.check_update_reset_env_process(
+                    env_index, 
+                    env_configs=None, 
+                    reset=True,
+                )
+                """
+                New obs,info should be waiting in the queue.
+                """
                 continue
             batch_env_index += 1
             
@@ -226,12 +246,28 @@ class VecEnv():
             self.put_action_in_queue(action=pa_a, idx=env_index)
 
         for env_index in range(len(self.env_queues) ):
-            if not(self.gathering) and self.dones[env_index] and not(only_progress_non_terminated):
+            if not(online_reset) \
+            and not(self.gathering) \
+            and self.dones[env_index] \
+            and not(only_progress_non_terminated):
                 infos.append(None)
                 continue
             
-            experience = self.get_from_queue(idx=env_index, exhaust_first_when_failure=True)
-            obs, r, done, info = experience
+            experience = self.get_from_queue(
+                idx=env_index, 
+                exhaust_first_when_failure=True
+            )
+            if online_reset \
+            and self.dones[env_index]:
+                data = experience
+                if isinstance(data, tuple):
+                    obs, info = experience
+                else:
+                    obs, info = data, None
+                r = self.init_reward[env_index]
+                done = False
+            else:
+                obs, r, done, info = experience
 
             if len(self.init_reward)<len(self.env_queues):
                 # Zero-out this initial reward:

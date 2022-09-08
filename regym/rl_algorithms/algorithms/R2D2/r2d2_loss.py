@@ -10,6 +10,7 @@ import ray
 
 from regym.rl_algorithms.algorithms import Algorithm 
 from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdict, recursive_inplace_update, apply_on_hdict
+from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 
 import wandb 
 
@@ -40,6 +41,61 @@ suffice in the mostly fully observable Atari domain, it prevents a recurrent net
 actual long-term dependencies in more memory-critical domains (e.g. on DMLab)."
 
 """
+
+def archi_assign_fn(
+    new_v,
+    dest_d,
+    node_key,
+    leaf_key,
+    vidx,
+    batch_mask_indices=None,
+    time_indices_start=None,
+    time_indices_end=None,
+    ):
+    """
+    Assumes that some memory sizes are different from dest to new_v.
+    Regularise new_v to expand to the correct shape, which is likely larger...
+    """
+    dest = dest_d[node_key][leaf_key][vidx]
+
+    if batch_mask_indices is None:  batch_mask_indices = torch.arange(dest.shape[0]).to(dest.device) 
+    if time_indices_start is None \
+    and time_indices_end is None:    
+        dest = dest[batch_mask_indices, ...]
+    else:
+        dest = dest[batch_mask_indices, time_indices_start:time_indices_end+1, ...]
+    dshape = dest.shape
+    nvshape = new_v.shape
+    
+    if dshape == nvshape:
+        if time_indices_start is None \
+        and time_indices_end is None:    
+            dest_d[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v.clone()
+        else:
+            dest_d[node_key][leaf_key][vidx][batch_mask_indices, time_indices_start:time_indices_end+1, ...] = new_v.clone()
+        return
+        #return new_v.clone()
+    
+    dest = dest_d[node_key][leaf_key][vidx]
+    dshape = dest.shape
+    
+    max_shape = list(dshape)
+    for sidx in range(len(dshape)):
+        if max_shape[sidx] < nvshape[sidx]:
+            max_shape[sidx] = nvshape[sidx]
+
+    reshaped_new_v = torch.zeros(*max_shape).to(dest.device)
+    if time_indices_start is None \
+    and time_indices_end is None:    
+        reshaped_new_v[:, :dshape[1], ...] = dest.clone()
+        reshaped_new_v[batch_mask_indices, :nvshape[1], ...] = new_v
+    else: 
+        reshaped_new_v[:, :, :dshape[2], ...] = dest.clone()
+        reshaped_new_v[batch_mask_indices, time_indices_start:time_indices_end+1, :nvshape[2], ...] = new_v
+    
+    dest_d[node_key][leaf_key][vidx] = reshaped_new_v 
+    return
+    #return reshaped_new_v
 
 def identity_value_function_rescaling(x):
     return x 
@@ -89,7 +145,7 @@ def extract_rnn_states_from_time_indices(
                 for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
                     if tis>=rnn_states_batched[recurrent_submodule_name][key][idx].shape[1]: 
                         continue
-                    value = rnn_states_batched[recurrent_submodule_name][key][idx][:, tis:tie,...]
+                    value = rnn_states_batched[recurrent_submodule_name][key][idx][:, tis:tie,...].clone()
                     if preprocess_fn is not None:   value = preprocess_fn(value)
                     if squeeze_needed:  value = value.squeeze(1) 
                     rnn_states[recurrent_submodule_name][key].append(value)
@@ -103,10 +159,13 @@ def extract_rnn_states_from_time_indices(
     return rnn_states
 
 
-def replace_rnn_states_at_time_indices(rnn_states_batched: Dict, 
-                                       replacing_rnn_states_batched: Dict, 
-                                       time_indices_start:int, 
-                                       time_indices_end:int):
+def replace_rnn_states_at_time_indices(
+        rnn_states_batched: Dict, 
+        replacing_rnn_states_batched: Dict, 
+        time_indices_start:int, 
+        time_indices_end:int,
+        assign_fn: Optional[Callable] = None,
+        ):
     if rnn_states_batched is None:  return None 
 
     rnn_states = {k: {} for k in rnn_states_batched}
@@ -122,14 +181,29 @@ def replace_rnn_states_at_time_indices(rnn_states_batched: Dict,
                     unroll_size = time_indices_end+1-time_indices_start 
                     #value[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name][key][idx].reshape(batch_size, unroll_size, -1)
                     # reshaping is probably useless:
-                    value[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name][key][idx].unsqueeze(1)
-                    rnn_states[recurrent_submodule_name][key].append(value)
+                    if assign_fn is None:
+                        value[:, time_indices_start:time_indices_end+1,...] = replacing_rnn_states_batched[recurrent_submodule_name][key][idx].unsqueeze(1)
+                        rnn_states[recurrent_submodule_name][key].append(value)
+                    else:
+                        # dummy assignement first...:
+                        rnn_states[recurrent_submodule_name][key].append(value.clone())
+                        assign_fn(
+                            dest_d=rnn_states,
+                            new_v=replacing_rnn_states_batched[recurrent_submodule_name][key][idx].unsqueeze(1),
+                            node_key=recurrent_submodule_name,
+                            leaf_key=key,
+                            vidx=idx,
+                            batch_mask_indices=None,
+                            time_indices_start=time_indices_start,
+                            time_indices_end=time_indices_end,
+                        )
         else:
             rnn_states[recurrent_submodule_name] = replace_rnn_states_at_time_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
                 replacing_rnn_states_batched=replacing_rnn_states_batched[recurrent_submodule_name], 
                 time_indices_start=time_indices_start, 
                 time_indices_end=time_indices_end, 
+                assign_fn=assign_fn,
             )
 
     return rnn_states
@@ -296,7 +370,6 @@ def batched_unrolled_inferences(
     :return burned_in_rnn_states_inputs: Hierarchy of dictionnaries containing the final hidden and cell states of the recurrent
                                         submodules contained in :param model:, with shape (batch_size, unroll_dim=1, ...).
     '''
-    #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
 
@@ -322,13 +395,19 @@ def batched_unrolled_inferences(
         with torch.set_grad_enabled(grad_enabler):
             if extra_inputs_in_phi_body:
                 if vdn:
-                    batching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
+                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
                 else:
-                    batching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size*unroll_length, *x.shape[2:])))
+                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length, *x.shape[2:])))
                 rnn_states_batched = {}
+                """
                 rnn_states_batched['phi_body'] = apply_on_hdict(
                     hdict=rnn_states['phi_body'],
                     fn=batching_time_dim_lambda_fn,
+                )
+                """
+                rnn_states_batched = apply_on_hdict(
+                   hdict=rnn_states,
+                   fn=batching_time_dim_lambda_fn,
                 )
                 torso_output, _ = model_torso(torso_input, rnn_states=rnn_states_batched)
             else:
@@ -385,10 +464,12 @@ def batched_unrolled_inferences(
     
     burn_in_rnn_states_inputs = init_rnn_states_inputs
     unrolled_rnn_states_inputs = init_rnn_states_inputs
-    import ipdb; ipdb.set_trace()
-    # Check that burn_in_rnn_states_inputs contains value_memory etc ?
 
     unrolled_prediction = None
+    assign_fn = None
+    if isinstance(model, ArchiModel):
+        assign_fn = archi_assign_fn
+
     with torch.set_grad_enabled(grad_enabler):
         for unroll_id in range(unroll_length):
             inputs = head_input[:, unroll_id,...]
@@ -405,15 +486,17 @@ def batched_unrolled_inferences(
 
             # Bookkeeping: update the rnn states:
             ## Handle next step's extra inputs:
-            import ipdb; ipdb.set_trace()
-            # TODO: check that rnn_states contain value_memory:
             burn_in_rnn_states_inputs = extract_rnn_states_from_time_indices(
                 rnn_states, 
                 time_indices_start=unroll_id+1,  #sample for next step...
                 time_indices_end=unroll_id+1,
                 preprocess_fn= None if use_BPTT else (lambda x:x.detach()),
             )
-            
+            #WARNING: the following is bound to append upon calling the function on training loop,
+            # where it cannot be padded for the very last computation:
+            # len(burn_in_rnn_states_inputs['CoreLSTM']['iteration']) == 0
+            # It is OK, we do not need the burn_in_rnn_states by the end of this training-purposed call.
+              
             if extras and unroll_id < unroll_length-1:
                 unrolled_rnn_states_inputs = copy_hdict(burn_in_rnn_states_inputs)
             
@@ -426,13 +509,12 @@ def batched_unrolled_inferences(
                 np.where(non_terminals_input.cpu().numpy()==1)[0]
             ).to(non_terminals_input.device)
             
-            import ipdb; ipdb.set_trace()
-            # TODO: check that fn updates the value_memory :
             recursive_inplace_update(
                 in_dict=burn_in_rnn_states_inputs,
                 extra_dict=burn_in_prediction['next_rnn_states'],
                 batch_mask_indices=non_terminals_batch_indices,
                 preprocess_fn= None if use_BPTT else (lambda x:x.detach()),
+                assign_fn=assign_fn, 
             )
             
     burned_in_rnn_states_inputs = burn_in_rnn_states_inputs
@@ -456,8 +538,9 @@ def batched_unrolled_inferences(
     if vdn:
         #head_input = head_input.transpose(1,2).reshape(-1, unroll_length, *head_input.shape[3:])
         def reshape_fn(x):
-            return x.reshape((batch_size, num_players, unroll_length, *x.shape[2:])).transpose(1,2)
-        
+            return x[:,:unroll_length,...].reshape((batch_size, num_players, unroll_length, *x.shape[2:])).transpose(1,2)
+        import ipdb; ipdb.set_trace()
+        #TODO : assert that the reshaping is properly done.
         burned_in_rnn_states_inputs = apply_on_hdict(
             hdict=burned_in_rnn_states_inputs,
             fn=batching_time_dim_lambda_fn,
@@ -728,6 +811,7 @@ def compute_loss(states: torch.Tensor,
                             feedforwarding :param states: in :param model:. See :param rnn_states:
                             for further details on type and shape.
     '''
+    torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
     map_keys=['qa', 'a', 'ent']
@@ -754,6 +838,9 @@ def compute_loss(states: torch.Tensor,
         vfr = identity_value_function_rescaling
 
     start = time.time()
+    assign_fn = None
+    if isinstance(model, ArchiModel):
+        assign_fn = archi_assign_fn
 
     if kwargs['burn_in']:
         burn_in_length = kwargs['sequence_replay_burn_in_length']
@@ -764,12 +851,14 @@ def compute_loss(states: torch.Tensor,
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
         )
+        """
         _burn_in_rnn_states = extract_rnn_states_from_time_indices(
             rnn_states, 
             time_indices_start=0,
             time_indices_end=kwargs['sequence_replay_burn_in_length'],
             preprocess_fn= (lambda x:x.detach()),
         )
+        """
         _training_rnn_states = extract_rnn_states_from_time_indices(
             rnn_states, 
             time_indices_start=kwargs['sequence_replay_burn_in_length'],
@@ -801,7 +890,7 @@ def compute_loss(states: torch.Tensor,
             model=model, 
             states=burn_in_states, 
             non_terminals=burn_in_non_terminals,
-            rnn_states=_burn_in_rnn_states,
+            rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
             extras=False,
@@ -816,7 +905,7 @@ def compute_loss(states: torch.Tensor,
             model=target_model, 
             states=burn_in_states, 
             non_terminals=burn_in_non_terminals,
-            rnn_states=_burn_in_rnn_states,
+            rnn_states=rnn_states,
             grad_enabler=False,
             use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
             extras=False,
@@ -825,18 +914,20 @@ def compute_loss(states: torch.Tensor,
 
         # Replace the burned in rnn states in the training rnn states:
         training_rnn_states = replace_rnn_states_at_time_indices(
-            rnn_states_batched=training_rnn_states, 
+            rnn_states_batched=_training_rnn_states, 
             replacing_rnn_states_batched=burned_in_rnn_states_inputs, 
             time_indices_start=0, 
-            time_indices_end=0
+            time_indices_end=0,
+            assign_fn=assign_fn,
         )
 
         training_target_rnn_states = replace_rnn_states_at_time_indices(
-            rnn_states_batched=training_rnn_states, 
+            rnn_states_batched=_training_rnn_states, 
             replacing_rnn_states_batched=burned_in_rnn_states_target_inputs, 
             time_indices_start=0, 
-            time_indices_end=0
-        ) 
+            time_indices_end=0,
+            assign_fn=assign_fn,
+        )
     else:
         training_length = unroll_length
         training_states = states 
@@ -1014,9 +1105,6 @@ def compute_loss(states: torch.Tensor,
         scaled_td_error = scaled_td_error.sum(dim=2)
     """
     
-    import ipdb; ipdb.set_trace()
-    # Verify that the loss is of the correct shape etc...
-
     # Hanabi_SAD repo does not use the scaled values:
     loss_per_item = td_error
     diff_squared = td_error.pow(2.0)

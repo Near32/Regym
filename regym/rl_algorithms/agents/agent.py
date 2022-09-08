@@ -4,7 +4,7 @@ import numpy as np
 
 from functools import partial
 import regym
-from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
+from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, copy_hdict, recursive_inplace_update, _concatenate_list_hdict
 
 from regym.thirdparty.Archi.Archi import Model as ArchiModel
 
@@ -131,10 +131,10 @@ class Agent(object):
         self.reset_actors(init=True, vdn=vdn)
 
     def get_rnn_states(self):
-        return self.rnn_states 
+        return copy_hdict(self.rnn_states) 
 
     def set_rnn_states(self, rnn_states):
-        self.rnn_states = rnn_states 
+        self.rnn_states = copy_hdict(rnn_states) 
         
     def reset_actors(self, indices:Optional[List]=[], init:Optional[bool]=False, vdn=None):
         '''
@@ -194,6 +194,15 @@ class Agent(object):
         # Reset batch element only: 
         batch_indices_to_update = torch.Tensor(actor_indices).long()
         
+        self.rnn_states = copy_hdict(self.rnn_states)
+        """
+        WARNING: as a recursive inplace update follows, making a deepcopy
+        of the current self.rnn_states makes sure that any ambiguously-
+        made references inside this dict will be severed, and therefore
+        the inplace update will not end up inadvertantly update some other
+        variable that was thought to be distinct, e.g. the agent's 
+        current_prediction's next_rnn_states dict...
+        """
         recursive_inplace_update(
             in_dict=self.rnn_states,
             extra_dict=new_rnn_states,
@@ -253,14 +262,21 @@ class Agent(object):
                     updateable = False
                     if key in next_rnn_states_dict[recurrent_submodule_name]:
                         updateable = True
+                        """
                         for idx in range(len(next_rnn_states_dict[recurrent_submodule_name][key])):
                             # Post-process:
                             next_rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                        """
                     if key in rnn_states_dict[recurrent_submodule_name]:
                         for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
                             if updateable:
                                 # Updating rnn_states:
-                                rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                                rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu().clone()
+                                """
+                                WARNING : it is of the utmost importance to call clone method on here,
+                                or else any subsequent change to the rnn_states_dict element will 
+                                actuall also change the next_rnn_states corresponding element...
+                                """
                             else:
                                 # only post-process:
                                 rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()

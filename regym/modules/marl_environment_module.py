@@ -232,7 +232,7 @@ class MARLEnvironmentModule(Module):
             for player_idx in range(self.nbr_agents)
         ]
 
-        env_output_dict = self.env.step(actions)
+        env_output_dict = self.env.step(actions, online_reset=True)
         succ_observations = env_output_dict[self.succ_obs_key]
         reward = env_output_dict[self.reward_key]
         done = env_output_dict[self.done_key]
@@ -261,7 +261,7 @@ class MARLEnvironmentModule(Module):
                 input_streams_dict,
                 outputs_stream_dict
             )
-
+        
         for actor_index in range(self.nbr_actors):
             self.obs_count += 1
             self.pbar.update(1)
@@ -272,6 +272,7 @@ class MARLEnvironmentModule(Module):
                 and succ_info[0][actor_index]['real_done']) \
             or ('real_done' not in succ_info[0][actor_index] \
                 and done[actor_index])
+            self.done[actor_index] = done_condition
             if done_condition:
                 if self.vdn:
                     obs = self.nonvdn_observations
@@ -322,17 +323,17 @@ class MARLEnvironmentModule(Module):
                 self.update_count = self.agents[0].get_update_count()
                 self.episode_count += 1
                 self.episode_count_record += 1
+                # TODO: assert that addressing the reset via a step+reset which ignores the action is viable...
+                # The following lines used to reassign the succc experiences to the new episode reset exp.
+                """
                 env_reset_output_dict = self.env.reset(env_configs=self.config.get('env_configs', None), env_indices=[actor_index])
                 succ_observations = env_reset_output_dict[self.obs_key]
                 succ_info = env_reset_output_dict[self.info_key]
                 if self.vdn:
                     nonvdn_succ_observations = env_reset_output_dict['observations']
                     nonvdn_succ_info = env_reset_output_dict['info']
+                """
 
-                """
-                for agent_idx, agent in enumerate(self.agents):
-                    agent.reset_actors(indices=[actor_index])
-                """
                 outputs_stream_dict['reset_actors'].append(actor_index)
 
                 # Logging:
@@ -407,6 +408,8 @@ class MARLEnvironmentModule(Module):
                 ]
             
             # Re-assignement is necessary, as succ_obs and succ_info have changed if done_condition==True...
+            # TODO: remove the change in succ_obs and succ_info, by doing the reset upon the next compute call, ignoring the action : which might be functionality to implement in venv...
+
             if self.vdn:
                 obs = self.nonvdn_observations
                 act = nonvdn_actions
@@ -519,6 +522,7 @@ class MARLEnvironmentModule(Module):
             pidx_d['succ_infos'] = succ_info[pidx] 
             pidx_d['rewards'] = reward[pidx]
             pidx_d['dones'] = done
+            setattr(self, f"player{pidx}", pidx_d)
 
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)
