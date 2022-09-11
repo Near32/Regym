@@ -70,9 +70,9 @@ def archi_assign_fn(
     if dshape == nvshape:
         if time_indices_start is None \
         and time_indices_end is None:    
-            dest_d[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v.clone()
+            dest_d[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v#.clone()
         else:
-            dest_d[node_key][leaf_key][vidx][batch_mask_indices, time_indices_start:time_indices_end+1, ...] = new_v.clone()
+            dest_d[node_key][leaf_key][vidx][batch_mask_indices, time_indices_start:time_indices_end+1, ...] = new_v#.clone()
         return
         #return new_v.clone()
     
@@ -87,10 +87,10 @@ def archi_assign_fn(
     reshaped_new_v = torch.zeros(*max_shape).to(dest.device)
     if time_indices_start is None \
     and time_indices_end is None:    
-        reshaped_new_v[:, :dshape[1], ...] = dest.clone()
+        reshaped_new_v[:, :dshape[1], ...] = dest#.clone()
         reshaped_new_v[batch_mask_indices, :nvshape[1], ...] = new_v
     else: 
-        reshaped_new_v[:, :, :dshape[2], ...] = dest.clone()
+        reshaped_new_v[:, :, :dshape[2], ...] = dest#.clone()
         reshaped_new_v[batch_mask_indices, time_indices_start:time_indices_end+1, :nvshape[2], ...] = new_v
     
     dest_d[node_key][leaf_key][vidx] = reshaped_new_v 
@@ -186,7 +186,7 @@ def replace_rnn_states_at_time_indices(
                         rnn_states[recurrent_submodule_name][key].append(value)
                     else:
                         # dummy assignement first...:
-                        rnn_states[recurrent_submodule_name][key].append(value.clone())
+                        rnn_states[recurrent_submodule_name][key].append(value)#.clone())
                         assign_fn(
                             dest_d=rnn_states,
                             new_v=replacing_rnn_states_batched[recurrent_submodule_name][key][idx].unsqueeze(1),
@@ -395,9 +395,11 @@ def batched_unrolled_inferences(
         with torch.set_grad_enabled(grad_enabler):
             if extra_inputs_in_phi_body:
                 if vdn:
-                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
+                    #batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
+                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
                 else:
-                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length, *x.shape[2:])))
+                    #batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length, *x.shape[2:])))
+                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].reshape((batch_size*unroll_length, *x.shape[2:])))
                 rnn_states_batched = {}
                 """
                 rnn_states_batched['phi_body'] = apply_on_hdict(
@@ -811,7 +813,7 @@ def compute_loss(states: torch.Tensor,
                             feedforwarding :param states: in :param model:. See :param rnn_states:
                             for further details on type and shape.
     '''
-    torch.autograd.set_detect_anomaly(True)
+    #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
     map_keys=['qa', 'a', 'ent']

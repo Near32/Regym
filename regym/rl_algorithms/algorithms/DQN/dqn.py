@@ -20,6 +20,7 @@ from ..algorithm import Algorithm
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, random_sample
 from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
+from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 
 import wandb
 summary_writer = None 
@@ -696,6 +697,11 @@ class DQNAlgorithm(Algorithm):
         
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
+
+        if isinstance(self.model, ArchiModel):
+            self.model.reset()
+        if isinstance(self.target_model, ArchiModel):
+            self.target_model.reset()
 
         cloned_algo = copy.deepcopy(self)
         

@@ -282,9 +282,8 @@ class VecEnv():
 
             if only_progress_non_terminated and self.dones[env_index]:
                 rewards[-1] = self.init_reward[env_index]
-            else:
-                self.dones[env_index] = done 
 
+            self.dones[env_index] = done 
             dones.append(done)
             infos.append(info)
         

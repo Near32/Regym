@@ -50,7 +50,7 @@ setup(
       'celluloid',
       'sklearn',
       'seaborn',
-      'wandb=0.12.21',
+      'wandb==0.12.21',
     ] + test_requirements,
 
     python_requires=">=3.6",

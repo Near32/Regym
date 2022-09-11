@@ -55,6 +55,14 @@ class RLHiddenStatePolicy(nn.Module):
         hiddens = extract_subtrees(in_dict=rnn_states, node_id=self.node_id_to_extract)
         # List[List[Tensor]]
         
+        # TODO: provide an attention scheme to breakdown the series of vectors in the case of
+        # non-fixed size memory into a single predictable-size memory:
+        if len(hiddens[0][0].shape) > 2:
+            # extracting the very latest element put in the memory:
+            for idx1 in range(len(hiddens)):
+                for idx2 in range(len(hiddens[0])):
+                    hiddens[idx1][idx2] = hiddens[idx1][idx2][...,-1,:]
+
         vdn = self.model.kwargs.get('vdn', False)
         vdn_nbr_players = self.model.kwargs.get('vdn_nbr_players', 2)
         

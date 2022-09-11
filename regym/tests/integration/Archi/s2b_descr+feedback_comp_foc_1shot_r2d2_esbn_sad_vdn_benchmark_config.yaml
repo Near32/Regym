@@ -446,7 +446,7 @@ agents:
         # critic_arch_linear_post_hidden_units: [256]
         # critic_arch_feature_dim: 128
 
-        CommentedOutArchi_Model:
+        ArchiModel:
             model_id: 'RL_ESBNModel'
             hyperparameters:
                 value_dim: 64
