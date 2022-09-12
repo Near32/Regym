@@ -336,6 +336,7 @@ def unrolled_inferences_deprecated(model: torch.nn.Module,
 
 
 def batched_unrolled_inferences(
+    unroll_length: int,
     model: torch.nn.Module, 
     states: torch.Tensor, 
     non_terminals: torch.Tensor,
@@ -371,7 +372,7 @@ def batched_unrolled_inferences(
                                         submodules contained in :param model:, with shape (batch_size, unroll_dim=1, ...).
     '''
     batch_size = states.shape[0]
-    unroll_length = states.shape[1]
+    #unroll_length = states.shape[1]
 
     vdn = False 
     if len(states.shape)==4 or len(states.shape)==6:
@@ -380,45 +381,57 @@ def batched_unrolled_inferences(
     
     recurrent_module_in_phi_body = 'phi_body' in rnn_states and ('lstm' in rnn_states['phi_body'] or 'gru' in rnn_states['phi_body']) 
     extra_inputs_in_phi_body = 'phi_body' in rnn_states and 'extra_inputs' in rnn_states['phi_body']
+    torso_prediction_batched = None
     if rnn_states is None or not(recurrent_module_in_phi_body):
-        # "The recurrent module must be in the critic_arch."
-
+        # "The recurrent module must be in the critic_arch/head pipeline."
         model_torso = model.get_torso()
         model_head = model.get_head()
 
+        eff_unroll_length = unroll_length
+        if states.shape[1] > unroll_length:
+            eff_unroll_length = unroll_length+1
+        
         begin = time.time()
         if vdn:
-            torso_input = states.reshape((batch_size*unroll_length*num_players, *states.shape[3:]))
+            torso_input = states[:,:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length*num_players, *states.shape[3:]))
         else:
-            torso_input = states.reshape((batch_size*unroll_length, *states.shape[2:]))
+            torso_input = states[:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length, *states.shape[2:]))
 
         with torch.set_grad_enabled(grad_enabler):
             if extra_inputs_in_phi_body:
                 if vdn:
                     #batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
-                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
+                    batching_time_dim_lambda_fn = (lambda x: x[:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length*num_players, *x.shape[3:])))
+                    unbatching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, eff_unroll_length, num_players, *x.shape[2:])))
                 else:
                     #batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length, *x.shape[2:])))
-                    batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].reshape((batch_size*unroll_length, *x.shape[2:])))
+                    batching_time_dim_lambda_fn = (lambda x: x[:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length, *x.shape[2:])))
+                    unbatching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, eff_unroll_length, *x.shape[1:])))
+                
                 rnn_states_batched = {}
-                """
-                rnn_states_batched['phi_body'] = apply_on_hdict(
-                    hdict=rnn_states['phi_body'],
-                    fn=batching_time_dim_lambda_fn,
-                )
-                """
                 rnn_states_batched = apply_on_hdict(
                    hdict=rnn_states,
                    fn=batching_time_dim_lambda_fn,
                 )
-                torso_output, _ = model_torso(torso_input, rnn_states=rnn_states_batched)
+                torso_output, torso_prediction_batched = model_torso(torso_input, rnn_states=rnn_states_batched)
             else:
                 torso_output, _ = model_torso(torso_input)
 
         if vdn:
-            head_input = torso_output.reshape((batch_size, unroll_length, num_players, *torso_output.shape[1:]))
+            head_input = torso_output.reshape((batch_size, eff_unroll_length, num_players, *torso_output.shape[1:]))
         else:
-            head_input = torso_output.reshape((batch_size, unroll_length, *torso_output.shape[1:]))
+            head_input = torso_output.reshape((batch_size, eff_unroll_length, *torso_output.shape[1:]))
+        
+        if torso_prediction_batched is not None:
+            head_input_rnn_states = apply_on_hdict(
+                hdict=torso_prediction_batched['next_rnn_states'],
+                fn=unbatching_time_dim_lambda_fn,
+            )
+            recursive_inplace_update(
+                in_dict=rnn_states,
+                extra_dict=head_input_rnn_states,
+            )
+
         end = time.time()
 
         #print(f"Batched Forward: {end-begin} sec.")
@@ -426,7 +439,7 @@ def batched_unrolled_inferences(
         if rnn_states is None:
             raise NotImplementedError
             # TODO: Need to verify this head_input shape when using VDN...
-            head_input = head_input.reshape((batch_size*unroll_length, *head_input.shape[2:]))
+            head_input = head_input.reshape((batch_size*eff_unroll_length, *head_input.shape[2:]))
             with torch.set_grad_enabled(grad_enabler):
                 burn_in_prediction = model_head(head_input, rnn_states=None)
             for key in burn_in_prediction:
@@ -439,10 +452,10 @@ def batched_unrolled_inferences(
         head_input = states 
 
     if vdn:
-        head_input = head_input.transpose(1,2).reshape(-1, unroll_length, *head_input.shape[3:])
+        head_input = head_input.transpose(1,2).reshape(-1, eff_unroll_length, *head_input.shape[3:])
         batching_time_dim_lambda_fn = (
             lambda x: 
-            x.transpose(1,2).reshape((batch_size*num_players, unroll_length, *x.shape[3:]))
+            x.transpose(1,2).reshape((batch_size*num_players, eff_unroll_length, *x.shape[3:]))
         )
         rnn_states = apply_on_hdict(
             hdict=rnn_states,
@@ -471,7 +484,7 @@ def batched_unrolled_inferences(
     assign_fn = None
     if isinstance(model, ArchiModel):
         assign_fn = archi_assign_fn
-
+    
     with torch.set_grad_enabled(grad_enabler):
         for unroll_id in range(unroll_length):
             inputs = head_input[:, unroll_id,...]
@@ -889,8 +902,9 @@ def compute_loss(states: torch.Tensor,
         burned_in_predictions, \
         unrolled_predictions, \
         burned_in_rnn_states_inputs = batched_unrolled_inferences(
+            unroll_length=burn_in_length,
             model=model, 
-            states=burn_in_states, 
+            states=states, #burn_in_states, 
             non_terminals=burn_in_non_terminals,
             rnn_states=rnn_states,
             grad_enabler=False,
@@ -904,8 +918,9 @@ def compute_loss(states: torch.Tensor,
         burned_in_target_predictions, \
         unrolled_target_predictions, \
         burned_in_rnn_states_target_inputs = batched_unrolled_inferences(
+            unroll_length=burn_in_length,
             model=target_model, 
-            states=burn_in_states, 
+            states=states, #burn_in_states, 
             non_terminals=burn_in_non_terminals,
             rnn_states=rnn_states,
             grad_enabler=False,
@@ -945,6 +960,7 @@ def compute_loss(states: torch.Tensor,
     # burned_in_predictions is using the online RNN states computed in the function loop.
     training_burned_in_predictions, \
     training_unrolled_predictions, _ = batched_unrolled_inferences(
+        unroll_length=training_length,
         model=model, 
         states=training_states, 
         non_terminals=training_non_terminals,
@@ -959,6 +975,7 @@ def compute_loss(states: torch.Tensor,
 
     training_burned_in_target_predictions, \
     training_unrolled_target_predictions, _ = batched_unrolled_inferences(
+        unroll_length=training_length,
         model=target_model, 
         states=training_states, 
         non_terminals=training_non_terminals,

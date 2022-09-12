@@ -945,7 +945,7 @@ def main():
     parser = argparse.ArgumentParser(description="S2B - Test.")
     parser.add_argument("--config", 
         type=str, 
-        default="./s2b_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml",
+        default="./s2b_descr+feedback_comp_foc_1shot_r2d2_largelstm_sad_vdn_benchmark_config.yaml",
     )
     
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
@@ -962,8 +962,9 @@ def main():
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--node_id_to_extract", type=str, default="hidden",
-            help="'hidden'/'memory', with 'memory' being used for DNC-based architecture.\n\
-            It is automatically toggled to 'memory' if 'config' path contains 'dnc'.") #"memory"
+            help="'hidden'/'memory'/'value_memory', with 'memory' being used for DNC-based architecture.\n\
+            \rAnd 'value_memory' being used for ESBN architecture.\n\
+            \rIt is automatically toggled to 'memory' if 'config' path contains 'dnc', and vice-versa.") #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
     parser.add_argument("--use_rule_based_agent", type=str2bool, default="False ",)
     parser.add_argument("--use_speaker_rule_based_agent", type=str2bool, default="False",)
@@ -1025,7 +1026,7 @@ def main():
     )
     parser.add_argument("--replay_capacity", 
         type=float, 
-        default=5e5,
+        default=2e4,
     )
     parser.add_argument("--n_step", 
         type=int, 
@@ -1138,6 +1139,8 @@ def main():
     if args.listener_rec:
         if "dnc" in args.config:
             args.node_id_to_extract = "memory"
+        if "esbn" in args.config:
+            args.node_id_to_extract = "value_memory"
             
     dargs = vars(args)
     
