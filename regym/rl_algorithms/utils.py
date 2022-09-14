@@ -125,7 +125,10 @@ def recursive_inplace_update(
                 # RATHER, to generate copies that lets gradient flow but do not share
                 # the same data space (i.e. modifying one will leave the other intact), make
                 # sure to use the clone() method, as list comprehension does not create new tensors.
+                
                 listvalue = [value.clone() for value in extra_dict[node_key][leaf_key]]
+                # TODO: identify the issue that the following line was aiming to solve:
+                #listvalue = [value.clone() for value in extra_dict[node_key][leaf_key] if value != {}]
                 if leaf_key not in in_dict[node_key]:
                     # initializing here, and preprocessing below...
                     in_dict[node_key][leaf_key] = listvalue
@@ -135,8 +138,21 @@ def recursive_inplace_update(
                     for vidx in range(len(in_dict[node_key][leaf_key])):
                         v = listvalue[vidx]
                         if leaf_key not in in_dict[node_key]:   continue
+                        
+                        # SPARSE-NESS : check & record
+                        sparse_v = False
+                        if getattr(v, "is_sparse", False):
+                            sparse_v = True
+                            v = v.to_dense()
+                        
+                        # PREPROCESSING :
                         new_v = v[batch_mask_indices, ...].clone().to(in_dict[node_key][leaf_key][vidx].device)
                         if preprocess_fn is not None:   new_v = preprocess_fn(new_v)
+                        
+                        # SPARSE-NESS : init
+                        if in_dict[node_key][leaf_key][vidx].is_sparse:
+                            in_dict[node_key][leaf_key][vidx] = in_dict[node_key][leaf_key][vidx].to_dense()
+                        # ASSIGNMENT:
                         if assign_fn is not None:
                             assign_fn(
                                 dest_d=in_dict,
@@ -148,6 +164,11 @@ def recursive_inplace_update(
                             )
                         else:
                             in_dict[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v
+                        
+                        # SPARSE-NESS / POST-PROCESSING:
+                        if sparse_v:
+                            v = v.to_sparse()
+                            in_dict[node_key][leaf_key][vidx] = in_dict[node_key][leaf_key][vidx].to_sparse()
 
 def copy_hdict(in_dict: Dict):
     '''
@@ -213,9 +234,17 @@ def _extract_from_rnn_states(rnn_states_batched: Dict,
                     rnn_states[recurrent_submodule_name][key] = []
                     for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
                         value = rnn_states_batched[recurrent_submodule_name][key][idx]
+                        sparse_v = False
+                        if value.is_sparse:
+                            sparse_v = True
+                            value = value.to_dense()
                         if batch_idx is not None:
                             value = value[batch_idx,...].unsqueeze(0)
-                        rnn_states[recurrent_submodule_name][key].append(post_process_fn(value))
+                        new_value = post_process_fn(value)
+                        if sparse_v:
+                            value = value.to_sparse()
+                            new_value = new_value.to_sparse()
+                        rnn_states[recurrent_submodule_name][key].append(new_value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_from_rnn_states(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name], 
@@ -240,9 +269,16 @@ def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
                 if key in rnn_states_batched[recurrent_submodule_name]:
                     rnn_states[recurrent_submodule_name][key] = []
                     for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
-                        value = rnn_states_batched[recurrent_submodule_name][key][idx][batch_indices,...]
-                        if use_cuda: value = value.cuda()
-                        rnn_states[recurrent_submodule_name][key].append(value)
+                        value = rnn_states_batched[recurrent_submodule_name][key][idx]
+                        sparse_v = False
+                        if value.is_sparse:
+                            sparse_v = True
+                            value = value.to_dense()
+                        new_value = value[batch_indices,...]
+                        if use_cuda: new_value = new_value.cuda()
+                        if sparse_v:
+                            new_value = new_value.to_sparse()
+                        rnn_states[recurrent_submodule_name][key].append(new_value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name],
@@ -290,7 +326,7 @@ def _concatenate_hdict(hd1: Union[Dict, List],
             )
     return out_hd
 
-def _concatenate_list_hdict(
+def SPARSE_concatenate_list_hdict(
     lhds: List[Dict],
     concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
     preprocess_fn: Optional[Callable] = (lambda x:
@@ -319,40 +355,112 @@ def _concatenate_list_hdict(
         else:
             for k in pointers[0]:
                 #try:
+                # Since we are at a leaf then value is
+                # either numpy or numpy.float64
+                # or list of tensors:
+                if isinstance(pointers[0][k], list):
+                    out_pointer[k] = []
+                    for idx in range(len(pointers[0][k])):
+                        concat_list = [ 
+                                pointer[k][idx].to_dense() if getattr(pointer[k][idx], "is_sparse", False) else pointer[k][idx]
+                                for pointer in pointers if k in pointer
+                        ]
+                        concat_list = [
+                            preprocess_fn(v)
+                            for v in concat_list
+                        ]
+                        out_v = concat_fn(concat_list)
+                        if getattr(pointers[0][k][idx], "is_sparse", False):
+                            out_v = out_v.to_sparse()
+                        out_pointer[k].append(out_v)
+                elif isinstance(pointers[0][k], np.ndarray) \
+                or isinstance(pointers[0][k], torch.Tensor):
+                    out_pointer[k] = []
+                    concat_list = [ 
+                            pointer[k].to_dense() if getattr(pointer[k], "is_sparse", False) else pointer[k]
+                            for pointer in pointers if k in pointer
+                    ]
+                    concat_list = [
+                        preprocess_fn(v)
+                        for v in concat_list
+                    ]
+                    out_v = concat_fn(concat_list)
+                    if getattr(pointers[0][k], "is_sparse", False):
+                        out_v = out_v.to_sparse()
+                    out_pointer[k] = out_v
+                else:
+                    #print(f"Key {k} found of type : {type(pointers[0][k])}")
+                    continue
+                #except Exception as e:
+                #        # the concat_fn may fail, silently...
+                #        # e.g.: neither a list nor a compatible stuff....
+                #        pass
+    return out_hd
+
+
+def _concatenate_list_hdict(
+    lhds: List[Dict],
+    concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
+    preprocess_fn: Optional[Callable] = (lambda x:
+        torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x
+        )
+    ):
+    out_hd = {key: {} for key in lhds[0]}
+
+    queue = [lhds]
+    pointers = None
+
+    out_queue = [out_hd]
+    out_pointer = None
+
+    while len(queue):
+        pointers = [hds for hds in queue.pop(0)]
+        out_pointer = out_queue.pop(0)
+
+        if not is_leaf(pointers[0]):
+            for k in pointers[0]:
+                queue_element = [pointer[k] for pointer in pointers if k in pointer]
+                queue.insert(0, queue_element)
+
+                out_pointer[k] = {}
+                out_queue.insert(0, out_pointer[k])
+        else:
+            for k in pointers[0]:
                 out_pointer[k] = []
                 # Since we are at a leaf then value is
                 # either numpy or numpy.float64
                 # or list of tensors:
                 if isinstance(pointers[0][k], list):
                     for idx in range(len(pointers[0][k])):
-                        concat_list = [
-                            preprocess_fn(pointer[k][idx])
-                            for pointer in pointers if k in pointer
+                        concat_list = [ 
+                                pointer[k][idx].to_dense() if getattr(pointer[k][idx], "is_sparse", False) else pointer[k][idx]
+                                for pointer in pointers if k in pointer
                         ]
-                        out_pointer[k].append(
-                            concat_fn(concat_list)
-                        )
+                        concat_list = [
+                            preprocess_fn(v)
+                            for v in concat_list
+                        ]
+                        out_v = concat_fn(concat_list)
+                        if getattr(pointers[0][k][idx], "is_sparse", False):
+                            out_v = out_v.to_sparse()
+                        out_pointer[k].append(out_v)
                 elif isinstance(pointers[0][k], np.ndarray) \
                 or isinstance(pointers[0][k], torch.Tensor):
-                    concat_list = [
-                        preprocess_fn(pointer[k])
-                        for pointer in pointers if k in pointer
+                    concat_list = [ 
+                            pointer[k].to_dense() if getattr(pointer[k], "is_sparse", False) else pointer[k]
+                            for pointer in pointers if k in pointer
                     ]
-                    try:
-                        out_pointer[k] = concat_fn(concat_list)
-                    except Exception as e:
-                        # the concat_fn may fail, silently...
-                        # e.g.: shape of elements are not all the same...
-                        raise e
-                        #pass
+                    concat_list = [
+                        preprocess_fn(v)
+                        for v in concat_list
+                    ]
+                    out_v = concat_fn(concat_list)
+                    if getattr(pointers[0][k], "is_sparse", False):
+                        out_v = out_v.to_sparse()
+                    out_pointer[k] = out_v
                 else:
                     #print(f"CONCAT: Skipped {k} of type {type(pointers[0][k])}")
                     continue
-                #except Exception as e:
-                    # the concat_fn may fail, silently...
-                    # e.g.: neither a list nor a compatible stuff....
-                #    import ipdb; ipdb.set_trace()
-                #    print(f"Warning: concatenate_list_hdict encounter an incompatibel element : {k} / issue : {e}")
     return out_hd
 
 

@@ -4,6 +4,7 @@ from ..networks import CategoricalQNet, CategoricalActorCriticNet, CategoricalAc
 from ..networks import FCBody, FCBody2, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
 from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
 from ..networks import LinearLinearBody, LinearLstmBody, LinearLstmBody2
+from ..networks import LinearLstmAttentionBody2
 from ..networks import NTMBody
 from ..networks import DNCBody
 from ..networks import NoisyLinear
@@ -741,6 +742,62 @@ def _generate_model(
                 dropout=0.0,
                 add_non_lin_final_layer=True,
                 use_residual_connection=use_residual_connection,
+                #layer_init_fn=None,
+                extra_inputs_infos=extra_inputs_infos_critic_body,
+            )
+        elif kwargs['critic_arch'] == 'MLP-AttLSTM-RNN2':
+            # Assuming flatten input:
+            #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+            state_dim = input_dim
+            max_history_length = kwargs['max_history_length']
+            iteration_to_slot_divider= kwargs['iteration_to_slot_divider']
+            critic_arch_feature_dim = kwargs['critic_arch_feature_dim']
+            critic_arch_linear_hidden_units = kwargs['critic_arch_linear_hidden_units']
+            critic_arch_linear_post_hidden_units = None
+            if 'critic_arch_linear_post_hidden_units' in kwargs:
+                critic_arch_linear_post_hidden_units = kwargs['critic_arch_linear_post_hidden_units']
+            critic_arch_hidden_units = kwargs['critic_arch_hidden_units']
+
+            # Selecting Extra Inputs Infos relevant to phi_body:
+            extra_inputs_infos = kwargs.get('extra_inputs_infos', {})
+            extra_inputs_infos_critic_body = {}
+            if extra_inputs_infos != {}:
+                for key in extra_inputs_infos:
+                    shape = extra_inputs_infos[key]['shape']
+                    tll = extra_inputs_infos[key]['target_location']
+                    if not isinstance(tll[0], list):
+                        tll= [tll]
+                    for tl in tll:
+                        if 'critic_body' in tl:
+                            extra_inputs_infos_critic_body[key] = {
+                                'shape':shape, 
+                                'target_location':tl
+                            }
+            
+            gate = None 
+            if 'use_relu_after_rnn' in kwargs \
+            and kwargs['use_relu_after_rnn']:
+                import ipdb; ipdb.set_trace()
+                gate = F.relu
+
+            use_residual_connection = False
+            if 'use_residual_connection' in kwargs \
+            and kwargs['use_residual_connection']:
+                use_residual_connection = kwargs['use_residual_connection']
+            
+            critic_body = LinearLstmAttentionBody2(
+                state_dim=state_dim,
+                feature_dim=critic_arch_feature_dim, 
+                linear_hidden_units=critic_arch_linear_hidden_units,
+                linear_post_hidden_units=critic_arch_linear_post_hidden_units,
+                hidden_units=critic_arch_hidden_units, 
+                non_linearities=[nn.ReLU], 
+                gate=gate,
+                dropout=0.0,
+                add_non_lin_final_layer=True,
+                use_residual_connection=use_residual_connection,
+                max_history_length=max_history_length,
+                iteration_to_slot_divider=iteration_to_slot_divider,
                 #layer_init_fn=None,
                 extra_inputs_infos=extra_inputs_infos_critic_body,
             )

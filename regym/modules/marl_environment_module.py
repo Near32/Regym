@@ -154,6 +154,7 @@ class MARLEnvironmentModule(Module):
         self.episode_lengths = list()
 
         self.obs_count = self.agents[0].get_experience_count() if hasattr(self.agents[0], "get_experience_count") else 0
+        self.update_count = self.agents[0].get_update_count()
         self.episode_count = 0
         self.episode_count_record = 0
         self.sample_episode_count = 0
@@ -332,7 +333,7 @@ class MARLEnvironmentModule(Module):
                 self.positive_total_returns.append(sum([ exp[2] if exp[2]>0 else 0.0 for exp in traj]))
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))
                 self.episode_lengths.append(len(traj))
-
+                
                 wandb.log({'Training/TotalReturn':  self.total_returns[-1], "episode_count":self.episode_count}, commit=False)
                 wandb.log({'PerObservation/TotalReturn':  self.total_returns[-1], "obs_count":self.obs_count}, commit=False)
                 wandb.log({'PerUpdate/TotalReturn':  self.total_returns[-1], "update_count":self.update_count}, commit=False)
@@ -463,6 +464,12 @@ class MARLEnvironmentModule(Module):
                     
         #wandb.log({}, commit=True)
 
+        outputs_stream_dict["signals:episode_count"] = self.episode_count
+        outputs_stream_dict["signals:obs_count"] = self.obs_count
+        outputs_stream_dict["signals:update_count"] = self.update_count
+        for aidx, agent in enumerate(self.agents):
+            outputs_stream_dict[f"signals:agent_{aidx}:obs_count"] = agent.get_obs_count() if hasattr(agent, "get_obs_count") else 0
+        
         outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
         outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
         outputs_stream_dict[self.action_key] = actions 

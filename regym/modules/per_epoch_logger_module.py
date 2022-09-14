@@ -94,99 +94,111 @@ class PerEpochLoggerModule(Module):
         
         # Store new data:
         for key,value in logs_dict.items():
-          if key not in self.storages:
-            self.storages[key] = []
-          if isinstance(value, torch.Tensor):
-            value = value.cpu().detach()
-          self.storages[key].append(value)
+            if key not in self.storages:
+                self.storages[key] = []
+            if isinstance(value, torch.Tensor):
+                value = value.cpu().detach()
+            self.storages[key].append(value)
         
         # Is it the end of the epoch?
         end_of_epoch = all([
-          input_streams_dict[key]
-          for key in self.end_of_]
+            input_streams_dict[key]
+            for key in self.end_of_]
         )
         
         # If so, let us average over every value and save it:
         if end_of_epoch or self.epoch != epoch:
-          self.epoch = epoch
-          for key, valuelist in self.storages.items():
-            need_stats = False
-            if isinstance(valuelist[0], torch.Tensor):# and len(valuelist[0].shape)>=1:
-              values = torch.cat([vl.cpu().detach().reshape(-1) for vl in valuelist], dim=0).numpy()
-              need_stats = True
-            elif isinstance(valuelist[0], float) or isinstance(valuelist[0], int):
-              values = np.asarray(valuelist).reshape(-1)
-              if len(valuelist)>1:
-                need_stats = True
-            else:
-              continue
+            self.epoch = epoch
+            for key, valuelist in self.storages.items():
+                need_stats = False
+                if isinstance(valuelist[0], torch.Tensor):# and len(valuelist[0].shape)>=1:
+                    values = torch.cat([vl.cpu().detach().reshape(-1) for vl in valuelist], dim=0).numpy()
+                    need_stats = True
+                elif isinstance(valuelist[0], float) or isinstance(valuelist[0], int):
+                    values = np.asarray(valuelist).reshape(-1)
+                    if len(valuelist)>1:
+                        need_stats = True
+                else:
+                    continue
 
-            if need_stats:
-              averaged_value = values.mean()
-              std_value = values.std()
-              wandb.log({f"PerEpoch/{key}/Mean":  averaged_value, "epoch":epoch}, commit=False)
-              wandb.log({f"PerEpoch/{key}/Std":  std_value, "epoch":epoch}, commit=False)
+                if need_stats:
+                    averaged_value = values.mean()
+                    std_value = values.std()
+                    outputs_stream_dict[f"logs_dict:PerEpoch/{key}/Mean"] = averaged_value
+                    outputs_stream_dict[f"logs_dict:PerEpoch/{key}/Std"] = std_value
+                    
+                    #wandb.log({f"PerEpoch/{key}/Mean":  averaged_value, "epoch":epoch}, commit=False)
+                    #wandb.log({f"PerEpoch/{key}/Std":  std_value, "epoch":epoch}, commit=False)
               
-              wandb.log({f"PerUpdate/{key}/Mean":  averaged_value, "update_count":update_count}, commit=False)
-              wandb.log({f"PerUpdate/{key}/Std":  std_value, "update_count":update_count}, commit=False)
-              wandb.log({f"PerAgentUpdate/{key}/Mean":  averaged_value, "agent_update_count":agent_update_count}, commit=False)
-              wandb.log({f"PerAgentUpdate/{key}/Std":  std_value, "agent_update_count":agent_update_count}, commit=False)
+                    #wandb.log({f"PerUpdate/{key}/Mean":  averaged_value, "update_count":update_count}, commit=False)
+                    #wandb.log({f"PerUpdate/{key}/Std":  std_value, "update_count":update_count}, commit=False)
+                    #wandb.log({f"PerAgentUpdate/{key}/Mean":  averaged_value, "agent_update_count":agent_update_count}, commit=False)
+                    #wandb.log({f"PerAgentUpdate/{key}/Std":  std_value, "agent_update_count":agent_update_count}, commit=False)
               
  
+                    median_value = np.nanpercentile(
+                        values,
+                        q=50,
+                        axis=None,
+                        method="nearest"
+                    )
+                    q1_value = np.nanpercentile(
+                        values,
+                        q=25,
+                        axis=None,
+                        method="lower"
+                    )
+                    q3_value = np.nanpercentile(
+                        values,
+                        q=75,
+                        axis=None,
+                        method="higher"
+                    )
+                    iqr = q3_value-q1_value
+              
+                    outputs_stream_dict[f"logs_dict:PerEpoch/{key}/Median"] = median_value
+                    outputs_stream_dict[f"logs_dict:PerEpoch/{key}/Q1"] = q1_value
+                    outputs_stream_dict[f"logs_dict:PerEpoch/{key}/Q3"] = q3_value
+                    outputs_stream_dict[f"logs_dict:PerEpoch/{key}/IQR"] = iqr
+                    
+                    #wandb.log({f"PerEpoch/{key}/Median":  median_value, "epoch":epoch}, commit=False)
+                    #wandb.log({f"PerEpoch/{key}/Q1":  q1_value, "epoch":epoch}, commit=False)
+                    #wandb.log({f"PerEpoch/{key}/Q3":  q3_value, "epoch":epoch}, commit=False)
+                    #wandb.log({f"PerEpoch/{key}/IQR":  iqr, "epoch":epoch}, commit=False)
+                      
+                    #wandb.log({f"PerUpdate/{key}/Median":  median_value, "update_count":update_count}, commit=False)
+                    #wandb.log({f"PerUpdate/{key}/Q1":  q1_value, "update_count":update_count}, commit=False)
+                    #wandb.log({f"PerUpdate/{key}/Q3":  q3_value, "update_count":update_count}, commit=False)
+                    #wandb.log({f"PerUpdate/{key}/IQR":  iqr, "update_count":update_count}, commit=False)
+                    #wandb.log({f"PerAgentUpdate/{key}/Median":  median_value, "agent_update_count":agent_update_count}, commit=False)
+                    #wandb.log({f"PerAgentUpdate/{key}/Q1":  q1_value, "agent_update_count":agent_update_count}, commit=False)
+                    #wandb.log({f"PerAgentUpdate/{key}/Q3":  q3_value, "agent_update_count":agent_update_count}, commit=False)
+                    #wandb.log({f"PerAgentUpdate/{key}/IQR":  iqr, "agent_update_count":agent_update_count}, commit=False)
+                    
+                    
+                    #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
+                else:
+                    outputs_stream_dict[f"logs_dict:PerEpoch/{key}"] = valuelist[-1]
+                    #wandb.log({f"PerUpdate/{key}":  valuelist[-1], "update_count":update_count}, commit=False)
+                    #wandb.log({f"PerAgentUpdate/{key}":  valuelist[-1], "agent_update_count":agent_update_count}, commit=False)
+              
+                    # Remove the value form the logs_dict if it is present:
+                    logs_dict.pop(key, None)
 
-              median_value = np.nanpercentile(
-                values,
-                q=50,
-                axis=None,
-                method="nearest"
-              )
-              q1_value = np.nanpercentile(
-                values,
-                q=25,
-                axis=None,
-                method="lower"
-              )
-              q3_value = np.nanpercentile(
-                values,
-                q=75,
-                axis=None,
-                method="higher"
-              )
-              iqr = q3_value-q1_value
-              
-              wandb.log({f"PerEpoch/{key}/Median":  median_value, "epoch":epoch}, commit=False)
-              wandb.log({f"PerEpoch/{key}/Q1":  q1_value, "epoch":epoch}, commit=False)
-              wandb.log({f"PerEpoch/{key}/Q3":  q3_value, "epoch":epoch}, commit=False)
-              wandb.log({f"PerEpoch/{key}/IQR":  iqr, "epoch":epoch}, commit=False)
-              
-              wandb.log({f"PerUpdate/{key}/Median":  median_value, "update_count":update_count}, commit=False)
-              wandb.log({f"PerUpdate/{key}/Q1":  q1_value, "update_count":update_count}, commit=False)
-              wandb.log({f"PerUpdate/{key}/Q3":  q3_value, "update_count":update_count}, commit=False)
-              wandb.log({f"PerUpdate/{key}/IQR":  iqr, "update_count":update_count}, commit=False)
-              wandb.log({f"PerAgentUpdate/{key}/Median":  median_value, "agent_update_count":agent_update_count}, commit=False)
-              wandb.log({f"PerAgentUpdate/{key}/Q1":  q1_value, "agent_update_count":agent_update_count}, commit=False)
-              wandb.log({f"PerAgentUpdate/{key}/Q3":  q3_value, "agent_update_count":agent_update_count}, commit=False)
-              wandb.log({f"PerAgentUpdate/{key}/IQR":  iqr, "agent_update_count":agent_update_count}, commit=False)
-              
- 
-              #logger.add_histogram(f"PerEpoch/{key}", values, epoch)
-            else:
-              wandb.log({f"PerEpoch/{key}":  valuelist[-1], "epoch":epoch}, commit=False)
-              wandb.log({f"PerUpdate/{key}":  valuelist[-1], "update_count":update_count}, commit=False)
-              wandb.log({f"PerAgentUpdate/{key}":  valuelist[-1], "agent_update_count":agent_update_count}, commit=False)
-              
-              # Remove the value form the logs_dict if it is present:
-              logs_dict.pop(key, None)
-
-          # Reset epoch storages:
-          self.storages = {}
+            # Reset epoch storages:
+            self.storages = {}
 
         # Log new (rectified) data:
         for key,value in logs_dict.items():
-          if isinstance(value, torch.Tensor): 
-              value = value.mean().item()
-          wandb.log({key:  value, "global_it_step":global_it_step}, commit=False)
-        #wandb.log({}, commit=True)
+            if isinstance(value, torch.Tensor): 
+                value = value.mean().item()
+            #wandb.log({key:  value, "global_it_step":global_it_step}, commit=False)
+            outputs_stream_dict[f"logs_dict:{key}"] = value
         
-        return {}
+        for key,value in losses_dict.items():
+            if isinstance(value, torch.Tensor): 
+                value = value.mean().item()
+            outputs_stream_dict[f"losses_dict:{key}"] = value
+        
+        return outputs_stream_dict
         

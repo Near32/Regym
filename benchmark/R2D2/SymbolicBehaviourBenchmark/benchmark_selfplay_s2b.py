@@ -156,9 +156,11 @@ def make_rl_pubsubmanager(
         ) -> List[torch.Tensor]:
         labels = []
         for exp in traj[player_id]:
-            labels.append(torch.from_numpy((1+exp[0])*0.5))
+            #labels.append(torch.from_numpy((1+exp[0])*0.5))
+            # TODO: investigate NO RESCALING context, whether it helps :
+            labels.append(torch.from_numpy(exp[0]))
         return labels
-    def build_comm_to_reconstruct_from_trajectory_fn(
+    def build_double_comm_to_reconstruct_from_trajectory_fn(
         traj: List[List[Any]],
         player_id:int,
         ) -> List[torch.Tensor]:
@@ -176,6 +178,19 @@ def make_rl_pubsubmanager(
             likelihoods.append(target_pred)
 
             previous_com = current_com
+        return likelihoods
+
+    def build_comm_to_reconstruct_from_trajectory_fn(
+        traj: List[List[Any]],
+        player_id:int,
+        ) -> List[torch.Tensor]:
+        """
+        Aims to reconstruct the current communication only...
+        """
+        likelihoods = []
+        for exp in traj[player_id]:
+            target_pred = torch.from_numpy(exp[6]['communication_channel'])
+            likelihoods.append(target_pred)
         return likelihoods
 
 
@@ -204,6 +219,7 @@ def make_rl_pubsubmanager(
       "nbr_players":len(agents),
       "player_id":0,
       'use_cuda':True,
+      "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
       'sampling_period':task_config['speaker_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
@@ -245,6 +261,7 @@ def make_rl_pubsubmanager(
       "nbr_players":len(agents),
       "player_id":1,
       'use_cuda':True,
+      "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
       'sampling_period':task_config['listener_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
@@ -322,7 +339,8 @@ def make_rl_pubsubmanager(
       "player_id":1,
       'use_cuda':True,
       # Multiply by 2 because we reconstr. current and previous comm.:
-      "signal_to_reconstruct_dim": 2*(env_config_hp.get('vocab_size', 5)+1)*env_config_hp.get('max_sentence_length', 1),
+      "reconstruction_loss":"BCE",
+      "signal_to_reconstruct_dim": (env_config_hp.get('vocab_size', 5)+1)*env_config_hp.get('max_sentence_length', 1), #*2
       #"signal_to_reconstruct_dim": 7*2,
       'sampling_period':task_config['listener_rec_period'],
       "hiddenstate_policy": RLHiddenStatePolicy(
@@ -459,6 +477,28 @@ def check_path_for_agent(filepath):
         offset_episode_count = agent.episode_count
         #setattr(agent, 'episode_count', offset_episode_count)
         print('==> loaded checkpoint {}'.format(filepath))
+    return agent, offset_episode_count
+
+
+def check_wandb_path_for_agent(file_path, run_path):
+    if os.path.exists('./'+file_path):
+        print(f"WARNING:CHECKPOINT PATH DUPLICATE EXISTS: ./{file_path}")
+        os.remove('./'+file_path)
+        print(f"WARNING: DUPLICATE PATH DELETED: ./{file_path}")
+    try:
+        agent_ref = wandb.restore(name=file_path, run_path=run_path)
+    except Exception as e:
+        agent_ref = None
+        raise e
+    agent = None
+    offset_episode_count = 0
+    if agent_ref is not None:
+        print(f"==> loading checkpoint {run_path}/{file_path}")
+        agent = torch.load(agent_ref.name)
+        os.remove('./'+file_path)
+        offset_episode_count = agent.episode_count
+        #setattr(agent, 'episode_count', offset_episode_count)
+        print(f"==> loaded checkpoint {run_path}/{file_path}")
     return agent, offset_episode_count
 
 
@@ -693,11 +733,12 @@ def training_process(agent_config: Dict,
       task_config['vdn'] = False 
 
     if len(sys.argv) > 2:
+      """
       override_nite = [idx for idx, arg in enumerate(sys.argv) if "--node_id_to_extract" in arg]
       if len(override_nite):
           node_id_to_extract = sys.argv[override_nite[0]+1]
           print(f"NEW NODE ID TO EXTRACT FOR REC: {node_id_to_extract}")
-
+      """
       override_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--new_seed' in arg]
       if len(override_seed_argv_idx):
         seed = int(sys.argv[override_seed_argv_idx[0]+1])
@@ -732,9 +773,9 @@ def training_process(agent_config: Dict,
       base_path = os.path.join(base_path,"NOPUBSUB")
     
     if speaker_rec:
-      base_path = os.path.join(base_path,f"SpeakerReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p3' if speaker_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"SpeakerReconstructionFrom-{node_id_to_extract}-{'Biasing-1p3' if speaker_rec_biasing else ''}-BigArch")
     if listener_rec:
-      base_path = os.path.join(base_path,f"ListenerReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p0' if listener_rec_biasing else ''}-BigArch")
+      base_path = os.path.join(base_path,f"ListenerReconstructionFrom-{node_id_to_extract}-{'Biasing-1p0' if listener_rec_biasing else ''}-BigArch")
     if listener_comm_rec:
       base_path = os.path.join(base_path,f"ListenerCommunicationChannelReconstructionFrom-{node_id_to_extract}-{'+Biasing-1p0' if listener_comm_rec_biasing else ''}-BigArch")
      
@@ -823,6 +864,11 @@ def training_process(agent_config: Dict,
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     if task_config.get("reload", 'None')!='None':
       agent, offset_episode_count = check_path_for_agent(task_config["reload"])
+    elif task_config.get("reload_wandb_run_path", 'None') != 'None':
+      agent, offset_episode_count = check_wandb_path_for_agent(
+        file_path=task_config["reload_wandb_file_path"],
+        run_path=task_config["reload_wandb_run_path"],
+      ) 
     else:
       agent = None
       offset_episode_count = 0
@@ -881,6 +927,11 @@ def training_process(agent_config: Dict,
     }
     project_name = task_config['project']
     wandb.init(project=project_name, config=config)
+    for agent in agents:
+        if not hasattr(agent, "save_path"):  continue
+        agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
+        os.makedirs(agent.save_path, exist_ok=True)
+        agent.save_path += "/checkpoint.agent"
     #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
     trained_agents = train_and_evaluate(
@@ -961,8 +1012,11 @@ def main():
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
-    parser.add_argument("--node_id_to_extract", type=str, default="hidden",
-            help="'hidden'/'memory'/'value_memory', with 'memory' being used for DNC-based architecture.\n\
+    parser.add_argument("--node_id_to_extract", 
+            type=str, 
+            default="hidden",
+            choices=["hidden","cell","memory","hidden,cell","value_memory"],
+            help="'hidden'/'memory'/'value_memory', or combination separated by comma, with 'memory' being used for DNC-based architecture.\n\
             \rAnd 'value_memory' being used for ESBN architecture.\n\
             \rIt is automatically toggled to 'memory' if 'config' path contains 'dnc', and vice-versa.") #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
@@ -979,6 +1033,17 @@ def main():
         default="META_RG_S2B",
     )
 
+    parser.add_argument("--test_only", type=str2bool, default="False")
+    parser.add_argument("--reload_wandb_run_path", 
+        type=str, 
+        default="None",
+    )
+
+    parser.add_argument("--reload_wandb_file_path", 
+        type=str, 
+        default="None",
+    )
+
     parser.add_argument("--path_suffix", 
         type=str, 
         default="",
@@ -986,6 +1051,10 @@ def main():
     parser.add_argument("--simplified_DNC", 
         type=str2bool, 
         default="False",
+    )
+    parser.add_argument("--saving_interval", 
+        type=float, 
+        default=5e5,
     )
     parser.add_argument("--learning_rate", 
         type=float, 
@@ -1024,6 +1093,10 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--min_capacity", 
+        type=float, 
+        default=1.5e4,
+    )
     parser.add_argument("--replay_capacity", 
         type=float, 
         default=2e4,
@@ -1051,6 +1124,10 @@ def main():
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=5e6, #2e6,
+    )
+    parser.add_argument("--benchmarking_interval", 
+        type=float, 
+        default=1e4,
     )
     
     parser.add_argument("--vocab_size",
