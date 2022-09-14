@@ -460,8 +460,8 @@ agents:
             modules:
                 'CoreLSTM':
                     type: LSTMModule
-                    state_dim: 130 #65 #"{{key_dim}+1}"
-                    hidden_units: [512] #["{{hidden_dim}}"]
+                    state_dim: 66 #130 #65 #"{{key_dim}+1}"
+                    hidden_units: [256,] #512] #["{{hidden_dim}}"]
                     non_linearities: [None]
                     config: None
                     input_stream_ids:
@@ -473,8 +473,8 @@ agents:
                     use_cuda: True
                 'ObsKeyValueMemory':
                     type: KeyValueMemoryModule
-                    key_dim: 64 #"{{key_dim}}"
-                    value_dim: 64 #"{{value_dim}}"
+                    key_dim: 32 #64 #"{{key_dim}}"
+                    value_dim: 32 #64 #"{{value_dim}}"
                     config: None
                     input_stream_ids:
                         iteration: "modules:CoreLSTM:iteration"
@@ -487,7 +487,7 @@ agents:
                     use_cuda: True
                 'ObsToGateFCN':
                     type: FullyConnectedNetworkModule
-                    state_dim: 512 #"{{hidden_dim}}"
+                    state_dim: 256 #512 #"{{hidden_dim}}"
                     hidden_units: [1]
                     non_linearities: [None]
                     dropout: 0.0
@@ -497,8 +497,8 @@ agents:
                     use_cuda: True
                 'ObsToKeyFCN':
                     type: FullyConnectedNetworkModule
-                    state_dim: 512 #"{{hidden_dim}}"
-                    hidden_units: [64] #["{{key_dim}}"]
+                    state_dim: 256 #512 #"{{hidden_dim}}"
+                    hidden_units: [32,] #64] #["{{key_dim}}"]
                     non_linearities: [None]
                     dropout: 0.0
                     config: None
@@ -507,8 +507,8 @@ agents:
                     use_cuda: True
                 'CommKeyValueMemory':
                     type: KeyValueMemoryModule
-                    key_dim: 64 #"{{key_dim}}"
-                    value_dim: 64 #"{{value_dim}}"
+                    key_dim: 32 #64 #"{{key_dim}}"
+                    value_dim: 32 #64 #"{{value_dim}}"
                     config: None
                     input_stream_ids:
                         iteration: "modules:CoreLSTM:iteration"
@@ -521,7 +521,7 @@ agents:
                     use_cuda: True
                 'CommToGateFCN':
                     type: FullyConnectedNetworkModule
-                    state_dim: 512 #"{{hidden_dim}}"
+                    state_dim: 256 #512 #"{{hidden_dim}}"
                     hidden_units: [1]
                     non_linearities: [None]
                     dropout: 0.0
@@ -531,8 +531,8 @@ agents:
                     use_cuda: True
                 'CommToKeyFCN':
                     type: FullyConnectedNetworkModule
-                    state_dim: 512 #"{{hidden_dim}}"
-                    hidden_units: [64] #["{{key_dim}}"]
+                    state_dim: 256 #512 #"{{hidden_dim}}"
+                    hidden_units: [32,] #64] #["{{key_dim}}"]
                     non_linearities: [None]
                     dropout: 0.0
                     config: None
@@ -541,8 +541,8 @@ agents:
                     use_cuda: True
                 'ToOutputFCN':
                     type: FullyConnectedNetworkModule
-                    state_dim: 512 #"{{hidden_dim}}"
-                    hidden_units: [256] #["{{output_dim}}"]
+                    state_dim: 256 #512 #"{{hidden_dim}}"
+                    hidden_units: [128,] #256] #["{{output_dim}}"]
                     non_linearities: [None]
                     dropout: 0.0
                     config: None
@@ -552,7 +552,7 @@ agents:
                 'ObsEncoderFCN':
                     type: FullyConnectedNetworkModule
                     state_dim: 3 #"{{hidden_dim}}"
-                    hidden_units: [64,] # 32] #["{{output_dim}}"]
+                    hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
                     non_linearities: ['ReLU']
                     dropout: 0.0
                     config: None
@@ -563,8 +563,8 @@ agents:
                     use_cuda: True
                 'CommEncoderFCN':
                     type: FullyConnectedNetworkModule
-                    state_dim: 21 #"{{hidden_dim}}"
-                    hidden_units: [64,] # 32] #["{{output_dim}}"]
+                    state_dim: 15 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #2115 #21 #"{{hidden_dim}}"
+                    hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
                     non_linearities: ['ReLU']
                     dropout: 0.0
                     config: None
@@ -584,8 +584,8 @@ agents:
                         #input1: "modules:CommEncoderFCN:processed_input"
                 'RLHead':
                     type: RLCategoricalHeadModule
-                    state_dim: 1304 #"{{2*output_dim}}"
-                    action_dim: 519 #"{{action_dim}}"
+                    state_dim: 480 #1176 #1304 #"{{2*output_dim}}"
+                    action_dim: 171 #519 #"{{action_dim}}"
                     noisy: False
                     dueling: True
                     config: None

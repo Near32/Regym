@@ -61,7 +61,13 @@ class RLHiddenStatePolicy(nn.Module):
             # extracting the very latest element put in the memory:
             for idx1 in range(len(hiddens)):
                 for idx2 in range(len(hiddens[0])):
-                    hiddens[idx1][idx2] = hiddens[idx1][idx2][...,-1,:]
+                    hiddens[idx1][idx2] = hiddens[idx1][idx2][...,-3:,:]
+                    if hiddens[idx1][idx2].shape[-2] < 3:
+                        hshape = list(hiddens[idx1][idx2].shape)
+                        hshape[-2] = 3-hshape[-2]
+                        padding = torch.zeros(*hshape).to(hiddens[idx1][idx2].device)
+                        hiddens[idx1][idx2] = torch.cat([padding, hiddens[idx1][idx2]], dim=-2)
+
 
         vdn = self.model.kwargs.get('vdn', False)
         vdn_nbr_players = self.model.kwargs.get('vdn_nbr_players', 2)
