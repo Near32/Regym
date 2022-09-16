@@ -473,7 +473,7 @@ agents:
            },
 
            'chat':{
-               shape: [256,] # 256 tokens .... 
+               shape: [256,], # 256 tokens .... 
                target_location: ['chat_body', 'extra_inputs']
            },
            
