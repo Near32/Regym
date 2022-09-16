@@ -11,7 +11,37 @@ HER_hyperparameters: &HER_hyperparameters
     
     nbr_training_iteration_per_cycle: 40 # HER: 40
     nbr_episode_per_cycle:  16  # HER: 16 DQN needs removal.
- 
+
+THER_extra_hyperparameters: &THER_extra_hyperparameters
+    THER_use_THER:  True
+    THER_use_predictor:  True
+    THER_predictor_policy_shared_phi: False
+
+    THER_max_sentence_length: 128
+    THER_vocabulary: ['key', 'ball', 'red', 'green', 'blue', 'purple', 
+            'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
+            'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
+            'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box']
+    
+    THER_use_PER: False
+    THER_PER_alpha: 0.6
+    THER_PER_beta: 1.0
+
+    THER_replay_capacity: 50000
+    THER_test_replay_capacity: 500
+    THER_min_capacity: 32 #1e4
+    THER_replay_period: 40 # Training every episode: 40...  instead of every successfull episode... 
+    #OVERRIDEN by next parameter...
+    THER_train_on_success:  True
+    THER_nbr_training_iteration_per_update: 40
+    THER_predictor_accuracy_threshold: 0.7
+    THER_predictor_test_train_split_interval: 10
+
+    THER_predictor_learning_rate: 1e-4
+    THER_predictor_batch_size: 128
+    THER_gradient_clip: 10.0
+    THER_weights_decay_lambda: 1.0 # 1e-6
+  
 extra_hyperparameters: &extra_hyperparameters
     lr_account_for_nbr_actor: False 
     weights_decay_lambda: 0.0
@@ -42,6 +72,7 @@ extra_hyperparameters: &extra_hyperparameters
     vdn_nbr_players: 2
     
     <<: *HER_hyperparameters
+    <<: *THER_hyperparameters
 
 LargeMLP: &LargeMLP
         phi_arch: 'MLP'
@@ -220,7 +251,7 @@ experiment:
             "action_space": "discrete",
         },
         
-        'run-id': 'TestHERTaskCurriculumWrapper+SoftUpdate+TestReloadOptim+NbrItPerCycle40+NbrEpPerCycle16/Discrete+1Actors+NOCurrFakeReset+MFEL200+NOFake+Obs32+NOSparsePosReward+NOInvertedGoalPredReward+BlockDenseAct+LowerCam10/',
+        'run-id': 'TestTHER-NOTaskCurriculumWrapper+SoftUpdate+NbrItPerCycle40+NbrEpPerCycle16/Discrete+1Actors+NOCurrFakeReset+MFEL200+NOFake+Obs32+NOSparsePosReward+NOInvertedGoalPredReward+BlockDenseAct+LowerCam10/',
         
         #'agent-id': '1step_0Ent_r2d2_AdamLR3m4_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPDNC_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
         #'agent-id': '3step_0Ent_r2d2_AdamLR3m4_EPS1m12_L2AModelUpdate1Steps_EPSgreedyAPEX1m0_4m1OVER3p4_A2m0_gamma997_LargeMLPDNC_GradClip5m0_r1p5Min3e4_a9m1_b6m1_ovrN_e9m1_tau4m4_RepP1_NOBURNIN_b128_L20_O10_B0_NOZeroInitSt_OnlineSt_StoreOnDone',
@@ -232,8 +263,8 @@ experiment:
         #'nbr_actor': 32,
         #'nbr_actor': 16,
         'nbr_actor': 1,
-        #'nbr_frame_skipping': 4,
-        'nbr_frame_stacking': 1, #3
+        'nbr_frame_skipping': 4,
+        #'nbr_frame_stacking': 1,
         #'grayscale': True,
         #'single_life_episode': True, #False,
         #'nbr_max_random_steps': 30,
@@ -243,13 +274,14 @@ experiment:
         'clip_reward': False,
         'previous_reward_action': True,
         'curriculum_fake_reset': False,
-        'task_curriculum': True,
+        'task_curriculum': False,
         # The following must be an int for
         # task_curriculum to work...:
         'max_fake_episode_length': 20, #'None', #100,
         'sparse_positive_reward': False,
         'block_dense_actions': True,
         'inverted_goal_predicated_reward': False,
+        'use_THER': True,
         'use_HER_reward': True,
         'use_OHE': True,
         #'observation_resize_dim': (21,21), #(56,56),

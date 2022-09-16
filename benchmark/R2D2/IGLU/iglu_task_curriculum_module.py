@@ -3,7 +3,8 @@ from collections import OrderedDict
 
 import numpy as np
 from regym.modules import Module
-from iglu.tasks import RandomTasks
+#from iglu.tasks import RandomTasks
+from gridworld.tasks import RandomTasks
 
 import wandb
 
@@ -154,7 +155,7 @@ class IGLUTaskCurriculumModule(Module):
         # Initialisation:
         self.task.env.launch_env_processes()
         for env in self.task.env.env_processes:#+self.task.test_env.env_processes:
-            env.update_taskset(
+            env.set_task_generator(
                 RandomTasks(
                     max_blocks=self.current_nbr_max_blocks,
                     height_levels=self.current_height_levels,
@@ -227,7 +228,7 @@ class IGLUTaskCurriculumModule(Module):
                 for env_idx, env in enumerate(self.task.env.env_processes):#+self.task.test_env.env_processes:
                     print(f"IGLUTaskCurriculumModule: UPDATING TASKSET for env {env_idx+1}/{len(self.task.env.env_processes)} : ....")
                     # Updating Taskset:
-                    env.update_taskset(
+                    env.set_task_generator(
                         RandomTasks(
                             max_blocks=self.current_nbr_max_blocks,
                             height_levels=self.current_height_levels,

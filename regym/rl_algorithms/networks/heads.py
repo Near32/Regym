@@ -162,7 +162,7 @@ class CategoricalQNet(nn.Module):
             phi = torch.cat([phi, gphi], dim=1)
         """
         extra_outputs = {}
-        #import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         for extra_body_id, extra_body in self.extra_bodies.items():
             if rnn_states is not None and extra_body_id in rnn_states:
                 extra_outputs[extra_body_id], \

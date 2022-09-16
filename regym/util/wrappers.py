@@ -2142,11 +2142,20 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             self.observation_space.spaces[map_key] = gym.spaces.MultiDiscrete([len(self.vocabulary)]*self.max_sentence_length)
         
     def observation(self, observation):
+        """
+        Transforms textual obvservations into word indices vectors.
+        If the word is not part of the known vocabulary, it is appended.
+        
+        While the output vector has a fixed max_sentence_length, all spot
+        are initiliased with the 'PAD' token.
+        'EoS' is eventually added at the end of the actual sentence length,
+        or at position max_sentence_length if the sentence is too long.
+        """
         for obs_key, map_key in self.observation_keys_mapping.items():
             t_goal = [w.lower() for w in observation[obs_key].split(' ')]
             for w in t_goal:
                 if w not in self.vocabulary:
-                    raise NotImplementedError
+                    import ipdb; ipdb.set_trace()
                     self.vocabulary.append(w)
                     self.w2idx[w] = len(self.vocabulary)-1
                     self.idx2w[len(self.vocabulary)-1] = w 

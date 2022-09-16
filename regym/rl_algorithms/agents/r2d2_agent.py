@@ -7,11 +7,11 @@ import ray
 
 from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
 from regym.rl_algorithms.agents.dqn_agent import DQNAgent
-from regym.rl_algorithms.agents.utils import generate_model, parse_and_check
+from regym.rl_algorithms.agents.utils import generate_model, parse_and_check, build_ther_predictor
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
-from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2
+from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
 
 
 class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
@@ -201,19 +201,45 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         elif goal_predicated_reward_fn is None:
             raise NotImplementedError("need HER_use_latent=True")
 
-        algorithm = HERAlgorithmWrapper2(
-            algorithm=algorithm,
-            strategy=kwargs['HER_strategy'],
-            goal_predicated_reward_fn=goal_predicated_reward_fn,
-            extra_inputs_infos=kwargs['extra_inputs_infos'],
-            _extract_goal_from_info_fn=kwargs.get("HER_extract_goal_from_info_fn", None),
-            achieved_goal_key_from_info=kwargs["HER_achieved_goal_key_from_info"],
-            target_goal_key_from_info=kwargs["HER_target_goal_key_from_info"],
-            achieved_latent_goal_key_from_info=kwargs.get("HER_achieved_latent_goal_key_from_info", None),
-            target_latent_goal_key_from_info=kwargs.get("HER_target_latent_goal_key_from_info", None),
-            filtering_fn=kwargs["HER_filtering_fn"],
-        )
+        wrapper = HERAlgorithmWrapper2 
+        wrapper_kwargs = {
+            "algorithm":algorithm,
+            "strategy":kwargs['HER_strategy'],
+            "goal_predicated_reward_fn":goal_predicated_reward_fn,
+            "extra_inputs_infos":kwargs['extra_inputs_infos'],
+            "_extract_goal_from_info_fn":kwargs.get("HER_extract_goal_from_info_fn", None),
+            "achieved_goal_key_from_info":kwargs["HER_achieved_goal_key_from_info"],
+            "target_goal_key_from_info":kwargs["HER_target_goal_key_from_info"],
+            "achieved_latent_goal_key_from_info":kwargs.get("HER_achieved_latent_goal_key_from_info", None),
+            "target_latent_goal_key_from_info":kwargs.get("HER_target_latent_goal_key_from_info", None),
+            "filtering_fn":kwargs["HER_filtering_fn"],
+        }
 
+        if kwargs.get('use_THER', False):
+            from regym.rl_algorithms.algorithms.THER import ther_predictor_loss
+
+            wrapper = THERAlgorithmWrapper2 
+            kwargs['THER_predictor_learning_rate'] = float(kwargs['THER_predictor_learning_rate'])
+            kwargs['discount'] = float(kwargs['discount'])
+            kwargs['replay_capacity'] = int(float(kwargs['replay_capacity']))
+            kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
+            kwargs['THER_vocabulary'] = set(kwargs['THER_vocabulary'])
+            kwargs['THER_max_sentence_length'] = int(kwargs['THER_max_sentence_length'])
+            
+            predictor = build_ther_predictor(kwargs, task)
+            
+            print(predictor)
+            
+            wrapper_kwargs['predictor'] = predictor
+            wrapper_kwargs['predictor_loss_fn'] = ther_predictor_loss.compute_loss
+            
+            if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
+                wrapper_kwargs['goal_predicated_reward_fn'] = partial(
+                    predictor_based_goal_predicated_reward_fn2, 
+                    predictor=predictor,
+                )
+
+        algorithm = wrapper(**wrapper_kwargs)
     
     agent = R2D2Agent(
         name=agent_name,

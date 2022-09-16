@@ -1833,8 +1833,12 @@ class EmbeddingRNNBody(nn.Module):
         # WARNING: it is imperative to make a copy 
         # of the frame_state, otherwise any changes 
         # will be repercuted onto the current frame_state
+        
+        # WARNING: the input x is not used, but its device is necessary...
+
         x, frame_states = inputs[0], copy_hdict(inputs[1])
         import ipdb; ipdb.set_trace() 
+        
         # There are no recurrent neurons as it is a standalone module:
         """
         recurrent_neurons = extract_subtree(
@@ -1848,6 +1852,7 @@ class EmbeddingRNNBody(nn.Module):
         )
 
         extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+        
         # WARNING: x is not concatenated with the extra inputs, but replaced by it:
         if len(extra_inputs): x = torch.cat(extra_inputs, dim=-1)
 
