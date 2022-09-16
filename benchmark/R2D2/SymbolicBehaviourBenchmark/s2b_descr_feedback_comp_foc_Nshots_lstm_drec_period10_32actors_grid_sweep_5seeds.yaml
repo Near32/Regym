@@ -1,0 +1,70 @@
+project: META_RG_S2B_descr+feedback+comp_foc_Nshots+DREC
+entity: near3213
+program: benchmark_selfplay_s2b.py
+command:
+        - ${env}
+        - /scratch/kyd500/Regym/benchmark/R2D2/SymbolicBehaviourBenchmark/metarg_venv/bin/python
+        - ${program}
+        - ${args}
+method: grid
+metric:
+        name: S2B/Accuracy/Mean/test
+        goal: maximize
+parameters:
+        config:
+                values: ["s2b_descr+feedback_comp_foc_1shot_r2d2_lstm_sad_vdn_benchmark_config.yaml"]
+        seed:
+                values: [10, 20, 30]
+        nbr_object_centric_samples:
+                values: [1, 4, 16]
+        descriptive:
+                values: [True]
+        nbr_distractors:
+                values: [0]
+        sampling_strategy:
+                values: [
+                        "component-focused-1shot",
+                        "component-focused-2shots",
+                        "component-focused-4shots",
+                ]
+        provide_listener_feedback:
+                values: [True]
+        use_rule_based_agent:
+                values: [True]
+        use_speaker_rule_based_agent:
+                values: [True]
+        rec_threshold:
+                values: [2.0e-2]
+        listener_rec_period:
+                values: [10]
+        listener_rec:
+                values: [True]
+        listener_comm_rec:
+                values: [True]
+        listener_multimodal_rec_biasing:
+                values: [True, False]
+        learning_rate:
+                values: [6.25e-5]
+        batch_size:
+                values: [32]
+        n_step:
+                values: [3]
+        sequence_replay_unroll_length:
+                values: [20]
+        sequence_replay_burn_in_ratio:
+                values: [0.5]
+        tau:
+                values: [0.0004]
+        nbr_actor:
+                values: [32]
+        critic_arch_feature_dim:
+                values: [256]
+        r2d2_use_value_function_rescaling:
+                values: [False]
+        train_observation_budget:
+                values: [5.0e6]
+        nbr_latents:
+                values: [3]
+        max_nbr_values_per_latent:
+                values: [5, 10]
+

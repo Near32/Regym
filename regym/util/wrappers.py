@@ -1622,6 +1622,7 @@ class ContinuingTimeLimit(gym.Wrapper):
         return self.env.reset()
 
 
+eye_actions = None 
 
 class PreviousRewardActionInfoWrapper(gym.Wrapper):
     """
@@ -1653,11 +1654,15 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         next_observation, reward, done, next_infos = self.env.step(action)
         
         self.previous_reward = np.ones((1, 1), dtype=np.float32)*reward
-        self.previous_action = np.eye(self.nbr_actions, dtype=np.float32)[action].reshape(1, -1)
+        global eye_actions
+        if eye_actions is None:
+            eye_actions = np.eye(self.nbr_actions, dtype=np.float32)#[action].reshape(1, -1)
+        self.previous_actions = eye_action[action].reshape(1,-1) 
 
         pa = copy.deepcopy(self.previous_action) 
         if self.trajectory_wrapping:
-            pa = np.eye(self.nbr_actions, dtype=np.float32)[next_infos['previous_action'][0]].reshape(1, -1)
+            #pa = np.eye(self.nbr_actions, dtype=np.float32)[next_infos['previous_action'][0]].reshape(1, -1)
+            pa = eye_actions[next_infos['previous_action'][0]].reshape(1, -1)
         
         next_infos['previous_reward'] = copy.deepcopy(self.previous_reward)
         next_infos['previous_action'] = copy.deepcopy(pa)
@@ -1692,15 +1697,19 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
         nbr_agent = len(next_infos)
         
         self.previous_reward = [np.ones((1, 1), dtype=np.float32)*reward[agent_idx] for agent_idx in range(nbr_agent)]
+        global eye_actions
+        if eye_actions is None:
+            eye_actions = np.eye(self.nbr_actions, dtype=np.float32)
         self.previous_action = [
-            np.eye(self.nbr_actions, dtype=np.float32)[action[agent_idx]].reshape(1, -1)
+            eye_actions[action[agent_idx]].reshape(1, -1)
             for agent_idx in range(nbr_agent)
         ]
 
         pa = copy.deepcopy(self.previous_action) 
         if self.trajectory_wrapping:
             pa = [
-                np.eye(self.nbr_actions, dtype=np.float32)[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
+                #np.eye(self.nbr_actions, dtype=np.float32)[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
+                eye_actions[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
                 for agent_idx in range(nbr_agent)
             ]
         

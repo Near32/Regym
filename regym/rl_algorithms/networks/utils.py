@@ -87,21 +87,28 @@ def sync_grad(target_network, src_network):
     for param, src_param in zip(target_network.parameters(), src_network.parameters()):
         param._grad = src_param.grad.clone()
 
-def PreprocessFunctionConcatenate(x, use_cuda=False):
+def PreprocessFunctionConcatenate(x, use_cuda=False, training=False):
     x = np.concatenate(x, axis=None)
     if use_cuda:
-        return torch.from_numpy(x).unsqueeze(0).type(torch.cuda.FloatTensor)
-    return torch.from_numpy(x).unsqueeze(0).type(torch.FloatTensor)
+        ret = torch.from_numpy(x).unsqueeze(0).type(torch.cuda.FloatTensor)
+    else:
+        ret = torch.from_numpy(x).unsqueeze(0).type(torch.FloatTensor)
+    if training:
+        ret.requires_grad = True
+    return ret
 
-def PreprocessFunction(x, use_cuda=False, normalization=True):
+def PreprocessFunction(x, use_cuda=False, training=False, normalization=True):
     if normalization:
         x = x/255.0
     if use_cuda:
-        return torch.from_numpy(x).type(torch.FloatTensor).cuda()
+        ret= torch.from_numpy(x).type(torch.FloatTensor).cuda()
     else:
-        return torch.from_numpy(x).type(torch.FloatTensor)
+        ret = torch.from_numpy(x).type(torch.FloatTensor)
+    if training:
+        ret.requires_grad = True 
+    return ret 
 
-def ResizeCNNPreprocessFunction(x, size, use_cuda=False, normalize_rgb_values=True):
+def ResizeCNNPreprocessFunction(x, size, use_cuda=False, normalize_rgb_values=True, training=False):
     '''
     Used to resize, normalize and convert OpenAI Gym raw pixel observations,
     which are structured as numpy arrays of shape (Height, Width, Channels),
@@ -137,11 +144,14 @@ def ResizeCNNPreprocessFunction(x, size, use_cuda=False, normalize_rgb_values=Tr
     # the division, otherwise the result is yielded as a uint8 (full of zeros...)
     x = x.type(torch.FloatTensor) / 255. if normalize_rgb_values else x
     if use_cuda:
-        return x.type(torch.cuda.FloatTensor)
-    return x.type(torch.FloatTensor)
+        ret = x.type(torch.cuda.FloatTensor)
+    else:
+        ret = x.type(torch.FloatTensor)
+    if training:
+        ret.requires_grad = True
+    return ret
 
-
-def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values=True):
+def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values=True, training=False):
     '''
     Used to resize, normalize and convert OpenAI Gym raw pixel observations,
     which are structured as numpy arrays of shape (Height, Width, Channels),
@@ -188,11 +198,14 @@ def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values
     x = x / 255. if normalize_rgb_values else x
     #x = F.interpolate(x, scale_factor=scaling_factor)
     if use_cuda:
-        return x.type(torch.cuda.FloatTensor)
-    return x.type(torch.FloatTensor)
+        ret = x.type(torch.cuda.FloatTensor)
+    else:
+        ret = x.type(torch.FloatTensor)
+    if training:
+        ret.requires_grad = True
+    return ret
 
-
-def CNNPreprocessFunction(x, use_cuda=False, normalize_rgb_values=True):
+def CNNPreprocessFunction(x, use_cuda=False, normalize_rgb_values=True, training=False):
     '''
     Used to normalize and convert OpenAI Gym raw pixel observations,
     which are structured as numpy arrays of shape (Height, Width, Channels),
@@ -207,9 +220,12 @@ def CNNPreprocessFunction(x, use_cuda=False, normalize_rgb_values=True):
     x = x.transpose((2, 0, 1))
     x = x / 255. if normalize_rgb_values else x
     if use_cuda:
-        return torch.from_numpy(x).unsqueeze(0).type(torch.cuda.FloatTensor)
-    return torch.from_numpy(x).unsqueeze(0).type(torch.FloatTensor)
-
+        ret = torch.from_numpy(x).unsqueeze(0).type(torch.cuda.FloatTensor)
+    else:
+        ret = torch.from_numpy(x).unsqueeze(0).type(torch.FloatTensor)
+    if training:
+        ret.requires_grad = True
+    return ret
 
 def random_sample(indices, batch_size):
     '''

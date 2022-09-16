@@ -1,0 +1,42 @@
+project: META_RG_S2B+REC
+entity: near3213
+program: benchmark_selfplay_s2b.py
+command:
+        - ${env}
+        - /scratch/kyd500/rg_env/bin/python
+        - ${program}
+        - ${args}
+method: bayes
+metric:
+        name: S2B/Accuracy/Mean/test
+        goal: maximize
+parameters:
+        config:
+                values: ["s2b_2shots_r2d2_dnc_sad_vdn_benchmark_config.yaml"]
+        use_rule_based_agent:
+                values: [True]
+        use_speaker_rule_based_agent:
+                values: [True]
+        listener_rec:
+                values: [True]
+        listener_rec_biasing:
+                values: [True]
+        simplified_DNC:
+                values: [True, False]
+        learning_rate:
+                max: 1.0e-3
+                min: 6.25e-5
+        batch_size:
+                values: [32, 64, 128, 256]
+        n_step:
+                values: [3, 7]
+        sequence_replay_unroll_length:
+                values: [20, 80, 100]
+        sequence_replay_burn_in_ratio:
+                values: [0.0, 0.2, 0.5]
+        tau:
+                values: [0.002, 0.001, 0.0004]
+        nbr_actor:
+                values: [16, 32, 64]
+        critic_arch_feature_dim:
+                values: [64, 128, 256]

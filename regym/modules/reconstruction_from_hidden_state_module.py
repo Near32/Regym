@@ -63,17 +63,24 @@ class ReconstructionFromHiddenStateModule(Module):
             input_stream_ids=input_stream_ids
         )
 
+        self.rec_threshold = config.get("rec_threshold", 5e-2)
+
         self.biasing = self.config.get('biasing', False)
         self.nbr_players = self.config.get('nbr_players', 2)
         self.player_id = self.config.get('player_id', 0)
 
         self.iteration = 0
         self.sampling_fraction = 2
-        self.sampling_period = 10.0 # 25.0
+        self.sampling_period = self.config.get('sampling_period', 10.0) # 25.0
         
         if "build_signal_to_reconstruct_from_trajectory_fn" in self.config:
             self.build_signal_to_reconstruct_from_trajectory_fn = self.config["build_signal_to_reconstruct_from_trajectory_fn"]
-        self.criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
+        
+        if "MSE" in self.config.get("reconstruction_loss", "BCE"):
+            self.criterion = torch.nn.MSELoss(reduction='none')
+        else: 
+            self.criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
+        
         self.signal_to_reconstruct_dim = self.config["signal_to_reconstruct_dim"]
         self.hiddenstate_policy = self.config["hiddenstate_policy"]
         self.hidden_state_dim = self.hiddenstate_policy.get_hidden_state_dim()
@@ -120,6 +127,8 @@ class ReconstructionFromHiddenStateModule(Module):
             1 or 0. For all actor b, mask[b]==1 if and only if
             the experience in x[t] is valid (e.g. episode not ended).
         """
+        torch.set_grad_enabled(True)
+
         batch_size = len(x)
         self.iteration += 1
 
@@ -172,7 +181,7 @@ class ReconstructionFromHiddenStateModule(Module):
                 pred = torch.sigmoid(logit_pred)
                 # 1x dim
                 if 'accuracy_pre_process_fn' not in self.config:
-                    per_dim_acc_t = (((pred-5e-2<=labels).float()+(pred+5e-2>=labels)).float()>=2).float()
+                    per_dim_acc_t = (((pred-self.rec_threshold<=labels).float()+(pred+self.rec_threshold>=labels)).float()>=2).float()
                 else:
                     per_dim_acc_t = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
                 # 1x dim
@@ -180,11 +189,11 @@ class ReconstructionFromHiddenStateModule(Module):
                 ###
 
                 L_rec_t = self.criterion(
-                    input=logit_pred,
-                    target=labels.detach(),
+                    input=logit_pred.float(),
+                    target=labels.detach().float(),
                 ).mean()
                 # 1 
-                L_mse_t = 0.5*torch.pow(pred-labels, 2.0).mean()
+                L_mse_t = 0.5*torch.pow(pred.float()-labels.float(), 2.0).mean()
                 # 1
 
                 if L_rec.device != L_rec_t.device:    L_rec = L_rec.to(L_rec_t.device)
@@ -207,6 +216,8 @@ class ReconstructionFromHiddenStateModule(Module):
         if biasing:
             self.hiddenstate_policy.reset(nbr_actors, training=True)
             self.hiddenstate_policy.restore_inner_state()
+        
+        torch.set_grad_enabled(False)
 
         output_dict = {
             'l_rec':L_rec,
@@ -283,8 +294,10 @@ class ReconstructionFromHiddenStateModule(Module):
             List[List[object]] containing, for each actor, at each time step t an object
             with batch_size dimensions and whose values are either
             1 or 0. For all actor b, mask[b]==1 if and only if
-            the experience in x[t] is valid (e.g. episode not ended).
+            the experience in x[t] is valid, i.e. message is not only made of EoS_id==0.
         """
+        torch.set_grad_enabled(True)
+
         batch_size = len(x)
         minT = min([len(xi) for xi in x])
 
@@ -318,7 +331,13 @@ class ReconstructionFromHiddenStateModule(Module):
         # minT x batch_size x signal_to_reconstruct_dim
 
         if mask is None:
-            eff_mask = torch.ones((batch_size, minT))
+            if 'masking_fn' in self.config:
+                eff_mask = self.config['masking_fn'](
+                    x=batched_x,
+                    y=batched_y,
+                )
+            else:
+                eff_mask = torch.ones((batch_size, minT))
         else:
             raise NotImplementedError
             # Most usecase assume mask==None...
@@ -340,25 +359,33 @@ class ReconstructionFromHiddenStateModule(Module):
             m = m.to(hs_t.device)
             if labels.device != logit_pred.device: labels = labels.to(logit_pred.device)    
             ###                
-            pred = torch.sigmoid(logit_pred)
-            # batch_size x dim
-            if 'accuracy_pre_process_fn' not in self.config:
-                per_dim_acc_t = (((pred-5e-2<=labels).float()+(pred+5e-2>=labels)).float()>=2).float()
+            if 'BCE' in self.config.get("reconstruction_loss", 'BCE'):
+                pred = torch.sigmoid(logit_pred)
             else:
-                import ipdb; ipdb.set_trace()
-                # check that acc pre pro fn is batched?
-                per_dim_acc_t = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
+                pred = logit_pred
             # batch_size x dim
+            
+            if 'accuracy_pre_process_fn' not in self.config:
+                per_dim_acc_t = (((pred-self.rec_threshold<=labels).float()+(pred+self.rec_threshold>=labels)).float()>=2).float()
+            else:
+                out_d = self.config['accuracy_pre_process_fn'](pred=pred, target=labels)
+                per_dim_acc_t = out_d['acc']
+                if 'mask' in out_d:
+                    m = out_d['mask'].detach()
+            # batch_size x dim
+
             for actor_id in range(batch_size):
-                per_actor_per_t_per_dim_acc[actor_id].append(per_dim_acc_t[actor_id:actor_id+1])
+                # Only consider acc when valid (i.e. filtered in) :
+                if m[actor_id].item() > 0.5:
+                    per_actor_per_t_per_dim_acc[actor_id].append(per_dim_acc_t[actor_id:actor_id+1])
             ###
 
             L_rec_t = self.criterion(
-                input=logit_pred,
-                target=labels.detach(),
+                input=logit_pred.float(),
+                target=labels.detach().float(),
             ).mean(dim=-1)
             # batch_size 
-            L_mse_t = 0.5*torch.pow(pred-labels, 2.0).mean(dim=-1)
+            L_mse_t = 0.5*torch.pow(pred.float()-labels.float(), 2.0).mean(dim=-1)
             # batch_size
 
             if L_rec.device != L_rec_t.device:    L_rec = L_rec.to(L_rec_t.device)
@@ -382,6 +409,8 @@ class ReconstructionFromHiddenStateModule(Module):
         if biasing:
             self.hiddenstate_policy.reset(nbr_actors, training=True)
             self.hiddenstate_policy.restore_inner_state()
+        
+        torch.set_grad_enabled(False)
 
         output_dict = {
             'l_rec':L_rec,
@@ -427,6 +456,7 @@ class ReconstructionFromHiddenStateModule(Module):
                             'state':exp[0], # for _ in range(self.nbr_players)], # see environment_module for indices...
                             'infos':[exp[6]], # for _ in range(self.nbr_players)],
                             'as_logit':True,
+                            'training':True,
                         }
                         for exp in traj[self.player_id]
                     ]    
@@ -478,13 +508,15 @@ class ReconstructionFromHiddenStateModule(Module):
             L_mse = output_dict['l_mse']
 
             logs_dict[f"{mode}/{self.id}/ReconstructionAccuracy/{'Eval' if filtering_signal else 'Sample'}"] = rec_accuracy.mean()
-            #logs_dict[f"{mode}/{self.id}/ReconstructionMSELoss/{'Eval' if filtering_signal else 'Sample'}"] = L_mse.mean()
-            logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/BCE/{'Eval' if filtering_signal else 'Sample'}"] = L_rec.mean()
+            
+            logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/MSE/{'Eval' if filtering_signal else 'Sample'}"] = L_mse.mean()
+            #logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/BCE/{'Eval' if filtering_signal else 'Sample'}"] = L_rec.mean()
 
 
             losses_dict = input_streams_dict["losses_dict"]
             #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rec]
-            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/MSE/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_mse]
+            #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/MSE/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_mse]
+            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{self.config.get('reconstruction_loss', 'BCE')}/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rec]
  
         return outputs_stream_dict
     

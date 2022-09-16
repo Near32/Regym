@@ -5,6 +5,7 @@ import glob
 
 import torch
 
+import wandb
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
@@ -172,6 +173,23 @@ class PubSubManager(object):
             for pipe_id, pipeline in self.pipelines.items():
                 self.stream_handler.serve(pipeline)
             
+            # Logging synchronously:
+            ld = {}
+            for k,v in self.stream_handler["logs_dict"].items():
+                ld[k] = v 
+                #print(k, type(v))
+            for k,v in self.stream_handler["losses_dict"].items():
+                ld[k] = v 
+                #print(f"loss : {k} :", type(v))
+            for k,v in self.stream_handler["signals"].items():
+                ld[k] = v
+                #print(f"signal : {k} :", type(v), v)
+            
+            try:
+                wandb.log(ld, commit=True)
+            except Exception as e:
+                print(f"PUBSUB MANAGER: Exception when W&B logging: {e}")
+
             self.stream_handler.reset("losses_dict")
             self.stream_handler.reset("logs_dict")    
             

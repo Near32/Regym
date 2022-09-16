@@ -1,3 +1,6 @@
 [submodule "regym/thirdparty/ReferentialGym"]
 	path = regym/thirdparty/ReferentialGym
 	url = https://github.com/Near32/ReferentialGym
+[submodule "regym/thirdparty/Archi"]
+	path = regym/thirdparty/Archi
+	url = https://github.com/Near32/Archi
