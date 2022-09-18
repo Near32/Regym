@@ -316,7 +316,7 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
             self.episode_buffer[actor_index] = []
 
     def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
-        return HERAlgorithmWrapper2(
+        cloned_algo = HERAlgorithmWrapper2(
             algorithm=self.algorithm.clone(
                 with_replay_buffer=with_replay_buffer,
                 clone_proxies=clone_proxies,
@@ -329,3 +329,5 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
             achieved_goal_key_from_info=self.achieved_goal_key_from_info,
             target_goal_key_from_info=self.target_goal_key_from_info,
         )
+        return cloned_algo
+

@@ -651,7 +651,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         return running_acc
 
     def clone(self):
-        return THERAlgorithmWrapper2(algorithm=self.algorithm.clone(),
-                                   predictor=predictor, 
-                                   strategy=self.strategy, 
-                                   goal_predicated_reward_fn=self.goal_predicated_reward_fn)
+        cloned_algo = THERAlgorithmWrapper2(
+            algorithm=self.algorithm.clone(),
+            predictor=self.predictor, 
+            strategy=self.strategy, 
+            goal_predicated_reward_fn=self.goal_predicated_reward_fn,
+        )
+        return clone_algo
+
