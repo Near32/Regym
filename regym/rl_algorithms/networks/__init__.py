@@ -3,11 +3,13 @@ from .utils import PreprocessFunction, CNNPreprocessFunction, ResizeCNNPreproces
 from .bodies import FCBody, FCBody2, LSTMBody, GRUBody, EmbeddingRNNBody, CaptionRNNBody 
 from .bodies import ConvolutionalBody, BetaVAEBody, resnet18Input64, ConvolutionalLstmBody, ConvolutionalGruBody
 from .bodies import LinearLinearBody, LinearLstmBody, LinearLstmBody2
+from .bodies import LinearLstmAttentionBody2
 from .bodies import NoisyLinear
 
 from .neural_turing_machine import NTMBody
 from .differentiable_neural_computer import DNCBody
 
+from .heads import DuelingLayer, EPS
 from .heads import SquashedGaussianActorNet, GaussianActorNet, CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
 from .heads import QNet, CategoricalQNet, InstructionPredictor
 from .heads import EnsembleQNet

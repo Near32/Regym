@@ -16,10 +16,12 @@ from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
 from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
 from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage, SharedPrioritizedReplayStorage
-from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdict
+from regym.rl_algorithms.utils import archi_concat_fn, concat_fn, _concatenate_hdict, _concatenate_list_hdict
 
 import wandb
 sum_writer = None
+
+
 
 class R2D2Algorithm(DQNAlgorithm):
     def __init__(self, 
@@ -159,7 +161,7 @@ class R2D2Algorithm(DQNAlgorithm):
 
         nbr_stored_experiences = nbr_stored_sequences*(self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
 
-        wandb.log({'PerTrainingRequest/NbrStoredExperiences': nbr_stored_experiences}) #, self.train_request_count)
+        wandb.log({'PerTrainingRequest/NbrStoredExperiences': nbr_stored_experiences}, commit=False) #, self.train_request_count)
         #print(f"Train request: {self.train_request_count} // nbr_exp stored: {nbr_stored_experiences}")
         return nbr_stored_experiences
     
@@ -176,7 +178,11 @@ class R2D2Algorithm(DQNAlgorithm):
                 values = [sequence_buffer[i][key] for i in range(len(sequence_buffer))]
                 value = _concatenate_list_hdict(
                     lhds=values, 
-                    concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
+                    #concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
+                    #TODO: verify that unrolling on list is feasible:
+                    #concat_fn=(lambda x: torch.cat(x, dim=1) if x[0].shape==x[1].shape else np.array(x, dtype=object)),
+                    concat_fn=concat_fn,
+                    #concat_fn=archi_concat_fn,
                     preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
                 )
             else:
@@ -205,6 +211,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 self.sequence_replay_buffers[actor_index].append(copy.deepcopy(self.sequence_replay_buffers[actor_index][-1]))
 
             current_sequence_exp_dict = self._prepare_sequence_exp_dict(list(self.sequence_replay_buffers[actor_index]))
+            self.param_obs_counter += (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
             if self.use_PER:
                 if self.kwargs['PER_compute_initial_priority']:
                     """
@@ -298,6 +305,8 @@ class R2D2Algorithm(DQNAlgorithm):
         then the n-step buffer is dumped entirely in the sequence buffer
         and the sequence is committed to the relevant storage buffer.
         '''
+        torch.set_grad_enabled(False)
+
         if False: #self.n_step>1:
             raise NotImplementedError
             # Append to deque:
@@ -325,7 +334,6 @@ class R2D2Algorithm(DQNAlgorithm):
                 current_exp_dict['r'] = truncated_n_step_return
                 
                 #condition_state = torch.all(self.n_step_buffers[actor_index][0]['s']==self.n_step_buffers[actor_index][-1]['s'])
-                #import ipdb; ipdb.set_trace()
             else:
                 current_exp_dict = exp_dict
                 wandb.log({'Training/Storing/CurrentExp/MaxReward':  exp_dict['r'].cpu().max().item()}, commit=True)
@@ -377,6 +385,8 @@ class R2D2Algorithm(DQNAlgorithm):
 
         #TODO: update to use Ray and get_tree_indices...
         '''
+        torch.set_grad_enabled(False)
+
         # losses corresponding to sampled batch indices: 
         sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
         # (batch_size, unroll_dim, 1)

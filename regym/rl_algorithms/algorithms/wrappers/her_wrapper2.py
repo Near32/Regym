@@ -123,19 +123,6 @@ class HERAlgorithmWrapper2(AlgorithmWrapper):
                     pointer[gkey] = [gvalue]
         return hdict
 
-    """
-    def _extract_goals_from_rnn_states(self, hdict:Dict, goal_key:Optional[str]='desired_goal'):
-        import ipdb; ipdb.set_trace()
-        assert goal_key in self.extra_inputs_infos
-        tl = self.extra_inputs_infos[goal_key]['target_location'][-1]
-        pointer = hdict
-        for child_node in tl:
-            if child_node not in pointer:
-                pointer[child_node] = {}
-            pointer = pointer[child_node]
-        return pointer[goal_key]
-    """
-
     def _extract_goal_from_info_default_fn(
         self, 
         hdict:Dict, 

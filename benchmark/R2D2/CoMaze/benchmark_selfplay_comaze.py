@@ -49,8 +49,10 @@ from comaze_gym.metrics import GoalOrderingPredictionMetric, RuleBasedHiddenStat
 from regym.pubsub_manager import PubSubManager
 
 def make_rl_pubsubmanager(
-    agents,
-    config, 
+    task_config:Dict[str,str],
+    agent_config:Dict[str,str],
+    agents:List[object],
+    config:Dict[str,str], 
     ms_cic_metric=None,
     m_traj_mutual_info_metric=None,
     goal_order_pred_metric=None,
@@ -289,6 +291,7 @@ def make_rl_pubsubmanager(
       "optimizer_type":'adam',
       "with_gradient_clip":False,
       "adam_eps":1e-16,
+      "weight_decay":agent_config["weights_decay_lambda"],
     }
 
     optim_module = regym.modules.build_OptimizationModule(
@@ -347,24 +350,28 @@ def check_path_for_agent(filepath):
     return agent, offset_episode_count
 
 
-def train_and_evaluate(agents: List[object], 
-                       task: object, 
-                       sum_writer: object, 
-                       base_path: str, 
-                       offset_episode_count: int = 0,
-                       nbr_pretraining_steps: int = 0, 
-                       nbr_max_observations: int = 1e7,
-                       test_obs_interval: int = 1e4,
-                       test_nbr_episode: int = 10,
-                       benchmarking_record_episode_interval: int = None,
-                       render_mode="rgb_array",
-                       step_hooks=[],
-                       sad=False,
-                       vdn=False,
-                       otherplay=False,
-                       ms_cic_metric=None,
-                       m_traj_mutual_info_metric=None,
-                       goal_order_pred_metric=None):
+def train_and_evaluate(
+    task_config:Dict[str, str],
+    agent_config:Dict[str, str],
+    agents: List[object], 
+    task: object, 
+    sum_writer: object, 
+    base_path: str, 
+    offset_episode_count: int = 0,
+    nbr_pretraining_steps: int = 0, 
+    nbr_max_observations: int = 1e7,
+    test_obs_interval: int = 1e4,
+    test_nbr_episode: int = 10,
+    benchmarking_record_episode_interval: int = None,
+    render_mode="rgb_array",
+    step_hooks=[],
+    sad=False,
+    vdn=False,
+    otherplay=False,
+    ms_cic_metric=None,
+    m_traj_mutual_info_metric=None,
+    goal_order_pred_metric=None
+    ):
     pubsub = False
     if len(sys.argv) > 2:
       pubsub = any(['pubsub' in arg for arg in sys.argv])
@@ -397,6 +404,8 @@ def train_and_evaluate(agents: List[object],
       config['otherplay'] = otherplay
       config['nbr_players'] = 2      
       pubsubmanager = make_rl_pubsubmanager(
+        task_config=task_config,
+        agent_config=agent_config,
         agents=agents,
         config=config,
         ms_cic_metric=ms_cic_metric,
@@ -469,8 +478,8 @@ def train_and_evaluate(agents: List[object],
     return trained_agents
 
 
-def training_process(agent_config: Dict, 
-                     task_config: Dict,
+def training_process(agent_config: Dict[str, str], 
+                     task_config: Dict[str, str],
                      benchmarking_interval: int = 1e4,
                      benchmarking_episodes: int = 10, 
                      benchmarking_record_episode_interval: int = None,
@@ -541,9 +550,11 @@ def training_process(agent_config: Dict,
       base_path = os.path.join(base_path,"NOPUBSUB")
       
     if use_ms_cic:
-      base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if listening_biasing else ''}")
+      #base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if listening_biasing else ''}")
+      base_path = os.path.join(base_path,f"MS-CIC{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f5m2' if listening_biasing else ''}")
     if use_m_traj_mutual_info:
-      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m0-f1m1' if signalling_biasing else ''}")
+      #base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m4-f1m1' if signalling_biasing else ''}")
+      base_path = os.path.join(base_path,f"MessTraj-MutualInfoMetric{'+CombActSpace' if combined_action_space else ''}{'+Biasing-1m3-f5m2' if signalling_biasing else ''}")
     if use_goal_order_pred:
       base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+RulesPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
       #base_path = os.path.join(base_path,f"GoalOrderingPred{'+Biasing-1m0' if goal_ordering_biasing else ''}-NoDropout+GoalOrderingPredictionONLY+RNNStatePostProcess{'+AugmentedHiddenStates' if augmented else ''}")
@@ -551,11 +562,17 @@ def training_process(agent_config: Dict,
     
     rule_based = False
     communicating = False
+    rba_seed = 0
     if len(sys.argv) > 2:
       rule_based = any(['rule_based' in arg for arg in sys.argv[2:]])
       communicating = any(['communicating_rule_based' in arg for arg in sys.argv[2:]])
+      override_rba_seed_argv_idx = [idx for idx, arg in enumerate(sys.argv) if '--rba_seed' in arg]
+      if len(override_rba_seed_argv_idx):
+        rba_seed = int(sys.argv[override_rba_seed_argv_idx[0]+1])
+        print(f"NEW RANDOM SEED for Rule-Based Agent: {rba_seed}")
+
     if rule_based:
-      base_path = os.path.join(base_path,f"{'COMM-' if communicating else ''}RULEBASE")
+      base_path = os.path.join(base_path,f"{'COMM-' if communicating else ''}RULEBASE+RBASEED{rba_seed}")
     
     if task_config["otherplay"]:
       base_path = os.path.join(base_path,"OtherPlay")
@@ -704,6 +721,7 @@ def training_process(agent_config: Dict,
           build_fn(
             player_idx=pidx,
             action_space_dim=task.action_dim,
+            seed=rba_seed,
           ) for pidx in range(2)
         ]
 
@@ -743,6 +761,8 @@ def training_process(agent_config: Dict,
       )
 
     trained_agents = train_and_evaluate(
+      task_config=task_config,
+      agent_config=agent_config,
       agents=agents,
       task=task,
       sum_writer=sum_writer,

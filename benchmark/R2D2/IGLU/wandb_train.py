@@ -3,7 +3,9 @@ from typing import Dict, Any, Optional, List, Callable
 import torch
 import sklearn 
 import gym
-import iglu
+gym.logger.set_level(40)
+#import iglu
+import gridworld 
 
 from perceiver_lm.perceiver_io import LMCapsule
 from collections import OrderedDict
@@ -708,22 +710,27 @@ class ChatEmbeddingWrapper(gym.Wrapper):
             LanguageModelCapsule = LMCapsule(use_cuda=use_cuda)
         self.lm = LanguageModelCapsule
         self.chat = None
+        self.chat_id = "chat"
 
     def reset(self, **args):
         obs = self.env.reset(**args)
         self.chat = None
-        if "chat" in obs:
-            obs["chat"] = self.lm(obs["chat"]).detach().numpy()
-            self.chat = obs["chat"]
+
+        if "dialog" in obs:
+            self.chat_id = "dialog"
+
+        if self.chat_id in obs:
+            obs[self.chat_id] = self.lm(obs[self.chat_id]).detach().numpy()
+            self.chat = obs[self.chat_id]
         return obs
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
-        if "chat" in obs:
+        if self.chat_id in obs:
             if self.chat is None:
-                self.chat = self.lm(obs["chat"]).detach().numpy()
+                self.chat = self.lm(obs[self.chat_id]).detach().numpy()
             else:
-                obs["chat"] = self.chat
+                obs[self.chat_id] = self.chat
 
         return obs, reward, done, info
     
@@ -788,7 +795,8 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         env, 
         max_sentence_length=256, 
         vocabulary=None, 
-        observation_keys_mapping={'chat':'chat'},
+        #observation_keys_mapping={'chat':'chat'},
+        observation_keys_mapping={'dialog':'chat'},
         ):
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
@@ -1580,8 +1588,8 @@ def main():
     
     print(dargs)
 
-    from gpuutils import GpuUtils
-    GpuUtils.allocate(required_memory=6000, framework="torch")
+    #from gpuutils import GpuUtils
+    #GpuUtils.allocate(required_memory=6000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)

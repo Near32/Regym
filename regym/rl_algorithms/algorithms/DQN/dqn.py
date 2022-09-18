@@ -18,9 +18,10 @@ from . import dqn_loss, ddqn_loss
 import regym
 from ..algorithm import Algorithm
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
-from ...networks import hard_update, soft_update, random_sample
-from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
 
+from ...networks import hard_update, soft_update, random_sample
+from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
+from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 
 import wandb
 summary_writer = None 
@@ -65,7 +66,7 @@ class DQNAlgorithm(Algorithm):
             target_model = copy.deepcopy(self.model)
 
         self.target_model = target_model
-        self.target_model.share_memory()
+        #self.target_model.share_memory()
 
         hard_update(self.target_model, self.model)
         if self.use_cuda:
@@ -128,11 +129,14 @@ class DQNAlgorithm(Algorithm):
             from regym import RaySharedVariable
             try:
                 self._param_update_counter = ray.get_actor(f"{self.name}.param_update_counter")
+                self._param_obs_counter = ray.get_actor(f"{self.name}.param_obs_counter")
             except ValueError:  # Name is not taken.
                 self._param_update_counter = RaySharedVariable.options(name=f"{self.name}.param_update_counter").remote(0)
+                self._param_obs_counter = RaySharedVariable.options(name=f"{self.name}.param_obs_counter").remote(0)
         else:
             from regym import SharedVariable
             self._param_update_counter = SharedVariable(0)
+            self._param_obs_counter = SharedVariable(0)
 
     def parameters(self):
         return self.model.parameters()
@@ -157,6 +161,20 @@ class DQNAlgorithm(Algorithm):
     def get_optimizer(self):
         return self.optimizer
 
+    @property
+    def param_obs_counter(self):
+        if isinstance(self._param_obs_counter, ray.actor.ActorHandle):
+            return ray.get(self._param_obs_counter.get.remote())    
+        else:
+            return self._param_obs_counter.get()
+
+    @param_obs_counter.setter
+    def param_obs_counter(self, val):
+        if isinstance(self._param_obs_counter, ray.actor.ActorHandle):
+            self._param_obs_counter.set.remote(val) 
+        else:
+            self._param_obs_counter.set(val)
+    
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
 
@@ -176,6 +194,9 @@ class DQNAlgorithm(Algorithm):
 
     def get_update_count(self):
         return self.param_update_counter
+    
+    def get_obs_count(self):
+        return self.param_obs_counter
 
     def reset_epsilon(self):
         self.epsend = self.kwargs['epsend']
@@ -293,7 +314,7 @@ class DQNAlgorithm(Algorithm):
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
-        wandb.log({'PerTrainingRequest/NbrStoredExperiences':  nbr_stored_experiences}) # self.train_request_count)
+        wandb.log({'PerTrainingRequest/NbrStoredExperiences':  nbr_stored_experiences}, commit=False) # self.train_request_count)
         
         return nbr_stored_experiences
 
@@ -301,6 +322,8 @@ class DQNAlgorithm(Algorithm):
         '''
         Compute n-step return for the first element of `self.n_step_buffer` deque.
         '''
+        torch.set_grad_enabled(False)
+
         truncated_n_step_return = self.n_step_buffers[actor_index][-1]['r']
         for exp_dict in reversed(list(self.n_step_buffers[actor_index])[:-1]):
             truncated_n_step_return = exp_dict['r'] + self.GAMMA * truncated_n_step_return * exp_dict['non_terminal']
@@ -334,6 +357,8 @@ class DQNAlgorithm(Algorithm):
             self.storages[actor_index].add(current_exp_dict, priority=init_sampling_priority)
         else:
             self.storages[actor_index].add(current_exp_dict)
+        
+        self.param_obs_counter += 1 
 
     def train(self, minibatch_size:int=None):
         global summary_writer
@@ -348,10 +373,11 @@ class DQNAlgorithm(Algorithm):
         samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
         end = time.time()
 
-        wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
 
 
-        if self.noisy:  
+        if self.noisy \
+        and hasattr(self.model, "reset_noise"):
             self.model.reset_noise()
             self.target_model.reset_noise()
 
@@ -359,7 +385,7 @@ class DQNAlgorithm(Algorithm):
         self.optimize_model(minibatch_size, samples)
         end = time.time()
         
-        wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
         if self.use_HER and self.kwargs.get("HER_soft_update", False):
             soft_update(self.target_model, self.model, tau=0.95) 
@@ -373,6 +399,8 @@ class DQNAlgorithm(Algorithm):
         This function samples from each storage, concatenate the sampled elements on the batch dimension,
         and maintains the hierarchy of dictionnaries.
         '''
+        torch.set_grad_enabled(False)
+
         keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
 
         fulls = {}
@@ -419,7 +447,8 @@ class DQNAlgorithm(Algorithm):
                 if isinstance(value[0], dict): 
                     value = _concatenate_list_hdict(
                         lhds=value, 
-                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        #concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        concat_fn=archi_concat_fn,
                         preprocess_fn=(lambda x:x),
                     )
                 else:
@@ -455,6 +484,7 @@ class DQNAlgorithm(Algorithm):
             optimisation_minibatch_size = minibatch_size*self.nbr_actor
 
         start = time.time()
+        torch.set_grad_enabled(True)
 
         #beta = self.storages[0].get_beta() if self.use_PER else 1.0
         beta = 1.0
@@ -552,11 +582,18 @@ class DQNAlgorithm(Algorithm):
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
-                wandb.log({'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item()}) # self.param_update_counter)
-                wandb.log({'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item()}) # self.param_update_counter)
-                wandb.log({'PerUpdate/PER_Beta':  beta}) # self.param_update_counter)
+                #wandb_data = copy.deepcopy(wandb.run.history._data)
+                #wandb.run.history._data = {}
+                wandb.log({
+                    'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item(),
+                    'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item(),
+                    'PerUpdate/PER_Beta':  beta
+                }) # self.param_update_counter)
+                #wandb.run.history._data = wandb_data
 
             self.param_update_counter += 1 
+
+        torch.set_grad_enabled(False)
 
         if self.use_PER :
             sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
@@ -571,7 +608,7 @@ class DQNAlgorithm(Algorithm):
             )
 
         end = time.time()
-        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
 
 
     def compute_td_error(self, samples: Dict):
@@ -658,7 +695,7 @@ class DQNAlgorithm(Algorithm):
 
         end = time.time()
         
-        wandb.log({'PerUpdate/TimeComplexity/TDErrorComputation':  end-start}) # self.param_update_counter)
+        wandb.log({'PerUpdate/TimeComplexity/TDErrorComputation':  end-start}, commit=False) # self.param_update_counter)
         
         return loss, loss_per_item 
 
@@ -701,8 +738,16 @@ class DQNAlgorithm(Algorithm):
         if self.target_model is None:
             self.target_model = copy.deepcopy(self.model)
         
+        if isinstance(self.model, ArchiModel):
+            self.model.reset()
+        if isinstance(self.target_model, ArchiModel):
+            self.target_model.reset()
+        
+        param_obs_counter = self._param_obs_counter
+        self._param_obs_counter = None 
+
         cloned_algo = copy.deepcopy(self)
-           
+         
         if minimal:
             cloned_algo.target_model = None
 
@@ -716,6 +761,9 @@ class DQNAlgorithm(Algorithm):
         
         self._param_update_counter = param_update_counter
         cloned_algo._param_update_counter = param_update_counter
+
+        self._param_obs_counter = param_obs_counter
+        cloned_algo._param_obs_counter = param_obs_counter
 
         # Goes through all variables 'Proxy' (dealing with multiprocessing)
         # contained in this class and removes them from clone

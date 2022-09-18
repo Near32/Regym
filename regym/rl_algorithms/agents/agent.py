@@ -4,9 +4,14 @@ import numpy as np
 
 from functools import partial
 import regym
-from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, recursive_inplace_update, _concatenate_list_hdict
+from regym.rl_algorithms.utils import is_leaf, _extract_from_rnn_states, copy_hdict, recursive_inplace_update, _concatenate_list_hdict
+
+from regym.thirdparty.Archi.Archi import Model as ArchiModel
+
 
 import ray
+import wandb 
+
 
 def named_children(cm):
     for name, m in cm._modules.items():
@@ -14,13 +19,14 @@ def named_children(cm):
             yield name, m
 
 
-def look_for_keys_and_apply(cm, keys, prefix='', accum: Optional[Dict]=dict(), apply_fn: Optional[Callable]=None, kwargs: Optional[Dict]={}):
+def look_for_keys_and_apply(cm, keys: Optional[List[str]]=[], prefix='', accum: Optional[Dict]=dict(), apply_fn: Optional[Callable]=None, kwargs: Optional[Dict]={}):
     for name, m in named_children(cm):
         accum[name] = {}
         look_for_keys_and_apply(m, keys=keys, prefix=prefix+'.'+name, accum=accum[name], apply_fn=apply_fn, kwargs=kwargs)
-        if any( [key in m._get_name() for key in keys]):
-            if isinstance(apply_fn, str):   apply_fn = getattr(m, apply_fn, None)
-            if apply_fn is not None:    accum[name] = apply_fn(**kwargs)
+        fn = apply_fn
+        if isinstance(fn, str):   fn = getattr(m,fn, None)
+        if any( [key in m._get_name() for key in keys]) or fn is not None:    
+            accum[name] = fn(**kwargs)
         elif accum[name]=={}:
             del accum[name]
 
@@ -113,6 +119,9 @@ class Agent(object):
 
     def get_update_count(self):
         raise NotImplementedError
+    
+    def get_obs_count(self):
+        raise NotImplementedError
 
     def get_nbr_actor(self):
         return self.nbr_actor
@@ -128,10 +137,10 @@ class Agent(object):
         self.reset_actors(init=True, vdn=vdn)
 
     def get_rnn_states(self):
-        return self.rnn_states 
+        return copy_hdict(self.rnn_states) 
 
     def set_rnn_states(self, rnn_states):
-        self.rnn_states = rnn_states 
+        self.rnn_states = copy_hdict(rnn_states) 
         
     def reset_actors(self, indices:Optional[List]=[], init:Optional[bool]=False, vdn=None):
         '''
@@ -162,8 +171,7 @@ class Agent(object):
         ):
         # TODO: account for the indices in rnn states:
         if ((vdn is not None and vdn) or (vdn is None))\
-        and "vdn" in self.algorithm.kwargs \
-        and self.algorithm.kwargs["vdn"]:
+        and self.algorithm.kwargs.get("vdn", False):
             nbr_players = self.algorithm.kwargs["vdn_nbr_players"]
             nbr_envs = nbr_actor
             nbr_actor *= nbr_players
@@ -174,14 +182,18 @@ class Agent(object):
                         new_actor_indices.append(aidx+nbr_envs*pidx)
                 actor_indices = new_actor_indices
 
-        lookedup_keys = ['LSTM', 'GRU', 'NTM', 'DNC']
+        #lookedup_keys = ['LSTM', 'GRU', 'NTM', 'DNC']
         new_rnn_states = {}
         kwargs = {'cuda': False, 'repeat':nbr_actor}
         for name, model in algorithm.get_models().items():
-            if "model" in name and model is not None:
+            if "model" not in name: continue
+            if model is None:   continue
+            if isinstance(model, ArchiModel):
+                new_rnn_states = model.get_reset_states(kwargs=kwargs)
+            else:
                 look_for_keys_and_apply( 
                     model, 
-                    keys=lookedup_keys, 
+                    #keys=lookedup_keys, 
                     accum=new_rnn_states, 
                     apply_fn='get_reset_states', 
                     kwargs=kwargs
@@ -194,6 +206,15 @@ class Agent(object):
         # Reset batch element only: 
         batch_indices_to_update = torch.Tensor(actor_indices).long()
         
+        self.rnn_states = copy_hdict(self.rnn_states)
+        """
+        WARNING: as a recursive inplace update follows, making a deepcopy
+        of the current self.rnn_states makes sure that any ambiguously-
+        made references inside this dict will be severed, and therefore
+        the inplace update will not end up inadvertantly update some other
+        variable that was thought to be distinct, e.g. the agent's 
+        current_prediction's next_rnn_states dict...
+        """
         recursive_inplace_update(
             in_dict=self.rnn_states,
             extra_dict=new_rnn_states,
@@ -253,14 +274,21 @@ class Agent(object):
                     updateable = False
                     if key in next_rnn_states_dict[recurrent_submodule_name]:
                         updateable = True
+                        """
                         for idx in range(len(next_rnn_states_dict[recurrent_submodule_name][key])):
                             # Post-process:
                             next_rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                        """
                     if key in rnn_states_dict[recurrent_submodule_name]:
                         for idx in range(len(rnn_states_dict[recurrent_submodule_name][key])):
                             if updateable:
                                 # Updating rnn_states:
-                                rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
+                                rnn_states_dict[recurrent_submodule_name][key][idx] = next_rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu().clone()
+                                """
+                                WARNING : it is of the utmost importance to call clone method on here,
+                                or else any subsequent change to the rnn_states_dict element will 
+                                actuall also change the next_rnn_states corresponding element...
+                                """
                             else:
                                 # only post-process:
                                 rnn_states_dict[recurrent_submodule_name][key][idx] = rnn_states_dict[recurrent_submodule_name][key][idx].detach().cpu()
@@ -405,6 +433,8 @@ class Agent(object):
                 minimal=minimal), 
             self.save_path
         )
+        print(f"Saving in W&B : {self.save_path}")
+        wandb.save(self.save_path, base_path=wandb.run.dir)
 
 
 
@@ -464,7 +494,7 @@ class ExtraInputsHandlingAgent(Agent):
             concat_fn=partial(torch.cat, dim=0),
             preprocess_fn=(lambda x:torch.from_numpy(x).float() if isinstance(x, np.ndarray) else torch.ones(1, 1).float()*x),
         )
-
+        
         out_hdict = self._init_hdict(init=concat_hdict)
 
         return out_hdict
@@ -477,18 +507,18 @@ class ExtraInputsHandlingAgent(Agent):
             recursive_inplace_update(self.rnn_states, hdict)
         return self._take_action(state, infos=hdict, as_logit=as_logit)
 
-    def query_action(self, state, infos=None, as_logit=False):
+    def query_action(self, state, infos=None, as_logit=False, training=False):
         hdict = None
         if infos:# and not self.training:
             agent_infos = [info for info in infos if info is not None]
             hdict = self._build_dict_from(lhdict=agent_infos)
             recursive_inplace_update(self.rnn_states, hdict)
-        return self._query_action(state, infos=hdict, as_logit=as_logit)
+        return self._query_action(state, infos=hdict, as_logit=as_logit, training=training)
 
-    def _take_action(self, state, infos=None):
+    def _take_action(self, state, infos=None, training=False):
         raise NotImplementedError
 
-    def _query_action(self, state, infos=None):
+    def _query_action(self, state, infos=None, as_logit=False, training=False):
         raise NotImplementedError
 
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None):

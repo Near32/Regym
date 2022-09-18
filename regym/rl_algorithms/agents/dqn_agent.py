@@ -48,15 +48,20 @@ class DQNAgent(Agent):
 
         # Number of interaction/step with/in the environment:
         self.nbr_steps = 0
-
-        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 1e5
+        
+        # With respect to the number of observations:
+        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 5e5
         
         self.previous_save_quotient = -1
 
     def get_update_count(self):
         return self.algorithm.unwrapped.get_update_count()
 
+    def get_obs_count(self):
+        return self.algorithm.unwrapped.get_obs_count()
+
     def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None, prediction=None):
+    #def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -70,6 +75,8 @@ class DQNAgent(Agent):
         :param infos: Dictionnary of information from the environment.
         :param prediction: Dictionnary of tensors containing the model's output at the current state.
         '''
+        torch.set_grad_enabled(False)
+
         if "sad" in self.kwargs \
         and self.kwargs["sad"]:
             a = a["action"]
@@ -197,33 +204,27 @@ class DQNAgent(Agent):
             """
 
         # We assume that this function has been called directly after take_action:
-        # therefore the current prediction correspond to this experience.
+        # therefore the current prediction correspond to this experience's state as input.
 
-        batch_index = -1
         done_actors_among_notdone = []
-        #for actor_index in range(self.nbr_actor):
         for actor_index in range(batch_size):
             # If this actor is already done with its episode:
             if self.previously_done_actors[actor_index]:
+                # reset and skip current experience
+                self.previously_done_actors[actor_index] = False
                 continue
             # Otherwise, there is bookkeeping to do:
-            batch_index +=1
 
             # Bookkeeping of the actors whose episode just ended:
-            if done[actor_index] and not(self.previously_done_actors[actor_index]):
-                done_actors_among_notdone.append(batch_index)
+            if done[actor_index]:
+                done_actors_among_notdone.append(actor_index)
 
             exp_dict = {}
-            exp_dict['s'] = state[batch_index,...].unsqueeze(0)
-            exp_dict['a'] = a[batch_index,...].unsqueeze(0)
-            exp_dict['r'] = r[batch_index,...].unsqueeze(0)
-            exp_dict['succ_s'] = succ_state[batch_index,...].unsqueeze(0)
-            # Watch out for the miss-match:
-            # done is a list of nbr_actor booleans,
-            # which is not sync with batch_index, purposefully...
+            exp_dict['s'] = state[actor_index,...].unsqueeze(0)
+            exp_dict['a'] = a[actor_index,...].unsqueeze(0)
+            exp_dict['r'] = r[actor_index,...].unsqueeze(0)
+            exp_dict['succ_s'] = succ_state[actor_index,...].unsqueeze(0)
             exp_dict['non_terminal'] = non_terminal[actor_index,...].unsqueeze(0)
-            # Watch out for the miss-match:
-            # Similarly, infos is not sync with batch_index, purposefully...
             if infos is not None:
                 exp_dict['info'] = infos[actor_index]
             if succ_infos is not None:
@@ -232,7 +233,7 @@ class DQNAgent(Agent):
             #########################################################################
             #########################################################################
             # Exctracts tensors at root level:
-            exp_dict.update(Agent._extract_from_prediction(prediction, batch_index))
+            exp_dict.update(Agent._extract_from_prediction(prediction, actor_index))
             #########################################################################
             #########################################################################
             
@@ -241,24 +242,14 @@ class DQNAgent(Agent):
             if self.recurrent:
                 exp_dict['rnn_states'] = _extract_from_rnn_states(
                     prediction['rnn_states'],
-                    batch_index,
+                    actor_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
                 exp_dict['next_rnn_states'] = _extract_from_rnn_states(
                     prediction['next_rnn_states'],
-                    batch_index,
+                    actor_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
-
-            """
-            # depr : goal update
-            if self.goal_oriented:
-                exp_dict['goals'] = Agent._extract_from_hdict(
-                    goals, 
-                    batch_index, 
-                    goal_preprocessing_fn=self.goal_preprocessing
-                )
-            """
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
@@ -328,16 +319,23 @@ class DQNAgent(Agent):
                     self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
                 else:
                     self.actor_learner_shared_dict.set(actor_learner_shared_dict)
-
-            if self.async_learner\
+            
+            #print("SAVING STAT:", self.saving_interval, self.previous_save_quotient, self.algorithm.unwrapped.get_obs_count())
+            obs_count = self.algorithm.unwrapped.get_obs_count()
+            if not self.async_actor\
             and self.save_path is not None \
-            and (self.algorithm.unwrapped.get_update_count() // self.saving_interval) != self.previous_save_quotient:
-                self.previous_save_quotient = self.algorithm.unwrapped.get_update_count() // self.saving_interval
+            and (obs_count // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = obs_count // self.saving_interval
+                original_save_path = self.save_path
+                self.save_path = original_save_path.split(".agent")[0]+"."+str(int(self.previous_save_quotient))+".agent"
                 self.save()
+                self.save_path = original_save_path
 
         return nbr_updates
 
-    def take_action(self, state, infos=None, as_logit=False):
+    def take_action(self, state, infos=None, as_logit=False, training=False):
+        torch.set_grad_enabled(training)
+
         if self.async_actor:
             # Update the algorithm's model if needs be:
             if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
@@ -369,7 +367,7 @@ class DQNAgent(Agent):
             self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
 
 
-        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'], training=training)
         
         """
         # depr : goal update
@@ -397,7 +395,7 @@ class DQNAgent(Agent):
         # manipulate a copy of it outside of the agent's manipulation, e.g.
         # when feeding it to the models.
         self.current_prediction = self._post_process(self.current_prediction)
-
+        
         greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
 
         if self.noisy or not(self.training):
@@ -436,10 +434,12 @@ class DQNAgent(Agent):
 
         return actions
 
-    def query_action(self, state, infos=None, as_logit=False):
+    def query_action(self, state, infos=None, as_logit=False, training=False):
         """
         Query's the model in training mode...
         """
+        torch.set_grad_enabled(training)
+
         if self.async_actor:
             # Update the algorithm's model if needs be:
             if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
@@ -469,7 +469,7 @@ class DQNAgent(Agent):
             self.eps = np.stack([self.eps]*self.kwargs["vdn_nbr_players"], axis=-1).reshape(-1)
 
 
-        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'])
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.unwrapped.kwargs['use_cuda'], training=training)
         
         """
         # depr : goal update

@@ -102,13 +102,19 @@ class OptimizationModule(Module):
         
         if len(list(parameters)):
           if "sgd" in self.config["optimizer_type"].lower():
-            self.optimizer = optim.SGD(parameters, 
-                                        lr=self.config["learning_rate"])
+            self.optimizer = optim.SGD(
+                parameters, 
+                lr=self.config["learning_rate"],
+                weight_decay=config.get("weight_decay", 0.0),
+            )
           else:
-            self.optimizer = optim.Adam(parameters, 
-                                        lr=self.config["learning_rate"], 
-                                        #betas=(0.9, 0.999), 
-                                        eps=self.config["adam_eps"])
+            self.optimizer = optim.Adam(
+                parameters, 
+                lr=self.config["learning_rate"], 
+                #betas=(0.9, 0.999), 
+                eps=self.config["adam_eps"],
+                weight_decay=config.get("weight_decay", 0.0),
+            )
         else:
           self.optimizer = None 
         
@@ -132,6 +138,8 @@ class OptimizationModule(Module):
         :returns:
             - outputs_stream_dict: 
         """
+        torch.set_grad_enabled(True)
+
         outputs_stream_dict = {}
 
         losses_dict = input_streams_dict["losses_dict"]
@@ -167,5 +175,7 @@ class OptimizationModule(Module):
         
             outputs_stream_dict['signals:update_count'] = self.update_count
         
+        torch.set_grad_enabled(False)
+
         return outputs_stream_dict
         
