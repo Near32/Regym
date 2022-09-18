@@ -334,6 +334,7 @@ class IGLUHERGoalPredicatedRewardWrapper(gym.Wrapper):
         obs, reward, done, info = self.env.step(action)
 
         global air_block_offset
+        import ipdb; ipdb.set_trace()
         target_goal = info['target_grid']+air_block_offset
         achieved_goal = info['grid']+air_block_offset
     
@@ -796,7 +797,8 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         max_sentence_length=256, 
         vocabulary=None, 
         #observation_keys_mapping={'chat':'chat'},
-        observation_keys_mapping={'dialog':'chat'},
+        #observation_keys_mapping={'dialog':'chat'},
+        observation_keys_mapping={'dialog':'dialog'},
         ):
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
@@ -848,6 +850,8 @@ from regym.util.wrappers import (
     FrameStackWrapper,
 )
 
+from gridworld.tasks import DUMMY_TASK
+
 def wrap_iglu(
     env,
     stack=1,
@@ -864,18 +868,18 @@ def wrap_iglu(
     use_THER=False,
     use_OHE=False,
     ):
-    env = gym.make('IGLUSilentBuilder-v0', max_steps=1000, )
+    env.unwrapped.set_task(DUMMY_TASK)
     env = ErrorCatchingWrapper(env)
     if task_curriculum:
         env = IGLUTaskCurriculumWrapper(env)
 
     #env.update_taskset(TaskSet(preset=[task]))
     if use_THER:
-        #TODO: set hyperparameters...
         env = TextualGoal2IdxWrapper(
             env=env,
             max_sentence_length=256,
-            vocabulary=None,
+            observation_keys_mapping={'dialog':'dialog'},
+            vocabulary=None, #provided by global_vocabulary...
         )
     else:
         env = ChatEmbeddingWrapper(env)

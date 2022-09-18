@@ -145,11 +145,10 @@ def _generate_model(
     head_type: str="CategoricalQNet") -> nn.Module:
     
     extra_bodies = {}
-    import ipdb; ipdb.set_trace()
     if 'extra_bodies' in kwargs:
         for extra_body_id, extra_body_config in kwargs['extra_bodies'].items():
             if extra_body_config['arch'] == 'EmbeddingRNN':
-                extra_bodies[extra_body_id] = EmbeddingRNN(
+                extra_bodies[extra_body_id] = EmbeddingRNNBody(
                     voc_size=extra_body_config['vocab_size'],
                     hidden_units=extra_body_config['hidden_units'],
                     num_layers=extra_body_config.get('num_layers', 1),

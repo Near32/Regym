@@ -49,6 +49,7 @@ setup(
       'scipy',
       #'minerl',
       #'iglu',
+      #'gridworld',
       'celluloid',
       'sklearn',
       'coloredlogs',

@@ -72,7 +72,7 @@ extra_hyperparameters: &extra_hyperparameters
     vdn_nbr_players: 2
     
     <<: *HER_hyperparameters
-    <<: *THER_hyperparameters
+    <<: *THER_extra_hyperparameters
 
 LargeMLP: &LargeMLP
         phi_arch: 'MLP'
@@ -246,9 +246,13 @@ r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLP
 
 experiment:
     tasks: [{
-        'env-id': 'IGLUSilentBuilder-v0',
+        #'env-id': 'IGLUSilentBuilder-v0',
+        'env-id': 'IGLUGridworld-v0',
         'env-config': {
-            "action_space": "discrete",
+            #"action_space": "discrete",
+            "action_space": "walking",
+            "vector_state": True,
+            "target_in_obs": True,
         },
         
         'run-id': 'TestTHER-NOTaskCurriculumWrapper+SoftUpdate+NbrItPerCycle40+NbrEpPerCycle16/Discrete+1Actors+NOCurrFakeReset+MFEL200+NOFake+Obs32+NOSparsePosReward+NOInvertedGoalPredReward+BlockDenseAct+LowerCam10/',
@@ -263,8 +267,8 @@ experiment:
         #'nbr_actor': 32,
         #'nbr_actor': 16,
         'nbr_actor': 1,
-        'nbr_frame_skipping': 4,
-        #'nbr_frame_stacking': 1,
+        'nbr_frame_skipping': 1,
+        'nbr_frame_stacking': 4,
         #'grayscale': True,
         #'single_life_episode': True, #False,
         #'nbr_max_random_steps': 30,
@@ -472,7 +476,8 @@ agents:
                target_location: ['critic_body', 'extra_inputs']
            },
 
-           'chat':{
+           #'chat':{
+           'dialog':{
                shape: [256,], # 256 tokens .... 
                target_location: ['chat_body', 'extra_inputs']
            },
