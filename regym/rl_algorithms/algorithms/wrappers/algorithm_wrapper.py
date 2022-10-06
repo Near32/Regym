@@ -40,11 +40,20 @@ class AlgorithmWrapper(Algorithm):
     def get_nbr_actor(self):
         return self.algorithm.get_nbr_actor()
 
+    def set_nbr_actor(self, nbr_actor):
+        return self.algorithm.set_nbr_actor(nbr_actor)
+
+    def get_update_count(self):
+        return self.param_update_counter
+    
+    def get_obs_count(self):
+        return self.param_obs_counter
+
     def get_update_count(self):
         return self.algorithm.get_update_count()
 
-    def reset_storages(self):
-        self.algorithm.reset_storages()
+    def reset_storages(self, nbr_actor):
+        self.algorithm.reset_storages(nbr_actor=nbr_actor)
 
     def store(self, exp_dict, actor_index=0):
         self.algorithm.store(exp_dict=exp_dict, actor_index=actor_index)

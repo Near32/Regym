@@ -275,33 +275,6 @@ class MARLEnvironmentModule(Module):
             self.pbar.update(1)
             wandb.log({'Training/NbrTrajectoriesQueued': len(self.trajectories)}, commit=False)
 
-            for player_index in range(self.nbr_players):
-                pa_obs = obs[player_index][actor_index:actor_index+1]
-                pa_a = act[player_index][actor_index:actor_index+1]
-                pa_r = rew[player_index][actor_index:actor_index+1]
-                pa_succ_obs = succ_obs[player_index][actor_index:actor_index+1]
-                pa_done = d[actor_index:actor_index+1]
-                pa_int_r = 0.0
-                
-                """
-                pa_info = _extract_from_rnn_states(
-                    self.info[player_index],
-                    actor_index,
-                    post_process_fn=None
-                )
-                """
-                pa_info = info[player_index][actor_index]
-
-                """
-                if getattr(agent.algorithm, "use_rnd", False):
-                    get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
-                    if callable(get_intrinsic_reward):
-                        pa_int_r = agent.get_intrinsic_reward(actor_index)
-                """    
-                self.per_actor_per_player_trajectories[actor_index][player_index].append( 
-                    (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) 
-                )
-
             # Bookkeeping of the actors whose episode just ended:
             done_condition = ('real_done' in succ_info[0][actor_index] \
                 and succ_info[0][actor_index]['real_done']) \
@@ -505,7 +478,8 @@ class MARLEnvironmentModule(Module):
                     succ_info_key=self.succ_info_key,
                 )
 
-            if self.obs_count % 1e3 == 0\
+            #if self.obs_count % 1e4 == 0\
+            if False \
             and ((self.prev_run_mean_total_return_on_save is not None\
             and self.run_mean_total_return is not None\
             and self.prev_run_mean_total_return_on_save > self.run_mean_total_return)\
@@ -520,7 +494,8 @@ class MARLEnvironmentModule(Module):
                     if not hasattr(agent, 'save'):    continue
                     save_path = agent.save_path
                     
-                    agent.save_path += f"{self.episode_count}Episodes"
+                    #agent.save_path += f"{self.episode_count}Episodes"
+                    agent.save_path += f"BestPerformance"
                     agent.save(with_replay_buffer=False, minimal=True)
                     print(f"Agent {agent} saved at: {agent.save_path}")
                     """

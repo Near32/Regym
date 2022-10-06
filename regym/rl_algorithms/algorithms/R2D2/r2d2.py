@@ -172,7 +172,7 @@ class R2D2Algorithm(DQNAlgorithm):
         keys = sequence_buffer[0].keys()
         d = {}
         for key in keys:
-            if key == 'info': continue
+            if 'info' in key: continue
             # (batch_size=1, unroll_dim, ...)
             if isinstance(sequence_buffer[0][key], dict):
                 values = [sequence_buffer[i][key] for i in range(len(sequence_buffer))]

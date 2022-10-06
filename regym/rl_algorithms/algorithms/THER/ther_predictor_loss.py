@@ -1,5 +1,6 @@
 from typing import Dict, List
 import torch
+import wandb
 
 
 def compute_loss(states: torch.Tensor, 
@@ -15,7 +16,9 @@ def compute_loss(states: torch.Tensor,
                  importanceSamplingWeights: torch.Tensor = None,
                  summary_writer: object = None,
                  iteration_count: int = 0,
-                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
+                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
+                 phase: str = "Training",
+    ) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x state_size: States visited by the agent.
     :param actions: Dimension: batch_size x action_size. Actions which the agent
@@ -36,7 +39,11 @@ def compute_loss(states: torch.Tensor,
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
     '''
-    output_dict= predictor.compute_loss(states, goal=goals)
+    output_dict= predictor.compute_loss(
+        states, 
+        rnn_states=rnn_states,
+        goal=goals,
+    )
     prediction = output_dict['prediction']
     loss_per_item = output_dict['loss_per_item']
     accuracies = output_dict['accuracies']
@@ -49,17 +56,16 @@ def compute_loss(states: torch.Tensor,
     loss = torch.mean(loss_per_item)
     
 
-    if summary_writer is not None:
-        summary_writer.add_scalar('Training/THER_Predictor/Loss', loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/THER_Predictor/Accuracy', accuracies.cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/THER_Predictor/SentenceAccuracy', sentence_accuracies.cpu().item(), iteration_count)
-        for idx in range(accuracies.shape[-1]):
-          summary_writer.add_scalar(f'Training/THER_Predictor/Accuracy_{idx}', accuracies[..., idx].cpu().item(), iteration_count)
-        
-        if use_PER:
-            summary_writer.add_scalar('Training/THER_Predictor/ImportanceSamplingMean', importanceSamplingWeights.cpu().mean().item(), iteration_count)
-            summary_writer.add_scalar('Training/THER_Predictor/ImportanceSamplingStd', importanceSamplingWeights.cpu().std().item(), iteration_count)
-            summary_writer.add_scalar('Training/THER_Predictor/PER_Beta', PER_beta, iteration_count)
+    wandb.log({f'{phase}/THER_Predictor/Loss': loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({f'{phase}/THER_Predictor/Accuracy': accuracies.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({f'{phase}/THER_Predictor/SentenceAccuracy': sentence_accuracies.cpu().item(), "training_step": iteration_count}, commit=False)
+    for idx in range(accuracies.shape[-1]):
+        wandb.log({f'{phase}/THER_Predictor/Accuracy_{idx}': accuracies[..., idx].cpu().item(), "training_step": iteration_count}, commit=False)
+    
+    if use_PER:
+        wandb.log({f'{phase}/THER_Predictor/ImportanceSamplingMean': importanceSamplingWeights.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+        wandb.log({f'{phase}/THER_Predictor/ImportanceSamplingStd': importanceSamplingWeights.cpu().std().item(), "training_step": iteration_count}, commit=False)
+        wandb.log({f'{phase}/THER_Predictor/PER_Beta': PER_beta, "training_step": iteration_count}, commit=False)
 
     return {'loss':loss, 
             'loss_per_item':loss_per_item,

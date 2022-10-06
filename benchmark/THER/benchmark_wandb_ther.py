@@ -42,9 +42,32 @@ def check_path_for_agent(filepath):
     return agent, offset_episode_count
 
 
+def check_wandb_path_for_agent(file_path, run_path):
+    if os.path.exists('./'+file_path):
+        print(f"WARNING:CHECKPOINT PATH DUPLICATE EXISTS: ./{file_path}")
+        os.remove('./'+file_path)
+        print(f"WARNING: DUPLICATE PATH DELETED: ./{file_path}")
+    try:
+        agent_ref = wandb.restore(name=file_path, run_path=run_path)
+    except Exception as e:
+        agent_ref = None
+        raise e
+    agent = None
+    offset_episode_count = 0
+    if agent_ref is not None:
+        print(f"==> loading checkpoint {run_path}/{file_path}")
+        agent = torch.load(agent_ref.name)
+        os.remove('./'+file_path)
+        offset_episode_count = agent.episode_count
+        #setattr(agent, 'episode_count', offset_episode_count)
+        print(f"==> loaded checkpoint {run_path}/{file_path}")
+    return agent, offset_episode_count
+
+
 def make_rl_pubsubmanager(
     agents,
     config, 
+    task_config=None,
     logger=None,
     load_path=None,
     save_path=None,
@@ -164,6 +187,7 @@ def make_rl_pubsubmanager(
 def train_and_evaluate(
     agent: object, 
     task: object, 
+    task_config: Dict[str, object],
     sum_writer: object, 
     base_path: str, 
     offset_episode_count: int = 0, 
@@ -208,6 +232,7 @@ def train_and_evaluate(
     pubsubmanager = make_rl_pubsubmanager(
       agents=agents,
       config=config,
+      task_config=task_config,
       logger=sum_writer,
     )
 
@@ -331,6 +356,11 @@ def training_process(
       clip_reward=task_config['clip_reward'],
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
+      previous_reward_action=task_config['previous_reward_action'],
+      observation_key=task_config['observation_key'],
+      concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
+      use_rgb=task_config['use_rgb'],
+      full_obs=task_config['full_obs'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -343,6 +373,11 @@ def training_process(
       clip_reward=False,
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
+      previous_reward_action=task_config['previous_reward_action'],
+      observation_key=task_config['observation_key'],
+      concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
+      use_rgb=task_config['use_rgb'],
+      full_obs=task_config['full_obs'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -392,8 +427,15 @@ def training_process(
     save_path1 = os.path.join(base_path,f"./{task_config['agent-id']}.agent")
     if task_config.get("reload", 'None')!='None':
       agent, offset_episode_count = check_path_for_agent(task_config["reload"])
+    elif task_config.get("reload_wandb_run_path", 'None') != 'None':
+      agent, offset_episode_count = check_wandb_path_for_agent(
+        file_path=task_config["reload_wandb_file_path"],
+        run_path=task_config["reload_wandb_run_path"],
+      ) 
     else:
-      agent, offset_episode_count = check_path_for_agent(save_path1)
+      agent = None
+      offset_episode_count = 0
+      #agent, offset_episode_count = check_path_for_agent(save_path1)
     
     if agent is None: 
         agent = initialize_agents(
@@ -417,8 +459,19 @@ def training_process(
     }
     project_name = task_config['project']
     wandb.init(project=project_name, config=config)
-    #wandb.watch(agents[-1].algorithm.model, log='all', log_freq=100, idx=None, log_graph=True)
     
+    agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
+    os.makedirs(agent.save_path, exist_ok=True)
+    agent.save_path += "/checkpoint.agent"
+    '''
+    wandb.watch(
+        agent.algorithm.unwrapped.model, 
+        log='all', 
+        log_freq=100, 
+        idx=None, 
+        log_graph=True,
+    )
+    '''
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
@@ -426,6 +479,7 @@ def training_process(
     trained_agent = train_and_evaluate(
         agent=agent,
         task=task,
+        task_config=task_config,
         sum_writer=sum_writer,
         base_path=base_path,
         offset_episode_count=offset_episode_count,
@@ -450,6 +504,21 @@ def load_configs(config_file_path: str):
     return experiment_config, agents_config, envs_config
 
 
+def str2bool(instr):
+    if isinstance(instr, bool):
+        return instr
+    if isinstance(instr, str):
+        instr = instr.lower()
+        if 'true' in instr:
+            return True
+        elif 'false' in instr:
+            return False
+        else:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger('Textual HER Benchmark')
@@ -470,6 +539,17 @@ def main():
         default="ETHER",
     )
 
+    parser.add_argument("--test_only", type=str2bool, default="False")
+    parser.add_argument("--reload_wandb_run_path", 
+        type=str, 
+        default="None",
+    )
+
+    parser.add_argument("--reload_wandb_file_path", 
+        type=str, 
+        default="None",
+    )
+
     parser.add_argument("--path_suffix", 
         type=str, 
         default="",
@@ -478,10 +558,12 @@ def main():
     #    type=str, 
     #    default="False",
     #)
+    parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
+    
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
-        default=1e-3,
+        default=3e-4,
     )
     parser.add_argument("--weights_decay_lambda", 
         type=float, 
@@ -489,7 +571,7 @@ def main():
     )
     parser.add_argument("--weights_entropy_lambda", 
         type=float, 
-        default=0.001, #0.0,
+        default=0.0, #0.0,
     )
     #parser.add_argument("--DNC_sparse_K", 
     #    type=int, 
@@ -507,10 +589,6 @@ def main():
         type=float, 
         default=0.0,
     )
-    parser.add_argument("--listener_rec_period", 
-        type=int, 
-        default=10,
-    )
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
@@ -526,6 +604,14 @@ def main():
     parser.add_argument("--batch_size", 
         type=int, 
         default=128,
+    )
+    parser.add_argument("--min_capacity", 
+        type=float, 
+        default=1e3,
+    )
+    parser.add_argument("--replay_capacity", 
+        type=float, 
+        default=2e4,
     )
     #parser.add_argument("--critic_arch_feature_dim", 
     #    type=int, 
@@ -555,8 +641,8 @@ def main():
     
     print(dargs)
 
-    from gpuutils import GpuUtils
-    GpuUtils.allocate(required_memory=6000, framework="torch")
+    #from gpuutils import GpuUtils
+    #GpuUtils.allocate(required_memory=6000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
@@ -581,7 +667,10 @@ def main():
         for k,v in dargs.items():
             task_config[k] = v
             agent_config[k] = v
-        
+            
+            if k in task_config.get('env-config', {}):
+                task_config['env-config'][k] = v
+ 
         print("Task config:")
         print(task_config)
 

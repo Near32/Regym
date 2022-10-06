@@ -3,6 +3,7 @@ from functools import partial
 
 import copy
 import torch
+import torch.nn as nn
 import ray
 
 from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
@@ -190,6 +191,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
     if kwargs.get('use_HER', False):
         from regym.rl_algorithms.algorithms.wrappers import latent_based_goal_predicated_reward_fn2
+        from regym.rl_algorithms.algorithms.wrappers import predictor_based_goal_predicated_reward_fn2
         
         goal_predicated_reward_fn = kwargs.get(
             "HER_goal_predicated_reward_fn",
@@ -198,8 +200,10 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
         if kwargs.get('HER_use_latent', False):
             goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn2
+        elif kwargs.get('use_THER', False):
+            goal_predicated_reward_fn = predictor_based_goal_predicated_reward_fn2
         elif goal_predicated_reward_fn is None:
-            raise NotImplementedError("need HER_use_latent=True")
+            raise NotImplementedError("if only using HER, then need HER_use_latent=True")
 
         wrapper = HERAlgorithmWrapper2 
         wrapper_kwargs = {
@@ -208,7 +212,6 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             "goal_predicated_reward_fn":goal_predicated_reward_fn,
             "extra_inputs_infos":kwargs['extra_inputs_infos'],
             "_extract_goal_from_info_fn":kwargs.get("HER_extract_goal_from_info_fn", None),
-            "achieved_goal_key_from_info":kwargs["HER_achieved_goal_key_from_info"],
             "target_goal_key_from_info":kwargs["HER_target_goal_key_from_info"],
             "achieved_latent_goal_key_from_info":kwargs.get("HER_achieved_latent_goal_key_from_info", None),
             "target_latent_goal_key_from_info":kwargs.get("HER_target_latent_goal_key_from_info", None),
@@ -216,6 +219,11 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         }
 
         if kwargs.get('use_THER', False):
+            # THER would use the predictor to provide the achieved goal, so the key is not necessary:
+            # WARNING: if you want to use this functionality, 
+            # then you need to be careful for the predicated fn, maybe ? not tested yet... 
+            # 
+            wrapper_kwargs["achieved_goal_key_from_info"] = kwargs.get("HER_achieved_goal_key_from_info", None)
             from regym.rl_algorithms.algorithms.THER import ther_predictor_loss
 
             wrapper = THERAlgorithmWrapper2 
@@ -225,19 +233,29 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
             kwargs['THER_vocabulary'] = set(kwargs['THER_vocabulary'])
             kwargs['THER_max_sentence_length'] = int(kwargs['THER_max_sentence_length'])
-            
-            predictor = build_ther_predictor(kwargs, task)
+                
+            if 'ArchiModel' in kwargs.keys():
+                # The predictor corresponds to the instruction generator pipeline:
+                assert "instruction_generator" in kwargs['ArchiModel']['pipelines']
+                predictor = ArchiPredictor(model=model, kwargs=kwargs["ArchiModel"])
+            else:
+                predictor = build_ther_predictor(kwargs, task)
             
             print(predictor)
-            
+            for np, p in predictor.named_parameters():
+                print(np, p.shape)
+
             wrapper_kwargs['predictor'] = predictor
             wrapper_kwargs['predictor_loss_fn'] = ther_predictor_loss.compute_loss
-            
+            wrapper_kwargs['feedbacks'] = {"failure":-1, "success":0}
+
             if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
                 wrapper_kwargs['goal_predicated_reward_fn'] = partial(
                     predictor_based_goal_predicated_reward_fn2, 
                     predictor=predictor,
                 )
+        else:
+            wrapper_kwargs["achieved_goal_key_from_info"] = kwargs["HER_achieved_goal_key_from_info"]
 
         algorithm = wrapper(**wrapper_kwargs)
     
@@ -248,3 +266,63 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     )
 
     return agent
+
+class ArchiPredictor(nn.Module):
+    def __init__(self, model, kwargs):
+        super(ArchiPredictor, self).__init__()
+        self.model = model
+        self.kwargs = kwargs
+
+    #def parameters(self):
+    #    return self.model.parameters()
+
+    def forward(
+        self,
+        x,
+        gt_sentences=None,
+        rnn_states=None,
+    ):
+        if rnn_states is None:
+            rnn_states = self.model.get_reset_states()
+
+        input_dict = {
+            'obs':x,
+            'rnn_states': rnn_states,
+        }
+         
+        if gt_sentences is None:
+            return_feature_only=self.kwargs["features_id"]["instruction_generator"]
+        else:
+            return_feature_only = None 
+            input_dict['rnn_states']['gt_sentences'] = gt_sentences
+            
+        output = self.model.forward(
+            **input_dict,
+            pipelines={
+                "instruction_generator":self.kwargs["pipelines"]["instruction_generator"]
+            },
+            return_feature_only=return_feature_only,
+        )
+
+        return output
+    
+    def compute_loss(self, x, rnn_states, goal=None):
+        gt_sentences = rnn_states['phi_body']['extra_inputs']['desired_goal'] 
+        
+        output_stream_dict = self.forward(
+            x=x,
+            gt_sentences=gt_sentences,
+            rnn_states=rnn_states,
+        )
+        
+        rdict = {
+            'prediction': output_stream_dict['next_rnn_states']["input0_prediction"][0], 
+            'loss_per_item':output_stream_dict['next_rnn_states']["input0_loss_per_item"][0], 
+            'accuracies':output_stream_dict['next_rnn_states']["input0_accuracies"][0], 
+            'sentence_accuracies':output_stream_dict['next_rnn_states']["input0_sentence_accuracies"][0],
+        }
+
+        return rdict
+
+
+
