@@ -66,7 +66,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
-        'yellow', 'grey', 'the', 'a',
+        'yellow', 'grey', 'the', 'a', 'object',
         'key', 'ball', 'red', 'green', 'blue', 'purple', 
         'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
         'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
@@ -97,7 +97,8 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_filter_out_timed_out_episode: False
     THER_timing_out_episode_length_threshold: 40
     THER_vocab_size: &THER_vocab_size 64 #1024 
-
+    THER_episode_length_reward_shaping: False 
+    
     THER_predictor_learning_rate: 3.0e-4 #1e-3
     THER_predictor_batch_size: 128 #32
     THER_gradient_clip: 10.0
@@ -257,7 +258,8 @@ experiment:
     tasks: [{
         #'env-id': 'BabyAI-GoToObj-v0',
         #'env-id': 'BabyAI-GoToLocal-v0',
-        'env-id': 'BabyAI-PickupLoc-v0',
+        'env-id': 'BabyAI-PickupDistDebug-v0',
+        #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
         'env-config': {},
 
@@ -362,7 +364,7 @@ agents:
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
                 feature_dim: &feature_dim 256 #64
-                lstm_input_dim: &lstm_input_dim 512 #128
+                lstm_input_dim: &lstm_input_dim 769 #512 #128
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
                 action_dim: &action_dim 7
@@ -463,7 +465,7 @@ agents:
                     #max_norm: None
                     config: None
                     input_stream_ids:
-                        input: "inputs:critic_body:extra_inputs:previous_action"
+                        input: "inputs:critic_body:extra_inputs:previous_action_int"
                     output_stream_ids:
                         input: "inputs:ActionEmbeddor:processed_input"
                     use_cuda: True
@@ -472,6 +474,7 @@ agents:
                     type: ConcatenationOperationModule
                     config:
                         'dim': -1
+                        'use_cuda': True
                     input_stream_ids:
                         input0: "inputs:ObsEncoder:processed_input"
                         input1: "inputs:CommEncoder:processed_input"
@@ -482,13 +485,13 @@ agents:
                     type: RLCategoricalHeadModule
                     state_dim: *rlhead_state_dim 
                     action_dim: *action_dim
-                    noisy: True #False
+                    noisy: False
                     dueling: True
                     config: None
                     input_stream_ids: 
                         input0: "inputs:CoreLSTM:lstm_output"
-                        #input1: "inputs:critic_body:extra_inputs:previous_reward"
-                        #input2: "inputs:critic_body:extra_inputs:previous_action"
+                        input1: "inputs:critic_body:extra_inputs:previous_reward"
+                        input2: "inputs:critic_body:extra_inputs:previous_action"
                         #input3: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         #legal_actions: "inputs:legal_actions"
@@ -541,6 +544,10 @@ agents:
             },
             'previous_action':{
                 shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action_int':{
+                shape: [1,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
 

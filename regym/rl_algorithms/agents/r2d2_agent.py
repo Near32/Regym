@@ -258,6 +258,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             wrapper_kwargs['filter_predicate_fn'] = kwargs['THER_filter_predicate_fn']
             wrapper_kwargs['filter_out_timed_out_episode'] = kwargs['THER_filter_out_timed_out_episode']
             wrapper_kwargs['timing_out_episode_length_threshold'] = kwargs['THER_timing_out_episode_length_threshold']
+            wrapper_kwargs['episode_length_reward_shaping'] = kwargs['THER_episode_length_reward_shaping']
         
             if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
                 wrapper_kwargs['goal_predicated_reward_fn'] = partial(
@@ -283,6 +284,13 @@ class ArchiPredictor(nn.Module):
         super(ArchiPredictor, self).__init__()
         self.model = model
         self.kwargs = kwargs
+
+    def parameters(self):
+        params = []
+        for km, module in self.model.modules.items():
+            if km in self.model.pipelines["instruction_generator"]:
+                params += module.parameters()
+        return params
 
     def forward(
         self,

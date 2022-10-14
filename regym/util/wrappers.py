@@ -1657,6 +1657,7 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
     def reset(self):
         self.previous_reward = np.zeros((1, 1))
         self.previous_action = np.zeros((1, self.nbr_actions))
+        self.previous_action_int = np.zeros((1,1))
         reset_output = self.env.reset()
         if isinstance(reset_output, tuple):
             obs, infos = reset_output
@@ -1665,6 +1666,7 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
             infos = {}
         infos['previous_reward'] = copy.deepcopy(self.previous_reward)
         infos['previous_action'] = copy.deepcopy(self.previous_action)
+        infos['previous_action_int'] = copy.deepcopy(self.previous_action_int)
     
         return obs, infos
 
@@ -1684,6 +1686,7 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         
         next_infos['previous_reward'] = copy.deepcopy(self.previous_reward)
         next_infos['previous_action'] = copy.deepcopy(pa)
+        next_infos['previous_action_int'] = copy.deepcopy(action)
         
         return next_observation, reward, done, next_infos
 
@@ -1713,10 +1716,12 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
         nbr_agent = len(infos)
         self.previous_reward = [np.zeros((1, 1)) for _ in range(nbr_agent)]
         self.previous_action = [np.zeros((1, self.nbr_actions)) for _ in range(nbr_agent)]
+        self.previous_action_int = [np.zeros((1, 1)) for _ in range(nbr_agent)]
         
         for info_idx in range(len(infos)):
             infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
             infos[info_idx]['previous_action'] = copy.deepcopy(self.previous_action[info_idx])
+            infos[info_idx]['previous_action_int'] = copy.deepcopy(self.previous_action_int[info_idx])
         return obs, infos 
     
     def step(self, action):
@@ -1736,18 +1741,28 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
             eye_actions[action[agent_idx]].reshape(1, -1)
             for agent_idx in range(nbr_agent)
         ]
+        self.previous_action_int = [
+            action[agent_idx].reshape(1, 1)
+            for agent_idx in range(nbr_agent)
+        ]
 
         pa = copy.deepcopy(self.previous_action) 
+        pa_int = copy.deepcopy(self.previous_action_int) 
         if self.trajectory_wrapping:
             pa = [
                 #np.eye(self.nbr_actions, dtype=np.float32)[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
                 eye_actions[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
                 for agent_idx in range(nbr_agent)
             ]
+            pa_int = [
+                next_infos[agent_idx]['previous_action'][0].reshape(1, 1)
+                for agent_idx in range(nbr_agent)
+            ]
         
         for info_idx in range(len(next_infos)):
             next_infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
             next_infos[info_idx]['previous_action'] = copy.deepcopy(pa[info_idx])
+            next_infos[info_idx]['previous_action_int'] = copy.deepcopy(pa_int[info_idx])
         
         return next_observation, reward, done, next_infos
 

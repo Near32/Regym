@@ -64,19 +64,21 @@ def compute_loss(states: torch.Tensor,
         
         columns = [f"token{idx}" for idx in range(prediction.shape[1])]
         columns += [f"gt_token{idx}" for idx in range(goals.shape[1])]
-        columns += ["loss", "stimulus"]
+        columns += ["loss", "stimulus", "a_{t-1}",]
         text_table = wandb.Table(columns=columns)
         for bidx in range(prediction.shape[0]):
             word_sentence = [idx2w[token.item()] for token in prediction[bidx]]
             gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
-            stimulus = states[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
+            stimulus = next_states[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
             stimulus = stimulus.astype(np.uint8)
             stimulus = wandb.Video(stimulus, fps=2, format="gif")
+            previous_action_int = rnn_states['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item() 
             text_table.add_data(*[
                 *word_sentence, 
                 *gt_word_sentence,
                 loss_per_item[bidx], 
                 stimulus,
+                previous_action_int
                 ]
             )
         
