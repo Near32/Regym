@@ -94,6 +94,8 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
 
     THER_predict_PADs: False
     THER_filter_predicate_fn: False
+    THER_filter_out_timed_out_episode: False
+    THER_timing_out_episode_length_threshold: 40
     THER_vocab_size: &THER_vocab_size 64 #1024 
 
     THER_predictor_learning_rate: 3.0e-4 #1e-3

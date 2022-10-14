@@ -652,6 +652,8 @@ def main():
     parser.add_argument("--THER_train_on_success", type=str2bool, default="False",)
     parser.add_argument("--THER_predict_PADs", type=str2bool, default="False",)
     parser.add_argument("--THER_filter_predicate_fn", type=str2bool, default="False",)
+    parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
+    parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default==40,)
     #parser.add_argument("--critic_arch_feature_dim", 
     #    type=int, 
     #    default=32,

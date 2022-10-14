@@ -255,7 +255,10 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             wrapper_kwargs['predictor_loss_fn'] = ther_predictor_loss.compute_loss
             wrapper_kwargs['feedbacks'] = {"failure":-1, "success":0}
             wrapper_kwargs['relabel_terminal'] = kwargs['THER_relabel_terminal']
-
+            wrapper_kwargs['filter_predicate_fn'] = kwargs['THER_filter_predicate_fn']
+            wrapper_kwargs['filter_out_timed_out_episode'] = kwargs['THER_filter_out_timed_out_episode']
+            wrapper_kwargs['timing_out_episode_length_threshold'] = kwargs['THER_timing_out_episode_length_threshold']
+        
             if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
                 wrapper_kwargs['goal_predicated_reward_fn'] = partial(
                     #predictor_based_goal_predicated_reward_fn2, 

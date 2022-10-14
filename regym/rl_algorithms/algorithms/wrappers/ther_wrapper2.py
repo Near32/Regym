@@ -125,6 +125,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         feedbacks={"failure":-1, "success":0},
         #rewards={'failure':0, 'success':1},
         relabel_terminal:Optional[bool]=True,
+        filter_predicate_fn:Optional[bool]=False,
+        filter_out_timed_out_episode:Optional[bool]=False,
+        timing_out_episode_length_threshold:Optional[int]=40,
         ):
         """
         :param achieved_goal_key_from_info: Str of the key from the info dict
@@ -142,6 +145,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.extra_inputs_infos = extra_inputs_infos
         self.filtering_fn = filtering_fn 
         self.relabel_terminal = relabel_terminal
+        self.filter_predicate_fn = filter_predicate_fn
+        self.filter_out_timed_out_episode = filter_out_timed_out_episode
+        self.timing_out_episode_length_threshold = timing_out_episode_length_threshold
 
         #self.rewards = rewards 
         self.feedbacks = feedbacks 
@@ -357,7 +363,13 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             # Are we relabelling?
             # Is it safe to use the predictor:
             safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+            # Is it a timed out episode that we should filter:
+            timed_out_episode = episode_length >= self.timed_out_episode_length_threshold
+            if self.filtering_out_timed_out_episode:
+                safe_relabelling = safe_relabelling and not(timed_out_episode)
+                wandb.log({'PerEpisode/THER_Predicate/TimedOutEpisodeFiltering': int(timed_out_episode)}, commit=False)
                 
+
             if self.kwargs['THER_use_THER'] \
             and relabelling \
             and safe_relabelling:
@@ -402,7 +414,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         rnn_states = self.episode_buffer[actor_index][idx]['rnn_states']
                         
                         for k in range(self.k):
-                            if self.kwargs['THER_filter_predicate_fn']:
+                            if self.filter_predicate_fn:
                                 new_her_r = self.feedbacks['success'] if idx==(episode_length-1) else self.feedbacks['failure']
                             else:
                                 new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
@@ -817,6 +829,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             target_latent_goal_key_from_info=self.target_latent_goal_key_from_info,
             filtering_fn=self.filtering_fn,
             feedbacks=self.feedbacks,
+            relabel_terminal=self.relabel_terminal,
+            filter_predicate_fn=self.filter_predicate_fn,
+            filter_out_timed_out_episode=self.filter_out_timed_out_episode,
+            timing_out_episode_length_threshold=self.timing_out_episode_length_threshold,
         )
         return cloned_algo
 
