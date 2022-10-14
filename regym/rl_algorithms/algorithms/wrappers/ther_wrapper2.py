@@ -2,6 +2,7 @@ from typing import Dict, Optional, List
 
 import time
 from functools import partial
+import copy
 
 import torch
 import torch.optim as optim 
@@ -59,6 +60,52 @@ def predictor_based_goal_predicated_reward_fn2(
         return feedbacks["failure"]*torch.ones(reward_shape), target_pred_goal, target_latent_goal
 
 
+def batched_predictor_based_goal_predicated_reward_fn2(
+    predictor, 
+    achieved_exp:List[Dict[str,object]], 
+    target_exp:List[Dict[str,object]], 
+    _extract_goal_from_info_fn=None, 
+    goal_key:str="achieved_goal",
+    latent_goal_key:str=None,
+    epsilon:float=1e0,
+    feedbacks:Dict[str,float]={"failure":-1, "success":0},
+    reward_shape:List[int]=[1,1],
+    ):
+    '''
+    Relabelling an unsuccessful trajectory, so the desired_exp's goal is not interesting.
+    We want to know the goal that is achieved on the desired_exp succ_s / desired_state.
+    
+    Comparison between the predicted goal of the achieved state and the desired state
+    tells us whether the achieved state is achieving the relabelling goal.
+
+    Returns -1 for failure and 0 for success
+    '''
+    target_latent_goal = None 
+
+    state = torch.stack(
+        [exp['succ_s'] for exp in achieved_exp],
+        dim=0,
+    )
+    target_state = torch.stack(
+        [exp['succ_s'] for exp in target_exp],
+        dim=0,
+    )
+    with torch.no_grad():
+        training = predictor.training
+        predictor.train(False)
+        achieved_pred_goal = predictor(state).cpu()
+        target_pred_goal = predictor(target_state).cpu()
+        predictor.train(training)
+    abs_fn = torch.abs
+    dist = abs_fn(achieved_pred_goal-target_pred_goal).float()
+    while len(dist.shape) >1:
+        dist = dist.mean(-1)
+    reward_mask = dist < epsilon
+    reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+    reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
+    return reward, target_pred_goal, target_latent_goal
+
+
 class THERAlgorithmWrapper2(AlgorithmWrapper):
     def __init__(
         self, 
@@ -76,7 +123,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         filtering_fn="None",
         #rewards={'failure':-1, 'success':0}
         feedbacks={"failure":-1, "success":0},
-        #rewards={'failure':0, 'success':1}
+        #rewards={'failure':0, 'success':1},
+        relabel_terminal:Optional[bool]=True,
         ):
         """
         :param achieved_goal_key_from_info: Str of the key from the info dict
@@ -93,7 +141,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
         self.extra_inputs_infos = extra_inputs_infos
         self.filtering_fn = filtering_fn 
- 
+        self.relabel_terminal = relabel_terminal
+
         #self.rewards = rewards 
         self.feedbacks = feedbacks 
         self.test_acc = 0.0
@@ -101,6 +150,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.predictor = predictor 
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
+        self.best_predictor = copy.deepcopy(self.predictor)
 
         self.predictor_loss_fn = predictor_loss_fn
         #print(f"WARNING: THER loss_fn is {self.predictor_loss_fn}")
@@ -118,7 +168,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             lr=lr, betas=(0.9,0.999), 
             eps=self.kwargs['adam_eps']
         )
-        
+        self.best_predictor_optimizer_sd = self.predictor_optimizer.state_dict()
+
         self.predictor_storages = None 
         self._reset_predictor_storages()
 
@@ -164,25 +215,25 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             if self.kwargs['THER_use_PER']:
                 self.predictor_storages.append(
                     SplitPrioritizedReplayStorage(
-                        capacity=self.kwargs['THER_replay_capacity'],
+                        capacity=int(self.kwargs['THER_replay_capacity']),
                         alpha=self.kwargs['THER_PER_alpha'],
                         beta=self.kwargs['THER_PER_beta'],
                         keys=keys,
                         circular_keys=circular_keys,
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['THER_predictor_test_train_split_interval'],
-                        test_capacity=self.kwargs['THER_test_replay_capacity']
+                        test_capacity=int(self.kwargs['THER_test_replay_capacity']),
                     )
                 )
             else:
                 self.predictor_storages.append(
                     SplitReplayStorage(
-                        capacity=self.kwargs['THER_replay_capacity'],
+                        capacity=int(self.kwargs['THER_replay_capacity']),
                         keys=keys,
                         circular_keys=circular_keys,
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['THER_predictor_test_train_split_interval'],
-                        test_capacity=self.kwargs['THER_test_replay_capacity']
+                        test_capacity=int(self.kwargs['THER_test_replay_capacity']),
                     )
                 )
 
@@ -269,14 +320,18 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     'succ_info': succ_info,
                 }
 
+                """
                 if not(relabelling):
                     # Only insert this experience that way if successfull:
                     #self.algorithm.store(d2store, actor_index=actor_index)
                     if -1 not in per_episode_d2store: per_episode_d2store[-1] = []
                     per_episode_d2store[-1].append(d2store)
+                """
+                if -1 not in per_episode_d2store: per_episode_d2store[-1] = []
+                per_episode_d2store[-1].append(d2store)
                 
                 # Store data in predictor storages if successfull:
-                if self.kwargs['THER_use_THER'] and r.item()>0: #self.feedbacks['failure']:
+                if self.kwargs['THER_use_THER'] and r.item()>0:
                     self.predictor_store(d2store, actor_index=actor_index)
                     wandb.log({'Training/THER_Predictor/DatasetSize': self.nbr_handled_predictor_experience}, commit=False) # self.param_predictor_update_counter)
                     if self.algorithm.summary_writer is not None:
@@ -285,49 +340,79 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 #if all(non_terminal<=0.5) 
                 if idx==(episode_length-1):
                     self.episode_count += 1
-                    wandb.log({'PerEpisode/EpisodeLength': len(her_rs)}, commit=False)
+                    wandb.log({'PerEpisode/EpisodeLength': episode_length}, commit=False)
                     
                     wandb.log({'PerEpisode/HER_Success': 1+her_r.mean().item()}, commit=False) 
                     wandb.log({'PerEpisode/HER_FinalReward': her_r.mean().item()}, commit=False) 
                     wandb.log({'PerEpisode/HER_Return': sum(her_rs)}, commit=False)
-                    wandb.log({'PerEpisode/HER_NormalizedReturn': sum(her_rs)/len(her_r)}, commit=False)
+                    wandb.log({'PerEpisode/HER_NormalizedReturn': sum(her_rs)/episode_length}, commit=False)
                     wandb.log({'PerEpisode/OriginalFinalReward': r.mean().item()}, commit=False)
                     wandb.log({'PerEpisode/OriginalReturn': sum(episode_rewards)}, commit=False)
-                    wandb.log({'PerEpisode/OriginalNormalizedReturn': sum(episode_rewards)/len(episode_rewards)}, commit=False) # self.episode_count)
+                    wandb.log({'PerEpisode/OriginalNormalizedReturn': sum(episode_rewards)/episode_length}, commit=False) # self.episode_count)
                     if self.algorithm.summary_writer is not None:
                         self.algorithm.summary_writer.add_scalar('PerEpisode/Success', (self.rewards['success']==her_r).float().mean().item(), self.episode_count)
                         self.algorithm.summary_writer.add_histogram('PerEpisode/Rewards', episode_rewards, self.episode_count)
 
                 
-                # Are we relabelling?
-                if not(self.kwargs['THER_use_THER']) or not(relabelling):
-                    continue 
+            # Are we relabelling?
+            # Is it safe to use the predictor:
+            safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
                 
-                # Is it safe to use the predictor:
-                safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
-                
-                if safe_relabelling:
-                    # Relabelling everything with the hindsight_goal computed on the fly, and set the reward accordingly:
-                    for k in range(self.k):
-                        if 'final' in self.strategy:
-                            achieved_exp = self.episode_buffer[actor_index][idx]
-                            target_exp = self.episode_buffer[actor_index][-1]
-                            new_r, achieved_goal_from_target_exp, \
-                            achieved_latent_goal_from_target_exp = self.goal_predicated_reward_fn(
-                                achieved_exp=achieved_exp, 
-                                target_exp=target_exp,
-                                _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
-                                goal_key=self.achieved_goal_key_from_info,
-                                latent_goal_key=self.achieved_latent_goal_key_from_info,
-                                feedbacks=self.feedbacks,
-                                reward_shape=self.reward_shape
-                            )
-                            
-                            # Assumes new_r to be -1 for failure and 0 for success:
-                            new_her_r = self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
-                            
-                            new_non_terminal = torch.zeros_like(non_terminal) if all(new_her_r>self.feedbacks['failure']) else torch.ones_like(non_terminal)
-                            
+            if self.kwargs['THER_use_THER'] \
+            and relabelling \
+            and safe_relabelling:
+                # Relabelling everything with the hindsight_goal computed on the fly, and set the reward accordingly:
+                if 'final' in self.strategy:
+                    batched_target_exp = [self.episode_buffer[actor_index][-1]]
+                    batched_achieved_exp = self.episode_buffer[actor_index]
+                    batched_new_r, batched_achieved_goal_from_target_exp, \
+                    batched_achieved_latent_goal_from_target_exp = self.goal_predicated_reward_fn(
+                        achieved_exp=batched_achieved_exp, 
+                        target_exp=batched_target_exp,
+                        _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
+                        goal_key=self.achieved_goal_key_from_info,
+                        latent_goal_key=self.achieved_latent_goal_key_from_info,
+                        epsilon=1e-1,
+                        feedbacks=self.feedbacks,
+                        reward_shape=self.reward_shape
+                    )
+                    
+                    positive_new_r_mask = (batched_new_r == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
+                    positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
+                    wandb.log({"PerEpisode/THER_Predicate/StepHistogram":positive_new_r_step_histogram}, commit=False)
+
+                    achieved_goal_from_target_exp = batched_achieved_goal_from_target_exp[0:1]
+                    achieved_latent_goal_from_target_exp = batched_achieved_latent_goal_from_target_exp
+                    if achieved_latent_goal_from_target_exp is not None:
+                        achieved_latent_goal_from_target_exp = achieved_latent_goal_from_target_exp[0:1]
+
+                    for idx in range(episode_length):    
+                        s = self.episode_buffer[actor_index][idx]['s']
+                        a = self.episode_buffer[actor_index][idx]['a']
+                        r = self.episode_buffer[actor_index][idx]['r']
+                        
+                        new_r = batched_new_r[idx:idx+1]
+
+                        succ_s = self.episode_buffer[actor_index][idx]['succ_s']
+                        non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
+
+                        info = self.episode_buffer[actor_index][idx]['info']
+                        succ_info = self.episode_buffer[actor_index][idx]['succ_info']
+                        rnn_states = self.episode_buffer[actor_index][idx]['rnn_states']
+                        
+                        for k in range(self.k):
+                            if self.kwargs['THER_filter_predicate_fn']:
+                                new_her_r = self.feedbacks['success'] if idx==(episode_length-1) else self.feedbacks['failure']
+                            else:
+                                new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
+                            new_her_r = new_her_r*torch.ones_like(r)
+
+                            if self.relabel_terminal:
+                                new_non_terminal = torch.zeros_like(non_terminal) if all(new_her_r>self.feedbacks['failure']) else torch.ones_like(non_terminal)
+                            else:
+                                new_non_terminal = non_terminal
+
                             d2store_her = {
                                 's':s, 
                                 'a':a, 
@@ -346,68 +431,31 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 'info': info,
                                 'succ_info': succ_info,
                             }
-                            
+                        
                             if self.algorithm.summary_writer is not None:
                                 self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_final', new_her_r.mean().item(), self.algorithm.get_update_count())
                                 #self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_dist', dist.mean().item(), self.algorithm.get_update_count())
-                            wandb.log({'PerUpdate/HER_AfterRelabellingReward': new_her_r.mean().item()}, commit=True)
-                            
-                        if 'future' in self.strategy:
-                            raise NotImplementedError
-                            future_idx = np.random.randint(idx, episode_length)
-                            achieved_exp = self.episode_buffer[actor_index][idx]
-                            desired_exp = self.episode_buffer[actor_index][future_idx]
-                            
-                            new_r, achieved_pred_goal, desired_pred_goal, dist = self.goal_predicated_reward_fn(
-                                achieved_exp=achieved_exp, 
-                                desired_exp=desired_exp,
-                                _extract_goals_from_info_fn=self._extract_goals_from_info,
-                            )
-                            
-                            # Assumes new_r to be -1 for failure and 0 for success:
-                            new_her_r = self.rewards['success']*torch.ones_like(r) if all(new_r>-0.5) else self.rewards['failure']*torch.ones_like(r)
-                            
-                            new_non_terminal = torch.zeros_like(non_terminal) if all(new_her_r>self.rewards['failure']) else torch.ones_like(non_terminal)
-                            
-                            d2store_her = {
-                                's':s, 
-                                'a':a, 
-                                'r':new_her_r, 
-                                'succ_s':succ_s, 
-                                'non_terminal':new_non_terminal, 
-                                
-                                'rnn_states': copy_hdict(
-                                    self._update_goals_in_rnn_states(
-                                        hdict=rnn_states,
-                                        goal_value=desired_pred_goal,
-                                        goal_key='desired_goal',
-                                    )
-                                ),
-                                'info': info,
-                                #'g': desired_pred_goal,
-                            }
-                            
-                        # Adding this relabelled experience to the replay buffer with 'proper' goal...
-                        #self.algorithm.store(d2store_her, actor_index=actor_index)
-                        valid_exp = True
-                        if self.filtering_fn != "None":
-                            kwargs = {
-                                "d2store":d2store,
-                                "episode_buffer":self.episode_buffer[actor_index],
-                                "achieved_goal_from_target_exp":achieved_goal_from_target_exp,
-                                "achieved_latent_goal_from_target_exp":achieved_latent_goal_from_target_exp,
-                            }
-                            valid_exp = self.filtering_fn(**kwargs)
-                        if not valid_exp:   continue
-                        
-                        if k not in per_episode_d2store: per_episode_d2store[k] = []
-                        per_episode_d2store[k].append(d2store_her)
-            
-            else:
-                # safe relabelling is not possible...
-                # what can we do instead?
-                pass
-
+                            #wandb.log({'PerUpdate/HER_AfterRelabellingReward': new_her_r.mean().item()}, commit=False)
+                    
+                            # Adding this relabelled experience to the replay buffer with 'proper' goal...
+                            #self.algorithm.store(d2store_her, actor_index=actor_index)
+                            valid_exp = True
+                            if self.filtering_fn != "None":
+                                kwargs = {
+                                    "d2store":d2store,
+                                    "episode_buffer":self.episode_buffer[actor_index],
+                                    "achieved_goal_from_target_exp":achieved_goal_from_target_exp,
+                                    "achieved_latent_goal_from_target_exp":achieved_latent_goal_from_target_exp,
+                                }
+                                valid_exp = self.filtering_fn(**kwargs)
+                            if not valid_exp:   continue
+                    
+                            if k not in per_episode_d2store: per_episode_d2store[k] = []
+                            per_episode_d2store[k].append(d2store_her)
+                
+                if 'future' in self.strategy:
+                    raise NotImplementedError
+                       
             # Now that we have all the different trajectories,
             # we can send them to the main algorithm as complete
             # whole trajectories, one experience at a time.
@@ -415,9 +463,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 for didx, d2store in enumerate(per_episode_d2store[key]):
                     self.algorithm.store(d2store, actor_index=actor_index)
                 wandb.log({f'PerEpisode/HER_traj_length/{key}': len(per_episode_d2store[key])}, commit=False)
-            # Reset episode buffer:
+            # Reset the relevant episode buffer:
             self.episode_buffer[actor_index] = []
 
+        #wandb.log({f'PerEpisode/NbrBufferedExperiences': self.nbr_buffered_predictor_experience}, commit=False)
         period_check = self.kwargs['THER_replay_period']
         period_count_check = self.nbr_buffered_predictor_experience
         
@@ -453,9 +502,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         wandb.log({'PerTHERPredictorUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
         
         start = time.time()
-        # WARNING: trying to prevent overfitting or some kind of instability:
-        if self.test_acc <= self.kwargs['THER_predictor_accuracy_threshold']:
-            self.optimize_predictor(minibatch_size, samples)
+        self.optimize_predictor(minibatch_size, samples)
         end = time.time()
         
         wandb.log({'PerTHERPredictorUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
@@ -464,14 +511,27 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         train_storage_size = self.predictor_storages[0].get_size(test=False) #test_storage.current_size['s']  
         wandb.log({'PerTHERPredictorUpdate/TestStorageSize':  test_storage_size}, commit=False)
         wandb.log({'PerTHERPredictorUpdate/TrainStorageSize':  train_storage_size}, commit=False)
-        if test_storage_size > self.kwargs['THER_min_capacity']:
+        if test_storage_size > self.kwargs['THER_test_min_capacity']:
             test_samples = self.retrieve_values_from_predictor_storages(minibatch_size=minibatch_size, test=True)
             with torch.no_grad():
-                acc = self.test_predictor(minibatch_size, test_samples)
+                updated_acc = self.test_predictor( self.predictor, minibatch_size, test_samples)
+                best_acc = self.test_predictor( self.best_predictor, minibatch_size, test_samples)
         else:
-            acc = 0.0
- 
-        wandb.log({'PerTHERPredictorUpdate/TestSentenceAccuracy': acc, "ther_predictor_update_count":self.param_predictor_update_counter}, commit=False)
+            updated_acc = 0.0
+            best_acc = 0.0
+        
+        successful_update = int(updated_acc >= best_acc)
+        wandb.log({f"Training/THER_Predictor/SuccessfulUpdate":successful_update}, commit=False)
+        if not successful_update:
+            self.predictor.load_state_dict(self.best_predictor.state_dict())
+            self.predictor_optimizer.load_state_dict(self.best_predictor_optimizer_sd)
+            acc = best_acc
+        else:
+            self.best_predictor.load_state_dict(self.predictor.state_dict())
+            self.best_predictor_optimizer_sd = self.predictor_optimizer.state_dict()
+            acc = updated_acc 
+
+        wandb.log({'PerTHERPredictorUpdate/TestSentenceAccuracy': acc, "ther_predictor_update_count":self.param_predictor_update_counter}, commit=True)
         
         return acc 
 
@@ -481,7 +541,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
         fulls = {}
         
-        if self.kwargs['THER_use_PER']:
+        if self.kwargs['THER_use_PER'] and not test:
             fulls['importanceSamplingWeights'] = []
 
         if self.recurrent:
@@ -496,7 +556,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             if batch_size is None:
                 batch_size = storage.get_size(test=test)
 
-            if self.kwargs['THER_use_PER']:
+            if self.kwargs['THER_use_PER'] and not test:
                 sample, importanceSamplingWeights = storage.sample(batch_size=batch_size, keys=keys, test=test)
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
@@ -574,7 +634,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 )
 
             sampled_importanceSamplingWeights = None
-            if self.kwargs['THER_use_PER']:
+            if importanceSamplingWeights is not None:
                 sampled_importanceSamplingWeights = importanceSamplingWeights[batch_indices].cuda() if self.kwargs['use_cuda'] else importanceSamplingWeights[batch_indices]
             
             sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
@@ -611,7 +671,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 nn.utils.clip_grad_norm_(self.predictor.parameters(), self.kwargs['THER_gradient_clip'])
             self.predictor_optimizer.step()
 
-            if self.kwargs['THER_use_PER']:
+            if importanceSamplingWeights is not None:
                 sampled_losses_per_item.append(loss_per_item)
                 #wandb_data = copy.deepcopy(wandb.run.history._data)
                 #wandb.run.history._data = {}
@@ -626,7 +686,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
         torch.set_grad_enabled(False)
         
-        if self.kwargs['THER_use_PER']:
+        if importanceSamplingWeights is not None:
             # losses corresponding to sampled batch indices: 
             sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
             sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
@@ -644,11 +704,12 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         end = time.time()
         wandb.log({'PerTHERPredictorUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
 
+    def test_predictor(self, predictor, minibatch_size, samples):
+        training = predictor.training
+        predictor.train(False)
 
-    def test_predictor(self, minibatch_size, samples):
-        training = self.predictor.training
-        self.predictor.train(False)
-
+        torch.set_grad_enabled(False)
+        
         beta = self.predictor_storages[0].beta if self.kwargs['THER_use_PER'] else 1.0
         
         states = samples['s']
@@ -682,7 +743,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
 
             sampled_importanceSamplingWeights = None
-            if self.kwargs['THER_use_PER']:
+            if importanceSamplingWeights is not None:
                 sampled_importanceSamplingWeights = importanceSamplingWeights[batch_indices].cuda() if self.kwargs['use_cuda'] else importanceSamplingWeights[batch_indices]
             
             sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
@@ -699,7 +760,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                           sampled_non_terminals,
                                           goals=sampled_goals,
                                           rnn_states=sampled_rnn_states,
-                                          predictor=self.predictor,
+                                          predictor=predictor,
                                           weights_decay_lambda=self.kwargs['THER_weights_decay_lambda'],
                                           use_PER=self.kwargs['THER_use_PER'],
                                           PER_beta=beta,
@@ -717,7 +778,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             if self.kwargs['THER_use_PER']:
                 sampled_losses_per_item.append(loss_per_item)
 
-        if self.kwargs['THER_use_PER']:
+        if importanceSamplingWeights is not None:
             # losses corresponding to sampled batch indices: 
             sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
             sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
@@ -732,7 +793,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 new_priority = self.predictor_storages[storage_idx].priority(sloss)
                 self.predictor_storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority, test=True)
 
-        self.predictor.train(training)
+        predictor.train(training)
 
         running_acc = running_acc / nbr_batches
         return running_acc

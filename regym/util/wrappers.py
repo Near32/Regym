@@ -2157,22 +2157,29 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         env, 
         max_sentence_length=32, 
         vocabulary=None, 
+        vocab_size=64,
         observation_keys_mapping={'mission':'desired_goal'},
     ):
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
         self.observation_keys_mapping = observation_keys_mapping
 
+        self.vocab_size = vocab_size
         if vocabulary is None:
             vocabulary = set('key ball red green blue purple \
             yellow grey verydark dark neutral light verylight \
             tiny small medium large giant get go fetch go get \
             a fetch a you must fetch a'.split(' '))
         self.vocabulary = set([w.lower() for w in vocabulary])
+        
 
         # Make padding_idx=0:
         self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
 
+        while len(self.vocabulary) < self.vocab_size:
+            self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
+        self.vocabulary = list(set(self.vocabulary))
+        
         self.w2idx = {}
         self.idx2w = {}
         for idx, w in enumerate(self.vocabulary):
@@ -2615,6 +2622,7 @@ def baseline_ther_wrapper(
     clip_reward=False,
     max_sentence_length=32,
     vocabulary=None,
+    vocab_size=64,
     time_limit=40,
     previous_reward_action=False,
     observation_key=None,
@@ -2660,6 +2668,7 @@ def baseline_ther_wrapper(
         env=env,
         max_sentence_length=max_sentence_length,
         vocabulary=vocabulary,
+        vocab_size=vocab_size,
     )
 
     #env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})

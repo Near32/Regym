@@ -795,6 +795,7 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
         self.test_capacity = test_capacity
         self.test_train_split_interval = test_train_split_interval
         self.data_count = 0
+        """
         self.test_storage = PrioritizedReplayStorage(capacity=self.test_capacity,
                                                      alpha=alpha,
                                                      beta=beta,
@@ -802,6 +803,13 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
                                                      keys=keys,
                                                      circular_keys=circular_keys,
                                                      circular_offsets=circular_offsets)
+        """
+        self.test_storage = ReplayStorage(
+            capacity=self.test_capacity,
+            keys=keys,
+            circular_keys=circular_keys,
+            circular_offsets=circular_offsets,
+        )
         super(SplitPrioritizedReplayStorage, self).__init__(capacity=capacity,
                                                        alpha=alpha,
                                                        beta=beta,
@@ -827,6 +835,7 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
 
     def update(self, idx, priority, test=False):
         if test:
+            raise AssertionError("Deprecated...")
             self.test_storage.update(idx=idx, priority=priority)
         else:
             super(SplitPrioritizedReplayStorage, self).update(idx=idx, priority=priority)
@@ -854,7 +863,8 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
     def add(self, data, priority):
         self.data_count += 1
         if self.data_count % self.test_train_split_interval == 0:
-            self.test_storage.add(exp=data, priority=priority)
+            self.test_storage.add(data=data)
+            #self.test_storage.add(exp=data, priority=priority)
         else:
             super(SplitPrioritizedReplayStorage, self).add(exp=data, priority=priority)
             '''

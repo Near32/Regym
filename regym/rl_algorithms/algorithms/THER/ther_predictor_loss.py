@@ -1,4 +1,5 @@
 from typing import Dict, List
+import numpy as np
 import torch
 import wandb
 
@@ -50,19 +51,44 @@ def compute_loss(states: torch.Tensor,
     sentence_accuracies = output_dict['sentence_accuracies']
     accuracy = sentence_accuracies.cpu().mean().item()
 
-    if use_PER:
+    if importanceSamplingWeights is not None:
       loss_per_item = importanceSamplingWeights * loss_per_item
     
     loss = torch.mean(loss_per_item)
     
-
+    # Logging:
+    if iteration_count % 128 == 0:
+        if goals is None:
+            goals = rnn_states['gt_sentences'][0]
+            idx2w = predictor.model.modules['InstructionGenerator'].idx2w
+        
+        columns = [f"token{idx}" for idx in range(prediction.shape[1])]
+        columns += [f"gt_token{idx}" for idx in range(goals.shape[1])]
+        columns += ["loss", "stimulus"]
+        text_table = wandb.Table(columns=columns)
+        for bidx in range(prediction.shape[0]):
+            word_sentence = [idx2w[token.item()] for token in prediction[bidx]]
+            gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
+            stimulus = states[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
+            stimulus = stimulus.astype(np.uint8)
+            stimulus = wandb.Video(stimulus, fps=2, format="gif")
+            text_table.add_data(*[
+                *word_sentence, 
+                *gt_word_sentence,
+                loss_per_item[bidx], 
+                stimulus,
+                ]
+            )
+        
+        wandb.log({f"{phase}/THER_Predictor/SampleTable":text_table, "training_step": iteration_count}, commit=False)
+            
     wandb.log({f'{phase}/THER_Predictor/Loss': loss.cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({f'{phase}/THER_Predictor/Accuracy': accuracies.cpu().mean().item(), "training_step": iteration_count}, commit=False)
     wandb.log({f'{phase}/THER_Predictor/SentenceAccuracy': sentence_accuracies.cpu().item(), "training_step": iteration_count}, commit=False)
     for idx in range(accuracies.shape[-1]):
         wandb.log({f'{phase}/THER_Predictor/Accuracy_{idx}': accuracies[..., idx].cpu().item(), "training_step": iteration_count}, commit=False)
     
-    if use_PER:
+    if importanceSamplingWeights is not None:
         wandb.log({f'{phase}/THER_Predictor/ImportanceSamplingMean': importanceSamplingWeights.cpu().mean().item(), "training_step": iteration_count}, commit=False)
         wandb.log({f'{phase}/THER_Predictor/ImportanceSamplingStd': importanceSamplingWeights.cpu().std().item(), "training_step": iteration_count}, commit=False)
         wandb.log({f'{phase}/THER_Predictor/PER_Beta': PER_beta, "training_step": iteration_count}, commit=False)

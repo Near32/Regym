@@ -252,7 +252,7 @@ def train_and_evaluate(
     task.env.close()
     task.test_env.close()
 
-    return trained_agents
+    return agents
 
 def training_process(
     agent_config: Dict, 
@@ -356,6 +356,7 @@ def training_process(
       clip_reward=task_config['clip_reward'],
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
+      vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
@@ -373,6 +374,7 @@ def training_process(
       clip_reward=False,
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
+      vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
@@ -613,6 +615,43 @@ def main():
         type=float, 
         default=2e4,
     )
+    parser.add_argument("--THER_replay_period", # in episodes
+        type=int, 
+        default=40, #10 #1
+    )
+    parser.add_argument("--THER_nbr_training_iteration_per_update", 
+        type=int, 
+        default=2, 
+    )
+    parser.add_argument("--THER_replay_capacity", 
+        type=float, 
+        default=500, #250 #5000
+    )
+    parser.add_argument("--THER_test_replay_capacity", 
+        type=float, 
+        default=50, #25 #1000
+    )
+    parser.add_argument("--THER_min_capacity", 
+        type=float, 
+        default=32, #1e4
+    )
+    parser.add_argument("--THER_test_min_capacity", 
+        type=float, 
+        default=12, #1e4
+    )
+    parser.add_argument("--THER_predictor_accuracy_safe_to_relabel_threshold", 
+        type=float, 
+        default=0.5,
+    )
+    parser.add_argument("--THER_predictor_test_train_split_interval",
+        type=int,
+        default=10,#3 #10 #5
+    )
+    parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
+    parser.add_argument("--THER_relabel_terminal", type=str2bool, default="True",)
+    parser.add_argument("--THER_train_on_success", type=str2bool, default="False",)
+    parser.add_argument("--THER_predict_PADs", type=str2bool, default="False",)
+    parser.add_argument("--THER_filter_predicate_fn", type=str2bool, default="False",)
     #parser.add_argument("--critic_arch_feature_dim", 
     #    type=int, 
     #    default=32,

@@ -62,7 +62,11 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_predictor_policy_shared_phi: False
 
     THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
-    THER_vocabulary: [
+    THER_vocabulary: &THER_vocabulary [
+        'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
+        'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
+        'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
+        'yellow', 'grey', 'the', 'a',
         'key', 'ball', 'red', 'green', 'blue', 'purple', 
         'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
         'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
@@ -76,14 +80,21 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_replay_capacity: 500 #250 #5000
     THER_test_replay_capacity: 50 #25 #1000
     THER_min_capacity: 32 #1e4
+    THER_test_min_capacity: 32 #1e4
     # Training every episode: 40 (baseline)...  instead of every successfull episode... 
     #OVERRIDEN by next parameter...
     THER_replay_period: 40 #10 #1 #40 
     THER_train_on_success:  True
+    THER_relabel_terminal: True
+
     THER_nbr_training_iteration_per_update: 2 #10 #40
     THER_predictor_accuracy_threshold: 0.75
     THER_predictor_accuracy_safe_to_relabel_threshold: 0.5
-    THER_predictor_test_train_split_interval: 10 #5
+    THER_predictor_test_train_split_interval: 3 #10 #5
+
+    THER_predict_PADs: False
+    THER_filter_predicate_fn: False
+    THER_vocab_size: &THER_vocab_size 64 #1024 
 
     THER_predictor_learning_rate: 3.0e-4 #1e-3
     THER_predictor_batch_size: 128 #32
@@ -243,7 +254,9 @@ THER_LargeCNN_Predictor: &THER_LargeCNN_Predictor
 experiment:
     tasks: [{
         #'env-id': 'BabyAI-GoToObj-v0',
-        'env-id': 'BabyAI-GoToLocal-v0',
+        #'env-id': 'BabyAI-GoToLocal-v0',
+        'env-id': 'BabyAI-PickupLoc-v0',
+        #'env-id': 'BabyAI-PutNextLocal-v0',
         'env-config': {},
 
         'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m3/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
@@ -302,7 +315,7 @@ agents:
         # and ~84 it/sec with updates...
         # Whereas 32 / 4 yielded ~25 it/sec....
         
-        THER_use_PER: True #False
+        THER_use_PER: False #
         THER_PER_alpha: 0.7
         THER_PER_beta: 0.4
         
@@ -344,14 +357,14 @@ agents:
         ArchiModel:
             model_id: 'RL_THERModel'
             hyperparameters:
-                vocab_size: &vocab_size 64 #1024
+                vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
-                feature_dim: &feature_dim 64
-                lstm_input_dim: &lstm_input_dim 128
+                feature_dim: &feature_dim 256 #64
+                lstm_input_dim: &lstm_input_dim 512 #128
                 comm_state_dim: &comm_state_dim 256
-                hidden_dim: &hidden_dim 512
+                hidden_dim: &hidden_dim 1024 #512
                 action_dim: &action_dim 7
-                rlhead_state_dim: &rlhead_state_dim 520
+                rlhead_state_dim: &rlhead_state_dim 1032 #520
                 temporal_dim: &temporal_dim 4
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
@@ -377,6 +390,28 @@ agents:
                         lstm_output: "inputs:CoreLSTM:lstm_output"
                     use_cuda: True
 
+                'InstructionGeneratorObsEncoder':
+                    type: ConvolutionalNetworkModule
+                    #input_shape: [3, 64, 64]
+                    # Stacking = 4 and concatenate_obs_action = True
+                    #input_shape: [16, 7, 7]
+                    input_shape: [16, 56, 56]
+                    feature_dim: *feature_dim #"{{value_dim}}"
+                    channels: [32, 32, 64]
+                    kernel_sizes: [3, 3, 3]
+                    strides: [2, 2, 2]
+                    paddings: [1, 1, 1]
+                    fc_hidden_units: [128] #[256, 128]
+                    non_linearities: ['ReLU']
+                    dropout: 0.0
+                    use_coordconv: False #True
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:obs"
+                    output_stream_ids:
+                        input: "inputs:InstructionGeneratorObsEncoder:processed_input"
+                    use_cuda: True
+    
                 'ObsEncoder':
                     type: ConvolutionalNetworkModule
                     #input_shape: [3, 64, 64]
@@ -401,7 +436,7 @@ agents:
     
                 'CommEncoder':
                     type: EmbeddingRNNModule 
-                    voc_size: *vocab_size
+                    voc_size: *THER_vocab_size
                     feature_dim: *feature_dim 
                     embedding_size: *feature_dim 
                     hidden_units: *hidden_dim
@@ -417,6 +452,19 @@ agents:
                     output_stream_ids:
                         input: "inputs:CommEncoder:processed_input"
                     use_cuda: True
+
+                'ActionEmbeddor':
+                    type: EmbeddingModule 
+                    num_embeddings: *action_dim
+                    embedding_dim: *feature_dim 
+                    #padding_idx: None
+                    #max_norm: None
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:critic_body:extra_inputs:previous_action"
+                    output_stream_ids:
+                        input: "inputs:ActionEmbeddor:processed_input"
+                    use_cuda: True
     
                 'ConcatenationOperation':
                     type: ConcatenationOperationModule
@@ -425,18 +473,20 @@ agents:
                     input_stream_ids:
                         input0: "inputs:ObsEncoder:processed_input"
                         input1: "inputs:CommEncoder:processed_input"
-                    
+                        input2: "inputs:ActionEmbeddor:processed_input"
+                        input3: "inputs:critic_body:extra_inputs:previous_reward"
+
                 'RLHead':
                     type: RLCategoricalHeadModule
                     state_dim: *rlhead_state_dim 
                     action_dim: *action_dim
-                    noisy: False
+                    noisy: True #False
                     dueling: True
                     config: None
                     input_stream_ids: 
                         input0: "inputs:CoreLSTM:lstm_output"
-                        input1: "inputs:critic_body:extra_inputs:previous_reward"
-                        input2: "inputs:critic_body:extra_inputs:previous_action"
+                        #input1: "inputs:critic_body:extra_inputs:previous_reward"
+                        #input2: "inputs:critic_body:extra_inputs:previous_action"
                         #input3: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         #legal_actions: "inputs:legal_actions"
@@ -444,19 +494,20 @@ agents:
 
                 'InstructionGenerator':
                     type: CaptionRNNModule
-                    vocabulary: None
-                    vocab_size: *vocab_size 
+                    vocabulary: *THER_vocabulary 
+                    vocab_size: *THER_vocab_size 
                     max_sentence_length: *THER_max_sentence_length 
                     input_dim: *feature_dim #*instruction_generator_input_dim
                     embedding_size: *feature_dim
                     hidden_units: *hidden_dim 
                     num_layers: 1
                     gate: None #F.relu, 
-                    dropout: 0.0 
+                    dropout: 0.7 #0.0  
                     rnn_fn: "GRU"
+                    predict_PADs: False
                     config: None
                     input_stream_ids:
-                        input0: "inputs:ObsEncoder:processed_input"
+                        input0: "inputs:InstructionGeneratorObsEncoder:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"
                     output_stream_ids:
                         input0: "inputs:InstructionGenerator:processed_input0"
@@ -477,9 +528,9 @@ agents:
                 torso: "inputs:ConcatenationOperation:output"
             
             pipelines:
-                torso: ['ObsEncoder', 'CommEncoder', 'ConcatenationOperation']
+                torso: ['ObsEncoder', 'CommEncoder', 'ActionEmbeddor', 'ConcatenationOperation']
                 head: ['CoreLSTM', 'RLHead']
-                instruction_generator: ['ObsEncoder', 'InstructionGenerator']
+                instruction_generator: ['InstructionGeneratorObsEncoder', 'InstructionGenerator']
         
         extra_inputs_infos: {
             'previous_reward':{

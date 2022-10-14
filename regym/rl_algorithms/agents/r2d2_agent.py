@@ -192,6 +192,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     if kwargs.get('use_HER', False):
         from regym.rl_algorithms.algorithms.wrappers import latent_based_goal_predicated_reward_fn2
         from regym.rl_algorithms.algorithms.wrappers import predictor_based_goal_predicated_reward_fn2
+        from regym.rl_algorithms.algorithms.wrappers import batched_predictor_based_goal_predicated_reward_fn2
         
         goal_predicated_reward_fn = kwargs.get(
             "HER_goal_predicated_reward_fn",
@@ -237,6 +238,11 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             if 'ArchiModel' in kwargs.keys():
                 # The predictor corresponds to the instruction generator pipeline:
                 assert "instruction_generator" in kwargs['ArchiModel']['pipelines']
+                if kwargs.get("THER_predict_PADs", False):
+                    model.modules["InstructionGenerator"].predict_PADs = kwargs["THER_predict_PADs"]
+                    print("WARNING : R2D2 Agent with THER : THER predictor DOES predict PAD tokens.")
+                else:
+                    print("WARNING : R2D2 Agent with THER : THER predictor does NOT predict PAD tokens.")
                 predictor = ArchiPredictor(model=model, kwargs=kwargs["ArchiModel"])
             else:
                 predictor = build_ther_predictor(kwargs, task)
@@ -248,10 +254,12 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             wrapper_kwargs['predictor'] = predictor
             wrapper_kwargs['predictor_loss_fn'] = ther_predictor_loss.compute_loss
             wrapper_kwargs['feedbacks'] = {"failure":-1, "success":0}
+            wrapper_kwargs['relabel_terminal'] = kwargs['THER_relabel_terminal']
 
             if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
                 wrapper_kwargs['goal_predicated_reward_fn'] = partial(
-                    predictor_based_goal_predicated_reward_fn2, 
+                    #predictor_based_goal_predicated_reward_fn2, 
+                    batched_predictor_based_goal_predicated_reward_fn2, 
                     predictor=predictor,
                 )
         else:
@@ -272,9 +280,6 @@ class ArchiPredictor(nn.Module):
         super(ArchiPredictor, self).__init__()
         self.model = model
         self.kwargs = kwargs
-
-    #def parameters(self):
-    #    return self.model.parameters()
 
     def forward(
         self,
