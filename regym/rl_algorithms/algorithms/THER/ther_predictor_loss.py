@@ -41,7 +41,7 @@ def compute_loss(states: torch.Tensor,
                        :param model: when calculating the policy probability ratio.
     '''
     output_dict= predictor.compute_loss(
-        states, 
+        next_states, #states, 
         rnn_states=rnn_states,
         goal=goals,
     )

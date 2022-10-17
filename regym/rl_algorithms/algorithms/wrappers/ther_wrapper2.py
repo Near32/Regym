@@ -307,7 +307,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 self.reward_shape = r.shape
                 her_r = self.feedbacks['success']*torch.ones_like(r) if r.item()>0 else self.feedbacks['failure']*torch.ones_like(r)
                 if self.episode_length_reward_shaping:
-                    her_r *= float(idx)
+                    her_r *= float(idx)/self.timing_out_episode_length_threshold
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
                 non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
@@ -343,6 +343,43 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 # Store data in predictor storages if successfull:
                 if self.kwargs['THER_use_THER'] and r.item()>0:
                     self.predictor_store(d2store, actor_index=actor_index)
+                    
+                    goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
+                    idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
+                    
+                    if not hasattr(self, "sample_table"):
+                        columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
+                        columns += ["stimulus_(t)", "stimulus_(t-1)"]
+                        columns += [f"a_(t-{v})" for v in range(4)]
+                        self.sample_table = wandb.Table(columns=columns) 
+                    
+                    for bidx in range(1):
+                        gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
+                        stimulus_t = succ_s[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
+                        stimulus_t = stimulus_t.astype(np.uint8)
+                        stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
+                        stimulus_tm = s[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
+                        stimulus_tm = stimulus_tm.astype(np.uint8)
+                        stimulus_tm = wandb.Video(stimulus_tm, fps=1, format="gif")
+                        previous_action_int = [
+                            self.episode_buffer[actor_index][aidx]["rnn_states"]['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item()
+                            for aidx in [idx, idx-1, idx-2, idx-3]
+                        ]
+                        self.sample_table.add_data(*[
+                            *gt_word_sentence,
+                            stimulus_t,
+                            stimulus_tm,
+                            *previous_action_int
+                            ]
+                        )
+
+                    if self.nbr_handled_predictor_experience % 128 == 0:
+                        wandb.log({f"PerEpisode/SampleTable":self.sample_table}, commit=False)
+                        columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
+                        columns += ["stimulus_(t)", "stimulus_(t-1)"]
+                        columns += [f"a_(t-{v})" for v in range(4)]
+                        self.sample_table = wandb.Table(columns=columns) 
+
                     wandb.log({'Training/THER_Predictor/DatasetSize': self.nbr_handled_predictor_experience}, commit=False) # self.param_predictor_update_counter)
                     if self.algorithm.summary_writer is not None:
                         self.algorithm.summary_writer.add_scalar('Training/THER_Predictor/DatasetSize', self.nbr_handled_predictor_experience, self.param_predictor_update_counter)
@@ -352,13 +389,21 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     self.episode_count += 1
                     wandb.log({'PerEpisode/EpisodeLength': episode_length}, commit=False)
                     
-                    wandb.log({'PerEpisode/HER_Success': 1+her_r.mean().item()}, commit=False) 
+                    wandb.log({
+                        'PerEpisode/HER_Success': float(r.item()>0), #1+her_r.mean().item(),
+                    }, commit=False) 
                     wandb.log({'PerEpisode/HER_FinalReward': her_r.mean().item()}, commit=False) 
                     wandb.log({'PerEpisode/HER_Return': sum(her_rs)}, commit=False)
                     wandb.log({'PerEpisode/HER_NormalizedReturn': sum(her_rs)/episode_length}, commit=False)
                     wandb.log({'PerEpisode/OriginalFinalReward': r.mean().item()}, commit=False)
                     wandb.log({'PerEpisode/OriginalReturn': sum(episode_rewards)}, commit=False)
                     wandb.log({'PerEpisode/OriginalNormalizedReturn': sum(episode_rewards)/episode_length}, commit=False) # self.episode_count)
+                    if not hasattr(self, "nbr_success"):  self.nbr_success = 0
+                    if successful_traj: self.nbr_success += 1
+                    if self.episode_count % 128:
+                        wandb.log({'PerEpisode/SuccessRatio': float(self.nbr_success)}, commit=False) # self.episode_count)
+                        self.nbr_success = 0
+
                     if self.algorithm.summary_writer is not None:
                         self.algorithm.summary_writer.add_scalar('PerEpisode/Success', (self.rewards['success']==her_r).float().mean().item(), self.episode_count)
                         self.algorithm.summary_writer.add_histogram('PerEpisode/Rewards', episode_rewards, self.episode_count)
@@ -428,7 +473,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             else:
                                 new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
                             if self.episode_length_reward_shaping:
-                                new_her_r *= float(idx)
+                                new_her_r *= float(idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
 
                             if self.relabel_terminal:
