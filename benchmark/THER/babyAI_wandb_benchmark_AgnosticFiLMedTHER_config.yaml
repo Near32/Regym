@@ -274,7 +274,7 @@ experiment:
         'vdn': False,
         'otherplay': False,
         'nbr_frame_skipping': 0,
-        'nbr_frame_stacking': 4,
+        'nbr_frame_stacking': 4, #1,
         'single_life_episode': False,
         'nbr_max_random_steps': 0,
         'clip_reward': False,
@@ -400,12 +400,14 @@ agents:
                     # Stacking = 4 and concatenate_obs_action = True
                     #input_shape: [16, 7, 7]
                     input_shape: [16, 56, 56]
+                    #input_shape: [4, 56, 56]
                     feature_dim: *feature_dim #"{{value_dim}}"
-                    channels: [32, 32, 64]
+                    #channels: [32, 32, 64]
+                    channels: ['BN32', 'BN32', 'BN64']
                     kernel_sizes: [3, 3, 3]
                     strides: [2, 2, 2]
                     paddings: [1, 1, 1]
-                    fc_hidden_units: [128] #[256, 128]
+                    fc_hidden_units: ['BN1024', 'BN512'] #[256, 128]
                     non_linearities: ['ReLU']
                     dropout: 0.0
                     use_coordconv: False #True
@@ -421,6 +423,7 @@ agents:
                     #input_shape: [3, 64, 64]
                     # Stacking = 4 and concatenate_obs_action = True
                     #input_shape: [16, 7, 7]
+                    #input_shape: [4, 56, 56]
                     input_shape: [16, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
                     channels: [32, 32, 64]
@@ -559,8 +562,9 @@ agents:
                     gate: None #F.relu, 
                     dropout: 0.7 #0.0  
                     rnn_fn: "GRU"
-                    predict_PADs: False
-                    config: None
+                    config:
+                        predict_PADs: False
+                        diversity_loss_weighting: True
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorObsEncoder:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"

@@ -69,7 +69,8 @@ def compute_loss(states: torch.Tensor,
         for bidx in range(prediction.shape[0]):
             word_sentence = [idx2w[token.item()] for token in prediction[bidx]]
             gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
-            stimulus = next_states[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
+            nbr_frames = next_states[bidx].shape[0]//4
+            stimulus = next_states[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
             stimulus = stimulus.astype(np.uint8)
             stimulus = wandb.Video(stimulus, fps=2, format="gif")
             previous_action_int = rnn_states['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item() 

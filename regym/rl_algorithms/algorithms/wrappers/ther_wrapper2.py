@@ -355,10 +355,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     
                     for bidx in range(1):
                         gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
-                        stimulus_t = succ_s[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
+                        nbr_frames = succ_s[bidx].shape[0]//4
+                        stimulus_t = succ_s[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
                         stimulus_t = stimulus_t.astype(np.uint8)
                         stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
-                        stimulus_tm = s[bidx].cpu().reshape(4,4,56,56).numpy()[:,:3]*255
+                        stimulus_tm = s[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
                         stimulus_tm = stimulus_tm.astype(np.uint8)
                         stimulus_tm = wandb.Video(stimulus_tm, fps=1, format="gif")
                         previous_action_int = [
