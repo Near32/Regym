@@ -51,6 +51,9 @@ def compute_loss(states: torch.Tensor,
     sentence_accuracies = output_dict['sentence_accuracies']
     accuracy = sentence_accuracies.cpu().mean().item()
 
+    bos_accuracies = output_dict['bos_accuracies']
+    bos_sentence_accuracies = output_dict['bos_sentence_accuracies']
+    
     if importanceSamplingWeights is not None:
       loss_per_item = importanceSamplingWeights * loss_per_item
     
@@ -88,8 +91,10 @@ def compute_loss(states: torch.Tensor,
     wandb.log({f'{phase}/THER_Predictor/Loss': loss.cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({f'{phase}/THER_Predictor/Accuracy': accuracies.cpu().mean().item(), "training_step": iteration_count}, commit=False)
     wandb.log({f'{phase}/THER_Predictor/SentenceAccuracy': sentence_accuracies.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({f'{phase}/THER_Predictor/SentenceBoSAccuracy': bos_sentence_accuracies.cpu().item(), "training_step": iteration_count}, commit=False)
     for idx in range(accuracies.shape[-1]):
         wandb.log({f'{phase}/THER_Predictor/Accuracy_{idx}': accuracies[..., idx].cpu().item(), "training_step": iteration_count}, commit=False)
+        wandb.log({f'{phase}/THER_Predictor/BoS_Accuracy_{idx}': bos_accuracies[..., idx].cpu().item(), "training_step": iteration_count}, commit=False)
     
     if importanceSamplingWeights is not None:
         wandb.log({f'{phase}/THER_Predictor/ImportanceSamplingMean': importanceSamplingWeights.cpu().mean().item(), "training_step": iteration_count}, commit=False)

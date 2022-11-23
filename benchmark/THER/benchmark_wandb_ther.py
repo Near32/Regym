@@ -567,6 +567,14 @@ def main():
         help="learning rate",
         default=3e-4,
     )
+    parser.add_argument("--ther_adam_weight_decay", 
+        type=float, 
+        default=0.0,
+    )
+    parser.add_argument("--adam_weight_decay", 
+        type=float, 
+        default=0.0,
+    )
     parser.add_argument("--weights_decay_lambda", 
         type=float, 
         default=0.0,
@@ -638,6 +646,10 @@ def main():
     parser.add_argument("--THER_test_min_capacity", 
         type=float, 
         default=12, #1e4
+    )
+    parser.add_argument("--THER_predictor_accuracy_threshold", 
+        type=float, 
+        default=0.75,
     )
     parser.add_argument("--THER_predictor_accuracy_safe_to_relabel_threshold", 
         type=float, 

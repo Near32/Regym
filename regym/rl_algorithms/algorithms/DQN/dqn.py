@@ -81,7 +81,13 @@ class DQNAlgorithm(Algorithm):
             if kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
             print(f"Learning rate: {lr}")
-            self.optimizer = optim.Adam(parameters, lr=lr, betas=(0.9,0.999), eps=float(kwargs['adam_eps']))
+            self.optimizer = optim.Adam(
+                parameters, 
+                lr=lr, 
+                betas=(0.9,0.999), 
+                eps=float(kwargs['adam_eps']),
+                weight_decay=float(kwargs.get("adam_weight_decay", 0.0)),
+            )
         else: self.optimizer = optimizer
 
         self.loss_fn = loss_fn

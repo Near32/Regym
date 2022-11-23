@@ -174,7 +174,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.predictor_optimizer = optim.Adam(
             self.predictor.parameters(), 
             lr=lr, betas=(0.9,0.999), 
-            eps=self.kwargs['adam_eps']
+            eps=float(self.kwargs.get('ther_adam_eps')),
+            weight_decay=float(self.kwargs.get("ther_adam_weight_decay", 0.0)),
         )
         self.best_predictor_optimizer_sd = self.predictor_optimizer.state_dict()
 
@@ -556,11 +557,14 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             self.predictor_storages[actor_index].add(exp_dict)
 
     def update_predictor(self):
+        full_update = True
         for it in range(self.kwargs['THER_nbr_training_iteration_per_update']):
             self.test_acc = self.train_predictor()
             if self.test_acc >= self.kwargs['THER_predictor_accuracy_threshold']:
+                full_update = False
                 break
-        
+        wandb.log({f"Training/THER_Predictor/FullUpdate":int(full_update)}, commit=False)
+         
     def train_predictor(self, minibatch_size=None):
         if minibatch_size is None:  minibatch_size = self.batch_size
 

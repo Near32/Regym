@@ -336,6 +336,8 @@ class ArchiPredictor(nn.Module):
             'loss_per_item':output_stream_dict['next_rnn_states']["input0_loss_per_item"][0], 
             'accuracies':output_stream_dict['next_rnn_states']["input0_accuracies"][0], 
             'sentence_accuracies':output_stream_dict['next_rnn_states']["input0_sentence_accuracies"][0],
+            'bos_accuracies':output_stream_dict['next_rnn_states']["input0_bos_accuracies"][0], 
+            'bos_sentence_accuracies':output_stream_dict['next_rnn_states']["input0_bos_sentence_accuracies"][0],
         }
 
         return rdict

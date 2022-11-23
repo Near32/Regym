@@ -226,6 +226,9 @@ THER_LargeCNN_Predictor: &THER_LargeCNN_Predictor
     tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
     learning_rate: 6.25e-5 #1.0e-3 #1.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
     adam_eps: 1.5e-5 #1.0e-8
+    adam_weight_decay: 0.0 #1.0e-8
+    ther_adam_eps: 1.0e-12
+    ther_adam_weight_decay: 0.0 #1.0e-8
     # NEED RMSProp optimizer...
 
     epsstart: 1.0
@@ -258,7 +261,8 @@ experiment:
     tasks: [{
         #'env-id': 'BabyAI-GoToObj-v0',
         #'env-id': 'BabyAI-GoToLocal-v0',
-        'env-id': 'BabyAI-PickupDistDebug-v0',
+        #'env-id': 'BabyAI-PickupDistDebug-v0',
+        'env-id': 'BabyAI-PickupDist-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
         'env-config': {},
@@ -342,6 +346,11 @@ agents:
         
         learning_rate: 6.25e-5
         adam_eps: 1.0e-12
+        adam_weight_decay: 0.0 #1.0e-8
+        
+        ther_adam_eps: 1.0e-12
+        ther_adam_weight_decay: 0.0 #1.0e-8
+
 
         replay_capacity: 2e4 #5e4 #5e5
         
@@ -564,7 +573,7 @@ agents:
                     rnn_fn: "GRU"
                     config:
                         predict_PADs: False
-                        diversity_loss_weighting: True
+                        diversity_loss_weighting: False #True
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorObsEncoder:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"
