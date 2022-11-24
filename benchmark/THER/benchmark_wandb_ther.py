@@ -362,6 +362,7 @@ def training_process(
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
       use_rgb=task_config['use_rgb'],
       full_obs=task_config['full_obs'],
+      single_pick_episode=task_config['single_pick_episode'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -380,6 +381,7 @@ def training_process(
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
       use_rgb=task_config['use_rgb'],
       full_obs=task_config['full_obs'],
+      single_pick_episode=task_config['single_pick_episode'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -662,6 +664,9 @@ def main():
     parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
+    parser.add_argument("--single_pick_episode", type=str2bool, default="False",)
+    parser.add_argument("--THER_train_contrastively", type=str2bool, default="False",)
+    parser.add_argument("--THER_contrastive_training_nbr_neg_examples", type=int, default=0,)
     parser.add_argument("--THER_relabel_terminal", type=str2bool, default="True",)
     parser.add_argument("--THER_train_on_success", type=str2bool, default="False",)
     parser.add_argument("--THER_predict_PADs", type=str2bool, default="False",)

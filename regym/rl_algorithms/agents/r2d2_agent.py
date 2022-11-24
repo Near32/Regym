@@ -259,6 +259,8 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
             wrapper_kwargs['filter_out_timed_out_episode'] = kwargs['THER_filter_out_timed_out_episode']
             wrapper_kwargs['timing_out_episode_length_threshold'] = kwargs['THER_timing_out_episode_length_threshold']
             wrapper_kwargs['episode_length_reward_shaping'] = kwargs['THER_episode_length_reward_shaping']
+            wrapper_kwargs['train_contrastively'] = kwargs['THER_train_contrastively']
+            wrapper_kwargs['contrastive_training_nbr_neg_examples'] = kwargs['THER_contrastive_training_nbr_neg_examples']
         
             if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
                 wrapper_kwargs['goal_predicated_reward_fn'] = partial(

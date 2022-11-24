@@ -614,6 +614,24 @@ class EpisodicLifeEnv(gym.Wrapper):
         self.lives = self.env.unwrapped.ale.lives()
         return obs
 
+class EpisodicPickEnv(gym.Wrapper):
+    def __init__(self, env, pick_idx=0):
+        """
+        Make pick = end-of-episode for BabyAI benchmark.
+        """
+        gym.Wrapper.__init__(self, env)
+        self.pick_idx = pick_idx
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        if action == self.pick_idx \
+        and self.env.carrying is not None:
+            done = True
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
 
 class FrameStack(gym.Wrapper):
     def __init__(self, env, stack=4,):
@@ -2644,6 +2662,7 @@ def baseline_ther_wrapper(
     concatenate_keys_with_obs=[],
     use_rgb=False,
     full_obs=False,
+    single_pick_episode=False,
     ):
     
     env = TimeLimit(env, max_episode_steps=time_limit)
@@ -2664,7 +2683,12 @@ def baseline_ther_wrapper(
     
     if single_life_episode:
         env = EpisodicLifeEnv(env)
-    
+    if single_pick_episode:
+        env = EpisodicPickEnv(
+            env,
+            pick_idx=env.actions.pickup,
+        )
+
     if stack > 1 or len(concatenate_keys_with_obs):
         env = DictFrameStack(
             env, 

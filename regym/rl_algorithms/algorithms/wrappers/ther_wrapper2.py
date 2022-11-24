@@ -129,6 +129,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         filter_out_timed_out_episode:Optional[bool]=False,
         timing_out_episode_length_threshold:Optional[int]=40,
         episode_length_reward_shaping:Optional[bool]=False,
+        train_contrastively:Optional[bool]=False,
+        contrastive_training_nbr_neg_examples:Optional[int]=0,
         ):
         """
         :param achieved_goal_key_from_info: Str of the key from the info dict
@@ -150,6 +152,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.filter_out_timed_out_episode = filter_out_timed_out_episode
         self.timing_out_episode_length_threshold = timing_out_episode_length_threshold
         self.episode_length_reward_shaping = episode_length_reward_shaping
+        self.train_contrastively = train_contrastively
+        self.contrastive_training_nbr_neg_examples = contrastive_training_nbr_neg_examples
+        self.contrastive_goal_value = None 
+        # To be initialized with the first usable state encountered.
 
         #self.rewards = rewards 
         self.feedbacks = feedbacks 
@@ -199,6 +205,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.nbr_buffered_predictor_experience = 0
         self.nbr_handled_predictor_experience = 0
         self.batch_size = self.kwargs['THER_predictor_batch_size']
+        
+        self.nbr_relabelled_traj = 0 
+        self.nbr_successfull_traj = 0
 
     def _reset_predictor_storages(self):
         if self.predictor_storages is not None:
@@ -291,13 +300,15 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
             # Assumes non-successful rewards are non-positive:
             successful_traj = all(self.episode_buffer[actor_index][-1]['r']>0)
-            
+            if successful_traj: self.nbr_successfull_traj += 1
+
             # Relabelling if unsuccessfull trajectory:
             relabelling = not successful_traj
             
             episode_rewards = []
             her_rs = []
             per_episode_d2store = {}
+            previous_d2stores = [] 
 
             for idx in range(episode_length):
                 s = self.episode_buffer[actor_index][idx]['s']
@@ -343,6 +354,30 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 
                 # Store data in predictor storages if successfull:
                 if self.kwargs['THER_use_THER'] and r.item()>0:
+                    if self.train_contrastively:
+                        if self.contrastive_goal_value is None:
+                            target_state = succ_s
+                            with torch.no_grad():
+                                training = self.predictor.training
+                                self.predictor.train(False)
+                                target_pred_goal = self.predictor(target_state).cpu()
+                                self.predictor.train(training)
+                            w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
+                            self.contrastive_goal_value = w2idx["PAD"]+0*target_pred_goal
+                            self.contrastive_goal_value[..., 0] = w2idx["EoS"]
+                        
+                        for ctr_example_idx in range(self.contrastive_training_nbr_neg_examples):
+                            previous_d2stores[-ctr_example_idx-1]['rnn_states'] = copy_hdict(
+                                self._update_goals_in_rnn_states(
+                                    hdict=previous_d2stores[-ctr_example_idx-1]["rnn_states"],
+                                    goal_value=self.contrastive_goal_value,
+                                    latent_goal_value=None,
+                                    goal_key=self.target_goal_key_from_info,
+                                    latent_goal_key=self.target_latent_goal_key_from_info,
+                                )
+                            )
+                            self.predictor_store(previous_d2stores[-ctr_example_idx-1], actor_index=actor_index)
+
                     self.predictor_store(d2store, actor_index=actor_index)
                     
                     goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
@@ -386,6 +421,42 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     if self.algorithm.summary_writer is not None:
                         self.algorithm.summary_writer.add_scalar('Training/THER_Predictor/DatasetSize', self.nbr_handled_predictor_experience, self.param_predictor_update_counter)
                     
+                    ####################################################################################
+                    # Verification on Successful Episodes whether the Predictor can have high Recall:
+                    ####################################################################################
+                    batched_target_exp = [self.episode_buffer[actor_index][-1]]
+                    batched_achieved_exp = self.episode_buffer[actor_index]
+                    batched_new_r, batched_achieved_goal_from_target_exp, \
+                    batched_achieved_latent_goal_from_target_exp = self.goal_predicated_reward_fn(
+                        achieved_exp=batched_achieved_exp, 
+                        target_exp=batched_target_exp,
+                        _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
+                        goal_key=self.achieved_goal_key_from_info,
+                        latent_goal_key=self.achieved_latent_goal_key_from_info,
+                        epsilon=1e-1,
+                        feedbacks=self.feedbacks,
+                        reward_shape=self.reward_shape
+                    )
+                    
+                    positive_new_r_mask = (batched_new_r == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
+                    positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
+
+                    valid_hist_index = self.nbr_successfull_traj
+                    wandb.log({
+                        "PerEpisode/THER_Predicate/SuccessfulEpisodeValidationStepHistogram":positive_new_r_step_histogram, 
+                        "PerEpisode/THER_Predicate/SuccessfulEpisodeGoalSimilarityRatioOverEpisode": positive_new_r_mask.float().sum()/episode_length,
+                        "PerEpisode/THER_Predicate/SuccessfulEpisodeValidationStepHistogramIndex": valid_hist_index,
+                        }, 
+                        commit=False,
+                    )
+                    ####################################################################################
+                    ####################################################################################
+                else:
+                    previous_d2stores.append(d2store)
+                    while len(previous_d2stores) > self.contrastive_training_nbr_neg_examples:
+                        del previous_d2stores[0]
+
                 #if all(non_terminal<=0.5) 
                 if idx==(episode_length-1):
                     self.episode_count += 1
@@ -418,17 +489,18 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             timed_out_episode = episode_length >= self.timing_out_episode_length_threshold
             if self.filter_out_timed_out_episode:
                 safe_relabelling = safe_relabelling and not(timed_out_episode)
-                wandb.log({'PerEpisode/THER_Predicate/UnsuccessfulTraj': int(relabelling)}, commit=False)
-                wandb.log({'PerEpisode/THER_Predicate/SafeRelabelling': int(safe_relabelling)}, commit=False)
-                wandb.log({'PerEpisode/THER_Predicate/TimedOutEpisodeFiltering': int(timed_out_episode)}, commit=False)
-                wandb.log({'PerEpisode/THER_Predicate/UnsuccessfulTraj+SafeRelabelling': int(relabelling and safe_relabelling)}, commit=False)
-                wandb.log({'PerEpisode/THER_Predicate/UnsuccessfulTraj+NotTimedOut': int(relabelling and not(timed_out_episode))}, commit=False)
-                wandb.log({'PerEpisode/THER_Predicate/PerformingRelabelling': int(not(timed_out_episode) and relabelling and safe_relabelling)}, commit=False)
+            wandb.log({'PerEpisode/THER_Predicate/UnsuccessfulTraj': int(relabelling)}, commit=False)
+            wandb.log({'PerEpisode/THER_Predicate/SafeRelabelling': int(safe_relabelling)}, commit=False)
+            wandb.log({'PerEpisode/THER_Predicate/TimedOutEpisodeFiltering': int(timed_out_episode)}, commit=False)
+            wandb.log({'PerEpisode/THER_Predicate/UnsuccessfulTraj+SafeRelabelling': int(relabelling and safe_relabelling)}, commit=False)
+            wandb.log({'PerEpisode/THER_Predicate/UnsuccessfulTraj+NotTimedOut': int(relabelling and not(timed_out_episode))}, commit=False)
+            wandb.log({'PerEpisode/THER_Predicate/PerformingRelabelling': int(relabelling and safe_relabelling)}, commit=False)
                 
 
             if self.kwargs['THER_use_THER'] \
             and relabelling \
             and safe_relabelling:
+                self.nbr_relabelled_traj += 1
                 # Relabelling everything with the hindsight_goal computed on the fly, and set the reward accordingly:
                 if 'final' in self.strategy:
                     batched_target_exp = [self.episode_buffer[actor_index][-1]]
@@ -448,8 +520,16 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     positive_new_r_mask = (batched_new_r == self.feedbacks['success']).cpu().reshape(-1)
                     positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
                     positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
-                    wandb.log({"PerEpisode/THER_Predicate/StepHistogram":positive_new_r_step_histogram}, commit=False)
-
+                    
+                    hist_index = self.nbr_relabelled_traj
+                    wandb.log({
+                        "PerEpisode/THER_Predicate/StepHistogram": positive_new_r_step_histogram,
+                        "PerEpisode/THER_Predicate/RelabelledEpisodeGoalSimilarityRatioOverEpisode": positive_new_r_mask.float().sum()/episode_length,
+                        "PerEpisode/THER_Predicate/StepHistogramIndex": hist_index,
+                        }, 
+                        commit=False,
+                    )
+                    
                     achieved_goal_from_target_exp = batched_achieved_goal_from_target_exp[0:1]
                     achieved_latent_goal_from_target_exp = batched_achieved_latent_goal_from_target_exp
                     if achieved_latent_goal_from_target_exp is not None:
@@ -895,6 +975,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             filter_out_timed_out_episode=self.filter_out_timed_out_episode,
             timing_out_episode_length_threshold=self.timing_out_episode_length_threshold,
             episode_length_reward_shaping=self.episode_length_reward_shaping,
+            train_contrastively=self.train_contrastively,
+            contrastive_training_nbr_neg_examples=self.contrastive_training_nbr_neg_examples,
         )
         return cloned_algo
 
