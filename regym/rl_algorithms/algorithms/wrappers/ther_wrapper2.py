@@ -218,13 +218,18 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.predictor_storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
         if self.recurrent:  keys += ['rnn_states']
-
-        circular_keys={'succ_s':'s'}
-        circular_offsets={'succ_s':1}
+        
+        '''
+        circular_keys= {} #{'succ_s':'s'}
+        circular_offsets= {} #{'succ_s':1}
         if self.recurrent:
             circular_keys.update({'next_rnn_states':'rnn_states'})
-            circular_offsets.update({'next_rnn_states':1})
-
+            #circular_offsets.update({'next_rnn_states':1})
+        '''
+        circular_keys= {} #{'succ_s':'s'}
+        circular_offsets= {} #{'succ_s':1}
+        keys.append('succ_s')
+        
         beta_increase_interval = None
         if 'PER_beta_increase_interval' in self.kwargs and self.kwargs['PER_beta_increase_interval']!='None':
             beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
