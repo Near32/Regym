@@ -243,7 +243,7 @@ def train_and_evaluate(
       save_replay_buffer = any(['save_replay_buffer' in arg for arg in sys.argv])
 
     try:
-        for agent in trained_agents:
+        for agent in agents:
             agent.save(with_replay_buffer=save_replay_buffer)
             print(f"Agent saved at: {agent.save_path}")
     except Exception as e:
