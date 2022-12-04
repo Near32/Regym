@@ -36,6 +36,8 @@ setup(
       'coloredlogs',
       'scikit-image',
       'h5py',
+      'moviepy',
+      'imageio',
       'matplotlib',
       'docopt',
       'pyyaml',
