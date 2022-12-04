@@ -141,7 +141,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         """
         
         super(THERAlgorithmWrapper2, self).__init__(algorithm=algorithm)
-        
+        self.nbr_episode_success_range = 256
+
         if goal_predicated_reward_fn is None:   goal_predicated_reward_fn = state_eq_goal_reward_fn2
         if _extract_goal_from_info_fn is None:  _extract_goal_from_info_fn = self._extract_goal_from_info_default_fn
 
@@ -478,8 +479,13 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     wandb.log({'PerEpisode/OriginalNormalizedReturn': sum(episode_rewards)/episode_length}, commit=False) # self.episode_count)
                     if not hasattr(self, "nbr_success"):  self.nbr_success = 0
                     if successful_traj: self.nbr_success += 1
-                    if self.episode_count % 128:
-                        wandb.log({'PerEpisode/SuccessRatio': float(self.nbr_success)}, commit=False) # self.episode_count)
+                    if self.episode_count % self.nbr_episode_success_range == 0:
+                        wandb.log({
+                            'PerEpisode/SuccessRatio': float(self.nbr_success)/self.nbr_episode_success_range,
+                            'PerEpisode/SuccessRatioIndex': int(self.episode_count//self.nbr_episode_success_range),
+                            },
+                            commit=False,
+                        ) # self.episode_count)
                         self.nbr_success = 0
 
                     if self.algorithm.summary_writer is not None:
