@@ -697,6 +697,10 @@ def main():
         dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
         dargs['burn_in'] = True 
     
+    if args.THER_use_THER==False \
+    and args.THER_contrastive_training_nbr_neg_examples != 0:
+        raise NotImplementedError
+
     dargs['seed'] = int(dargs['seed'])
     
     print(dargs)
