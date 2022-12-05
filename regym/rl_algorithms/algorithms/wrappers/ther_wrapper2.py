@@ -452,6 +452,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     wandb.log({
                         "PerEpisode/THER_Predicate/SuccessfulEpisodeValidationStepHistogram":positive_new_r_step_histogram, 
                         "PerEpisode/THER_Predicate/SuccessfulEpisodeGoalSimilarityRatioOverEpisode": positive_new_r_mask.float().sum()/episode_length,
+                        "PerEpisode/THER_Predicate/SuccessfulEpisodeGoalSimilarityCount": positive_new_r_mask.float().sum(),
+                        "PerEpisode/THER_Predicate/SuccessfulEpisodeLength": episode_length,
                         "PerEpisode/THER_Predicate/SuccessfulEpisodeValidationStepHistogramIndex": valid_hist_index,
                         }, 
                         commit=False,
@@ -536,6 +538,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     wandb.log({
                         "PerEpisode/THER_Predicate/StepHistogram": positive_new_r_step_histogram,
                         "PerEpisode/THER_Predicate/RelabelledEpisodeGoalSimilarityRatioOverEpisode": positive_new_r_mask.float().sum()/episode_length,
+                        "PerEpisode/THER_Predicate/RelabelledEpisodeGoalSimilarityCount": positive_new_r_mask.float().sum(),
+                        "PerEpisode/THER_Predicate/RelabelledEpisodeLength": episode_length,
                         "PerEpisode/THER_Predicate/StepHistogramIndex": hist_index,
                         }, 
                         commit=False,
