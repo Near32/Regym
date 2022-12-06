@@ -156,9 +156,9 @@ def make_rl_pubsubmanager(
         ) -> List[torch.Tensor]:
         labels = []
         for exp in traj[player_id]:
-            #labels.append(torch.from_numpy((1+exp[0])*0.5))
+            labels.append(torch.from_numpy((1+exp[0])*0.5))
             # TODO: investigate NO RESCALING context, whether it helps :
-            labels.append(torch.from_numpy(exp[0]))
+            #labels.append(torch.from_numpy(exp[0]))
         return labels
     def build_double_comm_to_reconstruct_from_trajectory_fn(
         traj: List[List[Any]],
