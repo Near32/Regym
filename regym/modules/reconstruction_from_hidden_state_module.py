@@ -189,11 +189,11 @@ class ReconstructionFromHiddenStateModule(Module):
                 ###
 
                 L_rec_t = self.criterion(
-                    input=logit_pred,
-                    target=labels.detach(),
+                    input=logit_pred.float(),
+                    target=labels.detach().float(),
                 ).mean()
                 # 1 
-                L_mse_t = 0.5*torch.pow(pred-labels, 2.0).mean()
+                L_mse_t = 0.5*torch.pow(pred.float()-labels.float(), 2.0).mean()
                 # 1
 
                 if L_rec.device != L_rec_t.device:    L_rec = L_rec.to(L_rec_t.device)
@@ -381,11 +381,11 @@ class ReconstructionFromHiddenStateModule(Module):
             ###
 
             L_rec_t = self.criterion(
-                input=logit_pred,
-                target=labels.detach(),
+                input=logit_pred.float(),
+                target=labels.detach().float(),
             ).mean(dim=-1)
             # batch_size 
-            L_mse_t = 0.5*torch.pow(pred-labels, 2.0).mean(dim=-1)
+            L_mse_t = 0.5*torch.pow(pred.float()-labels.float(), 2.0).mean(dim=-1)
             # batch_size
 
             if L_rec.device != L_rec_t.device:    L_rec = L_rec.to(L_rec_t.device)

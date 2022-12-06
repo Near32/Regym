@@ -8,12 +8,78 @@ import copy
 def is_leaf(node: Dict):
     return any([ not isinstance(node[key], dict) for key in node.keys()])
 
+def concat_fn(x):
+    """
+    Only testing on the first two elements because they should either
+    all be the same shape or all have different/iteratively increasing shapes.
+
+    TODO: find out why is there a situation where all the initial values
+    of the key_memory are high and similar at 279 elements, while the iteration 
+    count is only up to 31....
+    """
+    if x[0].shape==x[1].shape:
+        return torch.cat(x, dim=1)
+    nplist = np.empty(len(x), dtype=object)
+    for idx, v in enumerate(x):
+        nplist[idx] = v
+    return nplist
+
+def archi_concat_fn(x):
+    if all([isinstance(xi, torch.Tensor) for xi in x]):
+        return torch.cat(x, dim=0)   # concatenate on the unrolling dimension (axis=1).
+    
+    for idx, xi in enumerate(x):
+        if isinstance(xi, torch.Tensor):
+            x[idx] = np.empty([xi.shape[1]], dtype=object)
+            for ridx in range(xi.shape[1]):
+                x[idx] = xi[:,ridx:ridx+1,...]
+
+    assert all([isinstance(xi, np.ndarray) and isinstance(xi[0], torch.Tensor) for xi in x])
+
+    batch_size = len(x)
+
+    # Identify the dimension(s) where torch.Tensors are different:
+    # Store the maximal value...
+    # Expand the other 
+
+    max_dim_value_shape = None
+    max_dim_value_shapes = {}
+    nbr_dims = len(x[0][0].shape)
+
+    diff_dims = {bidx:[] for bidx in range(batch_size)}
+    max_dim_values = {bidx:{} for bidx in range(batch_size)}
+    for bidx in range(len(x)):
+        max_dim_value_shapes[bidx] = list(x[bidx][0].shape)
+        for idx_dim in range(nbr_dims):
+            list_dim_values = [x[bidx][idx_t].shape[idx_dim] for idx_t in range(len(x[bidx]))]
+            
+            if any([dv!=x[bidx][0].shape[idx_dim] for dv in list_dim_values]):
+                diff_dims[bidx].append(idx_dim)
+                max_dim_values[bidx][idx_dim] = max(list_dim_values)
+                max_dim_value_shapes[bidx][idx_dim] = max_dim_values[bidx][idx_dim]
+
+    # Assumption: it is on memory element dimension only that there is discrepancies:
+    assert all([ diff_dim[0]==2  for diff_dim in diff_dims.values() if len(diff_dim)==1])
+    max_dim_value_shape = list(max_dim_value_shapes.values())[0]
+    max_dim_value_shape[2] = max([mdvs[2] for mdvs in max_dim_value_shapes.values()])
+
+    for bidx in range(len(x)):
+        for unroll_id, el in enumerate(x[bidx]):
+            new_x = torch.zeros(max_dim_value_shape)
+            new_x[:,:,:x[bidx][unroll_id].shape[2],...] = x[bidx][unroll_id]
+            x[bidx][unroll_id] = new_x
+        # unrolling dim concatenation:
+        x[bidx] = torch.cat(x[bidx].tolist(), dim=1)
+    # batch concatenation:
+    r = torch.cat(x, dim=0)
+    return r
 
 def recursive_inplace_update(
     in_dict: Dict,
     extra_dict: Union[Dict, torch.Tensor],
     batch_mask_indices: Optional[torch.Tensor]=None,
-    preprocess_fn: Optional[Callable] = None):
+    preprocess_fn: Optional[Callable] = None,
+    assign_fn: Optional[Callable] = None):
     '''
     Taking both :param: in_dict, extra_dict as tree structures,
     adds the nodes of extra_dict into in_dict via tree traversal.
@@ -46,6 +112,7 @@ def recursive_inplace_update(
                 extra_dict=extra_dict[node_key],
                 batch_mask_indices=batch_mask_indices,
                 preprocess_fn=preprocess_fn,
+                assign_fn=assign_fn,
             )
         else:
             for leaf_key in extra_dict[node_key]:
@@ -58,22 +125,47 @@ def recursive_inplace_update(
                 # RATHER, to generate copies that lets gradient flow but do not share
                 # the same data space (i.e. modifying one will leave the other intact), make
                 # sure to use the clone() method, as list comprehension does not create new tensors.
-                listvalue = [value.clone() for value in extra_dict[node_key][leaf_key] if value != {}]
+                
+                listvalue = [value.clone() for value in extra_dict[node_key][leaf_key]]
+                # TODO: identify the issue that the following line was aiming to solve:
+                #listvalue = [value.clone() for value in extra_dict[node_key][leaf_key] if value != {}]
+                if leaf_key not in in_dict[node_key]:
+                    # initializing here, and preprocessing below...
+                    in_dict[node_key][leaf_key] = listvalue
                 if batch_mask_indices is None or batch_mask_indices==[]:
                     in_dict[node_key][leaf_key]= listvalue
                 else:
                     for vidx in range(len(in_dict[node_key][leaf_key])):
                         v = listvalue[vidx]
                         if leaf_key not in in_dict[node_key]:   continue
+                        
+                        # SPARSE-NESS : check & record
                         sparse_v = False
-                        if v.is_sparse:
+                        if getattr(v, "is_sparse", False):
                             sparse_v = True
                             v = v.to_dense()
-                        new_v = v[batch_mask_indices, ...].clone()
+                        
+                        # PREPROCESSING :
+                        new_v = v[batch_mask_indices, ...].clone().to(in_dict[node_key][leaf_key][vidx].device)
                         if preprocess_fn is not None:   new_v = preprocess_fn(new_v)
+                        
+                        # SPARSE-NESS : init
                         if in_dict[node_key][leaf_key][vidx].is_sparse:
                             in_dict[node_key][leaf_key][vidx] = in_dict[node_key][leaf_key][vidx].to_dense()
-                        in_dict[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v
+                        # ASSIGNMENT:
+                        if assign_fn is not None:
+                            assign_fn(
+                                dest_d=in_dict,
+                                node_key=node_key,
+                                leaf_key=leaf_key,
+                                vidx=vidx,
+                                batch_mask_indices=batch_mask_indices,
+                                new_v=new_v,
+                            )
+                        else:
+                            in_dict[node_key][leaf_key][vidx][batch_mask_indices, ...] = new_v
+                        
+                        # SPARSE-NESS / POST-PROCESSING:
                         if sparse_v:
                             v = v.to_sparse()
                             in_dict[node_key][leaf_key][vidx] = in_dict[node_key][leaf_key][vidx].to_sparse()
@@ -234,7 +326,7 @@ def _concatenate_hdict(hd1: Union[Dict, List],
             )
     return out_hd
 
-def _concatenate_list_hdict(
+def SPARSE_concatenate_list_hdict(
     lhds: List[Dict],
     concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
     preprocess_fn: Optional[Callable] = (lambda x:
@@ -254,9 +346,6 @@ def _concatenate_list_hdict(
         out_pointer = out_queue.pop(0)
 
         if not is_leaf(pointers[0]):
-            #out_pointer = {}
-            # previously is taken care of at 145 upon initialization,
-            # and then at 165 upon 'recurrence'.
             for k in pointers[0]:
                 queue_element = [pointer[k] for pointer in pointers if k in pointer]
                 queue.insert(0, queue_element)
@@ -306,6 +395,72 @@ def _concatenate_list_hdict(
                 #        # the concat_fn may fail, silently...
                 #        # e.g.: neither a list nor a compatible stuff....
                 #        pass
+    return out_hd
+
+
+def _concatenate_list_hdict(
+    lhds: List[Dict],
+    concat_fn: Optional[Callable] = partial(torch.cat, dim=0),
+    preprocess_fn: Optional[Callable] = (lambda x:
+        torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x
+        )
+    ):
+    out_hd = {key: {} for key in lhds[0]}
+
+    queue = [lhds]
+    pointers = None
+
+    out_queue = [out_hd]
+    out_pointer = None
+
+    while len(queue):
+        pointers = [hds for hds in queue.pop(0)]
+        out_pointer = out_queue.pop(0)
+
+        if not is_leaf(pointers[0]):
+            for k in pointers[0]:
+                queue_element = [pointer[k] for pointer in pointers if k in pointer]
+                queue.insert(0, queue_element)
+
+                out_pointer[k] = {}
+                out_queue.insert(0, out_pointer[k])
+        else:
+            for k in pointers[0]:
+                out_pointer[k] = []
+                # Since we are at a leaf then value is
+                # either numpy or numpy.float64
+                # or list of tensors:
+                if isinstance(pointers[0][k], list):
+                    for idx in range(len(pointers[0][k])):
+                        concat_list = [ 
+                                pointer[k][idx].to_dense() if getattr(pointer[k][idx], "is_sparse", False) else pointer[k][idx]
+                                for pointer in pointers if k in pointer
+                        ]
+                        concat_list = [
+                            preprocess_fn(v)
+                            for v in concat_list
+                        ]
+                        out_v = concat_fn(concat_list)
+                        if getattr(pointers[0][k][idx], "is_sparse", False):
+                            out_v = out_v.to_sparse()
+                        out_pointer[k].append(out_v)
+                elif isinstance(pointers[0][k], np.ndarray) \
+                or isinstance(pointers[0][k], torch.Tensor):
+                    concat_list = [ 
+                            pointer[k].to_dense() if getattr(pointer[k], "is_sparse", False) else pointer[k]
+                            for pointer in pointers if k in pointer
+                    ]
+                    concat_list = [
+                        preprocess_fn(v)
+                        for v in concat_list
+                    ]
+                    out_v = concat_fn(concat_list)
+                    if getattr(pointers[0][k], "is_sparse", False):
+                        out_v = out_v.to_sparse()
+                    out_pointer[k] = out_v
+                else:
+                    #print(f"CONCAT: Skipped {k} of type {type(pointers[0][k])}")
+                    continue
     return out_hd
 
 

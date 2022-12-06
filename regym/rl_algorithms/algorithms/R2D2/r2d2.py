@@ -16,10 +16,12 @@ from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
 from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
 from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage, SharedPrioritizedReplayStorage
-from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdict
+from regym.rl_algorithms.utils import archi_concat_fn, concat_fn, _concatenate_hdict, _concatenate_list_hdict
 
 import wandb
 sum_writer = None
+
+
 
 class R2D2Algorithm(DQNAlgorithm):
     def __init__(self, 
@@ -176,7 +178,11 @@ class R2D2Algorithm(DQNAlgorithm):
                 values = [sequence_buffer[i][key] for i in range(len(sequence_buffer))]
                 value = _concatenate_list_hdict(
                     lhds=values, 
-                    concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
+                    #concat_fn=partial(torch.cat, dim=1),   # concatenate on the unrolling dimension (axis=1).
+                    #TODO: verify that unrolling on list is feasible:
+                    #concat_fn=(lambda x: torch.cat(x, dim=1) if x[0].shape==x[1].shape else np.array(x, dtype=object)),
+                    concat_fn=concat_fn,
+                    #concat_fn=archi_concat_fn,
                     preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
                 )
             else:

@@ -74,30 +74,26 @@ class RLAgentModule(Module):
         self.new_observations = input_streams_dict['succ_observations']
         self.new_infos = input_streams_dict['succ_infos']
 
-        if hasattr(self, 'observations')\
-        and self.agent.training:
+        if hasattr(self, 'observations') and self.agent.training:
             self.agent.handle_experience(
-                s=self.observations,
-                a=self.actions,
-                r=input_streams_dict['rewards'],
-                succ_s=self.new_observations,
-                done=input_streams_dict['dones'],
-                infos=self.infos,
+                s=copy.deepcopy(self.observations),
+                a=copy.deepcopy(self.actions),
+                r=copy.deepcopy(input_streams_dict['rewards']),
+                succ_s=copy.deepcopy(self.new_observations),
+                done=copy.deepcopy(input_streams_dict['dones']),
+                infos=copy.deepcopy(self.infos),
             )
 
-        # TODO: maybe reset everything if no attr observations:
-        for actor_index in input_streams_dict['reset_actors']:
-            self.agent.reset_actors(indices=[actor_index])                
-
-        self.new_actions = self.agent.take_action(
-            state=self.new_observations,
-            infos=self.new_infos, 
-        ) \
-        if self.agent.training else \
-        self.agent.query_action(
-            state=self.new_observations,
-            infos=self.new_infos,
-        )
+        if self.agent.training:
+            self.new_actions = self.agent.take_action(
+                state=self.new_observations,
+                infos=self.new_infos, 
+            )
+        else:
+            self.new_actions = self.agent.query_action(
+                state=self.new_observations,
+                infos=self.new_infos,
+            )
 
         self.observations = copy.deepcopy(self.new_observations)
         self.infos = copy.deepcopy(self.new_infos)
@@ -106,4 +102,8 @@ class RLAgentModule(Module):
         outputs_streams_dict[self.config['actions_stream_id']] = copy.deepcopy(self.new_actions)
         outputs_streams_dict["signals:agent_update_count"] = self.agent.get_update_count()
 
+        if len(input_streams_dict['reset_actors'])!=0:
+            assert all([input_streams_dict['dones'][aidx] for aidx in input_streams_dict['reset_actors']])
+            self.agent.reset_actors(indices=input_streams_dict['reset_actors'])                
+         
         return outputs_streams_dict

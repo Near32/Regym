@@ -136,7 +136,6 @@ class PerEpochLoggerModule(Module):
                     #wandb.log({f"PerAgentUpdate/{key}/Std":  std_value, "agent_update_count":agent_update_count}, commit=False)
               
  
-
                     median_value = np.nanpercentile(
                         values,
                         q=50,

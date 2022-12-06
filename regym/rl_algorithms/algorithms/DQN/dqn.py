@@ -19,7 +19,8 @@ import regym
 from ..algorithm import Algorithm
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
 from ...networks import hard_update, random_sample
-from regym.rl_algorithms.utils import _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
+from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
+from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 
 import wandb
 summary_writer = None 
@@ -437,7 +438,8 @@ class DQNAlgorithm(Algorithm):
                 if isinstance(value[0], dict): 
                     value = _concatenate_list_hdict(
                         lhds=value, 
-                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        #concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        concat_fn=archi_concat_fn,
                         preprocess_fn=(lambda x:x),
                     )
                 else:
@@ -718,6 +720,11 @@ class DQNAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
+        if isinstance(self.model, ArchiModel):
+            self.model.reset()
+        if isinstance(self.target_model, ArchiModel):
+            self.target_model.reset()
+        
         param_obs_counter = self._param_obs_counter
         self._param_obs_counter = None 
 

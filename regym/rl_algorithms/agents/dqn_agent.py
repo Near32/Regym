@@ -203,40 +203,34 @@ class DQNAgent(Agent):
             """
 
         # We assume that this function has been called directly after take_action:
-        # therefore the current prediction correspond to this experience.
+        # therefore the current prediction correspond to this experience's state as input.
 
-        batch_index = -1
         done_actors_among_notdone = []
-        #for actor_index in range(self.nbr_actor):
         for actor_index in range(batch_size):
             # If this actor is already done with its episode:
             if self.previously_done_actors[actor_index]:
+                # reset and skip current experience
+                self.previously_done_actors[actor_index] = False
                 continue
             # Otherwise, there is bookkeeping to do:
-            batch_index +=1
 
             # Bookkeeping of the actors whose episode just ended:
-            if done[actor_index] and not(self.previously_done_actors[actor_index]):
-                done_actors_among_notdone.append(batch_index)
+            if done[actor_index]:
+                done_actors_among_notdone.append(actor_index)
 
             exp_dict = {}
-            exp_dict['s'] = state[batch_index,...].unsqueeze(0)
-            exp_dict['a'] = a[batch_index,...].unsqueeze(0)
-            exp_dict['r'] = r[batch_index,...].unsqueeze(0)
-            exp_dict['succ_s'] = succ_state[batch_index,...].unsqueeze(0)
-            # Watch out for the miss-match:
-            # done is a list of nbr_actor booleans,
-            # which is not sync with batch_index, purposefully...
+            exp_dict['s'] = state[actor_index,...].unsqueeze(0)
+            exp_dict['a'] = a[actor_index,...].unsqueeze(0)
+            exp_dict['r'] = r[actor_index,...].unsqueeze(0)
+            exp_dict['succ_s'] = succ_state[actor_index,...].unsqueeze(0)
             exp_dict['non_terminal'] = non_terminal[actor_index,...].unsqueeze(0)
-            # Watch out for the miss-match:
-            # Similarly, infos is not sync with batch_index, purposefully...
             if infos is not None:
                 exp_dict['info'] = infos[actor_index]
 
             #########################################################################
             #########################################################################
             # Exctracts tensors at root level:
-            exp_dict.update(Agent._extract_from_prediction(prediction, batch_index))
+            exp_dict.update(Agent._extract_from_prediction(prediction, actor_index))
             #########################################################################
             #########################################################################
             
@@ -245,24 +239,14 @@ class DQNAgent(Agent):
             if self.recurrent:
                 exp_dict['rnn_states'] = _extract_from_rnn_states(
                     prediction['rnn_states'],
-                    batch_index,
+                    actor_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
                 exp_dict['next_rnn_states'] = _extract_from_rnn_states(
                     prediction['next_rnn_states'],
-                    batch_index,
+                    actor_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
-
-            """
-            # depr : goal update
-            if self.goal_oriented:
-                exp_dict['goals'] = Agent._extract_from_hdict(
-                    goals, 
-                    batch_index, 
-                    goal_preprocessing_fn=self.goal_preprocessing
-                )
-            """
 
             self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
@@ -408,7 +392,7 @@ class DQNAgent(Agent):
         # manipulate a copy of it outside of the agent's manipulation, e.g.
         # when feeding it to the models.
         self.current_prediction = self._post_process(self.current_prediction)
-
+        
         greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
 
         if self.noisy or not(self.training):

@@ -222,18 +222,12 @@ class MARLEnvironmentModule(Module):
             
             return copy.deepcopy(outputs_stream_dict)
 
-        """
-        actions = [
-            getattr(f'player_{player_idx}').actions
-            for player_idx in range(self.nbr_agents)
-        ]
-        """
         actions = [
             input_streams_dict[f'player_{player_idx}'].actions
             for player_idx in range(self.nbr_agents)
         ]
 
-        env_output_dict = self.env.step(actions)
+        env_output_dict = self.env.step(actions, online_reset=True)
         succ_observations = env_output_dict[self.succ_obs_key]
         reward = env_output_dict[self.reward_key]
         done = env_output_dict[self.done_key]
@@ -262,7 +256,7 @@ class MARLEnvironmentModule(Module):
                 input_streams_dict,
                 outputs_stream_dict
             )
-
+        
         for actor_index in range(self.nbr_actors):
             self.obs_count += 1
             self.pbar.update(1)
@@ -273,6 +267,9 @@ class MARLEnvironmentModule(Module):
                 and succ_info[0][actor_index]['real_done']) \
             or ('real_done' not in succ_info[0][actor_index] \
                 and done[actor_index])
+
+            self.done[actor_index] = done_condition
+             
             if done_condition:
                 if self.vdn:
                     obs = self.nonvdn_observations
@@ -323,17 +320,7 @@ class MARLEnvironmentModule(Module):
                 self.update_count = self.agents[0].get_update_count()
                 self.episode_count += 1
                 self.episode_count_record += 1
-                env_reset_output_dict = self.env.reset(env_configs=self.config.get('env_configs', None), env_indices=[actor_index])
-                succ_observations = env_reset_output_dict[self.obs_key]
-                succ_info = env_reset_output_dict[self.info_key]
-                if self.vdn:
-                    nonvdn_succ_observations = env_reset_output_dict['observations']
-                    nonvdn_succ_info = env_reset_output_dict['info']
-
-                """
-                for agent_idx, agent in enumerate(self.agents):
-                    agent.reset_actors(indices=[actor_index])
-                """
+                
                 outputs_stream_dict['reset_actors'].append(actor_index)
 
                 # Logging:
@@ -357,12 +344,6 @@ class MARLEnvironmentModule(Module):
                 
                 if actor_index == 0:
                     self.sample_episode_count += 1
-                #wandb.log({f'data/reward_{actor_index}':  total_returns[-1]}) # sample_episode_count, commit=False)
-                #wandb.log({f'PerObservation/Actor_{actor_index}_Reward':  total_returns[-1]}) # obs_count, commit=False)
-                #wandb.log({f'PerObservation/Actor_{actor_index}_PositiveReward':  positive_total_returns[-1]}) # obs_count, commit=False)
-                #wandb.log({f'PerUpdate/Actor_{actor_index}_Reward':  total_returns[-1], "update_count":self.update_count}, commit=False)
-                #wandb.log({'Training/TotalIntReturn':  total_int_returns[-1]}) # episode_count, commit=False)
-
                 if len(self.trajectories) >= self.nbr_actors:
                     mean_total_return = sum( self.total_returns) / len(self.trajectories)
                     std_ext_return = math.sqrt( sum( [math.pow( r-mean_total_return ,2) for r in self.total_returns]) / len(self.total_returns) )
@@ -408,6 +389,9 @@ class MARLEnvironmentModule(Module):
                 ]
             
             # Re-assignement is necessary, as succ_obs and succ_info have changed if done_condition==True...
+            # This is non longer the case, they have not been changed now that the following has been implemented:
+            # by doing the reset upon the next compute call, ignoring the action in venv...
+
             if self.vdn:
                 obs = self.nonvdn_observations
                 act = nonvdn_actions
@@ -433,22 +417,9 @@ class MARLEnvironmentModule(Module):
                 pa_done = d[actor_index:actor_index+1]
                 pa_int_r = 0.0
                 
-                """
-                pa_info = _extract_from_rnn_states(
-                    self.info[player_index],
-                    actor_index,
-                    post_process_fn=None
-                )
-                """
                 pa_info = info[player_index][actor_index]
                 pa_succ_info = succ_info[player_index][actor_index]
 
-                """
-                if getattr(agent.algorithm, "use_rnd", False):
-                    get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
-                    if callable(get_intrinsic_reward):
-                        pa_int_r = agent.get_intrinsic_reward(actor_index)
-                """    
                 self.per_actor_per_player_trajectories[actor_index][player_index].append( 
                     (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info, pa_succ_info) 
                 )
@@ -526,6 +497,7 @@ class MARLEnvironmentModule(Module):
             pidx_d['succ_infos'] = succ_info[pidx] 
             pidx_d['rewards'] = reward[pidx]
             pidx_d['dones'] = done
+            setattr(self, f"player{pidx}", pidx_d)
 
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)
@@ -550,7 +522,4 @@ class MARLEnvironmentModule(Module):
             outputs_stream_dict["signals:done_training"] = False
         
         return copy.deepcopy(outputs_stream_dict)
-            
 
-
-    
