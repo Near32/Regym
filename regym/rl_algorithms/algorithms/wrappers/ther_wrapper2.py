@@ -396,6 +396,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         self.sample_table = wandb.Table(columns=columns) 
                     
                     for bidx in range(1):
+                        if self.nbr_handled_predictor_experience % 16 != 0: continue
                         gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
                         nbr_frames = succ_s[bidx].shape[0]//4
                         stimulus_t = succ_s[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
@@ -444,7 +445,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         reward_shape=self.reward_shape
                     )
                     
-                    positive_new_r_mask = (batched_new_r == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
                     positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
                     positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
 
@@ -530,7 +531,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         reward_shape=self.reward_shape
                     )
                     
-                    positive_new_r_mask = (batched_new_r == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
                     positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
                     positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
                     

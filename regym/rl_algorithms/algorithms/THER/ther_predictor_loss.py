@@ -60,7 +60,7 @@ def compute_loss(states: torch.Tensor,
     loss = torch.mean(loss_per_item)
     
     # Logging:
-    if iteration_count % 128 == 0:
+    if iteration_count % 128*16 == 0:
         if goals is None:
             goals = rnn_states['gt_sentences'][0]
             idx2w = predictor.model.modules['InstructionGenerator'].idx2w
