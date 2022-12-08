@@ -373,6 +373,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             self.contrastive_goal_value[..., 0] = w2idx["EoS"]
                         
                         for ctr_example_idx in range(self.contrastive_training_nbr_neg_examples):
+                            if -ctr_example_idx-1 < -len(previous_d2store) :    break
                             previous_d2stores[-ctr_example_idx-1]['rnn_states'] = copy_hdict(
                                 self._update_goals_in_rnn_states(
                                     hdict=previous_d2stores[-ctr_example_idx-1]["rnn_states"],
