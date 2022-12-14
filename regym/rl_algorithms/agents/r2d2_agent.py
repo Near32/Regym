@@ -253,7 +253,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
             wrapper_kwargs['predictor'] = predictor
             wrapper_kwargs['predictor_loss_fn'] = ther_predictor_loss.compute_loss
-            wrapper_kwargs['feedbacks'] = {"failure":-1, "success":0}
+            wrapper_kwargs['feedbacks'] = {"failure":kwargs['THER_feedbacks_failure_reward'], "success":kwargs['THER_feedbacks_success_reward']}
             wrapper_kwargs['relabel_terminal'] = kwargs['THER_relabel_terminal']
             wrapper_kwargs['filter_predicate_fn'] = kwargs['THER_filter_predicate_fn']
             wrapper_kwargs['filter_out_timed_out_episode'] = kwargs['THER_filter_out_timed_out_episode']
@@ -286,7 +286,13 @@ class ArchiPredictor(nn.Module):
         super(ArchiPredictor, self).__init__()
         self.model = model
         self.kwargs = kwargs
-
+        self.use_oracle = len([
+            m_id for m_id in self.model.pipelines["instruction_generator"]
+            if 'oracle' in m_id.lower()
+        ]) > 0
+        if self.use_oracle:
+            print("ARCHI PREDICTOR::WARNING: using OracleTHER.")
+        
     def parameters(self):
         params = []
         for km, module in self.model.modules.items():

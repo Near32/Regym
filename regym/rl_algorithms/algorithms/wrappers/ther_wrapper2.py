@@ -90,11 +90,24 @@ def batched_predictor_based_goal_predicated_reward_fn2(
         [exp['succ_s'] for exp in target_exp],
         dim=0,
     )
+    
+    rnn_states = _concatenate_list_hdict(
+        lhds=[exp['next_rnn_states'] for exp in achieved_exp], 
+        concat_fn=archi_concat_fn,
+        preprocess_fn=(lambda x:x),
+    )
+    
+    target_rnn_states = _concatenate_list_hdict(
+        lhds=[exp['next_rnn_states'] for exp in target_exp], 
+        concat_fn=archi_concat_fn,
+        preprocess_fn=(lambda x:x),
+    )
+    
     with torch.no_grad():
         training = predictor.training
         predictor.train(False)
-        achieved_pred_goal = predictor(state).cpu()
-        target_pred_goal = predictor(target_state).cpu()
+        achieved_pred_goal = predictor(state, rnn_states=rnn_states).cpu()
+        target_pred_goal = predictor(target_state, rnn_states=target_rnn_states).cpu()
         predictor.train(training)
     abs_fn = torch.abs
     dist = abs_fn(achieved_pred_goal-target_pred_goal).float()
@@ -163,6 +176,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.test_acc = 0.0
 
         self.predictor = predictor 
+        self.use_oracle = self.predictor.use_oracle
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
         self.best_predictor = copy.deepcopy(self.predictor)
@@ -206,6 +220,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.nbr_buffered_predictor_experience = 0
         self.nbr_handled_predictor_experience = 0
         self.batch_size = self.kwargs['THER_predictor_batch_size']
+        self.nbr_minibatches = self.kwargs['THER_predictor_nbr_minibatches']
         
         self.nbr_relabelled_traj = 0 
         self.nbr_successfull_traj = 0
@@ -218,7 +233,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
         self.predictor_storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
-        if self.recurrent:  keys += ['rnn_states']
+        if self.recurrent:  keys += ['rnn_states', 'next_rnn_states']
         
         '''
         circular_keys= {} #{'succ_s':'s'}
@@ -333,6 +348,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 info = self.episode_buffer[actor_index][idx]['info']
                 succ_info = self.episode_buffer[actor_index][idx]['succ_info']
                 rnn_states = self.episode_buffer[actor_index][idx]['rnn_states']
+                next_rnn_states = self.episode_buffer[actor_index][idx]['next_rnn_states']
                 
                 episode_rewards.append(r)
                 her_rs.append(her_r)
@@ -344,6 +360,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     'succ_s':succ_s, 
                     'non_terminal':non_terminal, 
                     'rnn_states':copy_hdict(rnn_states),
+                    'next_rnn_states':copy_hdict(next_rnn_states),
                     'info': info,
                     'succ_info': succ_info,
                 }
@@ -383,9 +400,26 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     latent_goal_key=self.target_latent_goal_key_from_info,
                                 )
                             )
-                            self.predictor_store(previous_d2stores[-ctr_example_idx-1], actor_index=actor_index)
+                            previous_d2stores[-ctr_example_idx-1]['next_rnn_states'] = copy_hdict(
+                                self._update_goals_in_rnn_states(
+                                    hdict=previous_d2stores[-ctr_example_idx-1]["next_rnn_states"],
+                                    goal_value=self.contrastive_goal_value,
+                                    latent_goal_value=None,
+                                    goal_key=self.target_goal_key_from_info,
+                                    latent_goal_key=self.target_latent_goal_key_from_info,
+                                )
+                            )
+                            self.predictor_store(
+                                previous_d2stores[-ctr_example_idx-1], 
+                                actor_index=actor_index,
+                                negative=True,
+                            )
 
-                    self.predictor_store(d2store, actor_index=actor_index)
+                    self.predictor_store(
+                        d2store, 
+                        actor_index=actor_index, 
+                        negative=False,
+                    )
                     
                     goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
                     idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
@@ -565,6 +599,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         info = self.episode_buffer[actor_index][idx]['info']
                         succ_info = self.episode_buffer[actor_index][idx]['succ_info']
                         rnn_states = self.episode_buffer[actor_index][idx]['rnn_states']
+                        next_rnn_states = self.episode_buffer[actor_index][idx]['next_rnn_states']
                         
                         for k in range(self.k):
                             if self.filter_predicate_fn:
@@ -589,6 +624,15 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 'rnn_states': copy_hdict(
                                     self._update_goals_in_rnn_states(
                                         hdict=rnn_states,
+                                        goal_value=achieved_goal_from_target_exp,
+                                        latent_goal_value=achieved_latent_goal_from_target_exp,
+                                        goal_key=self.target_goal_key_from_info,
+                                        latent_goal_key=self.target_latent_goal_key_from_info,
+                                    )
+                                ),
+                                'next_rnn_states': copy_hdict(
+                                    self._update_goals_in_rnn_states(
+                                        hdict=next_rnn_states,
                                         goal_value=achieved_goal_from_target_exp,
                                         latent_goal_value=achieved_latent_goal_from_target_exp,
                                         goal_key=self.target_goal_key_from_info,
@@ -642,16 +686,17 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
             self.update_predictor()
             
-    def predictor_store(self, exp_dict, actor_index=0):
+    def predictor_store(self, exp_dict, actor_index=0, negative=False):
         # WARNING : multi storage is deprecated!
         actor_index = 0
         self.nbr_handled_predictor_experience += 1
-
+        test_set = None
+        if negative:    test_set = False
         if self.kwargs['THER_use_PER']:
             init_sampling_priority = None 
-            self.predictor_storages[actor_index].add(exp_dict, priority=init_sampling_priority)
+            self.predictor_storages[actor_index].add(exp_dict, priority=init_sampling_priority, test_set=test_set)
         else:
-            self.predictor_storages[actor_index].add(exp_dict)
+            self.predictor_storages[actor_index].add(exp_dict, test_set=test_set)
 
     def update_predictor(self):
         full_update = True
@@ -666,7 +711,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         if minibatch_size is None:  minibatch_size = self.batch_size
 
         start = time.time()
-        samples = self.retrieve_values_from_predictor_storages(minibatch_size=minibatch_size)
+        #samples = self.retrieve_values_from_predictor_storages(minibatch_size=minibatch_size)
+        samples = self.retrieve_values_from_predictor_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
         end = time.time()
         
         wandb.log({'PerTHERPredictorUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
@@ -682,7 +728,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         wandb.log({'PerTHERPredictorUpdate/TestStorageSize':  test_storage_size}, commit=False)
         wandb.log({'PerTHERPredictorUpdate/TrainStorageSize':  train_storage_size}, commit=False)
         if test_storage_size > self.kwargs['THER_test_min_capacity']:
-            test_samples = self.retrieve_values_from_predictor_storages(minibatch_size=minibatch_size, test=True)
+            #test_samples = self.retrieve_values_from_predictor_storages(minibatch_size=minibatch_size, test=True)
+            test_samples = self.retrieve_values_from_predictor_storages(minibatch_size=self.nbr_minibatches*minibatch_size, test=True)
             with torch.no_grad():
                 updated_acc = self.test_predictor( self.predictor, minibatch_size, test_samples)
                 best_acc = self.test_predictor( self.best_predictor, minibatch_size, test_samples)
@@ -715,7 +762,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             fulls['importanceSamplingWeights'] = []
 
         if self.recurrent:
-            keys += ['rnn_states']
+            keys += ['rnn_states', 'next_rnn_states']
         
         for key in keys:    fulls[key] = []
 
@@ -780,25 +827,40 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         goals = samples['g'] if 'g' in samples else None
 
         rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
+        next_rnn_states = samples['next_rnn_states'] if 'next_rnn_states' in samples else None
         
         importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
 
         # For each actor, there is one mini_batch update:
-        sampler = random_sample(np.arange(states.size(0)), minibatch_size)
+        sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
+        nbr_minibatches = len(sampler)
+        nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size
+        list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
+                                for storage_idx, storage in enumerate(self.predictor_storages)]
+        '''
         list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
                                 for storage_idx, storage in enumerate(self.predictor_storages)]
+        '''
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
-
+        
+        self.predictor_optimizer.zero_grad()
+        
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
             sampled_batch_indices.append(batch_indices)
 
             sampled_rnn_states = None
+            sampled_next_rnn_states = None
             if self.recurrent:
                 sampled_rnn_states = _extract_rnn_states_from_batch_indices(
                     rnn_states, 
+                    batch_indices, 
+                    use_cuda=self.kwargs['use_cuda'],
+                )
+                sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(
+                    next_rnn_states, 
                     batch_indices, 
                     use_cuda=self.kwargs['use_cuda'],
                 )
@@ -814,7 +876,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
             sampled_goals = None #DEPRECATED goals[batch_indices].cuda() if self.kwargs['use_cuda'] else goals[batch_indices]
 
-            self.predictor_optimizer.zero_grad()
+            #self.predictor_optimizer.zero_grad()
             
             output_dict = self.predictor_loss_fn(sampled_states, 
                                           sampled_actions, 
@@ -823,6 +885,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                           sampled_non_terminals,
                                           goals=sampled_goals,
                                           rnn_states=sampled_rnn_states,
+                                          next_rnn_states=sampled_next_rnn_states,
                                           predictor=self.predictor,
                                           weights_decay_lambda=self.kwargs['THER_weights_decay_lambda'],
                                           use_PER=self.kwargs['THER_use_PER'],
@@ -833,13 +896,19 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                           phase="Training")
             
             loss = output_dict['loss']
-            loss_per_item = output_dict['loss_per_item']
+            #loss_per_item = output_dict['loss_per_item']
+            loss_per_item = output_dict['loss_per_item'].detach()
             
             
+            
+            if not self.use_oracle:
+                (loss/nbr_minibatches).backward(retain_graph=False)
+            '''
             loss.backward(retain_graph=False)
             if self.kwargs['THER_gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.predictor.parameters(), self.kwargs['THER_gradient_clip'])
             self.predictor_optimizer.step()
+            '''
 
             if importanceSamplingWeights is not None:
                 sampled_losses_per_item.append(loss_per_item)
@@ -854,6 +923,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
             self.param_predictor_update_counter += 1 
 
+        if self.kwargs['THER_gradient_clip'] > 1e-3:
+            nn.utils.clip_grad_norm_(self.predictor.parameters(), self.kwargs['THER_gradient_clip'])
+        self.predictor_optimizer.step()
+        
         torch.set_grad_enabled(False)
         
         if importanceSamplingWeights is not None:
@@ -865,8 +938,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             # Now we can iterate through the losses and retrieve what 
             # storage and what batch index they were associated with:
             for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
-                storage_idx = arr_bidx//minibatch_size
-                el_idx_in_batch = arr_bidx%minibatch_size
+                storage_idx = arr_bidx//nbr_sampled_element_per_storage
+                el_idx_in_batch = arr_bidx%nbr_sampled_element_per_storage
+                #storage_idx = arr_bidx//minibatch_size
+                #el_idx_in_batch = arr_bidx%minibatch_size
                 el_idx_in_storage = self.predictor_storages[storage_idx].tree_indices[el_idx_in_batch]
                 new_priority = self.predictor_storages[storage_idx].priority(sloss)
                 self.predictor_storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
@@ -890,6 +965,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         goals = samples['g'] if 'g' in samples else None
 
         rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
+        next_rnn_states = samples['next_rnn_states'] if 'next_rnn_states' in samples else None
         
         importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
 
@@ -909,8 +985,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             sampled_batch_indices.append(batch_indices)
 
             sampled_rnn_states = None
+            sampled_next_rnn_states = None
             if self.recurrent:
                 sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
+                sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
 
             sampled_importanceSamplingWeights = None
             if importanceSamplingWeights is not None:
@@ -930,6 +1008,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                           sampled_non_terminals,
                                           goals=sampled_goals,
                                           rnn_states=sampled_rnn_states,
+                                          next_rnn_states=sampled_next_rnn_states,
                                           predictor=predictor,
                                           weights_decay_lambda=self.kwargs['THER_weights_decay_lambda'],
                                           use_PER=self.kwargs['THER_use_PER'],
@@ -948,6 +1027,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             if self.kwargs['THER_use_PER']:
                 sampled_losses_per_item.append(loss_per_item)
 
+        '''
         if importanceSamplingWeights is not None:
             # losses corresponding to sampled batch indices: 
             sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
@@ -962,6 +1042,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 el_idx_in_storage = self.predictor_storages[storage_idx].get_test_storage().tree_indices[el_idx_in_batch]
                 new_priority = self.predictor_storages[storage_idx].priority(sloss)
                 self.predictor_storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority, test=True)
+        '''
 
         predictor.train(training)
 

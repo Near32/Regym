@@ -18,6 +18,7 @@ def compute_loss(states: torch.Tensor,
                  summary_writer: object = None,
                  iteration_count: int = 0,
                  rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
+                 next_rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
                  phase: str = "Training",
     ) -> torch.Tensor:
     '''
@@ -39,10 +40,17 @@ def compute_loss(states: torch.Tensor,
                        corresponding to the 'hidden' and 'cell' states of
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
+    :param next_rnn_states: The :param model: can be made up of different submodules.
+                       Some of these submodules will feature an LSTM architecture.
+                       This parameter is a dictionary which maps recurrent submodule names
+                       to a dictionary which contains 2 lists of tensors, each list
+                       corresponding to the 'hidden' and 'cell' states of
+                       the LSTM submodules. These tensors are used by the
+                       :param model: when calculating the policy probability ratio.
     '''
     output_dict= predictor.compute_loss(
         next_states, #states, 
-        rnn_states=rnn_states,
+        rnn_states=next_rnn_states, #rnn_states,
         goal=goals,
     )
     prediction = output_dict['prediction']
@@ -62,7 +70,7 @@ def compute_loss(states: torch.Tensor,
     # Logging:
     if iteration_count % 128*16 == 0:
         if goals is None:
-            goals = rnn_states['gt_sentences'][0]
+            goals = next_rnn_states['gt_sentences'][0]
             idx2w = predictor.model.modules['InstructionGenerator'].idx2w
         
         columns = [f"token{idx}" for idx in range(prediction.shape[1])]

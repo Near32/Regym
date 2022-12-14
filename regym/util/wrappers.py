@@ -632,6 +632,31 @@ class EpisodicPickEnv(gym.Wrapper):
     def reset(self, **kwargs):
         return self.env.reset(**kwargs)
 
+class EpisodicAfterPickEnv(gym.Wrapper):
+    def __init__(self, env, pick_idx=0):
+        """
+        Make pick = end-of-episode for BabyAI benchmark.
+        """
+        gym.Wrapper.__init__(self, env)
+        self.pick_idx = pick_idx
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        
+        if self.next_is_done:
+            done = True
+        
+        if action == self.pick_idx \
+        and self.env.carrying is not None:
+            self.next_is_done = True
+        
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        self.next_is_done = False
+        return self.env.reset(**kwargs)
+
+
 
 class FrameStack(gym.Wrapper):
     def __init__(self, env, stack=4,):
@@ -2235,7 +2260,8 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         or at position max_sentence_length if the sentence is too long.
         """
         for obs_key, map_key in self.observation_keys_mapping.items():
-            t_goal = [w.lower() for w in observation[obs_key].split(' ')]
+            #t_goal = [w.lower() for w in observation[obs_key].split(' ')]
+            t_goal = [w for w in observation[obs_key].split(' ')]
             for w in t_goal:
                 if w not in self.vocabulary:
                     import ipdb; ipdb.set_trace()
@@ -2254,6 +2280,27 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             
             observation[map_key] = idx_goal
             
+        return observation
+
+class BehaviourDescriptionWrapper(gym.ObservationWrapper):
+    def __init__(self, env, max_sentence_length=10):
+        """
+        Add an observation string that describe the achieved goal for a PickUp-based env.
+
+        """
+        gym.ObservationWrapper.__init__(self, env)
+        self.max_sentence_length = max_sentence_length
+
+        self.observation_space = env.observation_space
+        self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
+
+    def observation( self, observation):
+        achieved_goal = "EoS"
+        if self.env.carrying is not None:
+            color = self.env.carrying.color
+            shape = self.env.carrying.type
+            achieved_goal = f"pick up the {color} {shape}".lower()
+        observation['behaviour_description'] = achieved_goal
         return observation
 
 class DictObservationSpaceReMapping(gym.ObservationWrapper):
@@ -2663,6 +2710,7 @@ def baseline_ther_wrapper(
     use_rgb=False,
     full_obs=False,
     single_pick_episode=False,
+    observe_achieved_goal=False,
     ):
     
     env = TimeLimit(env, max_episode_steps=time_limit)
@@ -2702,12 +2750,18 @@ def baseline_ther_wrapper(
     
     if clip_reward:
         env = ClipRewardEnv(env)
+    
+    observation_keys_mapping={'mission':'desired_goal'}
+    if observe_achieved_goal:
+        env = BehaviourDescriptionWrapper(env=env, max_sentence_length=max_sentence_length)
+        observation_keys_mapping['behaviour_description'] = 'achieved_goal'
 
     env = TextualGoal2IdxWrapper(
         env=env,
         max_sentence_length=max_sentence_length,
         vocabulary=vocabulary,
         vocab_size=vocab_size,
+        observation_keys_mapping=observation_keys_mapping,
     )
 
     #env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
