@@ -99,9 +99,11 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_vocab_size: &THER_vocab_size 64 #1024 
     THER_episode_length_reward_shaping: False 
     THER_train_contrastively: False
+    THER_observe_achieved_goal: False
 
     THER_predictor_learning_rate: 3.0e-4 #1e-3
-    THER_predictor_batch_size: 128 #32
+    THER_predictor_batch_size: 128 #128 #32
+    THER_predictor_nbr_minibatches: 10 #128 #32
     THER_gradient_clip: 10.0
     THER_weights_decay_lambda: 0.0 #1.0 # 1e-6
     
@@ -360,6 +362,7 @@ agents:
         #n_step: 7
 
         batch_size: 128
+        nbr_minibatches: 10 
         burn_in: False
 
         sequence_replay_unroll_length: 20
@@ -432,7 +435,7 @@ agents:
                     hidden_units: *hidden_dim
                     num_layers: 1
                     gate: None #F.relu, 
-                    dropout: 0.0 
+                    dropout: 0.5 
                     rnn_fn: "GRU"
                     padding_idx: 0
                     config: None
@@ -484,7 +487,7 @@ agents:
                     state_dim: 3136
                     hidden_units: ['BN1024', 'BN512', 'BN256']
                     non_linearities: ['ReLU']
-                    dropout: 0.0
+                    dropout: 0.25
                     config: None
                     input_stream_ids:
                         input: "inputs:SharedObsEncoder:processed_input"
@@ -556,7 +559,7 @@ agents:
                     hidden_units: *hidden_dim 
                     num_layers: 1
                     gate: None #F.relu, 
-                    dropout: 0.7 #0.0  
+                    dropout: 0.25 #0.0  
                     rnn_fn: "GRU"
                     config:
                         predict_PADs: False

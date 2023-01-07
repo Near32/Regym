@@ -22,6 +22,7 @@ from gym.spaces import Dict as gymDict
 from ..algorithms.wrappers import HERAlgorithmWrapper
 from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
 from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
+from regym.rl_algorithms.utils import recursive_inplace_update
 
 import wandb
 
@@ -204,7 +205,13 @@ class DQNAgent(Agent):
 
         # We assume that this function has been called directly after take_action:
         # therefore the current prediction correspond to this experience's state as input.
-
+        
+        # Update the next_rnn_states with relevant infos, before extraction:
+        if succ_infos is not None \
+        and hasattr(self, '_build_dict_from'):
+            hdict = self._build_dict_from(lhdict=succ_infos)
+            recursive_inplace_update(prediction['next_rnn_states'], hdict)
+             
         done_actors_among_notdone = []
         for actor_index in range(batch_size):
             # If this actor is already done with its episode:
@@ -244,6 +251,7 @@ class DQNAgent(Agent):
                     actor_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
+
                 exp_dict['next_rnn_states'] = _extract_from_rnn_states(
                     prediction['next_rnn_states'],
                     actor_index,

@@ -108,6 +108,7 @@ class DQNAlgorithm(Algorithm):
 
         self.min_capacity = int(float(kwargs["min_capacity"]))
         self.batch_size = int(kwargs["batch_size"])
+        self.nbr_minibatches = int(kwargs["nbr_minibatches"])
 
         self.TAU = float(self.kwargs['tau'])
         self.target_update_interval = int(1.0/self.TAU)
@@ -376,7 +377,8 @@ class DQNAlgorithm(Algorithm):
         self.target_update_count += self.nbr_actor
 
         start = time.time()
-        samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
+        samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
+        #samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
         end = time.time()
 
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
@@ -492,7 +494,6 @@ class DQNAlgorithm(Algorithm):
         start = time.time()
         torch.set_grad_enabled(True)
 
-        #beta = self.storages[0].get_beta() if self.use_PER else 1.0
         beta = 1.0
         if self.use_PER:
             if hasattr(self.storages[0].get_beta, "remote"):
@@ -514,12 +515,21 @@ class DQNAlgorithm(Algorithm):
         importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
 
         # For each actor, there is one mini_batch update:
-        sampler = random_sample(np.arange(states.size(0)), optimisation_minibatch_size)
+        #sampler = list(random_sample(np.arange(states.size(0)), optimisation_minibatch_size))
+        sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
+        nbr_minibatches = len(sampler)
+        nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size 
+        list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
+                                for storage_idx, _ in enumerate(self.storages)]
+        '''
         list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
                                 for storage_idx, _ in enumerate(self.storages)]
+        '''
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
+        
+        self.optimizer.zero_grad()
 
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
@@ -554,7 +564,7 @@ class DQNAlgorithm(Algorithm):
             sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
             # (batch_size, unroll_dim, ...)
 
-            self.optimizer.zero_grad()
+            #self.optimizer.zero_grad()
             
             HER_target_clamping = self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False
             if self.use_HER and 'HER_target_clamping' not in self.kwargs:
@@ -581,10 +591,13 @@ class DQNAlgorithm(Algorithm):
                                           summary_writer=self.summary_writer,
                                           kwargs=self.kwargs)
             
+            (loss/nbr_minibatches).backward(retain_graph=False)
+            '''
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
             self.optimizer.step()
+            '''
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
@@ -599,6 +612,10 @@ class DQNAlgorithm(Algorithm):
 
             self.param_update_counter += 1 
 
+        if self.kwargs['gradient_clip'] > 1e-3:
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+        self.optimizer.step()
+        
         torch.set_grad_enabled(False)
 
         if self.use_PER :
@@ -610,7 +627,7 @@ class DQNAlgorithm(Algorithm):
             self._update_replay_buffer_priorities(
                 sampled_losses_per_item=sampled_losses_per_item, 
                 array_batch_indices=array_batch_indices,
-                minibatch_size=minibatch_size,
+                minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
             )
 
         end = time.time()
