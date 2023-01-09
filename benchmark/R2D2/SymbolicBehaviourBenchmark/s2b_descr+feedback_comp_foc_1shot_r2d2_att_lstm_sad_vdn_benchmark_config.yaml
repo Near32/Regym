@@ -343,7 +343,7 @@ agents:
         critic_arch: 'MLP-AttLSTM-RNN2'
         #max_history_length: 128 #64
         max_history_length: 64
-        iteration_to_slot_divider: 1
+        iteration_to_slot_divider: 3
         use_relu_after_rnn: False #True 
         use_residual_connection: True 
         critic_arch_linear_hidden_units: [512, 256]

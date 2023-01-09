@@ -5,10 +5,10 @@ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --critic_arch_feature_dim=256 \
 --descriptive=True \
 --learning_rate=6.25e-05 \
---listener_comm_rec=True --listener_multimodal_rec_biasing=True --listener_rec=True --listener_rec_period=10 --node_id_to_extract=cell \
---rec_threshold=0.05 \
+--listener_comm_rec=True --listener_multimodal_rec_biasing=True --listener_rec=True --listener_rec_period=2 --node_id_to_extract=cell \
+--rec_threshold=0.02 \
 --max_nbr_values_per_latent=3 \
---nbr_distractors=0 --nbr_latents=3 --nbr_object_centric_samples=4 --provide_listener_feedback=True \
+--nbr_distractors=3 --nbr_latents=3 --nbr_object_centric_samples=4 --provide_listener_feedback=True \
 --sampling_strategy=component-focused-2shots \
 --n_step=3 --nbr_actor=32 \
 --r2d2_use_value_function_rescaling=False \
