@@ -131,7 +131,11 @@ class R2D2Algorithm(DQNAlgorithm):
                         circular_offsets=circular_offsets
                     )
                 else:
-                    storage = PrioritizedReplayStorage(
+                    if self.use_mp:
+                        rp_fn = regym.AlgoManager.PrioritizedReplayStorage
+                    else:
+                        rp_fn = PrioritizedReplayStorage
+                    storage = rp_fn(
                             capacity=storage_capacity,
                             alpha=self.kwargs['PER_alpha'],
                             beta=self.kwargs['PER_beta'],

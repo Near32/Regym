@@ -26,6 +26,39 @@ from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 import wandb
 summary_writer = None 
 
+import torch.multiprocessing as mp
+#import multiprocessing as mp
+#from multiprocessing.managers import BaseManager
+from multiprocessing.managers import SyncManager
+#from multiprocessing import Manager as AlgoManager
+#class AlgoManager(BaseManager):  
+#    pass
+#AlgoManager.register('dict', dict)
+#AlgoManager.register('PrioritizedReplayStorage', PrioritizedReplayStorage)
+
+#from regym import BuildProxy
+#PRSProxy = BuildProxy(PrioritizedReplayStorage)
+
+from multiprocessing.managers import NamespaceProxy
+import types
+class PRSProxy(NamespaceProxy):
+    _exposed_ = tuple(dir(PrioritizedReplayStorage))
+
+    def __getattr__(self, name):
+        result = super().__getattr__(name)
+        if isinstance(result, types.MethodType):
+            def wrapper(*args, **kwargs):
+                self._callmethod(name, args, kwargs)
+            return wrapper
+        return result
+    def __len__(self):
+        callmethod = object.__getattribute__(self, "_callmethod")        
+        return callmethod("__len__")
+
+SyncManager.register('PrioritizedReplayStorage', PrioritizedReplayStorage, PRSProxy)
+
+import logging 
+
 
 class DQNAlgorithm(Algorithm):
     def __init__(self, kwargs, model, target_model=None, optimizer=None, loss_fn=dqn_loss.compute_loss, sum_writer=None, name='dqn_algo'):
@@ -104,7 +137,37 @@ class DQNAlgorithm(Algorithm):
         if len(self.recurrent_nn_submodule_names): self.recurrent = True
 
         self.storages = None
-        self.reset_storages()
+        self.use_mp = False 
+        if self.use_mp:
+            #torch.multiprocessing.freeze_support()
+            if not hasattr(regym, 'AlgoManager'):
+                torch.multiprocessing.set_start_method("forkserver")#, force=True)
+                regym.AlgoManager = mp.Manager()
+            #regym.RegymManager = SyncManager()
+            #regym.RegymManager.start()
+
+            regym.samples = regym.AlgoManager.dict()
+            regym.sampling_config = regym.AlgoManager.dict()
+            regym.sampling_config['stay_on'] = True
+            regym.sampling_config['keep_sampling'] = False
+            regym.sampling_config['minibatch_size'] = 32
+            
+            self.reset_storages()
+            
+            logger = logging.getLogger()
+            logger.setLevel(logging.DEBUG)
+            
+            regym.sampling_process = mp.Process(
+                target=self._mp_sampling,
+                kwargs={
+                    'storages':self.storages,
+                    'sampling_config':regym.sampling_config,
+                    'samples':regym.samples,
+                },
+            )
+            regym.sampling_process.start()
+        else:
+            self.reset_storages()
 
         self.min_capacity = int(float(kwargs["min_capacity"]))
         self.batch_size = int(kwargs["batch_size"])
@@ -144,6 +207,8 @@ class DQNAlgorithm(Algorithm):
             from regym import SharedVariable
             self._param_update_counter = SharedVariable(0)
             self._param_obs_counter = SharedVariable(0)
+        
+           
 
     def parameters(self):
         return self.model.parameters()
@@ -287,29 +352,32 @@ class DQNAlgorithm(Algorithm):
         beta_increase_interval = None
         if 'PER_beta_increase_interval' in self.kwargs and self.kwargs['PER_beta_increase_interval']!='None':
             beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
-
+        
+ 
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
-                self.storages.append(
-                    PrioritizedReplayStorage(
-                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
-                        alpha=self.kwargs['PER_alpha'],
-                        beta=self.kwargs['PER_beta'],
-                        beta_increase_interval=beta_increase_interval,
-                        keys=keys,
-                        circular_keys=circular_keys,                 
-                        circular_offsets=circular_offsets
-                    )
+                if self.use_mp:
+                    rp_fn = regym.AlgoManager.PrioritizedReplayStorage
+                else:
+                    rp_fn = PrioritizedReplayStorage
+                rp = rp_fn(
+                    capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                    alpha=self.kwargs['PER_alpha'],
+                    beta=self.kwargs['PER_beta'],
+                    beta_increase_interval=beta_increase_interval,
+                    keys=keys,
+                    circular_keys=circular_keys,                 
+                    circular_offsets=circular_offsets
                 )
             else:
-                self.storages.append(
-                    ReplayStorage(
-                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
-                        keys=keys,
-                        circular_keys=circular_keys,                 
-                        circular_offsets=circular_offsets
-                    )
+                rp = ReplayStorage(
+                    capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                    keys=keys,
+                    circular_keys=circular_keys,                 
+                    circular_offsets=circular_offsets
                 )
+            self.storages.append(rp)
+            
 
     def stored_experiences(self):
         self.train_request_count += 1
@@ -377,7 +445,10 @@ class DQNAlgorithm(Algorithm):
         self.target_update_count += self.nbr_actor
 
         start = time.time()
-        samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
+        if self.use_mp:
+            samples = self._retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
+        else:
+            samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
         #samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
         end = time.time()
 
@@ -400,14 +471,45 @@ class DQNAlgorithm(Algorithm):
         elif self.target_update_count > self.target_update_interval:
             self.target_update_count = 0
             hard_update(self.target_model,self.model)
-        
-    def retrieve_values_from_storages(self, minibatch_size: int):
+    
+    def _mp_sampling(self, storages, sampling_config, samples):
+        logger = logging.getLogger()
+        while sampling_config['stay_on']:
+            if not sampling_config['keep_sampling']:   
+                logger.info("SamplingProcess: waiting...")
+                time.sleep(1)
+                continue
+            logger.info("SamplingProcess: sampling")
+            start = time.time()
+            sample_d = self.retrieve_values_from_storages(
+                minibatch_size=sampling_config['minibatch_size'],
+                storages=storages,
+            )
+            end = time.time()
+            logger.info(f"SamplingProcess: sampling : DONE in {end-start} sec")
+
+            logger.info("SamplingProcess: updating")
+            start = time.time()
+            samples.update(sample_d)
+            end = time.time()
+            logger.info(f"SamplingProcess: updating : DONE in {end-start} sec")
+    
+    def _retrieve_values_from_storages(self, minibatch_size: int, storages: ReplayStorage=None):
+        regym.sampling_config['minibatch_size'] = minibatch_size
+        regym.sampling_config['keep_sampling'] = True
+        while len(regym.samples) == 0:
+            print("WARNING: waiting for sampling process...")
+            time.sleep(1)
+        return regym.samples
+
+    def retrieve_values_from_storages(self, minibatch_size: int, storages: ReplayStorage=None):
         '''
         Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
         This function samples from each storage, concatenate the sampled elements on the batch dimension,
         and maintains the hierarchy of dictionnaries.
         '''
         torch.set_grad_enabled(False)
+        if storages is None: storages = self.storages
 
         keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
 
@@ -427,8 +529,8 @@ class DQNAlgorithm(Algorithm):
 
         for key in keys:    fulls[key] = []
 
-        using_ray = isinstance(self.storages[0], ray.actor.ActorHandle)
-        for storage in self.storages:
+        using_ray = isinstance(storages[0], ray.actor.ActorHandle)
+        for storage in storages:
             # Check that there is something in the storage 
             if using_ray:
                 storage_size = ray.get(storage.__len__.remote())
