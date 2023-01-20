@@ -461,75 +461,6 @@ agents:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"
             modules:
-                'CoreLSTM':
-                    type: LSTMModule
-                    state_dim: 593 #64 #130 #65 #"{{key_dim}+1}"
-                    hidden_units: [256,] #512] #["{{hidden_dim}}"]
-                    non_linearities: [None]
-                    config: None
-                    input_stream_ids:
-                        lstm_input: "modules:ConcatenationOperation:output"
-                        lstm_hidden: "inputs:CoreLSTM:hidden"
-                        lstm_cell: "inputs:CoreLSTM:cell"
-                        iteration: "inputs:CoreLSTM:iteration"
-                    use_cuda: True
-                'OutputLSTM':
-                    type: LSTMModule
-                    state_dim: 33 #130 #65 #"{{key_dim}+1}"
-                    hidden_units: [256,] #512] #["{{hidden_dim}}"]
-                    non_linearities: [None]
-                    config: None
-                    input_stream_ids:
-                        lstm_input: "inputs:ObsKeyValueMemory:read_key_plus_conf"
-                        lstm_hidden: "inputs:OutputLSTM:hidden"
-                        lstm_cell: "inputs:OutputLSTM:cell"
-                        iteration: "inputs:OutputLSTM:iteration"
-                    use_cuda: True
-                'ObsKeyValueMemory':
-                    type: KeyValueMemoryModule
-                    key_dim: 32 #64 #"{{key_dim}}"
-                    value_dim: 32 #64 #"{{value_dim}}"
-                    config: None
-                    input_stream_ids:
-                        iteration: "modules:CoreLSTM:iteration"
-                        new_key: "modules:ObsToKeyFCN:processed_input"
-                        new_value: "inputs:ObsEncoderFCN:processed_input"
-                        #new_value: "modules:ConcatenationOperation:output"
-                        gate: "modules:ObsToGateFCN:processed_input"
-                        key_memory: "inputs:ObsKeyValueMemory:key_memory"
-                        value_memory: "inputs:ObsKeyValueMemory:value_memory"
-                    use_cuda: True
-                'ObsToGateFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [1]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
-                'ObsToKeyFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [32,] #64] #["{{key_dim}}"]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
-                'ToOutputFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [128,] #256] #["{{output_dim}}"]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:OutputLSTM:lstm_output"
-                        #input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
                 'ObsEncoderFCN':
                     type: FullyConnectedNetworkModule
                     state_dim: *nbr_latents #"{{hidden_dim}}"
@@ -564,7 +495,7 @@ agents:
                 #    use_cuda: True
                 'CommEncoder':
                     type: FullyConnectedNetworkModule
-                    state_dim: 21  #"{{hidden_dim}}"
+                    state_dim: 15  #"{{hidden_dim}}"
                     hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -579,7 +510,7 @@ agents:
                     config:
                         'dim': -1
                         'use_cuda': True
-                        'output_dim': 593
+                        'output_dim': 245 
                     input_stream_ids:
                         input0: "inputs:ObsEncoderFCN:processed_input"
                         input1: "inputs:CommEncoder:processed_input"
@@ -590,15 +521,104 @@ agents:
                         input6: "inputs:critic_body:extra_inputs:mode_id"
                         input7: "inputs:critic_body:extra_inputs:previous_game_result"
                         input8: "inputs:critic_body:extra_inputs:previous_game_reward"
+                'MemoryControllerInputConcatenationOperation':
+                    type: ConcatenationOperationModule
+                    config:
+                        'dim': -1
+                        'use_cuda': True
+                        'output_dim': 502 
+                    input_stream_ids:
+                        input0: "modules:ConcatenationOperation:output"
+                        input1: "inputs:KeyValueMemory:read_key_plus_conf"
+                'MemoryControllerLSTM':
+                    type: LSTMModule
+                    state_dim: 502 #278
+                    hidden_units: [256,] #512] #["{{hidden_dim}}"]
+                    non_linearities: [None]
+                    config: None
+                    input_stream_ids:
+                        lstm_input: "modules:MemoryControllerInputConcatenationOperation:output"
+                        lstm_hidden: "inputs:MemoryControllerLSTM:hidden"
+                        lstm_cell: "inputs:MemoryControllerLSTM:cell"
+                        iteration: "inputs:MemoryControllerLSTM:iteration"
+                    use_cuda: True
+                'ToGateFCN':
+                    type: FullyConnectedNetworkModule
+                    state_dim: 256 #512 #"{{hidden_dim}}"
+                    hidden_units: [1]
+                    non_linearities: [None]
+                    dropout: 0.0
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:MemoryControllerLSTM:output"
+                    use_cuda: True
+                'ToKeyFCN':
+                    type: FullyConnectedNetworkModule
+                    state_dim: 256 #512 #"{{hidden_dim}}"
+                    hidden_units: [256,] #["{{key_dim}}"]
+                    non_linearities: [None]
+                    dropout: 0.0
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:MemoryControllerLSTM:output"
+                    use_cuda: True
+                'KeyValueMemory':
+                    type: KeyValueMemoryModule
+                    key_dim: 256 #64 #"{{key_dim}}"
+                    value_dim: 245 #"{{value_dim}}"
+                    config: None
+                    input_stream_ids:
+                        iteration: "inputs:MemoryControllerLSTM:iteration"
+                        new_key: "modules:ToKeyFCN:processed_input"
+                        new_value: "modules:ConcatenationOperation:output"
+                        gate: "modules:ToGateFCN:processed_input"
+                        key_memory: "inputs:KeyValueMemory:key_memory"
+                        value_memory: "inputs:KeyValueMemory:value_memory"
+                    use_cuda: True
+                'LatentConcatenationOperation':
+                    type: ConcatenationOperationModule
+                    config:
+                        'dim': -1
+                        'use_cuda': True
+                        'output_dim': 758 #245+256+33
+                    input_stream_ids:
+                        input0: "modules:ConcatenationOperation:output"
+                        input1: "inputs:MemoryControllerLSTM:output"
+                        input2: "inputs:KeyValueMemory:read_key_plus_conf"
+                'OutputLSTM':
+                    type: LSTMModule
+                    state_dim: 758 #33 #130 #65 #"{{key_dim}+1}"
+                    hidden_units: [512,] #512] #["{{hidden_dim}}"]
+                    non_linearities: [None]
+                    config: None
+                    input_stream_ids:
+                        #lstm_input: "inputs:KeyValueMemory:read_key_plus_conf"
+                        lstm_input: "inputs:LatentConcatenationOperation:output"
+                        lstm_hidden: "inputs:OutputLSTM:hidden"
+                        lstm_cell: "inputs:OutputLSTM:cell"
+                        iteration: "inputs:OutputLSTM:iteration"
+                    use_cuda: True
+                'ToOutputFCN':
+                    type: FullyConnectedNetworkModule
+                    state_dim: 512 #"{{hidden_dim}}"
+                    hidden_units: [256,] #["{{output_dim}}"]
+                    non_linearities: [None]
+                    dropout: 0.0
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:OutputLSTM:output"
+                        #input: "modules:MemoryControllerLSTM:lstm_output"
+                    use_cuda: True
                 'RLHead':
                     type: RLCategoricalHeadModule
-                    state_dim: 647 #1176 #504 #312 #264 #224 #480 
-                    action_dim: 519 #183 #87 #63 #43 #171 #519 #"{{action_dim}}"
+                    state_dim: 1185 #647 #1176 #504 #312 #264 #224 #480 
+                    action_dim: 171 #183 #87 #63 #43 #171 #519 #"{{action_dim}}"
                     noisy: False
                     dueling: True
                     config: None
                     input_stream_ids: 
                         input0: "modules:ToOutputFCN:processed_input"
+                        input1: "modules:LatentConcatenationOperation:output"
                         input8: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         legal_actions: "inputs:head:extra_inputs:legal_actions"
@@ -618,10 +638,12 @@ agents:
                     - 'CommEncoder'
                     - 'ConcatenationOperation'
                 head:
-                    - 'CoreLSTM'
-                    - 'ObsToGateFCN'
-                    - 'ObsToKeyFCN' 
-                    - 'ObsKeyValueMemory' 
+                    - 'MemoryControllerInputConcatenationOperation'
+                    - 'MemoryControllerLSTM'
+                    - 'ToGateFCN'
+                    - 'ToKeyFCN' 
+                    - 'KeyValueMemory' 
+                    - 'LatentConcatenationOperation'
                     - 'OutputLSTM'
                     - 'ToOutputFCN' 
                     - 'RLHead'

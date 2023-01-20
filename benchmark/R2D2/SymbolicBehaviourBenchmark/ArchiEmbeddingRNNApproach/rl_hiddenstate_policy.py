@@ -1,5 +1,7 @@
 from typing import List, Dict, Optional
 
+import copy
+
 import torch
 import torch.nn as nn
 
@@ -12,6 +14,19 @@ def extract_subtrees(
     '''
     Extracts a copy of subtree whose root is named :param node_id: from :param in_dict:.
     '''
+    
+    if ':' in node_id:
+        placeholder_id = copy.deepcopy(node_id)
+        p_ptr = in_dict
+        while ':' in placeholder_id:
+            ptr, next_placeholder_id = placeholder_id.split(":", 1)
+            if ptr not in p_ptr:    
+                raise NotImplementedError(f"{ptr} not found under {placeholder_id}")
+            placeholder_id=next_placeholder_id
+            p_ptr=p_ptr[ptr]
+        in_dict = p_ptr
+        node_id = placeholder_id
+ 
     queue = [in_dict]
     pointer = None
 
@@ -53,13 +68,11 @@ class RLHiddenStatePolicy(nn.Module):
         else:
             rnn_states = from_pred['next_rnn_states']
         
-                # Extract 'hidden''s list:
-        
+        # Extract 'hidden''s list:
         nodes = []
         for node_id in self.node_id_to_extract:
             node = extract_subtrees(in_dict=rnn_states, node_id=node_id)
             # List[List[Tensor]]
-            
             # TODO: provide an attention scheme to breakdown the series of vectors in the case of
             # non-fixed size memory into a single predictable-size memory:
             if len(node[0][0].shape) > 2:
@@ -112,7 +125,8 @@ class RLHiddenStatePolicy(nn.Module):
 
     def clone(self, training=False):
         return RLHiddenStatePolicy(
-            agent=self.model.clone(training=training), 
+            agent=self.model.clone(training=training),
+            node_id_to_extract=''.join(self.node_id_to_extract), 
         )
 
     def reset(self, batch_size:int, training:Optional[bool]=False):

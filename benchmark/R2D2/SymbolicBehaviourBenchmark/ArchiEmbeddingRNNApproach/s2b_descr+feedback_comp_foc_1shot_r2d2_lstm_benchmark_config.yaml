@@ -238,7 +238,7 @@ r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLP
 max_sentence_length: &max_sentence_length 3
 vocab_size: &vocab_size 6
 vocab_eos_size: &vocab_eos_size 7
-nbr_latents: &nbr_latents 2 
+nbr_latents: &nbr_latents 2
 
 experiment:
     tasks: [{
@@ -463,8 +463,9 @@ agents:
             modules:
                 'CoreLSTM':
                     type: LSTMModule
-                    state_dim: 257 #130 #65 #"{{key_dim}+1}"
-                    hidden_units: [256,] #512] #["{{hidden_dim}}"]
+                    #state_dim: 1715 #257 
+                    state_dim: 137 #130 #65 #"{{key_dim}+1}"
+                    hidden_units: [1280,] #[256,] #512] #["{{hidden_dim}}"]
                     non_linearities: [None]
                     config: None
                     input_stream_ids:
@@ -485,38 +486,39 @@ agents:
                     output_stream_ids:
                         input: "inputs:ObsEncoderFCN:processed_input"
                     use_cuda: True
+                #'CommEncoder':
+                 #   type: EmbeddingRNNModule 
+                 #   vocab_size: *vocab_size
+                 #   feature_dim: None #32 
+                 #   embedding_size: 32 
+                 #   hidden_units: 32
+                 #   num_layers: 1
+                 #   gate: None #F.relu, 
+                 #   dropout: 0.0 
+                 #   rnn_fn: "GRU"
+                 #   
+                 #   padding_idx: 0 
+                 #   #WARNING: it is very important that the grounded EoS symbol be the padding_idx...
+                 #   
+                 #   config: None
+                 #   input_stream_ids:
+                 #       input: "inputs:phi_body:extra_inputs:communication_channel"
+                 #   output_stream_ids:
+                 #       input: "inputs:CommEncoder:processed_input"
+                 #   use_cuda: True
                 'CommEncoder':
-                    type: EmbeddingRNNModule 
-                    vocab_size: *vocab_size
-                    feature_dim: None #32 
-                    embedding_size: 32 
-                    hidden_units: 32
-                    num_layers: 1
-                    gate: None #F.relu, 
-                    dropout: 0.0 
-                    rnn_fn: "GRU"
-                    
-                    padding_idx: 0 
-                    #WARNING: it is very important that the grounded EoS symbol be the padding_idx...
-                    
+                    type: FullyConnectedNetworkModule
+                    #state_dim: 30 
+                    state_dim: 12  #"{{hidden_dim}}"
+                    hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
+                    non_linearities: ['ReLU']
+                    dropout: 0.0
                     config: None
                     input_stream_ids:
-                        input: "inputs:phi_body:extra_inputs:communication_channel"
+                        input: "inputs:phi_body:extra_inputs:multi_binary_communication_channel"
                     output_stream_ids:
                         input: "inputs:CommEncoder:processed_input"
                     use_cuda: True
-                #'CommEncoder':
-                #    type: FullyConnectedNetworkModule
-                #    state_dim: 15  #"{{hidden_dim}}"
-                #    hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
-                #    non_linearities: ['ReLU']
-                #    dropout: 0.0
-                #    config: None
-                #    input_stream_ids:
-                #        input: "inputs:phi_body:extra_inputs:communication_channel"
-                #    output_stream_ids:
-                #        input: "inputs:CommEncoder:processed_input"
-                #    use_cuda: True
                 'ConcatenationOperation':
                     type: ConcatenationOperationModule
                     config:
@@ -534,13 +536,15 @@ agents:
                         input8: "inputs:critic_body:extra_inputs:previous_game_reward"
                 'RLHead':
                     type: RLCategoricalHeadModule
-                    state_dim: 439 
-                    action_dim: 183 #87 #63 #43 #171 #519 #"{{action_dim}}"
+                    #state_dim: 2921 
+                    state_dim: 1343 #439 
+                    #action_dim: 1641 #183 #87 
+                    action_dim: 63 #43 #171 #519 #"{{action_dim}}"
                     noisy: False
                     dueling: True
                     config: None
                     input_stream_ids: 
-                        input0: "modules:CoreLSTM:lstm_output"
+                        input0: "modules:CoreLSTM:output"
                         #input0: "modules:ToOutputFCN:processed_input"
                         input8: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
@@ -577,14 +581,14 @@ agents:
             },
 
             'multi_binary_communication_channel':{
-                #shape: [28], #[63,], 
-                shape: [21], 
+                #shape: [30], #[20], #[63,], 
+                shape: [12], #[21], 
                 target_location: ['phi_body', 'extra_inputs']
             },
-            'communication_channel':{
-                shape: [*max_sentence_length], 
-                target_location: ['phi_body', 'extra_inputs']
-            },
+            #'communication_channel':{
+            #    shape: [*max_sentence_length], 
+            #    target_location: ['phi_body', 'extra_inputs']
+            #},
             'round_id':{
                 shape: [2,], 
                 target_location: ['critic_body', 'extra_inputs']

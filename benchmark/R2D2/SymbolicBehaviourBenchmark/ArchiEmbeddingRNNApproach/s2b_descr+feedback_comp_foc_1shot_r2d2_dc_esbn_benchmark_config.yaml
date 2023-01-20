@@ -494,7 +494,6 @@ agents:
                         iteration: "modules:CoreLSTM:iteration"
                         new_key: "modules:ObsToKeyFCN:processed_input"
                         new_value: "inputs:ObsEncoderFCN:processed_input"
-                        #new_value: "modules:ConcatenationOperation:output"
                         gate: "modules:ObsToGateFCN:processed_input"
                         key_memory: "inputs:ObsKeyValueMemory:key_memory"
                         value_memory: "inputs:ObsKeyValueMemory:value_memory"
@@ -528,7 +527,6 @@ agents:
                         iteration: "modules:CoreLSTM:iteration"
                         new_key: "modules:CommToKeyFCN:processed_input"
                         new_value: "inputs:CommEncoder:processed_input"
-                        #new_value: "modules:ConcatenationOperation:output"
                         gate: "modules:CommToGateFCN:processed_input"
                         key_memory: "inputs:CommKeyValueMemory:key_memory"
                         value_memory: "inputs:CommKeyValueMemory:value_memory"
@@ -613,16 +611,23 @@ agents:
                     config:
                         'dim': -1
                         'use_cuda': True
+                        'output_dim': 593
                     input_stream_ids:
-                        input0: "inputs:ObsKeyValueMemory:read_key_plus_conf"
-                        input1: "inputs:CommKeyValueMemory:read_key_plus_conf"
-                        #input0: "modules:ObsEncoderFCN:processed_input"
-                        #input1: "modules:CommEncoder:processed_input"
+                        input0: "inputs:ObsEncoderFCN:processed_input"
+                        input1: "inputs:CommEncoder:processed_input"
+                        input2: "inputs:critic_body:extra_inputs:previous_reward"
+                        input3: "inputs:critic_body:extra_inputs:previous_action"
+                        input4: "inputs:critic_body:extra_inputs:round_id"
+                        input5: "inputs:critic_body:extra_inputs:role_id"
+                        input6: "inputs:critic_body:extra_inputs:mode_id"
+                        input7: "inputs:critic_body:extra_inputs:previous_game_result"
+                        input8: "inputs:critic_body:extra_inputs:previous_game_reward"
                 'OutputConcatenationOperation':
                     type: ConcatenationOperationModule
                     config:
                         'dim': -1
                         'use_cuda': True
+                        'output_dim': 66
                     input_stream_ids:
                         input0: "inputs:ObsKeyValueMemory:read_key_plus_conf"
                         input1: "inputs:CommKeyValueMemory:read_key_plus_conf"
@@ -630,20 +635,13 @@ agents:
                         #input1: "modules:CommEncoder:processed_input"
                 'RLHead':
                     type: RLCategoricalHeadModule
-                    state_dim: 672 #504 #312 #264 #224 #480 
-                    action_dim: 267 #183 #87 #63 #43 #171 #519 #"{{action_dim}}"
+                    state_dim: 647 #264 #224 #480 
+                    action_dim: 519 #43 #171 #519 #"{{action_dim}}"
                     noisy: False
                     dueling: True
                     config: None
                     input_stream_ids: 
                         input0: "modules:ToOutputFCN:processed_input"
-                        input1: "inputs:critic_body:extra_inputs:previous_reward"
-                        input2: "inputs:critic_body:extra_inputs:previous_action"
-                        input3: "inputs:critic_body:extra_inputs:round_id"
-                        input4: "inputs:critic_body:extra_inputs:role_id"
-                        input5: "inputs:critic_body:extra_inputs:mode_id"
-                        input6: "inputs:critic_body:extra_inputs:previous_game_result"
-                        input7: "inputs:critic_body:extra_inputs:previous_game_reward"
                         input8: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         legal_actions: "inputs:head:extra_inputs:legal_actions"
@@ -655,13 +653,14 @@ agents:
                 "log_a" : "modules:RLHead:log_a"
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
-                    "inputs:obs": "modules:ConcatenationOperation:output"
+                    head:   
+                        "inputs:obs": "modules:ConcatenationOperation:output"
             pipelines:
                 torso: 
                     - 'ObsEncoderFCN'
-                    - 'CommEncoder' #, 'ConcatenationOperation']
-                head:
+                    - 'CommEncoder' 
                     - 'ConcatenationOperation' 
+                head:
                     - 'CoreLSTM'
                     - 'ObsToGateFCN'
                     - 'ObsToKeyFCN' 
@@ -673,9 +672,8 @@ agents:
                     - 'OutputLSTM'
                     - 'ToOutputFCN' 
                     - 'RLHead'
-                #head: ['ConcatenationOperation', 'CoreLSTM', 'ObsToGateFCN', 'ObsToKeyFCN', 'CommToGateFCN', 'CommToKeyFCN', 'ToOutputFCN', 'ObsKeyValueMemory', 'CommKeyValueMemory', 'RLHead']
             features_id: 
-                torso: "inputs:ObsEncoderFCN:processed_input"
+                torso: "modules:ConcatenationOperation:output"
             
         extra_inputs_infos: {
             'previous_reward':{
