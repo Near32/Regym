@@ -265,7 +265,10 @@ def make_rl_pubsubmanager(
       'use_cuda':USE_CUDA,
       "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
+      'adaptive_sampling_period':task_config['listener_rec_adaptive_period'],
+      'max_sampling_period':task_config['listener_rec_max_adaptive_period'],
       'sampling_period':task_config['listener_rec_period'],
+      'loss_lambda_weight':task_config['listener_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
           node_id_to_extract=node_id_to_extract,
@@ -346,7 +349,10 @@ def make_rl_pubsubmanager(
       "reconstruction_loss":"BCE",
       "signal_to_reconstruct_dim": (env_config_hp.get('vocab_size', 5)+1)*env_config_hp.get('max_sentence_length', 1), #*2
       #"signal_to_reconstruct_dim": 7*2,
-      'sampling_period':task_config['listener_rec_period'],
+      'adaptive_sampling_period':task_config['listener_comm_rec_adaptive_period'],
+      'max_sampling_period':task_config['listener_rec_max_adaptive_period'],
+      'sampling_period':task_config['listener_comm_rec_period'],
+      'loss_lambda_weight':task_config['listener_comm_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
           node_id_to_extract=node_id_to_extract, 
@@ -1013,7 +1019,9 @@ def main():
     )
     #parser.add_argument("--speaker_rec", type=str, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
+    parser.add_argument("--listener_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
+    parser.add_argument("--listener_comm_rec_lambda", type=float, default=1.0,)
     #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
@@ -1021,7 +1029,7 @@ def main():
     parser.add_argument("--node_id_to_extract", 
             type=str, 
             default="hidden",
-            choices=["hidden","cell","memory","hidden,cell","value_memory"],
+            #choices=["hidden","cell","memory","hidden,cell","value_memory"],
             help="'hidden'/'memory'/'value_memory', or combination separated by comma, with 'memory' being used for DNC-based architecture.\n\
             \rAnd 'value_memory' being used for ESBN architecture.\n\
             \rIt is automatically toggled to 'memory' if 'config' path contains 'dnc', and vice-versa.") #"memory"
@@ -1091,7 +1099,14 @@ def main():
         type=float, 
         default=0.0,
     )
+    parser.add_argument("--listener_rec_max_adaptive_period", type=int, default=1000,)
+    parser.add_argument("--listener_rec_adaptive_period", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_period", 
+        type=int, 
+        default=10,
+    )
+    parser.add_argument("--listener_comm_rec_adaptive_period", type=str2bool, default="False",)
+    parser.add_argument("--listener_comm_rec_period", 
         type=int, 
         default=10,
     )
@@ -1240,12 +1255,15 @@ def main():
     if args.listener_comm_rec_biasing:
         args.listener_comm_rec = True 
 
-    if args.listener_rec:
+    if args.listener_rec or args.listener_comm_rec:
         if "dnc" in args.yaml_config:
-            args.node_id_to_extract = "memory"
+            assert args.node_id_to_extract == "memory"
+        '''
         if "esbn" in args.yaml_config:
-            args.node_id_to_extract = "value_memory"
-            
+            #args.node_id_to_extract = "value_memory"
+            args.node_id_to_extract = "LatentConcatenationOperation:output"
+        '''
+
     dargs = vars(args)
     
     if args.sequence_replay_burn_in_ratio != 0.0:

@@ -34,9 +34,12 @@ class ReconstructionFromHiddenStateModule(Module):
         """
         "build_signal_to_reconstruct_from_trajectory_fn": 
         lambda traj, player_id: return List[torch.Tensor]
-            
+        "adaptive_sampling_period":False    
+        "max_sampling_period": 1000
+        "loss_lambda_weight": 1.0 default,
         "signal_to_reconstruct": "None",
         """
+
         default_input_stream_ids = {
             "logs_dict":"logs_dict",
             "losses_dict":"losses_dict",
@@ -44,7 +47,7 @@ class ReconstructionFromHiddenStateModule(Module):
             "mode":"signals:mode",
            
             "trajectories":"modules:marl_environment_module:trajectories",
-            "filtering_signal":"modules:marl_environment_module:new_trajectories_published",
+            #"filtering_signal":"modules:marl_environment_module:new_trajectories_published",
 
             "current_agents":"modules:current_agents:ref",
         }
@@ -72,6 +75,11 @@ class ReconstructionFromHiddenStateModule(Module):
         self.iteration = 0
         self.sampling_fraction = 2
         self.sampling_period = self.config.get('sampling_period', 10.0) # 25.0
+        self.adaptive_sampling_period = self.config.get('adaptive_sampling_period', False)
+        self.max_sampling_period = self.config.get("max_sampling_period", 1000)
+        self.effective_sampling_period = self.sampling_period 
+        self.acc_window_size = 10
+        self.windowed_acc = 0.0
         
         if "build_signal_to_reconstruct_from_trajectory_fn" in self.config:
             self.build_signal_to_reconstruct_from_trajectory_fn = self.config["build_signal_to_reconstruct_from_trajectory_fn"]
@@ -430,13 +438,13 @@ class ReconstructionFromHiddenStateModule(Module):
         mode = input_streams_dict["mode"]
         epoch = input_streams_dict["epoch"]
         
-        filtering_signal = input_streams_dict["filtering_signal"]
+        filtering_signal = input_streams_dict.get("filtering_signal", False)
         trajectories = input_streams_dict["trajectories"]
         compute = True 
 
         self.iteration += 1
         #if (compute and np.random.random() < 1.0/self.sampling_period) or filtering_signal:
-        if (compute and (self.iteration % self.sampling_period) == 0) or filtering_signal:
+        if (compute and (self.iteration % self.effective_sampling_period) == 0) or filtering_signal:
             if filtering_signal:
                 self.actions = [
                     [
@@ -509,6 +517,7 @@ class ReconstructionFromHiddenStateModule(Module):
 
             logs_dict[f"{mode}/{self.id}/ReconstructionAccuracy/{'Eval' if filtering_signal else 'Sample'}"] = rec_accuracy.mean()
             
+            logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/LossLambdaWeight/{'Eval' if filtering_signal else 'Sample'}"] = self.config['loss_lambda_weight']
             logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/MSE/{'Eval' if filtering_signal else 'Sample'}"] = L_mse.mean()
             #logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/BCE/{'Eval' if filtering_signal else 'Sample'}"] = L_rec.mean()
 
@@ -516,7 +525,23 @@ class ReconstructionFromHiddenStateModule(Module):
             losses_dict = input_streams_dict["losses_dict"]
             #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rec]
             #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/MSE/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_mse]
-            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{self.config.get('reconstruction_loss', 'BCE')}/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rec]
- 
+            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{self.config.get('reconstruction_loss', 'BCE')}/{'Eval' if filtering_signal else 'Sample'}"] = [self.config['loss_lambda_weight'], L_rec]
+            
+            
+            # Adaptive Sampling Period:
+            if self.adaptive_sampling_period:
+                updated_windowed_acc = (self.windowed_acc*(self.acc_window_size-1) + rec_accuracy.mean().item())/self.acc_window_size
+                if updated_windowed_acc >= 95.0 or updated_windowed_acc >= self.windowed_acc*1.8:
+                    self.effective_sampling_period = max(int(self.effective_sampling_period*1.125), self.effective_sampling_period+2)
+                    self.effective_sampling_period = min(self.effective_sampling_period, self.max_sampling_period)
+                elif updated_windowed_acc <= self.windowed_acc*0.95:
+                    self.effective_sampling_period = min(self.sampling_period, self.effective_sampling_period//4) 
+                    self.effective_sampling_period = max(1, self.effective_sampling_period)
+
+                self.windowed_acc = updated_windowed_acc
+                logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/AdaptiveSamplingPeriod/{'Eval' if filtering_signal else 'Sample'}/WindowedAccuracy"] = self.windowed_acc
+                logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/AdaptiveSamplingPeriod/{'Eval' if filtering_signal else 'Sample'}"] = self.effective_sampling_period
+
+            
         return outputs_stream_dict
     
