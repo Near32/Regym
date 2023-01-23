@@ -2,7 +2,7 @@
 #CUDA_LAUNCH_BLOCKING=1
 #python benchmark_selfplay_s2b.py \
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
---use_cuda=True --seed=20 --yaml_config=s2b_descr+feedback_comp_foc_1shot_r2d2_lstm_benchmark_config.yaml \
+--use_cuda=True --seed=30 --yaml_config=s2b_descr+feedback_comp_foc_1shot_r2d2_lstm_benchmark_config.yaml \
 --descriptive=True --max_nbr_values_per_latent=3 --min_nbr_values_per_latent=2 --sampling_strategy=component-focused-1shot \
 --nbr_distractors=0 --nbr_latents=3 --nbr_object_centric_samples=1 --provide_listener_feedback=True \
 --nbr_episode_per_cycle=32 --nbr_training_iteration_per_cycle=4 \
