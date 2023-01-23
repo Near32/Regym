@@ -238,7 +238,7 @@ r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLP
 max_sentence_length: &max_sentence_length 3
 vocab_size: &vocab_size 6
 vocab_eos_size: &vocab_eos_size 7
-nbr_latents: &nbr_latents 2
+nbr_latents: &nbr_latents 3 
 
 experiment:
     tasks: [{
@@ -461,19 +461,6 @@ agents:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"
             modules:
-                'CoreLSTM':
-                    type: LSTMModule
-                    #state_dim: 1715 #257 
-                    state_dim: 137 #130 #65 #"{{key_dim}+1}"
-                    hidden_units: [1280,] #[256,] #512] #["{{hidden_dim}}"]
-                    non_linearities: [None]
-                    config: None
-                    input_stream_ids:
-                        lstm_input: "modules:ConcatenationOperation:output"
-                        lstm_hidden: "inputs:CoreLSTM:hidden"
-                        lstm_cell: "inputs:CoreLSTM:cell"
-                        iteration: "inputs:CoreLSTM:iteration"
-                    use_cuda: True
                 'ObsEncoderFCN':
                     type: FullyConnectedNetworkModule
                     state_dim: *nbr_latents #"{{hidden_dim}}"
@@ -509,7 +496,7 @@ agents:
                 'CommEncoder':
                     type: FullyConnectedNetworkModule
                     #state_dim: 30 
-                    state_dim: 12  #"{{hidden_dim}}"
+                    state_dim: 15  #"{{hidden_dim}}"
                     hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -524,6 +511,7 @@ agents:
                     config:
                         'dim': -1
                         'use_cuda': True
+                        'output_dim': 245
                     input_stream_ids:
                         input0: "inputs:ObsEncoderFCN:processed_input"
                         input1: "inputs:CommEncoder:processed_input"
@@ -534,18 +522,27 @@ agents:
                         input6: "inputs:critic_body:extra_inputs:mode_id"
                         input7: "inputs:critic_body:extra_inputs:previous_game_result"
                         input8: "inputs:critic_body:extra_inputs:previous_game_reward"
+                'CoreLSTM':
+                    type: LSTMModule
+                    state_dim: 245 #130 #65 #"{{key_dim}+1}"
+                    hidden_units: [512,] #["{{hidden_dim}}"]
+                    non_linearities: [None]
+                    config: None
+                    input_stream_ids:
+                        lstm_input: "modules:ConcatenationOperation:output"
+                        lstm_hidden: "inputs:CoreLSTM:hidden"
+                        lstm_cell: "inputs:CoreLSTM:cell"
+                        iteration: "inputs:CoreLSTM:iteration"
+                    use_cuda: True
                 'RLHead':
                     type: RLCategoricalHeadModule
-                    #state_dim: 2921 
-                    state_dim: 1343 #439 
-                    #action_dim: 1641 #183 #87 
-                    action_dim: 63 #43 #171 #519 #"{{action_dim}}"
+                    state_dim: 683 
+                    action_dim: 171 #519 #"{{action_dim}}"
                     noisy: False
                     dueling: True
                     config: None
                     input_stream_ids: 
                         input0: "modules:CoreLSTM:output"
-                        #input0: "modules:ToOutputFCN:processed_input"
                         input8: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         legal_actions: "inputs:head:extra_inputs:legal_actions"
@@ -557,18 +554,18 @@ agents:
                 "log_a" : "modules:RLHead:log_a"
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
-                    "inputs:obs": "modules:ConcatenationOperation:output"
+                    head:
+                        "inputs:obs": "modules:ConcatenationOperation:output"
             pipelines:
                 torso: 
                     - 'ObsEncoderFCN'
-                    - 'CommEncoder' #, 'ConcatenationOperation']
+                    - 'CommEncoder' 
+                    - 'ConcatenationOperation'
                 head:
-                    - 'ConcatenationOperation' 
                     - 'CoreLSTM'
                     - 'RLHead'
-                #head: ['ConcatenationOperation', 'CoreLSTM', 'ObsToGateFCN', 'ObsToKeyFCN', 'CommToGateFCN', 'CommToKeyFCN', 'ToOutputFCN', 'ObsKeyValueMemory', 'CommKeyValueMemory', 'RLHead']
             features_id: 
-                torso: "inputs:ObsEncoderFCN:processed_input"
+                torso: "modules:ConcatenationOperation:output"
             
         extra_inputs_infos: {
             'previous_reward':{
@@ -581,8 +578,7 @@ agents:
             },
 
             'multi_binary_communication_channel':{
-                #shape: [30], #[20], #[63,], 
-                shape: [12], #[21], 
+                shape: [21], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             #'communication_channel':{

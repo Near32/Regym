@@ -779,6 +779,7 @@ def training_process(agent_config: Dict,
     if use_rule_based_agent:
       base_path = os.path.join(base_path, f"WithPosDis{'Speaker' if use_speaker_rule_based_agent else 'Listener'}RBAgent")
 
+    """
     if pubsub:
       base_path = os.path.join(base_path,"PUBSUB")
     else:
@@ -794,7 +795,8 @@ def training_process(agent_config: Dict,
   
     if task_config["otherplay"]:
       base_path = os.path.join(base_path,"OtherPlay")
-    
+    """
+
     base_path = os.path.join(base_path,f"SEED{seed}")
 
     if path_suffix is not None:
@@ -1126,9 +1128,13 @@ def main():
         type=int, 
         default=3,
     )
+    parser.add_argument("--inverted_tau", 
+        type=str, 
+        default="None",
+    )
     parser.add_argument("--tau", 
-        type=float, 
-        default=4e-4,
+        type=str, 
+        default="None",
     )
     parser.add_argument("--nbr_actor", 
         type=int, 

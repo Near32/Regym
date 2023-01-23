@@ -173,9 +173,23 @@ class DQNAlgorithm(Algorithm):
         self.batch_size = int(kwargs["batch_size"])
         self.nbr_minibatches = int(kwargs["nbr_minibatches"])
 
-        self.TAU = float(self.kwargs['tau'])
-        self.target_update_interval = int(1.0/self.TAU)
-        self.target_update_count = 0
+        self.TAU = self.kwargs.get('tau', 'None')
+        if self.TAU == "None":
+            assert 'inverted_tau' in self.kwargs
+            self.inverted_TAU = self.kwargs.get('inverted_tau', 'None')
+            if self.inverted_TAU == "None":
+                raise NotImplementedError
+            else:
+                self.inverted_TAU = float(self.inverted_TAU)
+            self.use_target_update_interval = True
+        else:
+            self.TAU = float(self.TAU)
+            self.use_target_update_interval = False
+
+        if self.use_target_update_interval:
+            self.target_update_interval = int(self.inverted_TAU)
+            self.target_update_count = 0
+        
         self.GAMMA = float(kwargs["discount"])
         
         """
@@ -442,8 +456,6 @@ class DQNAlgorithm(Algorithm):
 
         if minibatch_size is None:  minibatch_size = self.batch_size
 
-        self.target_update_count += self.nbr_actor
-
         start = time.time()
         if self.use_mp:
             samples = self._retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
@@ -466,12 +478,16 @@ class DQNAlgorithm(Algorithm):
         
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
-        if self.use_HER and self.kwargs.get("HER_soft_update", False):
+        if self.use_target_update_interval:
+            self.target_update_count += self.nbr_actor
+            if self.target_update_count > self.target_update_interval:
+                self.target_update_count = 0
+                hard_update(self.target_model,self.model)
+        elif self.use_HER and self.kwargs.get("HER_soft_update", False):
             soft_update(self.target_model, self.model, tau=0.95) 
-        elif self.target_update_count > self.target_update_interval:
-            self.target_update_count = 0
-            hard_update(self.target_model,self.model)
-    
+        else:
+            soft_update(self.target_model, self.model, tau=self.TAU)
+
     def _mp_sampling(self, storages, sampling_config, samples):
         logger = logging.getLogger()
         while sampling_config['stay_on']:
