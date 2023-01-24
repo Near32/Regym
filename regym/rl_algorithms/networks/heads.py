@@ -220,7 +220,7 @@ class CategoricalQNet(nn.Module):
         
         legal_probs = F.softmax( legal_qa, dim=-1 )
         legal_log_probs = torch.log(legal_probs+EPS)
-        legal_entropy = -torch.sum(legal_provs*legal_log_probs, dim=-1)
+        legal_entropy = -torch.sum(legal_probs*legal_log_probs, dim=-1)
         # batch
 
         prediction = {
@@ -318,7 +318,7 @@ class CategoricalQNet(nn.Module):
             
             legal_probs = F.softmax( legal_qa, dim=-1 )
             legal_log_probs = torch.log(legal_probs+EPS)      
-            legal_entropy = -torch.sum(legal_provs*legal_log_probs, dim=-1)
+            legal_entropy = -torch.sum(legal_probs*legal_log_probs, dim=-1)
             # batch
             
             prediction = {

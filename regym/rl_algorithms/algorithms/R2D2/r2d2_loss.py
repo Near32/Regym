@@ -830,7 +830,7 @@ def compute_loss(states: torch.Tensor,
     #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
-    map_keys=['qa', 'a', 'ent']
+    map_keys=['qa', 'a', 'ent', 'legal_ent']
 
     """
     if len(rewards.shape) > 3:
@@ -1022,7 +1022,13 @@ def compute_loss(states: torch.Tensor,
     if weights_entropy_reg_alpha > 1.0e-12:
         # Adding entropy regularisation term for soft-DQN:
         online_target_entropy = training_target_predictions["legal_ent"]
-        unscaled_targetA_Si_onlineGreedyAction += weights_entropy_reg_alpha*online_target_entropy
+        # Naive:
+        #unscaled_targetQ_Si_onlineGreedyAction += weights_entropy_reg_alpha*online_target_entropy.unsqueeze(-1)
+        # Legendre-Fenchel:
+        unscaled_targetQ_Si_onlineGreedyAction = weights_entropy_reg_alpha*torch.log(
+            torch.exp(Q_Si_values/weights_entropy_reg_alpha).sum(dim=-1)
+        ).unsqueeze(-1)
+    
     """
     # Assumes training_rewards is actually n-step returns...
     unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
@@ -1160,11 +1166,11 @@ def compute_loss(states: torch.Tensor,
             mask[:, -kwargs["n_step"]:, ...] = (1-training_non_terminals[:,-kwargs['n_step']:,...])
 
         loss_per_item = loss_per_item*mask
-        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
+        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['legal_ent'].mean()
     else:
         mask = torch.ones_like(diff_squared)
         loss_per_item = loss_per_item*mask
-        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
+        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['legal_ent'].mean()
         #loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*training_predictions['ent'].mean()
     
     end = time.time()
@@ -1216,6 +1222,7 @@ def compute_loss(states: torch.Tensor,
     
     wandb.log({'Training/StdQAValues':  training_predictions['qa'].cpu().std().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/QAValueLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/LegalEntropyVal':  training_predictions['legal_ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/EntropyVal':  training_predictions['ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/TotalLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
     if use_PER:

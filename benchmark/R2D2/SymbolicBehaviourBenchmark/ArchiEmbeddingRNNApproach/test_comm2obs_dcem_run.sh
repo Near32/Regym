@@ -9,6 +9,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --nbr_minibatches=4 --batch_size=64 --learning_rate=6.25e-05 --critic_arch_feature_dim=256 \
 --tau=None --inverted_tau=2500 --n_step=7 --nbr_actor=32 --replay_capacity=1e4 --min_capacity=1e3 \
 --sequence_replay_burn_in_ratio=0.5 --sequence_replay_unroll_length=20 \
+--weights_entropy_lambda=0.2 \
 --weights_entropy_reg_alpha=0.2 --r2d2_use_value_function_rescaling=False \
 --use_rule_based_agent=True --use_speaker_rule_based_agent=True \
 --node_id_to_extract=LatentEmbeddingConcatenationOperation:output \
