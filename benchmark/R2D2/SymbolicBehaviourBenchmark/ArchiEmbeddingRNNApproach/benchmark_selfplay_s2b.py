@@ -1085,6 +1085,10 @@ def main():
         type=float, 
         default=0.0, #0.001, #0.0,
     )
+    parser.add_argument("--weights_entropy_reg_alpha", 
+        type=float, 
+        default=0.0, #0.001, #0.0,
+    )
     parser.add_argument("--DNC_sparse_K", 
         type=int, 
         default=0,

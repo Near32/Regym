@@ -89,6 +89,7 @@ class DQNAlgorithm(Algorithm):
 
         self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda']) if 'weights_decay_lambda' in self.kwargs else 0.0
         self.weights_entropy_lambda = float(self.kwargs['weights_entropy_lambda']) if 'weights_entropy_lambda' in self.kwargs else 0.0
+        self.weights_entropy_reg_alpha = float(self.kwargs.get('weights_entropy_reg_alpha', 0.0))
         
         
         self.model = model
@@ -701,6 +702,7 @@ class DQNAlgorithm(Algorithm):
                                           target_model=self.target_model,
                                           weights_decay_lambda=self.weights_decay_lambda,
                                           weights_entropy_lambda=self.weights_entropy_lambda,
+                                          weights_entropy_reg_alpha=self.weights_entropy_reg_alpha,
                                           use_PER=self.use_PER,
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,

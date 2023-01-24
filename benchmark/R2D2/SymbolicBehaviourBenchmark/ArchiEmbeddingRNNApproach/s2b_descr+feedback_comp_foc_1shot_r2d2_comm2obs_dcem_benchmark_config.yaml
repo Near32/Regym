@@ -669,8 +669,10 @@ agents:
             output_mappings:
                 "a": "modules:RLHead:a"
                 "ent" : "modules:RLHead:ent"
+                "legal_ent" : "modules:RLHead:legal_ent"
                 "qa" : "modules:RLHead:qa"
                 "log_a" : "modules:RLHead:log_a"
+                "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
                     head:   

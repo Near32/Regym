@@ -794,6 +794,7 @@ def compute_loss(states: torch.Tensor,
                  gamma: float = 0.99,
                  weights_decay_lambda: float = 0.0,
                  weights_entropy_lambda: float = 0.0,
+                 weights_entropy_reg_alpha: float = 0.0,
                  use_PER: bool = False,
                  PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
@@ -1017,7 +1018,11 @@ def compute_loss(states: torch.Tensor,
         index=online_greedy_action
     )
     # (batch_size, training_length, /player_dim,/ 1)
-
+    
+    if weights_entropy_reg_alpha > 1.0e-12:
+        # Adding entropy regularisation term for soft-DQN:
+        online_target_entropy = training_target_predictions["legal_ent"]
+        unscaled_targetA_Si_onlineGreedyAction += weights_entropy_reg_alpha*online_target_entropy
     """
     # Assumes training_rewards is actually n-step returns...
     unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
