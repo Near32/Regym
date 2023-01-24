@@ -465,7 +465,7 @@ agents:
                     type: FullyConnectedNetworkModule
                     state_dim: *nbr_latents #"{{hidden_dim}}"
                     hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
-                    non_linearities: ['ReLU']
+                    non_linearities: ['ReLU', 'None']
                     dropout: 0.0
                     config: None
                     input_stream_ids:
@@ -497,7 +497,7 @@ agents:
                     type: FullyConnectedNetworkModule
                     state_dim: 15  #"{{hidden_dim}}"
                     hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
-                    non_linearities: ['ReLU']
+                    non_linearities: ['ReLU', 'None']
                     dropout: 0.0
                     config: None
                     input_stream_ids:
@@ -553,15 +553,24 @@ agents:
                         memory: "inputs:CommMemory:memory"
                     use_cuda: True
                  
+                'CommQueryInput':
+                    type: ConcatenationOperationModule
+                    config:
+                        'dim': -1
+                        'use_cuda': True
+                        'output_dim': 554 #512+42 
+                    input_stream_ids:
+                        input0: "inputs:OutputLSTM:hidden"
+                        input1: "inputs:ExtendedComm:output"
                 'CommToCommQueryFCN':
                     type: FullyConnectedNetworkModule
-                    state_dim: 42 #"{{hidden_dim}}"
+                    state_dim: 554 #"{{hidden_dim}}"
                     hidden_units: [256, 126]
                     non_linearities: ['ReLU', None]
                     dropout: 0.0
                     config: None
                     input_stream_ids:
-                        input: "inputs:ExtendedComm:output"
+                        input: "inputs:CommQueryInput:output"
                     output_stream_ids:
                         input: "inputs:CommToCommQueryFCN:processed_input"
                     use_cuda: True
@@ -672,13 +681,16 @@ agents:
                     - 'CommEncoder'
                     - 'ExtendedObs'
                     - 'ExtendedComm'
-                    - 'CommToCommQueryFCN'
                     - 'InputConcatenationOperation'
                 head:
-                    - 'ObsMemory'
-                    - 'CommMemory'
+                    #- 'ObsMemory'
+                    #- 'CommMemory'
+                    - 'CommQueryInput'
+                    - 'CommToCommQueryFCN'
                     - 'CommKObsVReadHeadsModule'
                     - 'ReadObsValueConcatenationOperation'
+                    - 'ObsMemory'
+                    - 'CommMemory'
                     - 'LatentEmbeddingConcatenationOperation'
                     - 'OutputLSTM'
                     - 'ToOutputFCN' 
