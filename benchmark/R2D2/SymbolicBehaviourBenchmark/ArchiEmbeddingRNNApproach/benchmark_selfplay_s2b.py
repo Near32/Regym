@@ -9,7 +9,7 @@ import os
 import sys
 from typing import Dict
 
-import torch.multiprocessing
+import torch.multiprocessing as mp
 
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -31,7 +31,7 @@ from symbolic_behaviour_benchmark.rule_based_agents import build_WrappedPosition
 
 from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgentWrapper
 
-import ray
+#import ray
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
@@ -44,6 +44,8 @@ from regym.pubsub_manager import PubSubManager
 import wandb
 import argparse
 
+
+USE_CUDA = False 
 
 def make_rl_pubsubmanager(
     agents,
@@ -156,9 +158,9 @@ def make_rl_pubsubmanager(
         ) -> List[torch.Tensor]:
         labels = []
         for exp in traj[player_id]:
-            labels.append(torch.from_numpy((1+exp[0])*0.5))
+            #labels.append(torch.from_numpy((1+exp[0])*0.5))
             # TODO: investigate NO RESCALING context, whether it helps :
-            #labels.append(torch.from_numpy(exp[0]))
+            labels.append(torch.from_numpy(exp[0]))
         return labels
     def build_double_comm_to_reconstruct_from_trajectory_fn(
         traj: List[List[Any]],
@@ -171,7 +173,7 @@ def make_rl_pubsubmanager(
         likelihoods = []
         previous_com = None
         for exp in traj[player_id]:
-            current_com = torch.from_numpy(exp[6]['communication_channel'])
+            current_com = torch.from_numpy(exp[6]['multi_binary_communication_channel'])
             if previous_com is None:    previous_com = current_com
 
             target_pred = torch.cat([previous_com, current_com], dim=-1)
@@ -189,7 +191,7 @@ def make_rl_pubsubmanager(
         """
         likelihoods = []
         for exp in traj[player_id]:
-            target_pred = torch.from_numpy(exp[6]['communication_channel'])
+            target_pred = torch.from_numpy(exp[6]['multi_binary_communication_channel'])
             likelihoods.append(target_pred)
         return likelihoods
 
@@ -218,7 +220,7 @@ def make_rl_pubsubmanager(
       "rec_threshold": task_config.get("rec_threshold", 5e-2),
       "nbr_players":len(agents),
       "player_id":0,
-      'use_cuda':True,
+      'use_cuda':USE_CUDA,
       "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
       'sampling_period':task_config['speaker_rec_period'],
@@ -260,10 +262,13 @@ def make_rl_pubsubmanager(
       "rec_threshold": task_config.get("rec_threshold", 5e-2),
       "nbr_players":len(agents),
       "player_id":1,
-      'use_cuda':True,
+      'use_cuda':USE_CUDA,
       "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
+      'adaptive_sampling_period':task_config['listener_rec_adaptive_period'],
+      'max_sampling_period':task_config['listener_rec_max_adaptive_period'],
       'sampling_period':task_config['listener_rec_period'],
+      'loss_lambda_weight':task_config['listener_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
           node_id_to_extract=node_id_to_extract,
@@ -302,12 +307,14 @@ def make_rl_pubsubmanager(
         ):
         batch_size = pred.shape[0]
         # Reshape into (bs*sentence_length, vocab_size+|{EoS}|):
-        target = target.reshape(-1, (env_config_hp.get('vocab_size', 5)+1))
         pred = pred.reshape(-1, (env_config_hp.get('vocab_size', 5)+1))
-        
-        # Retrieve target idx:
-        target_idx = target.max(dim=-1, keepdim=True)[1]
-        # (bs*sentence_length, 1)
+        if target.shape[-1] != env_config_hp.get('max_sentence_length'):
+            # Retrieve target idx:
+            target = target.reshape(-1, (env_config_hp.get('vocab_size', 5)+1))
+            target_idx = target.max(dim=-1, keepdim=True)[1]
+            # (bs*sentence_length, 1)
+        else:
+            target_idx = target.reshape(-1, 1)
         mask = target_idx.reshape(batch_size, -1).sum(dim=-1, keepdim=False) 
         # (bs )
         # Filter out when the message is only made of EoS symbols:
@@ -337,12 +344,15 @@ def make_rl_pubsubmanager(
       "biasing":listener_comm_rec_biasing,
       "nbr_players":len(agents),
       "player_id":1,
-      'use_cuda':True,
+      'use_cuda':USE_CUDA,
       # Multiply by 2 because we reconstr. current and previous comm.:
       "reconstruction_loss":"BCE",
       "signal_to_reconstruct_dim": (env_config_hp.get('vocab_size', 5)+1)*env_config_hp.get('max_sentence_length', 1), #*2
       #"signal_to_reconstruct_dim": 7*2,
-      'sampling_period':task_config['listener_rec_period'],
+      'adaptive_sampling_period':task_config['listener_comm_rec_adaptive_period'],
+      'max_sampling_period':task_config['listener_rec_max_adaptive_period'],
+      'sampling_period':task_config['listener_comm_rec_period'],
+      'loss_lambda_weight':task_config['listener_comm_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
           node_id_to_extract=node_id_to_extract, 
@@ -380,7 +390,7 @@ def make_rl_pubsubmanager(
                 "biasing":listener_rec_biasing or listener_comm_rec_biasing,
                 "nbr_players":len(agents),
                 "player_id":1,
-                "use_cuda":True,
+                "use_cuda":USE_CUDA,
                 "hiddenstate_policy":RLHiddenStatePolicy(
                     agent=agents[-1],
                     node_id_to_extract=node_id_to_extract,
@@ -450,12 +460,14 @@ def s2b_r2d2_wrap(
     env, 
     clip_reward=False,
     previous_reward_action=True,
-    otherplay=False
+    otherplay=False,
+    multi_binary_comm=True,
     ):
     env = s2b_wrap(
       env, 
       combined_actions=True,
       dict_obs_space=False,
+      multi_binary_comm=multi_binary_comm,
     )
 
     if clip_reward:
@@ -767,6 +779,7 @@ def training_process(agent_config: Dict,
     if use_rule_based_agent:
       base_path = os.path.join(base_path, f"WithPosDis{'Speaker' if use_speaker_rule_based_agent else 'Listener'}RBAgent")
 
+    """
     if pubsub:
       base_path = os.path.join(base_path,"PUBSUB")
     else:
@@ -782,7 +795,8 @@ def training_process(agent_config: Dict,
   
     if task_config["otherplay"]:
       base_path = os.path.join(base_path,"OtherPlay")
-    
+    """
+
     base_path = os.path.join(base_path,f"SEED{seed}")
 
     if path_suffix is not None:
@@ -994,7 +1008,7 @@ def main():
     logger = logging.getLogger('Symbolic Behaviour Benchmark')
 
     parser = argparse.ArgumentParser(description="S2B - Test.")
-    parser.add_argument("--config", 
+    parser.add_argument("--yaml_config", 
         type=str, 
         default="./s2b_descr+feedback_comp_foc_1shot_r2d2_largelstm_sad_vdn_benchmark_config.yaml",
     )
@@ -1007,7 +1021,9 @@ def main():
     )
     #parser.add_argument("--speaker_rec", type=str, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
+    parser.add_argument("--listener_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
+    parser.add_argument("--listener_comm_rec_lambda", type=float, default=1.0,)
     #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
@@ -1015,7 +1031,7 @@ def main():
     parser.add_argument("--node_id_to_extract", 
             type=str, 
             default="hidden",
-            choices=["hidden","cell","memory","hidden,cell","value_memory"],
+            #choices=["hidden","cell","memory","hidden,cell","value_memory"],
             help="'hidden'/'memory'/'value_memory', or combination separated by comma, with 'memory' being used for DNC-based architecture.\n\
             \rAnd 'value_memory' being used for ESBN architecture.\n\
             \rIt is automatically toggled to 'memory' if 'config' path contains 'dnc', and vice-versa.") #"memory"
@@ -1069,6 +1085,10 @@ def main():
         type=float, 
         default=0.0, #0.001, #0.0,
     )
+    parser.add_argument("--weights_entropy_reg_alpha", 
+        type=float, 
+        default=0.0, #0.001, #0.0,
+    )
     parser.add_argument("--DNC_sparse_K", 
         type=int, 
         default=0,
@@ -1085,7 +1105,14 @@ def main():
         type=float, 
         default=0.0,
     )
+    parser.add_argument("--listener_rec_max_adaptive_period", type=int, default=1000,)
+    parser.add_argument("--listener_rec_adaptive_period", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_period", 
+        type=int, 
+        default=10,
+    )
+    parser.add_argument("--listener_comm_rec_adaptive_period", type=str2bool, default="False",)
+    parser.add_argument("--listener_comm_rec_period", 
         type=int, 
         default=10,
     )
@@ -1105,13 +1132,29 @@ def main():
         type=int, 
         default=3,
     )
+    parser.add_argument("--inverted_tau", 
+        type=str, 
+        default="None",
+    )
     parser.add_argument("--tau", 
-        type=float, 
-        default=4e-4,
+        type=str, 
+        default="None",
     )
     parser.add_argument("--nbr_actor", 
         type=int, 
         default=1,
+    )
+    parser.add_argument("--nbr_episode_per_cycle", 
+        type=int, 
+        default=0,
+    )
+    parser.add_argument("--nbr_training_iteration_per_cycle", 
+        type=int, 
+        default=1,
+    )
+    parser.add_argument("--nbr_minibatches", 
+        type=int, 
+        default=4,
     )
     parser.add_argument("--batch_size", 
         type=int, 
@@ -1150,6 +1193,11 @@ def main():
         default=5,
     )
     
+    parser.add_argument("--min_nbr_values_per_latent",
+        type=int,
+        default=2,
+    )
+    
     parser.add_argument("--nbr_object_centric_samples", 
         type=int, 
         default=1,
@@ -1175,6 +1223,7 @@ def main():
     
     parser.add_argument("--descriptive", type=str2bool, default="False")
     parser.add_argument("--provide_listener_feedback", type=str2bool, default="False")
+    parser.add_argument("--use_cuda", type=str2bool, default="False")
 
 
     args = parser.parse_args()
@@ -1204,6 +1253,9 @@ def main():
     #args.listener_rec = True if "Tr" in args.listener_rec else False
     #args.listener_rec_biasing = True if "Tr" in args.listener_rec_biasing else False
     
+    global USE_CUDA
+    USE_CUDA = args.use_cuda
+
     if args.listener_multimodal_rec_biasing:
         args.listener_rec_biasing = True
         args.listener_comm_rec_biasing = True
@@ -1213,12 +1265,15 @@ def main():
     if args.listener_comm_rec_biasing:
         args.listener_comm_rec = True 
 
-    if args.listener_rec:
-        if "dnc" in args.config:
-            args.node_id_to_extract = "memory"
-        if "esbn" in args.config:
-            args.node_id_to_extract = "value_memory"
-            
+    if args.listener_rec or args.listener_comm_rec:
+        if "dnc" in args.yaml_config:
+            assert args.node_id_to_extract == "memory"
+        '''
+        if "esbn" in args.yaml_config:
+            #args.node_id_to_extract = "value_memory"
+            args.node_id_to_extract = "LatentConcatenationOperation:output"
+        '''
+
     dargs = vars(args)
     
     if args.sequence_replay_burn_in_ratio != 0.0:
@@ -1232,9 +1287,21 @@ def main():
     #from gpuutils import GpuUtils
     #GpuUtils.allocate(required_memory=20000, framework="torch")
     
-    config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
+    config_file_path = args.yaml_config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
     experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
-    
+   
+    bfs_ptr = agents_config
+    bfs_list = [(k, bfs_ptr) for k in bfs_ptr.keys()]
+    while len(bfs_list):
+        node_key, bfs_ptr = bfs_list.pop(0)
+        if isinstance(bfs_ptr[node_key], dict):
+            for key in bfs_ptr[node_key].keys():
+                 bfs_list.append((key, bfs_ptr[node_key]))
+        for k,v in dargs.items():
+            if k==node_key:
+                print(f"WARNING: from agent_config, replacing {node_key} value of {bfs_ptr[node_key]} with: {v}")
+                bfs_ptr[node_key] = v
+                
     for k,v in dargs.items():
         experiment_config[k] = v
     
@@ -1262,8 +1329,14 @@ def main():
             
         if 'extra_inputs_infos' in agent_config:
             if 'communication_channel' in agent_config['extra_inputs_infos']:
-                comm_channel_length = (args.vocab_size+1)*args.max_sentence_length
+                #comm_channel_length = (args.vocab_size+1)*args.max_sentence_length
+                comm_channel_length = args.max_sentence_length
                 agent_config['extra_inputs_infos']['communication_channel']['shape'] = [comm_channel_length]
+        
+            if 'multi_binary_communication_channel' in agent_config['extra_inputs_infos']:
+                comm_channel_length = (args.vocab_size+1)*args.max_sentence_length
+                #comm_channel_length = args.max_sentence_length
+                agent_config['extra_inputs_infos']['multi_binary_communication_channel']['shape'] = [comm_channel_length]
         
         print("Task config:")
         print(task_config)
@@ -1280,41 +1353,17 @@ def main():
         )
 
 if __name__ == '__main__':
-  asynch = False 
-  __spec__ = None
-  if len(sys.argv) > 2:
-      asynch = any(['async' in arg for arg in sys.argv])
-  if asynch:
-      torch.multiprocessing.freeze_support()
-      torch.multiprocessing.set_start_method("forkserver", force=True)
+  if False: #True:
+      #torch.multiprocessing.freeze_support()
+      torch.multiprocessing.set_start_method("forkserver")#, force=True)
       #torch.multiprocessing.set_start_method("spawn", force=True)
-      ray.init() #local_mode=True)
+      #ray.init() #local_mode=True)
+      #ray.init(local_mode=True)
       
-      from regym import CustomManager as Manager
-      from multiprocessing.managers import SyncManager, MakeProxyType, public_methods
-      
-      # from regym.rl_algorithms.replay_buffers import SharedPrioritizedReplayStorage
-      # #SharedPrioritizedReplayStorageProxy = MakeProxyType("SharedPrioritizedReplayStorage", public_methods(SharedPrioritizedReplayStorage))
-      # Manager.register("SharedPrioritizedReplayStorage", 
-      #   SharedPrioritizedReplayStorage,# SharedPrioritizedReplayStorageProxy) 
-      #   exposed=[
-      #       "get_beta",
-      #       "get_tree_indices",
-      #       "cat",
-      #       "reset",
-      #       "add_key",
-      #       "total",
-      #       "__len__",
-      #       "priority",
-      #       "sequence_priority",
-      #       "update",
-      #       "add",
-      #       "sample",
-      #       ]
-      # )
-      # print("WARNING: SharedPrioritizedReplayStorage class has been registered with the RegymManager.")
-
-      regym.RegymManager = Manager()
-      regym.RegymManager.start()
+      #from regym import CustomManager as Manager
+      #from multiprocessing.managers import SyncManager, MakeProxyType, public_methods
+      #regym.RegymManager = Manager()
+      regym.AlgoManager = mp.Manager()
+      #regym.AlgoManager.start()
 
   main()

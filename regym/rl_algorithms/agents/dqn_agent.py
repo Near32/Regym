@@ -41,6 +41,7 @@ class DQNAgent(Agent):
         self.replay_period_count = 0
 
         self.nbr_episode_per_cycle = int(self.kwargs['nbr_episode_per_cycle']) if 'nbr_episode_per_cycle' in self.kwargs else None
+        if self.nbr_episode_per_cycle == 0: self.nbr_episode_per_cycle = None
         self.nbr_episode_per_cycle_count = 0
 
         self.nbr_training_iteration_per_cycle = int(self.kwargs['nbr_training_iteration_per_cycle']) if 'nbr_training_iteration_per_cycle' in self.kwargs else 1
