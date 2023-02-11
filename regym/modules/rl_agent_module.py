@@ -25,7 +25,8 @@ class RLAgentModule(Module):
         """
         This is a placeholder for an RL agent.
         """
-
+        
+        player_idx = config.get('player_idx', 0)
         default_input_stream_ids = {
             "logs_dict":"logs_dict",
             "losses_dict":"losses_dict",
@@ -34,13 +35,13 @@ class RLAgentModule(Module):
 
             "reset_actors":"modules:marl_environment_module:reset_actors",
             
-            "observations":"modules:marl_environment_module:ref:player_0:observations",
-            "infos":"modules:marl_environment_module:ref:player_0:infos",
-            "actions":"modules:marl_environment_module:ref:player_0:actions",
-            "succ_observations":"modules:marl_environment_module:ref:player_0:succ_observations",
-            "succ_infos":"modules:marl_environment_module:ref:player_0:succ_infos",
-            "rewards":"modules:marl_environment_module:ref:player_0:rewards",
-            "dones":"modules:marl_environment_module:ref:player_0:dones",
+            "observations":f"modules:marl_environment_module:ref:player_{player_idx}:observations",
+            "infos":f"modules:marl_environment_module:ref:player_{player_idx}:infos",
+            "actions":f"modules:marl_environment_module:ref:player_{player_idx}:actions",
+            "succ_observations":f"modules:marl_environment_module:ref:player_{player_idx}:succ_observations",
+            "succ_infos":f"modules:marl_environment_module:ref:player_{player_idx}:succ_infos",
+            "rewards":f"modules:marl_environment_module:ref:player_{player_idx}:rewards",
+            "dones":f"modules:marl_environment_module:ref:player_{player_idx}:dones",
         }
 
         if input_stream_ids is None:
@@ -73,6 +74,12 @@ class RLAgentModule(Module):
         
         self.new_observations = input_streams_dict['succ_observations']
         self.new_infos = input_streams_dict['succ_infos']
+        
+        # Allow Imitation Learning if the action has been 
+        # overriden by some other module :
+        provided_actions = input_streams_dict['actions']
+        if provided_actions is not None:
+            self.actions = provided_actions
 
         if hasattr(self, 'observations') and self.agent.training:
             self.agent.handle_experience(
