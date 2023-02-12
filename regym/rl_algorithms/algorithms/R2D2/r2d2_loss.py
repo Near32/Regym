@@ -246,7 +246,7 @@ def unrolled_inferences_deprecated(model: torch.nn.Module,
                         use_zero_initial_states: bool=False,
                         extras: bool=False,
                         map_keys:List[str]=None):
-    """
+    """ 
     Compute feed-forward inferences on the :param model: of the :param states: with the rnn_states used as burn_in values.
     NOTE: The function also computes the inferences using the rnn states used when gathering the states, in order to 
     later allow a computation of the Q-value discrepency $$\Delta Q$$ (see end of page 4).
@@ -621,7 +621,7 @@ def compute_n_step_bellman_target_depr(
     # as opposed to using mixed n-step values... 
     #unscaled_targetQ_Sipn_onlineGreedyAction[:, -kwargs['n_step']:] = 0
     
-    """
+    '''
     training_non_terminals_ipn = torch.cat(
         [   # :k+1 since k \in [0, n_step-1], and np.zeros(length)[:0] has shape (0,)...
             training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
@@ -631,7 +631,7 @@ def compute_n_step_bellman_target_depr(
         ]*(training_non_terminals.shape[1]-kwargs['n_step']),
         dim=1,
     )
-    """
+    '''
     training_non_terminals_ipnm1 = torch.cat(
         [   
             training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
@@ -1200,9 +1200,6 @@ def compute_loss(states: torch.Tensor,
     wandb.log({'Training/MeanTrainingReward':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/MinTrainingReward':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/MaxTrainingReward':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
-    if training_rewards.cpu().max().item() > 2:
-        import ipdb; ipdb.set_trace()
-        print("too high training reward suspicious...")
 
     #wandb.log({'Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().min().item(), "training_step":iteration_count}, commit=False)

@@ -340,7 +340,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 self.reward_shape = r.shape
                 her_r = self.feedbacks['success']*torch.ones_like(r) if r.item()>0 else self.feedbacks['failure']*torch.ones_like(r)
                 if self.episode_length_reward_shaping:
-                    her_r *= float(idx)/self.timing_out_episode_length_threshold
+                    if her_r > 0:
+                        her_r *= (1.0-float(idx)/self.timing_out_episode_length_threshold)
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
                 non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
@@ -607,7 +608,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             else:
                                 new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
                             if self.episode_length_reward_shaping:
-                                new_her_r *= float(idx)/self.timing_out_episode_length_threshold
+                                if new_her_r > 0:
+                                    new_her_r *= (1.0-float(idx)/self.timing_out_episode_length_threshold)
                             new_her_r = new_her_r*torch.ones_like(r)
 
                             if self.relabel_terminal:

@@ -2269,7 +2269,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
                     self.w2idx[w] = len(self.vocabulary)-1
                     self.idx2w[len(self.vocabulary)-1] = w 
             
-            idx_goal = self.w2idx['PAD']*np.ones(shape=(1,self.max_sentence_length), dtype=np.long)
+            idx_goal = self.w2idx['PAD']*np.ones(shape=(1,self.max_sentence_length)).astype(int)
             final_idx = min(self.max_sentence_length, len(t_goal))
             for idx in range(final_idx):
                 idx_goal[...,idx] = self.w2idx[t_goal[idx]]
@@ -2302,6 +2302,48 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
             achieved_goal = f"pick up the {color} {shape}".lower()
         observation['behaviour_description'] = achieved_goal
         return observation
+
+class BabyAIMissionWrapper(gym.Wrapper):
+    """
+    Integrates the BabyAI mission into the info dictionnary for multi-agent environments.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+    def __init__(self, env):
+        super(BabyAIMissionWrapper, self).__init__(env)
+    
+    def add_mission(self, info):
+        mission = self.env.unwrapped #.mission
+        info['babyai_mission'] = mission
+        return info
+
+    def reset(self):
+        reset_output = self.env.reset()
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        nbr_agent = len(infos)
+        assert nbr_agent == 1
+
+        for info_idx in range(len(infos)):
+            infos[info_idx] = self.add_mission(infos[info_idx])
+        
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        nbr_agent = len(next_infos)
+        assert nbr_agent == 1
+
+        for info_idx in range(len(next_infos)):
+            #next_infos[info_idx] = copy.deepcopy(self.add_mission(next_infos[info_idx]))
+            next_infos[info_idx] = self.add_mission(next_infos[info_idx])
+        
+        return next_observation, reward, done, next_infos
+
 
 class DictObservationSpaceReMapping(gym.ObservationWrapper):
     def __init__(self, env, remapping={'image':'observation'}):
@@ -2711,6 +2753,7 @@ def baseline_ther_wrapper(
     full_obs=False,
     single_pick_episode=False,
     observe_achieved_goal=False,
+    babyai_mission=False,
     ):
     
     env = TimeLimit(env, max_episode_steps=time_limit)
@@ -2770,6 +2813,9 @@ def baseline_ther_wrapper(
 
     if previous_reward_action:
         env = PreviousRewardActionInfoMultiAgentWrapper(env=env)
+    
+    if babyai_mission:
+        env = BabyAIMissionWrapper(env=env)
 
     return env
 

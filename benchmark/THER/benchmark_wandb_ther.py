@@ -107,6 +107,7 @@ def make_rl_pubsubmanager(
     for aidx, (rlam_id, agent) in enumerate(zip(rlam_ids, agents)):
       rlam_config = {
         'agent': agent,
+        'player_idx': aidx,
         'actions_stream_id':f"modules:{envm_id}:player_{aidx}:actions",
       }
 
@@ -145,8 +146,44 @@ def make_rl_pubsubmanager(
     pipelines["rl_loop_0"] = [
         envm_id,
     ]
+
     for rlam_id in rlam_ids:
       pipelines['rl_loop_0'].append(rlam_id)
+
+    if task_config["BabyAI_Bot_action_override"]:
+        from babyai_bot_module import BabyAIBotModule
+        from babyai.bot import Bot
+        babyai_bot_id = f"babyai_bot"
+        babyai_bot_config = {
+            'agent': Bot,
+            'player_idx': 0,
+            'actions_stream_id':f"modules:rl_agent_0:ref:actions",
+        }
+
+        #envm_input_stream_ids[f'player_{aidx}'] = f"modules:{rlam_id}:ref"
+        aidx = 0
+        babyai_bot_input_stream_ids = {
+            "logs_dict":"logs_dict",
+            "losses_dict":"losses_dict",
+            "epoch":"signals:epoch",
+            "mode":"signals:mode",
+            "reset_actors":f"modules:{envm_id}:reset_actors",
+            "observations":f"modules:{envm_id}:ref:player_{aidx}:observations",
+            "infos":f"modules:{envm_id}:ref:player_{aidx}:infos",
+            "actions":f"modules:{envm_id}:ref:player_{aidx}:actions",
+            "succ_observations":f"modules:{envm_id}:ref:player_{aidx}:succ_observations",
+            "succ_infos":f"modules:{envm_id}:ref:player_{aidx}:succ_infos",
+            "rewards":f"modules:{envm_id}:ref:player_{aidx}:rewards",
+            "dones":f"modules:{envm_id}:ref:player_{aidx}:dones",
+        }
+        
+        modules[babyai_bot_id] = BabyAIBotModule(
+            id=babyai_bot_id,
+            config=babyai_bot_config,
+            input_stream_ids=babyai_bot_input_stream_ids,
+        )
+        
+        pipelines['rl_loop_0'].append(babyai_bot_id)
 
     optim_id = "global_optim"
     optim_config = {
@@ -366,6 +403,7 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      babyai_mission=task_config['BabyAI_Bot_action_override'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -386,6 +424,7 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      babyai_mission=task_config['BabyAI_Bot_action_override'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -599,6 +638,9 @@ def main():
     #    type=int, 
     #    default=0,
     #)
+    parser.add_argument("--sequence_replay_use_online_states", type=str2bool, default="True")
+    parser.add_argument("--sequence_replay_use_zero_initial_states", type=str2bool, default="False")
+    parser.add_argument("--sequence_replay_store_on_terminal", type=str2bool, default="False")
     parser.add_argument("--sequence_replay_unroll_length", 
         type=int, 
         default=20,
@@ -638,6 +680,10 @@ def main():
     parser.add_argument("--replay_capacity", 
         type=float, 
         default=2e4,
+    )
+    parser.add_argument("--HER_target_clamping",
+        type=str2bool, 
+        default="False", 
     )
     parser.add_argument("--THER_replay_period", # in episodes
         type=int, 
@@ -698,6 +744,7 @@ def main():
     parser.add_argument("--THER_filter_predicate_fn", type=str2bool, default="False",)
     parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
+    parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     #parser.add_argument("--critic_arch_feature_dim", 
     #    type=int, 
     #    default=32,

@@ -556,7 +556,7 @@ class MARLEnvironmentModule(Module):
             pidx_d['succ_infos'] = succ_info[pidx] 
             pidx_d['rewards'] = reward[pidx]
             pidx_d['dones'] = done
-            setattr(self, f"player{pidx}", pidx_d)
+            setattr(self, f"player_{pidx}", pidx_d)
 
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)

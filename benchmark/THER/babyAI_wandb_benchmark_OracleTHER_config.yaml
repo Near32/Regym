@@ -365,6 +365,10 @@ agents:
         nbr_minibatches: 10 
         burn_in: False
 
+        sequence_replay_use_online_states: True
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: False
+    
         sequence_replay_unroll_length: 20
         sequence_replay_overlap_length: 10
         sequence_replay_burn_in_length: 0
@@ -404,8 +408,8 @@ agents:
                         lstm_hidden: "inputs:CoreLSTM:hidden"
                         lstm_cell: "inputs:CoreLSTM:cell"
                         iteration: "inputs:CoreLSTM:iteration"
-                    output_stream_ids:
-                        lstm_output: "inputs:CoreLSTM:lstm_output"
+                    #output_stream_ids:
+                    #    output: "inputs:CoreLSTM:lstm_output"
                     use_cuda: True
 
                 'SharedObsEncoder':
@@ -429,7 +433,7 @@ agents:
     
                 'CommEncoder':
                     type: EmbeddingRNNModule 
-                    voc_size: *THER_vocab_size
+                    vocab_size: *THER_vocab_size
                     feature_dim: *feature_dim 
                     embedding_size: *feature_dim 
                     hidden_units: *hidden_dim
@@ -526,6 +530,7 @@ agents:
                     config:
                         'dim': -1
                         'use_cuda': True
+                        'output_dim': 321
                     input_stream_ids:
                         #input0: "inputs:ObsEncoder:processed_input"
                         #input1: "inputs:CommEncoder:processed_input"
@@ -541,7 +546,8 @@ agents:
                     dueling: True
                     config: None
                     input_stream_ids: 
-                        input0: "inputs:CoreLSTM:lstm_output"
+                        #input0: "inputs:CoreLSTM:lstm_output"
+                        input0: "inputs:CoreLSTM:output"
                         input1: "inputs:critic_body:extra_inputs:previous_reward"
                         input2: "inputs:critic_body:extra_inputs:previous_action"
                         #input3: "inputs:critic_body:extra_inputs:action_mask"
@@ -588,8 +594,10 @@ agents:
             output_mappings:
                 "a" : "modules:RLHead:a"
                 "ent" : "modules:RLHead:ent"
+                "legal_ent" : "modules:RLHead:legal_ent"
                 "qa" : "modules:RLHead:qa"
                 "log_a" : "modules:RLHead:log_a"
+                "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
             
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
