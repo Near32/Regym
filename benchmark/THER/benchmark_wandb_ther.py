@@ -638,6 +638,9 @@ def main():
     #    type=int, 
     #    default=0,
     #)
+    parser.add_argument("--sequence_replay_use_online_states", type=str2bool, default="True")
+    parser.add_argument("--sequence_replay_use_zero_initial_states", type=str2bool, default="False")
+    parser.add_argument("--sequence_replay_store_on_terminal", type=str2bool, default="False")
     parser.add_argument("--sequence_replay_unroll_length", 
         type=int, 
         default=20,
@@ -677,6 +680,10 @@ def main():
     parser.add_argument("--replay_capacity", 
         type=float, 
         default=2e4,
+    )
+    parser.add_argument("--HER_target_clamping",
+        type=str2bool, 
+        default="False", 
     )
     parser.add_argument("--THER_replay_period", # in episodes
         type=int, 

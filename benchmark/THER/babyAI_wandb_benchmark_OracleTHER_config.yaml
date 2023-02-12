@@ -365,6 +365,10 @@ agents:
         nbr_minibatches: 10 
         burn_in: False
 
+        sequence_replay_use_online_states: True
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: False
+    
         sequence_replay_unroll_length: 20
         sequence_replay_overlap_length: 10
         sequence_replay_burn_in_length: 0
