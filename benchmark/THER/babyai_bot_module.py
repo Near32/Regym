@@ -123,7 +123,12 @@ class BabyAIBotModule(Module):
             else:
                 agent = self.agents[aidx]
                 last_action = self.last_actions[aidx] 
-                new_action = agent.replan(last_action).value
+                try:
+                    new_action = agent.replan(last_action).value
+                except Exception as e:
+                    new_action = 0
+                    self.agents_initialized[aidx] = False
+                    print(f"BabyAI Bot : {aidx} : Exception : {e}")
             self.new_actions.append(new_action)
         self.last_actions = copy.deepcopy(self.new_actions)
         self.new_actions = np.asarray(self.new_actions)
