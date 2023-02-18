@@ -688,7 +688,8 @@ class DQNAlgorithm(Algorithm):
             HER_target_clamping = self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False
             if self.use_HER and 'HER_target_clamping' not in self.kwargs:
                 raise NotImplementedError
-
+	
+            self.kwargs["logging"] = (self.param_update_counter % 32) == 0
             loss, loss_per_item = self.loss_fn(sampled_states, 
                                           sampled_actions, 
                                           sampled_next_states,

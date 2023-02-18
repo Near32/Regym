@@ -1194,6 +1194,39 @@ def compute_loss(states: torch.Tensor,
         wandb.log({'Training/DiscrepancyQAValues/Initial':  initial_discrepancy_qa.cpu().mean().item(), "training_step":iteration_count}, commit=False)
         wandb.log({'Training/DiscrepancyQAValues/Final':  final_discrepancy_qa.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     
+    if kwargs.get("logging", False):
+        columns = ["stimulus_(t)", "stimulus_(t-1)"]
+        #columns += [f"a_(t-{v})" for v in range(4)]
+        sample_table = wandb.Table(columns=columns) 
+    
+        for bidx in range(batch_size//4):
+            nbr_states = states.shape[1]
+            nbr_frames = states[bidx].shape[1]//4
+            stimulus_t = [next_states[bidx,s].reshape(nbr_frames,4,56,56)[-1:,:3] for s in range(nbr_states)]#.numpy()[:,:3]*255
+            stimulus_t = torch.cat(stimulus_t, dim=0).cpu().numpy()*255
+            stimulus_t = stimulus_t.astype(np.uint8)
+            stimulus_t = wandb.Video(stimulus_t, fps=2, format="mp4")
+            #stimulus_tm = s[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
+            stimulus_tm = [states[bidx,s].reshape(nbr_frames,4,56,56)[-1:,:3] for s in range(nbr_states)]#.numpy()[:,:3]*255
+            stimulus_tm = torch.cat(stimulus_tm, dim=0).cpu().numpy()*255
+            stimulus_tm = stimulus_tm.astype(np.uint8)
+            stimulus_tm = wandb.Video(stimulus_tm, fps=2, format="mp4")
+            '''
+            previous_action_int = [
+                self.episode_buffer[actor_index][aidx]["rnn_states"]['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item()
+                for aidx in [idx, idx-1, idx-2, idx-3]
+            ]
+            '''
+            sample_table.add_data(*[
+                #*gt_word_sentence,
+                stimulus_t,
+                stimulus_tm,
+                #*previous_action_int
+                ]
+            )
+
+        wandb.log({f"Training/R2D2StimuliTable":sample_table}, commit=False)
+
     # wandb.log({'Training/MeanTrainingNStepReturn':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     # wandb.log({'Training/MinTrainingNStepReturn':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
     # wandb.log({'Training/MaxTrainingNStepReturn':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
