@@ -7,6 +7,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ther.py --see
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
+--nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --THER_use_THER=True --THER_use_PER=True --THER_observe_achieved_goal=TRUe \
 --THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=20 \
 --THER_episode_length_reward_shaping=True \

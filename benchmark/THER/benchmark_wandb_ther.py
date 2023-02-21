@@ -745,6 +745,8 @@ def main():
     parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
+    parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
+    parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
     #    type=int, 
     #    default=32,
