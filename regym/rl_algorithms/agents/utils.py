@@ -1,6 +1,7 @@
 from typing import Dict, List
 
 from ..networks import CategoricalQNet, CategoricalActorCriticNet, CategoricalActorCriticVAENet, GaussianActorCriticNet
+from ..networks import InstructionPredictor, EmbeddingRNNBody, CaptionRNNBody
 from ..networks import FCBody, FCBody2, LSTMBody, GRUBody, ConvolutionalBody, BetaVAEBody, resnet18Input64
 from ..networks import ConvolutionalGruBody, ConvolutionalLstmBody
 from ..networks import LinearLinearBody, LinearLstmBody, LinearLstmBody2
@@ -15,6 +16,63 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
+
+def build_ther_predictor(kwargs, task):
+    predictor_input_dim = task.observation_shape
+    if 'preprocessed_observation_shape' in kwargs: predictor_input_dim = list(reversed(kwargs['preprocessed_observation_shape']))
+    
+    if kwargs['predictor_encoder_arch'] == 'LSTM-RNN':
+        predictor_encoder = LSTMBody(predictor_input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
+    elif kwargs['predictor_encoder_arch'] == 'GRU-RNN':
+        predictor_encoder = GRUBody(predictor_input_dim, hidden_units=(output_dim,), gate=F.leaky_relu)
+    elif kwargs['predictor_encoder_arch'] == 'MLP':
+        predictor_encoder = FCBody(predictor_input_dim, hidden_units=(output_dim, ), gate=F.leaky_relu)
+    elif kwargs['predictor_encoder_arch'] == 'CNN':
+        # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
+        #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
+        kwargs['state_preprocess'] = partial(ResizeCNNInterpolationFunction, size=kwargs['observation_resize_dim'], normalize_rgb_values=False)
+        kwargs['preprocessed_observation_shape'] = [predictor_input_dim[-1], kwargs['observation_resize_dim'], kwargs['observation_resize_dim']]
+        if 'nbr_frame_stacking' in kwargs:
+            kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+        input_shape = kwargs['preprocessed_observation_shape']
+        
+        if kwargs['THER_predictor_policy_shared_phi']:
+            predictor_encoder = phi_body.cnn_body
+            output_dim = predictor_encoder.get_feature_shape()
+            assert( output_dim == kwargs['predictor_decoder_arch_hidden_units'][-1])
+        else:
+            channels = [input_shape[0]] + kwargs['predictor_encoder_arch_channels']
+            kernels = kwargs['predictor_encoder_arch_kernels']
+            strides = kwargs['predictor_encoder_arch_strides']
+            paddings = kwargs['predictor_encoder_arch_paddings']
+            output_dim = kwargs['predictor_encoder_arch_feature_dim']
+            predictor_encoder = ConvolutionalBody(input_shape=input_shape,
+                                         feature_dim=output_dim,
+                                         channels=channels,
+                                         kernel_sizes=kernels,
+                                         strides=strides,
+                                         paddings=paddings)
+
+    predictor_decoder = CaptionRNNBody(
+        vocabulary=kwargs['THER_vocabulary'],
+        max_sentence_length=kwargs['THER_max_sentence_length'],
+        embedding_size=kwargs['predictor_decoder_embedding_size'], 
+        hidden_units=kwargs['predictor_decoder_arch_hidden_units'], 
+        num_layers=1, 
+        gate=F.relu, 
+        dropout=0.0, 
+        rnn_fn=nn.GRU
+    )
+    predictor_decoder.share_memory()
+
+    predictor = InstructionPredictor(
+        encoder=predictor_encoder, 
+        decoder=predictor_decoder
+    )
+    predictor.share_memory()
+    
+    return predictor
+
 
 from regym.thirdparty.Archi.Archi import Model as ArchiModel 
 from regym.thirdparty.Archi.Archi import load_model
@@ -86,6 +144,16 @@ def _generate_model(
     kwargs: Dict,
     head_type: str="CategoricalQNet") -> nn.Module:
     
+    extra_bodies = {}
+    if 'extra_bodies' in kwargs:
+        for extra_body_id, extra_body_config in kwargs['extra_bodies'].items():
+            if extra_body_config['arch'] == 'EmbeddingRNN':
+                extra_bodies[extra_body_id] = EmbeddingRNNBody(
+                    voc_size=extra_body_config['vocab_size'],
+                    hidden_units=extra_body_config['hidden_units'],
+                    num_layers=extra_body_config.get('num_layers', 1),
+                )
+
     phi_body = None
     if isinstance(task.observation_shape, int):
         input_dim = task.observation_shape
@@ -936,7 +1004,8 @@ def _generate_model(
             goal_oriented=kwargs['goal_oriented'] if 'goal_oriented' in kwargs else False,
             goal_shape=goal_shape,
             goal_phi_body=goal_phi_body,
-            extra_inputs_infos=extra_inputs_infos_final_critic_layer
+            extra_inputs_infos=extra_inputs_infos_final_critic_layer,
+            extra_bodies=extra_bodies,
         )
     elif head_type=="CategoricalActorCriticNet":
         model = CategoricalActorCriticNet(

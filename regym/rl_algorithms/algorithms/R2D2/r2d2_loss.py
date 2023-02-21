@@ -246,7 +246,7 @@ def unrolled_inferences_deprecated(model: torch.nn.Module,
                         use_zero_initial_states: bool=False,
                         extras: bool=False,
                         map_keys:List[str]=None):
-    """
+    """ 
     Compute feed-forward inferences on the :param model: of the :param states: with the rnn_states used as burn_in values.
     NOTE: The function also computes the inferences using the rnn states used when gathering the states, in order to 
     later allow a computation of the Q-value discrepency $$\Delta Q$$ (see end of page 4).
@@ -621,7 +621,7 @@ def compute_n_step_bellman_target_depr(
     # as opposed to using mixed n-step values... 
     #unscaled_targetQ_Sipn_onlineGreedyAction[:, -kwargs['n_step']:] = 0
     
-    """
+    '''
     training_non_terminals_ipn = torch.cat(
         [   # :k+1 since k \in [0, n_step-1], and np.zeros(length)[:0] has shape (0,)...
             training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
@@ -631,7 +631,7 @@ def compute_n_step_bellman_target_depr(
         ]*(training_non_terminals.shape[1]-kwargs['n_step']),
         dim=1,
     )
-    """
+    '''
     training_non_terminals_ipnm1 = torch.cat(
         [   
             training_non_terminals[:, k:k+kwargs['n_step'], ...].prod(dim=1).reshape(batch_size, 1, -1)
@@ -794,6 +794,7 @@ def compute_loss(states: torch.Tensor,
                  gamma: float = 0.99,
                  weights_decay_lambda: float = 0.0,
                  weights_entropy_lambda: float = 0.0,
+                 weights_entropy_reg_alpha: float = 0.0,
                  use_PER: bool = False,
                  PER_beta: float = 1.0,
                  importanceSamplingWeights: torch.Tensor = None,
@@ -829,7 +830,7 @@ def compute_loss(states: torch.Tensor,
     #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
-    map_keys=['qa', 'a', 'ent']
+    map_keys=['qa', 'a', 'ent', 'legal_ent']
 
     """
     if len(rewards.shape) > 3:
@@ -1017,7 +1018,17 @@ def compute_loss(states: torch.Tensor,
         index=online_greedy_action
     )
     # (batch_size, training_length, /player_dim,/ 1)
-
+    
+    if weights_entropy_reg_alpha > 1.0e-12:
+        # Adding entropy regularisation term for soft-DQN:
+        online_target_entropy = training_target_predictions["legal_ent"]
+        # Naive:
+        #unscaled_targetQ_Si_onlineGreedyAction += weights_entropy_reg_alpha*online_target_entropy.unsqueeze(-1)
+        # Legendre-Fenchel:
+        unscaled_targetQ_Si_onlineGreedyAction = weights_entropy_reg_alpha*torch.log(
+            torch.exp(Q_Si_values/weights_entropy_reg_alpha).sum(dim=-1)
+        ).unsqueeze(-1)
+    
     """
     # Assumes training_rewards is actually n-step returns...
     unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
@@ -1155,11 +1166,11 @@ def compute_loss(states: torch.Tensor,
             mask[:, -kwargs["n_step"]:, ...] = (1-training_non_terminals[:,-kwargs['n_step']:,...])
 
         loss_per_item = loss_per_item*mask
-        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
+        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['legal_ent'].mean()
     else:
         mask = torch.ones_like(diff_squared)
         loss_per_item = loss_per_item*mask
-        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['ent'].mean()
+        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['legal_ent'].mean()
         #loss = 0.5*torch.mean(diff_squared)-weights_entropy_lambda*training_predictions['ent'].mean()
     
     end = time.time()
@@ -1183,13 +1194,46 @@ def compute_loss(states: torch.Tensor,
         wandb.log({'Training/DiscrepancyQAValues/Initial':  initial_discrepancy_qa.cpu().mean().item(), "training_step":iteration_count}, commit=False)
         wandb.log({'Training/DiscrepancyQAValues/Final':  final_discrepancy_qa.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     
+    if kwargs.get("logging", False):
+        columns = ["stimulus_(t)", "stimulus_(t-1)"]
+        #columns += [f"a_(t-{v})" for v in range(4)]
+        sample_table = wandb.Table(columns=columns) 
+    
+        for bidx in range(batch_size//4):
+            nbr_states = states.shape[1]
+            nbr_frames = states[bidx].shape[1]//4
+            stimulus_t = [next_states[bidx,s].reshape(nbr_frames,4,56,56)[-1:,:3] for s in range(nbr_states)]#.numpy()[:,:3]*255
+            stimulus_t = torch.cat(stimulus_t, dim=0).cpu().numpy()*255
+            stimulus_t = stimulus_t.astype(np.uint8)
+            stimulus_t = wandb.Video(stimulus_t, fps=2, format="mp4")
+            #stimulus_tm = s[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
+            stimulus_tm = [states[bidx,s].reshape(nbr_frames,4,56,56)[-1:,:3] for s in range(nbr_states)]#.numpy()[:,:3]*255
+            stimulus_tm = torch.cat(stimulus_tm, dim=0).cpu().numpy()*255
+            stimulus_tm = stimulus_tm.astype(np.uint8)
+            stimulus_tm = wandb.Video(stimulus_tm, fps=2, format="mp4")
+            '''
+            previous_action_int = [
+                self.episode_buffer[actor_index][aidx]["rnn_states"]['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item()
+                for aidx in [idx, idx-1, idx-2, idx-3]
+            ]
+            '''
+            sample_table.add_data(*[
+                #*gt_word_sentence,
+                stimulus_t,
+                stimulus_tm,
+                #*previous_action_int
+                ]
+            )
+
+        wandb.log({f"Training/R2D2StimuliTable":sample_table}, commit=False)
+
     # wandb.log({'Training/MeanTrainingNStepReturn':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     # wandb.log({'Training/MinTrainingNStepReturn':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
     # wandb.log({'Training/MaxTrainingNStepReturn':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/MeanTrainingReward':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/MinTrainingReward':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/MaxTrainingReward':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
-    
+
     #wandb.log({'Training/MeanTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().mean().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/MinTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().min().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/MaxTargetQSipn_ArgmaxAOnlineQSipn_A':  unscaled_targetQ_Sipn_onlineGreedyAction.cpu().max().item(), "training_step":iteration_count}, commit=False)
@@ -1208,6 +1252,7 @@ def compute_loss(states: torch.Tensor,
     
     wandb.log({'Training/StdQAValues':  training_predictions['qa'].cpu().std().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/QAValueLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
+    wandb.log({'Training/LegalEntropyVal':  training_predictions['legal_ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
     wandb.log({'Training/EntropyVal':  training_predictions['ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/TotalLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
     if use_PER:

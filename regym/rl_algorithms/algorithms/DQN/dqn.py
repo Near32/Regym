@@ -18,12 +18,46 @@ from . import dqn_loss, ddqn_loss
 import regym
 from ..algorithm import Algorithm
 from ...replay_buffers import PrioritizedReplayStorage, ReplayStorage
-from ...networks import hard_update, random_sample
+
+from ...networks import hard_update, soft_update, random_sample
 from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict
 from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 
 import wandb
 summary_writer = None 
+
+import torch.multiprocessing as mp
+#import multiprocessing as mp
+#from multiprocessing.managers import BaseManager
+from multiprocessing.managers import SyncManager
+#from multiprocessing import Manager as AlgoManager
+#class AlgoManager(BaseManager):  
+#    pass
+#AlgoManager.register('dict', dict)
+#AlgoManager.register('PrioritizedReplayStorage', PrioritizedReplayStorage)
+
+#from regym import BuildProxy
+#PRSProxy = BuildProxy(PrioritizedReplayStorage)
+
+from multiprocessing.managers import NamespaceProxy
+import types
+class PRSProxy(NamespaceProxy):
+    _exposed_ = tuple(dir(PrioritizedReplayStorage))
+
+    def __getattr__(self, name):
+        result = super().__getattr__(name)
+        if isinstance(result, types.MethodType):
+            def wrapper(*args, **kwargs):
+                self._callmethod(name, args, kwargs)
+            return wrapper
+        return result
+    def __len__(self):
+        callmethod = object.__getattribute__(self, "_callmethod")        
+        return callmethod("__len__")
+
+SyncManager.register('PrioritizedReplayStorage', PrioritizedReplayStorage, PRSProxy)
+
+import logging 
 
 
 class DQNAlgorithm(Algorithm):
@@ -55,6 +89,7 @@ class DQNAlgorithm(Algorithm):
 
         self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda']) if 'weights_decay_lambda' in self.kwargs else 0.0
         self.weights_entropy_lambda = float(self.kwargs['weights_entropy_lambda']) if 'weights_entropy_lambda' in self.kwargs else 0.0
+        self.weights_entropy_reg_alpha = float(self.kwargs.get('weights_entropy_reg_alpha', 0.0))
         
         
         self.model = model
@@ -80,7 +115,13 @@ class DQNAlgorithm(Algorithm):
             if kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
             print(f"Learning rate: {lr}")
-            self.optimizer = optim.Adam(parameters, lr=lr, betas=(0.9,0.999), eps=float(kwargs['adam_eps']))
+            self.optimizer = optim.Adam(
+                parameters, 
+                lr=lr, 
+                betas=(0.9,0.999), 
+                eps=float(kwargs['adam_eps']),
+                weight_decay=float(kwargs.get("adam_weight_decay", 0.0)),
+            )
         else: self.optimizer = optimizer
 
         self.loss_fn = loss_fn
@@ -97,14 +138,59 @@ class DQNAlgorithm(Algorithm):
         if len(self.recurrent_nn_submodule_names): self.recurrent = True
 
         self.storages = None
-        self.reset_storages()
+        self.use_mp = False 
+        if self.use_mp:
+            #torch.multiprocessing.freeze_support()
+            if not hasattr(regym, 'AlgoManager'):
+                torch.multiprocessing.set_start_method("forkserver")#, force=True)
+                regym.AlgoManager = mp.Manager()
+            #regym.RegymManager = SyncManager()
+            #regym.RegymManager.start()
+
+            regym.samples = regym.AlgoManager.dict()
+            regym.sampling_config = regym.AlgoManager.dict()
+            regym.sampling_config['stay_on'] = True
+            regym.sampling_config['keep_sampling'] = False
+            regym.sampling_config['minibatch_size'] = 32
+            
+            self.reset_storages()
+            
+            logger = logging.getLogger()
+            logger.setLevel(logging.DEBUG)
+            
+            regym.sampling_process = mp.Process(
+                target=self._mp_sampling,
+                kwargs={
+                    'storages':self.storages,
+                    'sampling_config':regym.sampling_config,
+                    'samples':regym.samples,
+                },
+            )
+            regym.sampling_process.start()
+        else:
+            self.reset_storages()
 
         self.min_capacity = int(float(kwargs["min_capacity"]))
         self.batch_size = int(kwargs["batch_size"])
+        self.nbr_minibatches = int(kwargs["nbr_minibatches"])
 
-        self.TAU = float(self.kwargs['tau'])
-        self.target_update_interval = int(1.0/self.TAU)
-        self.target_update_count = 0
+        self.TAU = self.kwargs.get('tau', 'None')
+        if self.TAU == "None":
+            assert 'inverted_tau' in self.kwargs
+            self.inverted_TAU = self.kwargs.get('inverted_tau', 'None')
+            if self.inverted_TAU == "None":
+                raise NotImplementedError
+            else:
+                self.inverted_TAU = float(self.inverted_TAU)
+            self.use_target_update_interval = True
+        else:
+            self.TAU = float(self.TAU)
+            self.use_target_update_interval = False
+
+        if self.use_target_update_interval:
+            self.target_update_interval = int(self.inverted_TAU)
+            self.target_update_count = 0
+        
         self.GAMMA = float(kwargs["discount"])
         
         """
@@ -136,6 +222,8 @@ class DQNAlgorithm(Algorithm):
             from regym import SharedVariable
             self._param_update_counter = SharedVariable(0)
             self._param_obs_counter = SharedVariable(0)
+        
+           
 
     def parameters(self):
         return self.model.parameters()
@@ -154,6 +242,12 @@ class DQNAlgorithm(Algorithm):
         else:
             self._param_update_counter.set(val)
     
+    def set_optimizer(self, optimizer):
+        self.optimizer.load_state_dict(optimizer.state_dict())
+
+    def get_optimizer(self):
+        return self.optimizer
+
     @property
     def param_obs_counter(self):
         if isinstance(self._param_obs_counter, ray.actor.ActorHandle):
@@ -273,29 +367,32 @@ class DQNAlgorithm(Algorithm):
         beta_increase_interval = None
         if 'PER_beta_increase_interval' in self.kwargs and self.kwargs['PER_beta_increase_interval']!='None':
             beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
-
+        
+ 
         for i in range(self.nbr_actor):
             if self.kwargs['use_PER']:
-                self.storages.append(
-                    PrioritizedReplayStorage(
-                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
-                        alpha=self.kwargs['PER_alpha'],
-                        beta=self.kwargs['PER_beta'],
-                        beta_increase_interval=beta_increase_interval,
-                        keys=keys,
-                        circular_keys=circular_keys,                 
-                        circular_offsets=circular_offsets
-                    )
+                if self.use_mp:
+                    rp_fn = regym.AlgoManager.PrioritizedReplayStorage
+                else:
+                    rp_fn = PrioritizedReplayStorage
+                rp = rp_fn(
+                    capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                    alpha=self.kwargs['PER_alpha'],
+                    beta=self.kwargs['PER_beta'],
+                    beta_increase_interval=beta_increase_interval,
+                    keys=keys,
+                    circular_keys=circular_keys,                 
+                    circular_offsets=circular_offsets
                 )
             else:
-                self.storages.append(
-                    ReplayStorage(
-                        capacity=self.kwargs['replay_capacity']//self.nbr_actor,
-                        keys=keys,
-                        circular_keys=circular_keys,                 
-                        circular_offsets=circular_offsets
-                    )
+                rp = ReplayStorage(
+                    capacity=self.kwargs['replay_capacity']//self.nbr_actor,
+                    keys=keys,
+                    circular_keys=circular_keys,                 
+                    circular_offsets=circular_offsets
                 )
+            self.storages.append(rp)
+            
 
     def stored_experiences(self):
         self.train_request_count += 1
@@ -360,10 +457,12 @@ class DQNAlgorithm(Algorithm):
 
         if minibatch_size is None:  minibatch_size = self.batch_size
 
-        self.target_update_count += self.nbr_actor
-
         start = time.time()
-        samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
+        if self.use_mp:
+            samples = self._retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
+        else:
+            samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
+        #samples = self.retrieve_values_from_storages(minibatch_size=minibatch_size)
         end = time.time()
 
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
@@ -380,17 +479,54 @@ class DQNAlgorithm(Algorithm):
         
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
-        if self.target_update_count > self.target_update_interval:
-            self.target_update_count = 0
-            hard_update(self.target_model,self.model)
+        if self.use_target_update_interval:
+            self.target_update_count += self.nbr_actor
+            if self.target_update_count > self.target_update_interval:
+                self.target_update_count = 0
+                hard_update(self.target_model,self.model)
+        elif self.use_HER and self.kwargs.get("HER_soft_update", False):
+            soft_update(self.target_model, self.model, tau=0.95) 
+        else:
+            soft_update(self.target_model, self.model, tau=self.TAU)
 
-    def retrieve_values_from_storages(self, minibatch_size: int):
+    def _mp_sampling(self, storages, sampling_config, samples):
+        logger = logging.getLogger()
+        while sampling_config['stay_on']:
+            if not sampling_config['keep_sampling']:   
+                logger.info("SamplingProcess: waiting...")
+                time.sleep(1)
+                continue
+            logger.info("SamplingProcess: sampling")
+            start = time.time()
+            sample_d = self.retrieve_values_from_storages(
+                minibatch_size=sampling_config['minibatch_size'],
+                storages=storages,
+            )
+            end = time.time()
+            logger.info(f"SamplingProcess: sampling : DONE in {end-start} sec")
+
+            logger.info("SamplingProcess: updating")
+            start = time.time()
+            samples.update(sample_d)
+            end = time.time()
+            logger.info(f"SamplingProcess: updating : DONE in {end-start} sec")
+    
+    def _retrieve_values_from_storages(self, minibatch_size: int, storages: ReplayStorage=None):
+        regym.sampling_config['minibatch_size'] = minibatch_size
+        regym.sampling_config['keep_sampling'] = True
+        while len(regym.samples) == 0:
+            print("WARNING: waiting for sampling process...")
+            time.sleep(1)
+        return regym.samples
+
+    def retrieve_values_from_storages(self, minibatch_size: int, storages: ReplayStorage=None):
         '''
         Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
         This function samples from each storage, concatenate the sampled elements on the batch dimension,
         and maintains the hierarchy of dictionnaries.
         '''
         torch.set_grad_enabled(False)
+        if storages is None: storages = self.storages
 
         keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
 
@@ -410,8 +546,8 @@ class DQNAlgorithm(Algorithm):
 
         for key in keys:    fulls[key] = []
 
-        using_ray = isinstance(self.storages[0], ray.actor.ActorHandle)
-        for storage in self.storages:
+        using_ray = isinstance(storages[0], ray.actor.ActorHandle)
+        for storage in storages:
             # Check that there is something in the storage 
             if using_ray:
                 storage_size = ray.get(storage.__len__.remote())
@@ -477,7 +613,6 @@ class DQNAlgorithm(Algorithm):
         start = time.time()
         torch.set_grad_enabled(True)
 
-        #beta = self.storages[0].get_beta() if self.use_PER else 1.0
         beta = 1.0
         if self.use_PER:
             if hasattr(self.storages[0].get_beta, "remote"):
@@ -499,12 +634,21 @@ class DQNAlgorithm(Algorithm):
         importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
 
         # For each actor, there is one mini_batch update:
-        sampler = random_sample(np.arange(states.size(0)), optimisation_minibatch_size)
+        #sampler = list(random_sample(np.arange(states.size(0)), optimisation_minibatch_size))
+        sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
+        nbr_minibatches = len(sampler)
+        nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size 
+        list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
+                                for storage_idx, _ in enumerate(self.storages)]
+        '''
         list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
                                 for storage_idx, _ in enumerate(self.storages)]
+        '''
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
+        
+        self.optimizer.zero_grad()
 
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
@@ -539,8 +683,13 @@ class DQNAlgorithm(Algorithm):
             sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
             # (batch_size, unroll_dim, ...)
 
-            self.optimizer.zero_grad()
+            #self.optimizer.zero_grad()
             
+            HER_target_clamping = self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False
+            if self.use_HER and 'HER_target_clamping' not in self.kwargs:
+                raise NotImplementedError
+	
+            self.kwargs["logging"] = False # (self.param_update_counter % 32) == 0
             loss, loss_per_item = self.loss_fn(sampled_states, 
                                           sampled_actions, 
                                           sampled_next_states,
@@ -554,18 +703,22 @@ class DQNAlgorithm(Algorithm):
                                           target_model=self.target_model,
                                           weights_decay_lambda=self.weights_decay_lambda,
                                           weights_entropy_lambda=self.weights_entropy_lambda,
+                                          weights_entropy_reg_alpha=self.weights_entropy_reg_alpha,
                                           use_PER=self.use_PER,
                                           PER_beta=beta,
                                           importanceSamplingWeights=sampled_importanceSamplingWeights,
-                                          HER_target_clamping=self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False,
+                                          HER_target_clamping=HER_target_clamping,
                                           iteration_count=self.param_update_counter,
                                           summary_writer=self.summary_writer,
                                           kwargs=self.kwargs)
             
+            (loss/nbr_minibatches).backward(retain_graph=False)
+            '''
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
             self.optimizer.step()
+            '''
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
@@ -580,6 +733,10 @@ class DQNAlgorithm(Algorithm):
 
             self.param_update_counter += 1 
 
+        if self.kwargs['gradient_clip'] > 1e-3:
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+        self.optimizer.step()
+        
         torch.set_grad_enabled(False)
 
         if self.use_PER :
@@ -591,7 +748,7 @@ class DQNAlgorithm(Algorithm):
             self._update_replay_buffer_priorities(
                 sampled_losses_per_item=sampled_losses_per_item, 
                 array_batch_indices=array_batch_indices,
-                minibatch_size=minibatch_size,
+                minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
             )
 
         end = time.time()
@@ -710,6 +867,8 @@ class DQNAlgorithm(Algorithm):
             self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 
     def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
+        if self.storages is None:
+            self.reset_storages()
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None
@@ -720,6 +879,9 @@ class DQNAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
+        if self.target_model is None:
+            self.target_model = copy.deepcopy(self.model)
+        
         if isinstance(self.model, ArchiModel):
             self.model.reset()
         if isinstance(self.target_model, ArchiModel):
@@ -729,13 +891,16 @@ class DQNAlgorithm(Algorithm):
         self._param_obs_counter = None 
 
         cloned_algo = copy.deepcopy(self)
-        
+         
         if minimal:
             cloned_algo.target_model = None
 
         if not(with_replay_buffer): 
             self.storages = storages
-        
+            # the following line might increase the size of the clone algo:
+            if not minimal:
+                cloned_algo.reset_storages()
+
         self.summary_writer = sum_writer
         
         self._param_update_counter = param_update_counter

@@ -10,14 +10,11 @@ def is_leaf(node: Dict):
 
 def concat_fn(x):
     """
-    Only testing on the first two elements because they should either
-    all be the same shape or all have different/iteratively increasing shapes.
+    All elements should either all be the same shape or mainly all have 
+    different/iteratively increasing shapes.
 
-    TODO: find out why is there a situation where all the initial values
-    of the key_memory are high and similar at 279 elements, while the iteration 
-    count is only up to 31....
     """
-    if x[0].shape==x[1].shape:
+    if all([x[0].shape==xi.shape for xi in x]):
         return torch.cat(x, dim=1)
     nplist = np.empty(len(x), dtype=object)
     for idx, v in enumerate(x):

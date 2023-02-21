@@ -27,7 +27,6 @@ from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
 from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
 
 
-#class DQNHERAgent(Agent):
 class DQNHERAgent(ExtraInputsHandlingAgent):
     def __init__(self, name, algorithm, extra_inputs_infos):
         super(DQNHERAgent, self).__init__(
@@ -63,7 +62,6 @@ class DQNHERAgent(ExtraInputsHandlingAgent):
     def get_update_count(self):
         return self.algorithm.unwrapped.get_update_count()
 
-    #def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
     def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
@@ -341,7 +339,6 @@ class DQNHERAgent(ExtraInputsHandlingAgent):
 
         return nbr_updates
 
-    #def take_action(self, state, infos=None, as_logit=False):
     def _take_action(self, state, infos=None, as_logit=False):
         if self.async_actor:
             # Update the algorithm's model if needs be:
@@ -441,7 +438,6 @@ class DQNHERAgent(ExtraInputsHandlingAgent):
 
         return actions
 
-    #def query_action(self, state, infos=None, as_logit=False):
     def _query_action(self, state, infos=None, as_logit=False):
         """
         Query's the model in training mode...

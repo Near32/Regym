@@ -162,7 +162,13 @@ class Agent(object):
         if self.recurrent:
             _, self.rnn_states = self._reset_rnn_states(self.algorithm, self.nbr_actor, actor_indices=indices, vdn=vdn)
 
-    def _reset_rnn_states(self, algorithm: object, nbr_actor: int, actor_indices: Optional[List[int]]=[], vdn:Optional[bool]=None):
+    def _reset_rnn_states(
+        self, 
+        algorithm: object, 
+        nbr_actor: int, 
+        actor_indices: Optional[List[int]]=[], 
+        vdn:Optional[bool]=None
+        ):
         # TODO: account for the indices in rnn states:
         if ((vdn is not None and vdn) or (vdn is None))\
         and self.algorithm.kwargs.get("vdn", False):
@@ -381,7 +387,7 @@ class Agent(object):
         else: r = torch.ones(1,1).type(torch.FloatTensor)*reward
         return state, r, succ_state, non_terminal
 
-    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -456,7 +462,7 @@ class ExtraInputsHandlingAgent(Agent):
         
         
         # Resetting extra inputs:
-        hdict = self._init_hdict()
+        hdict = self._init_hdict(reset=True)
         recursive_inplace_update(
             in_dict=self.rnn_states, 
             extra_dict=hdict,
@@ -465,10 +471,12 @@ class ExtraInputsHandlingAgent(Agent):
         
         return self.rnn_keys, self.rnn_states
 
-    def _init_hdict(self, init:Optional[Dict]={}):
+    def _init_hdict(self, init:Optional[Dict]={}, reset=False):
         hdict = {}
         for key in self.extra_inputs_infos:
             value = init.get(key, torch.cat([self.dummies[key]]*self.nbr_actor, dim=0))
+            if not(key in init) and not reset:
+                print(f"WARNING: agent : {key} not found in init dict: {init.keys()}.")
             if not isinstance(self.extra_inputs_infos[key]['target_location'][0], list):
                 self.extra_inputs_infos[key]['target_location'] = [self.extra_inputs_infos[key]['target_location']]
             for tl in self.extra_inputs_infos[key]['target_location']:
@@ -513,7 +521,7 @@ class ExtraInputsHandlingAgent(Agent):
     def _query_action(self, state, infos=None, as_logit=False, training=False):
         raise NotImplementedError
 
-    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None):
         '''
         Wrapper around the actual function now living in _handle_experience.
         It prepares the rnn_states.
@@ -539,9 +547,9 @@ class ExtraInputsHandlingAgent(Agent):
         recursive_inplace_update(self.rnn_states, hdict)
         """
 
-        self._handle_experience(s, a, r, succ_s, done, goals=goals, infos=infos)
+        self._handle_experience(s, a, r, succ_s, done, goals=goals, infos=infos, succ_infos=succ_infos)
     
-    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...

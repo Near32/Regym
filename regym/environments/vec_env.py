@@ -72,6 +72,16 @@ class VecEnv():
             self.nbr_parallel_env = nbr_parallel_env
             self.close()
 
+    def launch_env_processes(self):
+        env_indices = range(self.nbr_parallel_env)
+        self.worker_ids = [ idx+1 for idx in range(self.nbr_parallel_env)]
+        for idx in env_indices:
+            self.check_update_reset_env_process(
+                idx, 
+                env_configs=None, 
+                reset=True,
+            )
+ 
     def launch_env_process(self, idx, worker_id_offset=0):
         self.env_queues[idx] = {'in':list(), 'out':list()}
         wid = self.worker_ids[idx]
@@ -126,6 +136,11 @@ class VecEnv():
         return out
 
     def put_action_in_queue(self, action, idx):
+        if False: #self.single_agent:
+            if isinstance(action, list):
+                action = action[0]
+                if isinstance(action, np.ndarray) and action.shape[0]==1:
+                    action = action.item()
         self.env_queues[idx]['out'] = self.env_processes[idx].step(action)
 
     def render(self, render_mode="rgb_array", env_indices=None) :
@@ -137,6 +152,82 @@ class VecEnv():
             observations.append(obs)
 
         return observations
+
+    def format(self, observations, infos, rewards=None):
+        # TODO: deprecate single agent bool and use common formatting:
+        if False: #self.single_agent:
+            per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
+            if rewards is not None:
+                per_env_reward = np.concatenate( [ np.array(r).reshape(-1) for r in rewards], axis=0)
+            else:
+                per_env_reward = None
+            per_env_infos = infos
+        else:
+            # agent/player x actor/env x ...
+            if isinstance(observations[0], list):
+                per_env_obs = [ 
+                    np.concatenate([ 
+                        #np.array(obs[idx_agent]).reshape(1,-1) 
+                        np.expand_dims(obs[idx_agent], axis=0) if obs[idx_agent].shape[0]!=1 else obs[idx_agent] 
+                        for obs in observations
+                        ], 
+                        axis=0
+                    ) 
+                    for idx_agent in range(len(observations[0])) 
+                ]
+            else:
+                per_env_obs = [] 
+                per_env_obs.append(
+                    np.concatenate([ 
+                        np.expand_dims(obs, axis=0) if obs.shape[0]!=1 else obs 
+                        for obs in observations
+                        ], 
+                        axis=0
+                    ) 
+                ) 
+                
+            if rewards is not None:
+                if isinstance(rewards[0], list):
+                    per_env_reward = [ 
+                        np.concatenate([ 
+                            np.array(r[idx_agent]).reshape((-1)) 
+                            for r in rewards
+                            ], 
+                            axis=0
+                        ) 
+                        for idx_agent in range(len(rewards[0])) 
+                    ]
+                else:
+                    per_env_reward = []
+                    per_env_reward.append(
+                        np.concatenate([ 
+                            np.array(r).reshape((-1)) 
+                            for r in rewards
+                            ], 
+                            axis=0
+                        )
+                    )
+            else:
+                per_env_reward = None
+
+            if isinstance(infos[0], dict):
+                # i.e. there is only one agent:
+                per_env_infos = [ 
+                    [ 
+                        info
+                        for info in infos
+                    ]
+                    for idx_agent in range(1) 
+                ]
+            else:
+                per_env_infos = [ 
+                    [ 
+                        info[idx_agent] 
+                        for info in infos
+                    ]
+                    for idx_agent in range(len(infos[0])) 
+                ]
+        return per_env_obs, per_env_infos, per_env_reward
 
     def reset(self, env_configs=None, env_indices=None) :
         if env_indices is None: env_indices = range(self.nbr_parallel_env)
@@ -168,30 +259,9 @@ class VecEnv():
             observations.append(obs)
             infos.append(info)
 
-        # TODO: deprecate single agent bool and use common formatting:
-        if False: #self.single_agent:
-            per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
-            per_env_infos = infos
-        else:
-            # agent/player x actor/env x ...
-            per_env_obs = [ 
-                np.concatenate([ 
-                    #np.array(obs[idx_agent]).reshape(1,-1) 
-                    np.expand_dims(obs[idx_agent], axis=0) if obs[idx_agent].shape[0]!=1 else obs[idx_agent] 
-                    for obs in observations
-                    ], 
-                    axis=0
-                ) 
-                for idx_agent in range(len(observations[0])) 
-            ]
-            per_env_infos = [ 
-                [ 
-                    info[idx_agent] 
-                    for info in infos
-                ]
-                for idx_agent in range(len(infos[0])) 
-            ]
-            
+        per_env_obs, \
+        per_env_infos, _ = self.format(observations, infos)
+        
         for idx in env_indices:
             self.dones[idx] = False
         self.init_reward = []
@@ -288,40 +358,10 @@ class VecEnv():
             infos.append(info)
         
             
-        # TODO: deprecate single agent bool and use common formatting:
-        if False: #self.single_agent:
-            per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
-            per_env_reward = np.concatenate( [ np.array(r).reshape(-1) for r in rewards], axis=0)
-            per_env_infos = infos
-        else:
-            # agent/player x actor/env x ...
-            per_env_obs = [ 
-                np.concatenate([ 
-                    #np.array(obs[idx_agent]).reshape(1,-1) 
-                    np.expand_dims(obs[idx_agent], axis=0) if obs[idx_agent].shape[0]!=1 else obs[idx_agent] 
-                    for obs in observations
-                    ], 
-                    axis=0
-                ) 
-                for idx_agent in range(len(observations[0])) 
-            ]
-            per_env_reward = [ 
-                np.concatenate([ 
-                    np.array(r[idx_agent]).reshape((-1)) 
-                    for r in rewards
-                    ], 
-                    axis=0
-                ) 
-                for idx_agent in range(len(rewards[0])) 
-            ]
-            per_env_infos = [ 
-                [ 
-                    info[idx_agent] 
-                    for info in infos
-                ]
-                for idx_agent in range(len(infos[0])) 
-            ]
-
+        per_env_obs, \
+        per_env_infos, \
+        per_env_reward = self.format(observations, infos, rewards)
+       
         output_dict = {
             "succ_observations":per_env_obs, 
             "reward":per_env_reward, 
@@ -335,8 +375,10 @@ class VecEnv():
         if self.env_processes is not None:
             for env_index in range(len(self.env_processes)):
                 if self.env_processes[env_index] is None: continue
-                self.env_processes[env_index].close()
-
+                try:
+                    self.env_processes[env_index].close()
+                except Exception as e:
+                    print(f"VEC_ENV:CLOSING: {e}")
         self.env_queues = [None]*self.nbr_parallel_env
         self.env_configs = [None]*self.nbr_parallel_env
         self.env_processes = [None]*self.nbr_parallel_env

@@ -99,6 +99,9 @@ class THERAlgorithm(Algorithm):
     def get_models(self):
         return {'model': self.model, 'target_model': self.target_model}
 
+    def parameters(self):
+        return self.model.parameters()+self.predictor.parameters()
+    
     def get_nbr_actor(self):
         return self.nbr_actor
 

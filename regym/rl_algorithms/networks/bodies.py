@@ -2003,8 +2003,31 @@ class EmbeddingRNNBody(nn.Module):
         self.gate = gate
 
     def forward(self, inputs):
-        x, recurrent_neurons = inputs
-        # Embedding:
+        # WARNING: it is imperative to make a copy 
+        # of the frame_state, otherwise any changes 
+        # will be repercuted onto the current frame_state
+        
+        # WARNING: the input x is not used, but its device is necessary...
+
+        x, frame_states = inputs[0], copy_hdict(inputs[1])
+        import ipdb; ipdb.set_trace() 
+        
+        # There are no recurrent neurons as it is a standalone module:
+        """
+        recurrent_neurons = extract_subtree(
+            in_dict=frame_states,
+            node_id='gru',
+        )
+        """
+        extra_inputs = extract_subtree(
+            in_dict=frame_states,
+            node_id='extra_inputs',
+        )
+
+        extra_inputs = [v[0].to(x.dtype).to(x.device) for v in extra_inputs.values()]
+        
+        # WARNING: x is not concatenated with the extra inputs, but replaced by it:
+        if len(extra_inputs): x = torch.cat(extra_inputs, dim=-1)
 
         embeddings = self.embedding(x)
         # batch_size x sequence_length x embedding_size
@@ -2016,7 +2039,15 @@ class EmbeddingRNNBody(nn.Module):
         output = self.gate(rnn_outputs[:,-1,...])
         # batch_size x hidden_units 
 
-        return output, recurrent_neurons
+        # No recurrent neurons:
+        """
+        frame_states.update({'gru':
+            {'hidden': next_hstates, 
+            'cell': next_cstates}
+        })
+        """
+        
+        return output, frame_states
 
     def get_feature_shape(self):
         return self.hidden_units

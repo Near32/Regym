@@ -22,6 +22,7 @@ from gym.spaces import Dict as gymDict
 from ..algorithms.wrappers import HERAlgorithmWrapper
 from regym.rl_algorithms.utils import _extract_from_rnn_states, copy_hdict
 from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
+from regym.rl_algorithms.utils import recursive_inplace_update
 
 import wandb
 
@@ -40,6 +41,7 @@ class DQNAgent(Agent):
         self.replay_period_count = 0
 
         self.nbr_episode_per_cycle = int(self.kwargs['nbr_episode_per_cycle']) if 'nbr_episode_per_cycle' in self.kwargs else None
+        if self.nbr_episode_per_cycle == 0: self.nbr_episode_per_cycle = None
         self.nbr_episode_per_cycle_count = 0
 
         self.nbr_training_iteration_per_cycle = int(self.kwargs['nbr_training_iteration_per_cycle']) if 'nbr_training_iteration_per_cycle' in self.kwargs else 1
@@ -51,8 +53,7 @@ class DQNAgent(Agent):
         
         # With respect to the number of observations:
         self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 5e5
-        
-        self.previous_save_quotient = -1
+        self.previous_save_quotient = 0
 
     def get_update_count(self):
         return self.algorithm.unwrapped.get_update_count()
@@ -60,7 +61,8 @@ class DQNAgent(Agent):
     def get_obs_count(self):
         return self.algorithm.unwrapped.get_obs_count()
 
-    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
+    def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None, prediction=None):
+    #def handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, prediction=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -204,7 +206,13 @@ class DQNAgent(Agent):
 
         # We assume that this function has been called directly after take_action:
         # therefore the current prediction correspond to this experience's state as input.
-
+        
+        # Update the next_rnn_states with relevant infos, before extraction:
+        if succ_infos is not None \
+        and hasattr(self, '_build_dict_from'):
+            hdict = self._build_dict_from(lhdict=succ_infos)
+            recursive_inplace_update(prediction['next_rnn_states'], hdict)
+             
         done_actors_among_notdone = []
         for actor_index in range(batch_size):
             # If this actor is already done with its episode:
@@ -226,6 +234,8 @@ class DQNAgent(Agent):
             exp_dict['non_terminal'] = non_terminal[actor_index,...].unsqueeze(0)
             if infos is not None:
                 exp_dict['info'] = infos[actor_index]
+            if succ_infos is not None:
+                exp_dict['succ_info'] = succ_infos[actor_index]
 
             #########################################################################
             #########################################################################
@@ -242,6 +252,7 @@ class DQNAgent(Agent):
                     actor_index,
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
+
                 exp_dict['next_rnn_states'] = _extract_from_rnn_states(
                     prediction['next_rnn_states'],
                     actor_index,
@@ -272,7 +283,7 @@ class DQNAgent(Agent):
         if self.training \
         and self.handled_experiences > self.kwargs['min_capacity'] \
         and self.algorithm.unwrapped.stored_experiences() > self.kwargs['min_capacity'] \
-        and (period_count_check % period_check == 0 or not(self.async_actor)):
+        and (period_count_check % period_check == 0 and not(self.async_actor)):
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
                 minibatch_size *= self.replay_period

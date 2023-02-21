@@ -126,6 +126,7 @@ class ReplayStorage():
             if k in self.circular_keys: 
                 cidx=self.circular_offsets[k]
                 k = self.circular_keys[k]
+            # dealing with a proxy...:
             v = getattr(self, k)[0]
             if indices_ is None: indices_ = np.arange(self.current_size[k]-1-cidx)
             else:
@@ -316,23 +317,15 @@ class SplitReplayStorage(ReplayStorage):
             '''
             self.test_storage.add(data=data)
         else:
-            for k, v in data.items():
-                #assert k in self.keys or k in self.circular_keys, f"Tried to add value key({k}, {v}), but {k} is not registered."
-                if not(k in self.keys or k in self.circular_keys):  continue
-                if k in self.circular_keys: continue
-                getattr(self, k)[self.position[k]] = v
-                self.position[k] = int((self.position[k]+1) % self.capacity)
-                self.current_size[k] = min(self.capacity, self.current_size[k]+1)
+            super(SplitReplayStorage, self).add(data=data)
     
     def reset(self):
         self.test_storage.reset()
-
-        for k in self.keys:
-            if k in self.circular_keys: continue
-            setattr(self, k, np.zeros(self.capacity+1, dtype=object))
-            self.position[k] = 0
-            self.current_size[k] = 0
+        super(SplitReplayStorage, self).reset()
     
+    def get_test_storage(self):
+        return self.test_storage
+
     def get_size(self, test=False):
         if test:
             return len(self.test_storage)
@@ -343,16 +336,4 @@ class SplitReplayStorage(ReplayStorage):
         if test:
             return self.test_storage.sample(batch_size=batch_size, keys=keys)
         else:
-            if keys is None:    keys = self.keys + self.circular_keys.keys()
-            min_current_size = self.capacity
-            for idx_key in reversed(range(len(keys))):
-                key = keys[idx_key]
-                if key in self.circular_keys:   key = self.circular_keys[key]
-                if self.current_size[key] == 0:
-                    continue
-                if self.current_size[key] < min_current_size:
-                    min_current_size = self.current_size[key]
-
-            indices = np.random.choice(np.arange(min_current_size-1), batch_size)
-            data = self.cat(keys=keys, indices=indices)
-            return data
+            return super(SplitReplayStorage, self).sample(batch_size=batch_size, keys=keys)

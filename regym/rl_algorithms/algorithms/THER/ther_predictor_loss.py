@@ -1,5 +1,7 @@
 from typing import Dict, List
+import numpy as np
 import torch
+import wandb
 
 
 def compute_loss(states: torch.Tensor, 
@@ -15,7 +17,10 @@ def compute_loss(states: torch.Tensor,
                  importanceSamplingWeights: torch.Tensor = None,
                  summary_writer: object = None,
                  iteration_count: int = 0,
-                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None) -> torch.Tensor:
+                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
+                 next_rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
+                 phase: str = "Training",
+    ) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x state_size: States visited by the agent.
     :param actions: Dimension: batch_size x action_size. Actions which the agent
@@ -35,31 +40,74 @@ def compute_loss(states: torch.Tensor,
                        corresponding to the 'hidden' and 'cell' states of
                        the LSTM submodules. These tensors are used by the
                        :param model: when calculating the policy probability ratio.
+    :param next_rnn_states: The :param model: can be made up of different submodules.
+                       Some of these submodules will feature an LSTM architecture.
+                       This parameter is a dictionary which maps recurrent submodule names
+                       to a dictionary which contains 2 lists of tensors, each list
+                       corresponding to the 'hidden' and 'cell' states of
+                       the LSTM submodules. These tensors are used by the
+                       :param model: when calculating the policy probability ratio.
     '''
-    output_dict= predictor.compute_loss(states, goal=goals)
+    output_dict= predictor.compute_loss(
+        next_states, #states, 
+        rnn_states=next_rnn_states, #rnn_states,
+        goal=goals,
+    )
     prediction = output_dict['prediction']
     loss_per_item = output_dict['loss_per_item']
     accuracies = output_dict['accuracies']
     sentence_accuracies = output_dict['sentence_accuracies']
     accuracy = sentence_accuracies.cpu().mean().item()
 
-    if use_PER:
+    bos_accuracies = output_dict['bos_accuracies']
+    bos_sentence_accuracies = output_dict['bos_sentence_accuracies']
+    
+    if importanceSamplingWeights is not None:
       loss_per_item = importanceSamplingWeights * loss_per_item
     
     loss = torch.mean(loss_per_item)
     
-
-    if summary_writer is not None:
-        summary_writer.add_scalar('Training/THER_Predictor/Loss', loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/THER_Predictor/Accuracy', accuracies.cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/THER_Predictor/SentenceAccuracy', sentence_accuracies.cpu().item(), iteration_count)
-        for idx in range(accuracies.shape[-1]):
-          summary_writer.add_scalar(f'Training/THER_Predictor/Accuracy_{idx}', accuracies[..., idx].cpu().item(), iteration_count)
+    # Logging:
+    if iteration_count % 128*16 == 0:
+        if goals is None:
+            goals = next_rnn_states['gt_sentences'][0]
+            idx2w = predictor.model.modules['InstructionGenerator'].idx2w
         
-        if use_PER:
-            summary_writer.add_scalar('Training/THER_Predictor/ImportanceSamplingMean', importanceSamplingWeights.cpu().mean().item(), iteration_count)
-            summary_writer.add_scalar('Training/THER_Predictor/ImportanceSamplingStd', importanceSamplingWeights.cpu().std().item(), iteration_count)
-            summary_writer.add_scalar('Training/THER_Predictor/PER_Beta', PER_beta, iteration_count)
+        columns = [f"token{idx}" for idx in range(prediction.shape[1])]
+        columns += [f"gt_token{idx}" for idx in range(goals.shape[1])]
+        columns += ["loss", "stimulus", "a_{t-1}",]
+        text_table = wandb.Table(columns=columns)
+        for bidx in range(prediction.shape[0]):
+            word_sentence = [idx2w[token.item()] for token in prediction[bidx]]
+            gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
+            nbr_frames = next_states[bidx].shape[0]//4
+            stimulus = next_states[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
+            stimulus = stimulus.astype(np.uint8)
+            stimulus = wandb.Video(stimulus, fps=2, format="gif")
+            previous_action_int = rnn_states['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item() 
+            text_table.add_data(*[
+                *word_sentence, 
+                *gt_word_sentence,
+                loss_per_item[bidx], 
+                stimulus,
+                previous_action_int
+                ]
+            )
+        
+        wandb.log({f"{phase}/THER_Predictor/SampleTable":text_table, "training_step": iteration_count}, commit=False)
+            
+    wandb.log({f'{phase}/THER_Predictor/Loss': loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({f'{phase}/THER_Predictor/Accuracy': accuracies.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({f'{phase}/THER_Predictor/SentenceAccuracy': sentence_accuracies.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({f'{phase}/THER_Predictor/SentenceBoSAccuracy': bos_sentence_accuracies.cpu().item(), "training_step": iteration_count}, commit=False)
+    for idx in range(accuracies.shape[-1]):
+        wandb.log({f'{phase}/THER_Predictor/Accuracy_{idx}': accuracies[..., idx].cpu().item(), "training_step": iteration_count}, commit=False)
+        wandb.log({f'{phase}/THER_Predictor/BoS_Accuracy_{idx}': bos_accuracies[..., idx].cpu().item(), "training_step": iteration_count}, commit=False)
+    
+    if importanceSamplingWeights is not None:
+        wandb.log({f'{phase}/THER_Predictor/ImportanceSamplingMean': importanceSamplingWeights.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+        wandb.log({f'{phase}/THER_Predictor/ImportanceSamplingStd': importanceSamplingWeights.cpu().std().item(), "training_step": iteration_count}, commit=False)
+        wandb.log({f'{phase}/THER_Predictor/PER_Beta': PER_beta, "training_step": iteration_count}, commit=False)
 
     return {'loss':loss, 
             'loss_per_item':loss_per_item,

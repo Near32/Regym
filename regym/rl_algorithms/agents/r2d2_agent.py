@@ -3,15 +3,16 @@ from functools import partial
 
 import copy
 import torch
+import torch.nn as nn
 import ray
 
 from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
 from regym.rl_algorithms.agents.dqn_agent import DQNAgent
-from regym.rl_algorithms.agents.utils import generate_model, parse_and_check
+from regym.rl_algorithms.agents.utils import generate_model, parse_and_check, build_ther_predictor
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
-from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2
+from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
 
 
 class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
@@ -35,7 +36,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
     def _query_action(self, state, infos=None, as_logit=False, training=False):
         return DQNAgent.query_action(self, state=state, infos=infos, as_logit=as_logit, training=training)
 
-    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None):
+    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None):
         '''
         Note: the batch size may differ from the nbr_actor as soon as some
         actors' episodes end before the others...
@@ -57,6 +58,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             done=done,
             goals=goals,
             infos=infos,
+            succ_infos=succ_infos,
         )
 
     def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
@@ -189,17 +191,87 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
     if kwargs.get('use_HER', False):
         from regym.rl_algorithms.algorithms.wrappers import latent_based_goal_predicated_reward_fn2
-        goal_predicated_reward_fn = None
-        if kwargs.get('HER_use_latent', False):
-            goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn2
-
-        algorithm = HERAlgorithmWrapper2(
-            algorithm=algorithm,
-            strategy=kwargs['HER_strategy'],
-            goal_predicated_reward_fn=goal_predicated_reward_fn,
-            extra_inputs_infos=kwargs['extra_inputs_infos'],
+        from regym.rl_algorithms.algorithms.wrappers import predictor_based_goal_predicated_reward_fn2
+        from regym.rl_algorithms.algorithms.wrappers import batched_predictor_based_goal_predicated_reward_fn2
+        
+        goal_predicated_reward_fn = kwargs.get(
+            "HER_goal_predicated_reward_fn",
+            None,
         )
 
+        if kwargs.get('HER_use_latent', False):
+            goal_predicated_reward_fn = latent_based_goal_predicated_reward_fn2
+        elif kwargs.get('use_THER', False):
+            goal_predicated_reward_fn = predictor_based_goal_predicated_reward_fn2
+        elif goal_predicated_reward_fn is None:
+            raise NotImplementedError("if only using HER, then need HER_use_latent=True")
+
+        wrapper = HERAlgorithmWrapper2 
+        wrapper_kwargs = {
+            "algorithm":algorithm,
+            "strategy":kwargs['HER_strategy'],
+            "goal_predicated_reward_fn":goal_predicated_reward_fn,
+            "extra_inputs_infos":kwargs['extra_inputs_infos'],
+            "_extract_goal_from_info_fn":kwargs.get("HER_extract_goal_from_info_fn", None),
+            "target_goal_key_from_info":kwargs["HER_target_goal_key_from_info"],
+            "achieved_latent_goal_key_from_info":kwargs.get("HER_achieved_latent_goal_key_from_info", None),
+            "target_latent_goal_key_from_info":kwargs.get("HER_target_latent_goal_key_from_info", None),
+            "filtering_fn":kwargs["HER_filtering_fn"],
+        }
+
+        if kwargs.get('use_THER', False):
+            # THER would use the predictor to provide the achieved goal, so the key is not necessary:
+            # WARNING: if you want to use this functionality, 
+            # then you need to be careful for the predicated fn, maybe ? not tested yet... 
+            # 
+            wrapper_kwargs["achieved_goal_key_from_info"] = kwargs.get("HER_achieved_goal_key_from_info", None)
+            from regym.rl_algorithms.algorithms.THER import ther_predictor_loss
+
+            wrapper = THERAlgorithmWrapper2 
+            kwargs['THER_predictor_learning_rate'] = float(kwargs['THER_predictor_learning_rate'])
+            kwargs['discount'] = float(kwargs['discount'])
+            kwargs['replay_capacity'] = int(float(kwargs['replay_capacity']))
+            kwargs['min_capacity'] = int(float(kwargs['min_capacity']))
+            kwargs['THER_vocabulary'] = set(kwargs['THER_vocabulary'])
+            kwargs['THER_max_sentence_length'] = int(kwargs['THER_max_sentence_length'])
+                
+            if 'ArchiModel' in kwargs.keys():
+                # The predictor corresponds to the instruction generator pipeline:
+                assert "instruction_generator" in kwargs['ArchiModel']['pipelines']
+                if kwargs.get("THER_predict_PADs", False):
+                    model.modules["InstructionGenerator"].predict_PADs = kwargs["THER_predict_PADs"]
+                    print("WARNING : R2D2 Agent with THER : THER predictor DOES predict PAD tokens.")
+                else:
+                    print("WARNING : R2D2 Agent with THER : THER predictor does NOT predict PAD tokens.")
+                predictor = ArchiPredictor(model=model, kwargs=kwargs["ArchiModel"])
+            else:
+                predictor = build_ther_predictor(kwargs, task)
+            
+            print(predictor)
+            for np, p in predictor.named_parameters():
+                print(np, p.shape)
+
+            wrapper_kwargs['predictor'] = predictor
+            wrapper_kwargs['predictor_loss_fn'] = ther_predictor_loss.compute_loss
+            wrapper_kwargs['feedbacks'] = {"failure":kwargs['THER_feedbacks_failure_reward'], "success":kwargs['THER_feedbacks_success_reward']}
+            wrapper_kwargs['relabel_terminal'] = kwargs['THER_relabel_terminal']
+            wrapper_kwargs['filter_predicate_fn'] = kwargs['THER_filter_predicate_fn']
+            wrapper_kwargs['filter_out_timed_out_episode'] = kwargs['THER_filter_out_timed_out_episode']
+            wrapper_kwargs['timing_out_episode_length_threshold'] = kwargs['THER_timing_out_episode_length_threshold']
+            wrapper_kwargs['episode_length_reward_shaping'] = kwargs['THER_episode_length_reward_shaping']
+            wrapper_kwargs['train_contrastively'] = kwargs['THER_train_contrastively']
+            wrapper_kwargs['contrastive_training_nbr_neg_examples'] = kwargs['THER_contrastive_training_nbr_neg_examples']
+        
+            if 'THER_use_predictor' in kwargs and kwargs['THER_use_predictor']:
+                wrapper_kwargs['goal_predicated_reward_fn'] = partial(
+                    #predictor_based_goal_predicated_reward_fn2, 
+                    batched_predictor_based_goal_predicated_reward_fn2, 
+                    predictor=predictor,
+                )
+        else:
+            wrapper_kwargs["achieved_goal_key_from_info"] = kwargs["HER_achieved_goal_key_from_info"]
+
+        algorithm = wrapper(**wrapper_kwargs)
     
     agent = R2D2Agent(
         name=agent_name,
@@ -208,3 +280,75 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
     )
 
     return agent
+
+class ArchiPredictor(nn.Module):
+    def __init__(self, model, kwargs):
+        super(ArchiPredictor, self).__init__()
+        self.model = model
+        self.kwargs = kwargs
+        self.use_oracle = len([
+            m_id for m_id in self.model.pipelines["instruction_generator"]
+            if 'oracle' in m_id.lower()
+        ]) > 0
+        if self.use_oracle:
+            print("ARCHI PREDICTOR::WARNING: using OracleTHER.")
+        
+    def parameters(self):
+        params = []
+        for km, module in self.model.modules.items():
+            if km in self.model.pipelines["instruction_generator"]:
+                params += module.parameters()
+        return params
+
+    def forward(
+        self,
+        x,
+        gt_sentences=None,
+        rnn_states=None,
+    ):
+        if rnn_states is None:
+            rnn_states = self.model.get_reset_states()
+
+        input_dict = {
+            'obs':x,
+            'rnn_states': rnn_states,
+        }
+         
+        if gt_sentences is None:
+            return_feature_only=self.kwargs["features_id"]["instruction_generator"]
+        else:
+            return_feature_only = None 
+            input_dict['rnn_states']['gt_sentences'] = gt_sentences
+            
+        output = self.model.forward(
+            **input_dict,
+            pipelines={
+                "instruction_generator":self.kwargs["pipelines"]["instruction_generator"]
+            },
+            return_feature_only=return_feature_only,
+        )
+
+        return output
+    
+    def compute_loss(self, x, rnn_states, goal=None):
+        gt_sentences = rnn_states['phi_body']['extra_inputs']['desired_goal'] 
+        
+        output_stream_dict = self.forward(
+            x=x,
+            gt_sentences=gt_sentences,
+            rnn_states=rnn_states,
+        )
+        
+        rdict = {
+            'prediction': output_stream_dict['next_rnn_states']["input0_prediction"][0], 
+            'loss_per_item':output_stream_dict['next_rnn_states']["input0_loss_per_item"][0], 
+            'accuracies':output_stream_dict['next_rnn_states']["input0_accuracies"][0], 
+            'sentence_accuracies':output_stream_dict['next_rnn_states']["input0_sentence_accuracies"][0],
+            'bos_accuracies':output_stream_dict['next_rnn_states']["input0_bos_accuracies"][0], 
+            'bos_sentence_accuracies':output_stream_dict['next_rnn_states']["input0_bos_sentence_accuracies"][0],
+        }
+
+        return rdict
+
+
+

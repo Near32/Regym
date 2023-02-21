@@ -794,7 +794,8 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
         if test_capacity is None: test_capacity=capacity
         self.test_capacity = test_capacity
         self.test_train_split_interval = test_train_split_interval
-        self.data_count = 0
+        self.train_data_count = 0
+        """
         self.test_storage = PrioritizedReplayStorage(capacity=self.test_capacity,
                                                      alpha=alpha,
                                                      beta=beta,
@@ -802,6 +803,13 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
                                                      keys=keys,
                                                      circular_keys=circular_keys,
                                                      circular_offsets=circular_offsets)
+        """
+        self.test_storage = ReplayStorage(
+            capacity=self.test_capacity,
+            keys=keys,
+            circular_keys=circular_keys,
+            circular_offsets=circular_offsets,
+        )
         super(SplitPrioritizedReplayStorage, self).__init__(capacity=capacity,
                                                        alpha=alpha,
                                                        beta=beta,
@@ -827,6 +835,7 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
 
     def update(self, idx, priority, test=False):
         if test:
+            raise AssertionError("Deprecated...")
             self.test_storage.update(idx=idx, priority=priority)
         else:
             super(SplitPrioritizedReplayStorage, self).update(idx=idx, priority=priority)
@@ -851,29 +860,15 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
         self.test_storage.reset()
         super(SplitPrioritizedReplayStorage, self).reset()
 
-    def add(self, data, priority):
-        self.data_count += 1
-        if self.data_count % self.test_train_split_interval == 0:
-            self.test_storage.add(exp=data, priority=priority)
+    def add(self, data, priority, test_set=None):
+        if test_set is None:
+            self.train_data_count += 1
+            test_set = self.train_data_count % self.test_train_split_interval == 0
+        if test_set:
+            self.test_storage.add(data=data)
         else:
             super(SplitPrioritizedReplayStorage, self).add(exp=data, priority=priority)
-            '''
-            if priority is None:
-                priority = self.max_priority
-
-            super(PrioritizedReplayStorage, self).add(data=exp)
-            self.length = min(self.length+1, self.capacity)
-
-            if np.isnan(priority) or np.isinf(priority) :
-                priority = self.max_priority
-            self.sumPi_alpha += priority
-
-            idx = self.position['s'] + self.capacity -1
-            self.update(idx,priority)
-
-            self._update_beta()
-            '''
-
+        
     def sample(self, batch_size, keys=None, test=False):
         if test:
             return self.test_storage.sample(batch_size=batch_size, keys=keys)

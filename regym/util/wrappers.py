@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from collections import deque, OrderedDict
 
 import cv2
-cv2.setNumThreads(0)
+#cv2.setNumThreads(0)
 import numpy as np
 
 
@@ -232,11 +232,34 @@ Adapted from:
 https://github.com/chainer/chainerrl/blob/master/chainerrl/wrappers/atari_wrappers.py
 '''
 class LazyFrames(object):
-    def __init__(self, frames):
+    def __init__(
+        self, 
+        frames, 
+        axis=-1, #0, 
+        permutations={}, #{0:2}
+        moveaxis={}, #{0:2}
+    ):
         self._frames = frames
-    
+        self.axis = axis
+        self.permutations = permutations
+        self.moveaxis = moveaxis
+
+        for din,dout in self.permutations.items():
+            for fidx, frame in enumerate(self._frames):
+                self._frames[fidx] = frame.transpose(din,dout)
+        for sd,dd in self.moveaxis.items():
+            for fidx, frame in enumerate(self._frames):
+                self._frames[fidx] = np.moveaxis(frame, sd, dd)
+
+    @property
+    def shape(self):
+        shape = list(self._frames[0].shape)
+        for frame in self._frames[1:]:
+            shape[self.axis] += frame.shape[self.axis]
+        return tuple(shape)
+
     def __array__(self, dtype=None):
-        out = np.concatenate(self._frames, axis=-1)
+        out = np.concatenate(self._frames, axis=self.axis)
         if dtype is not None:
             out = out.astype(dtype)
         return out
@@ -591,6 +614,49 @@ class EpisodicLifeEnv(gym.Wrapper):
         self.lives = self.env.unwrapped.ale.lives()
         return obs
 
+class EpisodicPickEnv(gym.Wrapper):
+    def __init__(self, env, pick_idx=0):
+        """
+        Make pick = end-of-episode for BabyAI benchmark.
+        """
+        gym.Wrapper.__init__(self, env)
+        self.pick_idx = pick_idx
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        if action == self.pick_idx \
+        and self.env.carrying is not None:
+            done = True
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
+class EpisodicAfterPickEnv(gym.Wrapper):
+    def __init__(self, env, pick_idx=0):
+        """
+        Make pick = end-of-episode for BabyAI benchmark.
+        """
+        gym.Wrapper.__init__(self, env)
+        self.pick_idx = pick_idx
+
+    def step(self, action):
+        obs, reward, done, info = self.env.step(action)
+        
+        if self.next_is_done:
+            done = True
+        
+        if action == self.pick_idx \
+        and self.env.carrying is not None:
+            self.next_is_done = True
+        
+        return obs, reward, done, info
+
+    def reset(self, **kwargs):
+        self.next_is_done = False
+        return self.env.reset(**kwargs)
+
+
 
 class FrameStack(gym.Wrapper):
     def __init__(self, env, stack=4,):
@@ -618,6 +684,34 @@ class FrameStack(gym.Wrapper):
         obs, reward, done, info = self.env.step(action)
         self.observations.append(obs)        
         return self._get_obs(), reward, done, info
+
+class FrameStackWrapper(gym.Wrapper):
+    def __init__(self, env, stack=4,):
+        gym.Wrapper.__init__(self,env)
+        self.stack = stack if stack is not None else 1
+        self.observations = deque([], maxlen=self.stack)
+        
+        assert(isinstance(self.env.observation_space, gym.spaces.Box))
+        
+        low_obs_space = np.repeat(self.env.observation_space.low, self.stack, axis=-1)
+        high_obs_space = np.repeat(self.env.observation_space.high, self.stack, axis=-1)
+        self.observation_space = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.dtype)
+
+    def _get_obs(self, obs):
+        while len(self.observations) < self.stack:
+            self.observations.append(obs)
+        return LazyFrames(list(self.observations))
+    
+    def reset(self, **kwargs):
+        '''
+        Expects obs, infos as input and returns similarly...
+        '''
+        obs, infos = self.env.reset(**kwargs)
+        return self._get_obs(obs), infos
+
+    def step(self, action):
+        obs, reward, done, infos = self.env.step(action)
+        return self._get_obs(obs), reward, done, infos
 
 
 # https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L12
@@ -1591,6 +1685,9 @@ eye_actions = None
 class PreviousRewardActionInfoWrapper(gym.Wrapper):
     """
     Integrates the previous reward and previous action into the info dictionnary.
+    
+    Expects an environment with a Discrete action space.
+
     Args:
         env (gym.Env): Env to wrap.
     """
@@ -1603,11 +1700,18 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
     def reset(self):
         self.previous_reward = np.zeros((1, 1))
         self.previous_action = np.zeros((1, self.nbr_actions))
-        infos = {}
+        self.previous_action_int = np.zeros((1,1))
+        reset_output = self.env.reset()
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = {}
         infos['previous_reward'] = copy.deepcopy(self.previous_reward)
         infos['previous_action'] = copy.deepcopy(self.previous_action)
+        infos['previous_action_int'] = copy.deepcopy(self.previous_action_int)
     
-        return self.env.reset(), infos
+        return obs, infos
 
     def step(self, action):
         next_observation, reward, done, next_infos = self.env.step(action)
@@ -1625,12 +1729,16 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         
         next_infos['previous_reward'] = copy.deepcopy(self.previous_reward)
         next_infos['previous_action'] = copy.deepcopy(pa)
+        next_infos['previous_action_int'] = copy.deepcopy(action)
         
         return next_observation, reward, done, next_infos
 
 class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
     """
     Integrates the previous reward and previous action into the info dictionnary for multi-agent environments.
+    
+    Expects an environment with a Discrete action space.
+    
     Args:
         env (gym.Env): Env to wrap.
     """
@@ -1641,18 +1749,31 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
         self.trajectory_wrapping = trajectory_wrapping
 
     def reset(self):
-        obs, infos = self.env.reset()
+        reset_output = self.env.reset()
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
         nbr_agent = len(infos)
         self.previous_reward = [np.zeros((1, 1)) for _ in range(nbr_agent)]
         self.previous_action = [np.zeros((1, self.nbr_actions)) for _ in range(nbr_agent)]
+        self.previous_action_int = [np.zeros((1, 1)) for _ in range(nbr_agent)]
         
         for info_idx in range(len(infos)):
             infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
             infos[info_idx]['previous_action'] = copy.deepcopy(self.previous_action[info_idx])
+            infos[info_idx]['previous_action_int'] = copy.deepcopy(self.previous_action_int[info_idx])
         return obs, infos 
     
     def step(self, action):
-        next_observation, reward, done, next_infos = self.env.step(action)
+        stepping_action = action
+        if isinstance(action, list):
+            if len(action)==1:
+                # Single Agent ...
+                stepping_action = action[0].item()
+        next_observation, reward, done, next_infos = self.env.step(stepping_action)
         nbr_agent = len(next_infos)
         
         self.previous_reward = [np.ones((1, 1), dtype=np.float32)*reward[agent_idx] for agent_idx in range(nbr_agent)]
@@ -1663,18 +1784,28 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
             eye_actions[action[agent_idx]].reshape(1, -1)
             for agent_idx in range(nbr_agent)
         ]
+        self.previous_action_int = [
+            action[agent_idx].reshape(1, 1)
+            for agent_idx in range(nbr_agent)
+        ]
 
         pa = copy.deepcopy(self.previous_action) 
+        pa_int = copy.deepcopy(self.previous_action_int) 
         if self.trajectory_wrapping:
             pa = [
                 #np.eye(self.nbr_actions, dtype=np.float32)[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
                 eye_actions[next_infos[agent_idx]['previous_action'][0]].reshape(1, -1)
                 for agent_idx in range(nbr_agent)
             ]
+            pa_int = [
+                next_infos[agent_idx]['previous_action'][0].reshape(1, 1)
+                for agent_idx in range(nbr_agent)
+            ]
         
         for info_idx in range(len(next_infos)):
             next_infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
             next_infos[info_idx]['previous_action'] = copy.deepcopy(pa[info_idx])
+            next_infos[info_idx]['previous_action_int'] = copy.deepcopy(pa_int[info_idx])
         
         return next_observation, reward, done, next_infos
 
@@ -2079,25 +2210,34 @@ def minerl_wrap_env(env,
 class TextualGoal2IdxWrapper(gym.ObservationWrapper):
     """
     """
-    def __init__(self, 
-                 env, 
-                 max_sentence_length=32, 
-                 vocabulary=None, 
-                 observation_keys_mapping={'mission':'desired_goal'}):
+    def __init__(
+        self, 
+        env, 
+        max_sentence_length=32, 
+        vocabulary=None, 
+        vocab_size=64,
+        observation_keys_mapping={'mission':'desired_goal'},
+    ):
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
         self.observation_keys_mapping = observation_keys_mapping
 
+        self.vocab_size = vocab_size
         if vocabulary is None:
             vocabulary = set('key ball red green blue purple \
             yellow grey verydark dark neutral light verylight \
             tiny small medium large giant get go fetch go get \
             a fetch a you must fetch a'.split(' '))
         self.vocabulary = set([w.lower() for w in vocabulary])
+        
 
         # Make padding_idx=0:
         self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
 
+        while len(self.vocabulary) < self.vocab_size:
+            self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
+        self.vocabulary = list(set(self.vocabulary))
+        
         self.w2idx = {}
         self.idx2w = {}
         for idx, w in enumerate(self.vocabulary):
@@ -2110,27 +2250,100 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             self.observation_space.spaces[map_key] = gym.spaces.MultiDiscrete([len(self.vocabulary)]*self.max_sentence_length)
         
     def observation(self, observation):
+        """
+        Transforms textual obvservations into word indices vectors.
+        If the word is not part of the known vocabulary, it is appended.
+        
+        While the output vector has a fixed max_sentence_length, all spot
+        are initiliased with the 'PAD' token.
+        'EoS' is eventually added at the end of the actual sentence length,
+        or at position max_sentence_length if the sentence is too long.
+        """
         for obs_key, map_key in self.observation_keys_mapping.items():
-            t_goal = [w.lower() for w in observation[obs_key].split(' ')]
+            #t_goal = [w.lower() for w in observation[obs_key].split(' ')]
+            t_goal = [w for w in observation[obs_key].split(' ')]
             for w in t_goal:
                 if w not in self.vocabulary:
-                    raise NotImplementedError
+                    import ipdb; ipdb.set_trace()
                     self.vocabulary.append(w)
                     self.w2idx[w] = len(self.vocabulary)-1
                     self.idx2w[len(self.vocabulary)-1] = w 
             
-            idx_goal = self.w2idx['PAD']*np.ones(shape=(self.max_sentence_length), dtype=np.long)
+            idx_goal = self.w2idx['PAD']*np.ones(shape=(1,self.max_sentence_length)).astype(int)
             final_idx = min(self.max_sentence_length, len(t_goal))
             for idx in range(final_idx):
-                idx_goal[idx] = self.w2idx[t_goal[idx]]
+                idx_goal[...,idx] = self.w2idx[t_goal[idx]]
             # Add 'EoS' token:
-            idx_goal[final_idx] = self.w2idx['EoS']
+            idx_goal[...,final_idx] = self.w2idx['EoS']
             #padded_idx_goal = nn.utils.rnn.pad_sequence(idx_goal, padding_value=self.w2idx["PAD"])
             #observation[map_key] = padded_idx_goal
             
             observation[map_key] = idx_goal
             
         return observation
+
+class BehaviourDescriptionWrapper(gym.ObservationWrapper):
+    def __init__(self, env, max_sentence_length=10):
+        """
+        Add an observation string that describe the achieved goal for a PickUp-based env.
+
+        """
+        gym.ObservationWrapper.__init__(self, env)
+        self.max_sentence_length = max_sentence_length
+
+        self.observation_space = env.observation_space
+        self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
+
+    def observation( self, observation):
+        achieved_goal = "EoS"
+        if self.env.carrying is not None:
+            color = self.env.carrying.color
+            shape = self.env.carrying.type
+            achieved_goal = f"pick up the {color} {shape}".lower()
+        observation['behaviour_description'] = achieved_goal
+        return observation
+
+class BabyAIMissionWrapper(gym.Wrapper):
+    """
+    Integrates the BabyAI mission into the info dictionnary for multi-agent environments.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+    def __init__(self, env):
+        super(BabyAIMissionWrapper, self).__init__(env)
+    
+    def add_mission(self, info):
+        mission = self.env.unwrapped #.mission
+        info['babyai_mission'] = mission
+        return info
+
+    def reset(self):
+        reset_output = self.env.reset()
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        nbr_agent = len(infos)
+        assert nbr_agent == 1
+
+        for info_idx in range(len(infos)):
+            infos[info_idx] = self.add_mission(infos[info_idx])
+        
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        nbr_agent = len(next_infos)
+        assert nbr_agent == 1
+
+        for info_idx in range(len(next_infos)):
+            #next_infos[info_idx] = copy.deepcopy(self.add_mission(next_infos[info_idx]))
+            next_infos[info_idx] = self.add_mission(next_infos[info_idx])
+        
+        return next_observation, reward, done, next_infos
+
 
 class DictObservationSpaceReMapping(gym.ObservationWrapper):
     def __init__(self, env, remapping={'image':'observation'}):
@@ -2149,37 +2362,203 @@ class DictObservationSpaceReMapping(gym.ObservationWrapper):
 
 
 class DictFrameStack(gym.Wrapper):
-    def __init__(self, env, stack=4, keys=[]):
+    def __init__(
+        self, 
+        env, 
+        stack=4, 
+        key_dim_list=[],
+        concatenate_keys_with_obs=[],
+        permutations={},
+        moveaxis={-1:0},
+    ):
+        """
+        
+        :arg concatenate_obs_action: boolean that specifies whether we try to concatenate the previous action to the current observation identified by :arg key:.
+        N.B. : if True, then the environment action space is expected to be Discrete.
+        :arg keys: List of str that identifies the entries in the Dict Observation space that must
+        be stacked together.
+
+        N.B.1: assumes only one player...
+
+        """
         gym.Wrapper.__init__(self,env)
         self.stack = stack if stack is not None else 1
         
-        self.keys = keys
+        self.permutations = permutations
+        self.moveaxis = moveaxis 
+
+        self.key_dim_list = key_dim_list
+        self.concatenate_keys_with_obs = concatenate_keys_with_obs
+        self.values2concat = {}
+        for key in self.concatenate_keys_with_obs:
+            if key=='action':  continue
+            assert key in self.env.observation_space.spaces.keys()
+
+            high = self.env.observation_space.spaces[key].high
+            if isinstance(high, int):   high = np.array([high])
+            low = self.env.observation_space.spaces[key].low
+            if isinstance(low, int):    low = np.array([low])
+            
+            self.values2concat[key] = {
+                'high': high,
+                'low': low,
+            }
+
+        self.concatenate_obs_action = 'action' in self.concatenate_keys_with_obs
+        if self.concatenate_obs_action:
+            self.previous_action_high = np.array([self.env.action_space.n])
+            self.previous_action_low = np.array([0])
+            self.previous_action = self.previous_action_low-1
+            # (1,)
+
         self.observations = {}
-        for k in self.keys:
+        for kdd in self.key_dim_list:
+            k = kdd['key']
+            dim = kdd['dim']
+
             self.observations[k] = deque([], maxlen=self.stack)
             assert(isinstance(self.env.observation_space.spaces[k], gym.spaces.Box))
         
-            low_obs_space = np.repeat(self.env.observation_space.spaces[k].low, self.stack, axis=-1)
-            high_obs_space = np.repeat(self.env.observation_space.spaces[k].high, self.stack, axis=-1)
+            low_obs_space = self.env.observation_space.spaces[k].low
+            high_obs_space = self.env.observation_space.spaces[k].high
+
+            if self.concatenate_obs_action:
+                broadcasted_action_low = np.broadcast_to(self.previous_action_low, low_obs_space.shape)
+                broadcasted_action_low = broadcasted_action_low[...,0:1]
+                broadcasted_action_high = np.broadcast_to(self.previous_action_high, high_obs_space.shape)
+                broadcasted_action_high = broadcasted_action_high[...,0:1]
+                # on the channel dim, we only take one element.
+                low_obs_space = np.concatenate([
+                    low_obs_space, 
+                    broadcasted_action_low], 
+                    axis=dim,
+                )
+                high_obs_space = np.concatenate([
+                    high_obs_space, 
+                    broadcasted_action_high], 
+                    axis=dim,
+                )
+            
+            for ck in self.values2concat.keys():
+                broadcasted_low = np.broadcast_to(self.values2concat[ck]['low'], low_obs_space.shape)
+                broadcasted_low = broadcasted_low[...,0:1]
+                broadcasted_high = np.broadcast_to(self.values2concat[ck]['high'], high_obs_space.shape)
+                broadcasted_high = broadcasted_high[...,0:1]
+                # on the channel dim, we only take one element.
+                low_obs_space = np.concatenate([
+                    low_obs_space, 
+                    broadcasted_low], 
+                    axis=dim,
+                )
+                high_obs_space = np.concatenate([
+                    high_obs_space, 
+                    broadcasted_high], 
+                    axis=dim,
+                )
+            
+
+            low_obs_space = np.repeat(self.env.observation_space.spaces[k].low, self.stack, axis=dim)
+            high_obs_space = np.repeat(self.env.observation_space.spaces[k].high, self.stack, axis=dim)
             self.observation_space.spaces[k] = gym.spaces.Box(low=low_obs_space, high=high_obs_space, dtype=self.env.observation_space.spaces[k].dtype)
 
     def _get_obs(self, observation):
-        for k in self.keys:
-            observation[k] = LazyFrames(list(self.observations[k]))
+        for kdd in self.key_dim_list:
+            k =kdd['key']
+            observation[k] = LazyFrames(
+                list(self.observations[k]),
+                axis=0,
+                permutations=self.permutations,
+                moveaxis=self.moveaxis, #{-1:0},
+            )
         return observation
     
     def reset(self, **args):
-        obs = self.env.reset()
-        for k in self.keys:
+        reset_output = self.env.reset()
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = {}
+        
+        values2concat = {}
+        for key in self.concatenate_keys_with_obs:
+            if key=='action':  continue
+            assert key in obs.keys()
+
+            value = obs[key]
+            if isinstance(value, int):   value = np.array([value])
+            values2concat[key] = value
+        
+        for kdd in self.key_dim_list:
+            k = kdd['key']
+            dim = kdd['dim']
+            observation = obs[k]
+            if self.concatenate_obs_action:
+                broadcasted_action = np.broadcast_to(self.previous_action, observation.shape)
+                broadcasted_action = broadcasted_action[...,0:1]
+                # on the channel dim, we only take one element.
+                observation = np.concatenate([
+                    observation,
+                    broadcasted_action],
+                    axis=dim,
+                )
+            for ck in self.values2concat.keys():
+                broadcasted = np.broadcast_to(values2concat[ck], observation.shape)
+                broadcasted = broadcasted[...,0:1]
+                # on the channel dim, we only take one element.
+                observation = np.concatenate([
+                    observation,
+                    broadcasted], 
+                    axis=dim,
+                )
+
             for _ in range(self.stack):
-                self.observations[k].append(obs[k])
-        return self._get_obs(obs)
+                self.observations[k].append(observation)
+        return self._get_obs(obs) #, infos
     
     def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        for k in self.keys:
-            self.observations[k].append(obs[k])        
-        return self._get_obs(obs), reward, done, info
+        obs, reward, done, infos = self.env.step(action)
+        
+        self.previous_action = action
+        if isinstance(action, int):
+            self.previous_action = np.array([action])
+        else:
+            raise NotImplementedError
+
+        values2concat = {}
+        for key in self.concatenate_keys_with_obs:
+            if key=='action':  continue
+            assert key in obs.keys()
+
+            value = obs[key]
+            if isinstance(value, int):   value = np.array([value])
+            values2concat[key] = value
+        
+        for kdd in self.key_dim_list:
+            k = kdd['key']
+            dim = kdd['dim']
+            observation = obs[k]
+            if self.concatenate_obs_action:
+                broadcasted_action = np.broadcast_to(self.previous_action, observation.shape)
+                broadcasted_action = broadcasted_action[...,0:1]
+                # on the channel dim, we only take one element.
+                observation = np.concatenate([
+                    observation,
+                    broadcasted_action],
+                    axis=dim,
+                )
+            for ck in self.values2concat.keys():
+                broadcasted = np.broadcast_to(values2concat[ck], observation.shape)
+                broadcasted = broadcasted[...,0:1]
+                # on the channel dim, we only take one element.
+                observation = np.concatenate([
+                    observation,
+                    broadcasted], 
+                    axis=dim,
+                )
+            
+            self.observations[k].append(observation)        
+        return self._get_obs(obs), reward, done, infos
 
 
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
@@ -2203,12 +2582,13 @@ class ConfigVideoRecorder(VideoRecorder):
 
         self.render_mode = render_mode
 
-    def capture_frame(self):
+    def capture_frame(self, frame=None):
         if not self.functional: return 
         logger.debug('Capturing video frame: path=%s', self.path)
 
-        render_mode = self.render_mode
-        frame = self.env.render(mode=render_mode)
+        if frame is None:
+            render_mode = self.render_mode
+            frame = self.env.render(mode=render_mode)
 
         if frame is None:
             if self._async:
@@ -2228,10 +2608,13 @@ class ConfigVideoRecorder(VideoRecorder):
 
 
 class PeriodicVideoRecorderWrapper(gym.Wrapper):
-    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array',):
-        gym.Wrapper.__init__(self, env)
+    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array', record_obs=False):
+        env.metadata['render.modes'].append('rgb_array')
 
+        gym.Wrapper.__init__(self, env)
+         
         self.render_mode = render_mode
+        self.record_obs = record_obs
         self.episode_idx = 0
         self.base_dirpath = base_dirpath
         os.makedirs(self.base_dirpath, exist_ok=True)
@@ -2255,7 +2638,12 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
             self.is_video_enabled = True
         else:
             if self.is_video_enabled:
-                self.video_recorder.capture_frame()
+                frame = None
+                if self.record_obs:
+                    frame = env_output
+                    while isinstance(frame, list) or isinstance(frame, tuple):
+                        frame = frame[0]
+                self.video_recorder.capture_frame(frame=frame)
                 self.video_recorder.close()
                 del self.video_recorder
                 self.is_video_enabled = False
@@ -2263,25 +2651,118 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
         return env_output
 
     def step(self, action):
+        obs, reward, done, info = super(PeriodicVideoRecorderWrapper, self).step(action)
         if self.is_video_enabled:
-            self.video_recorder.capture_frame()
+            frame = None
+            if self.record_obs:
+                frame = obs
+                if isinstance(frame, list):
+                    frame = frame[0]
+            self.video_recorder.capture_frame(frame=frame)
 
-        return super(PeriodicVideoRecorderWrapper, self).step(action)
+        return obs, reward, done, info
 
+class DictObservationSelectionWrapper(gym.Wrapper):
+    """
+    Assumes the :arg env: environment to have a Dict observation space,
+    that contains the key :arg selected_key:.
+    This wrapper makes the observation space consisting of solely the 
+    :arg selected_key: entry, while the other entries are put in the 
+    infos dictionnary.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
 
-def baseline_ther_wrapper(env, 
-                          size=None, 
-                          skip=0, 
-                          stack=4, 
-                          single_life_episode=False, 
-                          nbr_max_random_steps=0, 
-                          clip_reward=False,
-                          max_sentence_length=32,
-                          vocabulary=None,
-                          time_limit=40):
+    def __init__(self, env, selected_key:str="stimulus"):
+        super(DictObservationSelectionWrapper, self).__init__(env)
+        self.selected_key = selected_key
+        self.observation_space = env.observation_space.spaces[self.selected_key]
+
+        self.action_space = env.action_space 
+
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
+        if isinstance(reset_output, tuple):
+            observations, infos = reset_output
+        elif isinstance(reset_output, list):
+            observations = reset_output
+            infos = [{} for _ in range(len(observations))]
+            nbr_agent = len(infos)
+        else:
+            observations = [reset_output]
+            infos = [{}]
+            nbr_agent = 1
+        
+        new_observations = [obs[self.selected_key] for obs in observations]
+
+        for agent_idx in range(nbr_agent):
+            oobs = observations[agent_idx]
+
+            for k,v in oobs.items():
+                if k==self.selected_key:  continue
+                infos[agent_idx][k] = v
+
+        return new_observations, infos 
+    
+    def step(self, action):
+        next_observations, reward, done, next_infos = self.env.step(action)        
+        if isinstance(next_infos, dict):
+            next_observations = [next_observations]
+            reward = [reward]
+            done = done
+            next_infos = [next_infos]
+
+        nbr_agent = len(next_infos)
+        
+        new_next_observations = [obs[self.selected_key] for obs in next_observations]
+
+        for agent_idx in range(nbr_agent):
+            oobs = next_observations[agent_idx]
+
+            for k,v in oobs.items():
+                if k==self.selected_key:  continue
+                next_infos[agent_idx][k] = v
+        
+        return new_next_observations, reward, done, next_infos
+
+    def render(self, mode='human', **kwargs):
+        env = self.unwrapped
+        return env.render(
+            mode=mode,
+            **kwargs,
+        )
+ 
+from gym_minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
+
+def baseline_ther_wrapper(
+    env, 
+    size=None, 
+    skip=0, 
+    stack=4, 
+    single_life_episode=False, 
+    nbr_max_random_steps=0, 
+    clip_reward=False,
+    max_sentence_length=32,
+    vocabulary=None,
+    vocab_size=64,
+    time_limit=40,
+    previous_reward_action=False,
+    observation_key=None,
+    concatenate_keys_with_obs=[],
+    use_rgb=False,
+    full_obs=False,
+    single_pick_episode=False,
+    observe_achieved_goal=False,
+    babyai_mission=False,
+    ):
     
     env = TimeLimit(env, max_episode_steps=time_limit)
-
+    
+    if use_rgb:
+        if full_obs:
+            env = RGBImgObsWrapper(env)
+        else:
+            env = RGBImgPartialObsWrapper(env=env)
     if nbr_max_random_steps > 0:
         env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
     
@@ -2293,18 +2774,48 @@ def baseline_ther_wrapper(env,
     
     if single_life_episode:
         env = EpisodicLifeEnv(env)
-    
-    if stack > 1:
-        env = DictFrameStack(env, stack=stack, keys=['image'])
+    if single_pick_episode:
+        env = EpisodicPickEnv(
+            env,
+            pick_idx=env.actions.pickup,
+        )
+
+    if stack > 1 or len(concatenate_keys_with_obs):
+        env = DictFrameStack(
+            env, 
+            stack=stack, 
+            key_dim_list=[
+                # numpy image dim : (h, w, ch)
+                {'key':'image', 'dim':-1},
+            ],
+            concatenate_keys_with_obs=concatenate_keys_with_obs,
+        )
     
     if clip_reward:
         env = ClipRewardEnv(env)
+    
+    observation_keys_mapping={'mission':'desired_goal'}
+    if observe_achieved_goal:
+        env = BehaviourDescriptionWrapper(env=env, max_sentence_length=max_sentence_length)
+        observation_keys_mapping['behaviour_description'] = 'achieved_goal'
 
-    env = TextualGoal2IdxWrapper(env=env,
-                                 max_sentence_length=max_sentence_length,
-                                 vocabulary=vocabulary)
+    env = TextualGoal2IdxWrapper(
+        env=env,
+        max_sentence_length=max_sentence_length,
+        vocabulary=vocabulary,
+        vocab_size=vocab_size,
+        observation_keys_mapping=observation_keys_mapping,
+    )
 
-    env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
+    #env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
+    if observation_key is not None:
+        env = DictObservationSelectionWrapper(env=env, selected_key=observation_key)
+
+    if previous_reward_action:
+        env = PreviousRewardActionInfoMultiAgentWrapper(env=env)
+    
+    if babyai_mission:
+        env = BabyAIMissionWrapper(env=env)
 
     return env
 
