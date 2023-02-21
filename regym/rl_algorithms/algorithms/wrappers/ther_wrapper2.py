@@ -504,7 +504,6 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
                 #if all(non_terminal<=0.5) 
                 if idx==(episode_length-1):
-                    self.episode_count += 1
                     wandb.log({'PerEpisode/EpisodeLength': episode_length}, commit=False)
                     
                     wandb.log({
