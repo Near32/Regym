@@ -2417,8 +2417,10 @@ class DictFrameStack(gym.Wrapper):
             dim = kdd['dim']
 
             self.observations[k] = deque([], maxlen=self.stack)
-            assert(isinstance(self.env.observation_space.spaces[k], gym.spaces.Box))
-        
+            #assert(isinstance(self.env.observation_space.spaces[k], gym.spaces.Box))
+            assert( hasattr(self.env.observation_space.spaces[k], 'low') \
+                and hasattr(self.env.observation_space.spaces[k], 'high')
+                )
             low_obs_space = self.env.observation_space.spaces[k].low
             high_obs_space = self.env.observation_space.spaces[k].high
 
@@ -2732,7 +2734,13 @@ class DictObservationSelectionWrapper(gym.Wrapper):
             **kwargs,
         )
  
-from gym_minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
+try:
+    from gym_minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
+except Exception as e:
+    print(f"WARNING: BabyAI wrappers are not found due to: {e}")
+    print(f"WARNING: trying from minigrid...")
+    from minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
+    print("WARNING: BabyAI wrappers imported successfully from minigrid.")
 
 def baseline_ther_wrapper(
     env, 

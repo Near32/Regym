@@ -48,18 +48,35 @@ def generate_task(env_name: str,
     :returns: Task created from :param: env_name
     '''
     if env_name is None: raise ValueError('Parameter \'env_name\' was None')
-    is_gym_environment = any([env_name == spec.id for spec in gym.envs.registry.all()]) # Checks if :param: env_name was registered
+    try:
+        is_gym_environment = any([env_name == spec.id for spec in gym.envs.registry.all()]) # Checks if :param: env_name was registered
+    except Exception as e:
+        print(f"WARNING: OpenAI gym version does not allow access to registry.all(): {e}")
+        print(F"WARNING: trying while assuming it is a dict...")
+        is_gym_environment = any([env_name == spec for spec in gym.envs.registry.keys()])
+
+    is_gymnasium_environment = False
+    try:
+        import gymnasium
+        is_gymnasium_environment = any([env_name == spec for spec in gymnasium.envs.registry.keys()]) # Checks if :param: env_name was registered
+    except Exception as e:
+        print(f"WARNING: exception while checking whether the environment is from gymnasium : {e}")
     is_unity_environment = check_for_unity_executable(env_name)
 
     task = None
     env = None
     if is_gym_environment and is_unity_environment: raise ValueError(f'{env_name} exists as both a Gym and an Unity environment. Rename Unity environment to remove duplicate problem.')
-    elif is_gym_environment: 
-        env = gym.make(env_name, **env_config)
-        env.seed(seed)
+    elif is_gym_environment or is_gymnasium_environment: 
+        if is_gym_environment:
+            env = gym.make(env_name, **env_config)
+        else:
+            env = gymnasium.make(env_name, **env_config)
+        print(f"WARNING: As a gymnasium environment, seeding is only available upon reset.")
+        print(f"WARNING: As a result, seeding is meant to enforce episode-level similarity, rather than environment-level control of the randomness.")
         if wrapping_fn is not None: 
             env = wrapping_fn(env=env)
-        task = parse_gym_environment(env, env_type)
+        from .gymnasium_parser import parse_gymnasium_environment
+        task = parse_gymnasium_environment(env, env_type)
     elif is_unity_environment: task = parse_unity_environment(env_name, env_type)
     else: raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
 

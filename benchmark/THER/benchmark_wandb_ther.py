@@ -17,7 +17,8 @@ from regym.environments import generate_task, EnvType
 from regym.util.experiment_parsing import initialize_agents
 from regym.util.wrappers import baseline_ther_wrapper
 
-import babyai
+#import babyai
+import minigrid
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
