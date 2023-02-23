@@ -244,7 +244,7 @@ def train_and_evaluate(
     }
 
     config['training'] = True
-    config['env_configs'] = None
+    config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
     
     sum_writer_path = os.path.join(sum_writer, 'actor.log')

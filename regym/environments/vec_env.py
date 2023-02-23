@@ -121,14 +121,20 @@ class VecEnv():
         
         if reset:
             if env_configs is not None: 
-                self.env_configs[idx] = env_configs[idx]
+                if isinstance(env_configs, list):
+                    assert len(env_configs) == self.nbr_parallel_env
+                    self.env_configs[idx] = env_configs[idx]
+                elif isinstance(env_configs, dict):
+                    self.env_configs[idx] = env_configs
+                else:
+                    raise NotImplementedError
             env_config = copy.deepcopy(self.env_configs[idx]) 
             if env_config is not None and 'worker_id' in env_config: 
                 env_config.pop('worker_id')
             if env_config is None:
                 out = self.env_processes[idx].reset()
             else:
-                out = self.env_processes[idx].reset(env_config)
+                out = self.env_processes[idx].reset(**env_config)
             self.env_queues[idx]['out'] = out
 
     def get_from_queue(self, idx, exhaust_first_when_failure=False):
@@ -232,9 +238,14 @@ class VecEnv():
     def reset(self, env_configs=None, env_indices=None) :
         if env_indices is None: env_indices = range(self.nbr_parallel_env)
         
-        if env_configs is not None: 
-            self.worker_ids = [ env_config.pop('worker_id', None) for env_config in env_configs]
-        
+        if env_configs is not None:
+            if isinstance(env_configs, list): 
+                self.worker_ids = [ env_config.pop('worker_id', None) for env_config in env_configs]
+            elif isinstance(env_configs, dict):
+                self.worker_ids = [None]*self.nbr_parallel_env
+                self.worker_ids[0] = env_configs.pop('worker_id', None)
+            else:
+                raise NotImplementedError
         # Reset environments: 
         for idx in env_indices:
             self.check_update_reset_env_process(idx, env_configs=env_configs, reset=True)

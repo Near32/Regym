@@ -80,8 +80,8 @@ def generate_task(env_name: str,
     elif is_unity_environment: task = parse_unity_environment(env_name, env_type)
     else: raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
 
-    env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=wrapping_fn, env_config=env_config)
-    test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, wrapping_fn=test_wrapping_fn, env_config=test_env_config)
+    env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, is_gymnasium_environment, wrapping_fn=wrapping_fn, env_config=env_config)
+    test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, is_gymnasium_environment, wrapping_fn=test_wrapping_fn, env_config=test_env_config)
 
     task = Task(task.name, 
                 #ParallelEnv(env_creator, nbr_parallel_env, seed=seed), 

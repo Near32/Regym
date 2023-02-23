@@ -302,7 +302,7 @@ experiment:
     experiment_id: 'THER_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 5.0e3
-    benchmarking_record_episode_interval: 1.0e8
+    benchmarking_record_episode_interval: None #1.0e8
     train_observation_budget: 1.0e7
     seed: 1
 

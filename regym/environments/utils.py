@@ -1,17 +1,33 @@
 import gym
+try:
+    import gymnasium
+except Exception as e:
+    print(f"EnvironmentCreator: WARNING: {e}")
 
 class EnvironmentCreator():
-    def __init__(self, environment_name_cli, is_unity_environment, is_gym_environment, wrapping_fn=None, env_config={}):
+    def __init__(
+        self, 
+        environment_name_cli, 
+        is_unity_environment, 
+        is_gym_environment, 
+        is_gymnasium_environment, 
+        wrapping_fn=None, 
+        env_config={},
+    ):
         self.environment_name = environment_name_cli
         self.is_unity_environment = is_unity_environment
         self.is_gym_environment = is_gym_environment
+        self.is_gymnasium_environment = is_gymnasium_environment
         self.wrapping_fn = wrapping_fn
         self.env_config = env_config
 
     def __call__(self, worker_id=None, seed=0):
-        if self.is_gym_environment:
-            env = gym.make(self.environment_name, **self.env_config)
-            env.seed(seed)
+        if self.is_gym_environment or self.is_gymnasium_environment:
+            if self.is_gym_environment:
+                env = gym.make(self.environment_name, **self.env_config)
+                env.seed(seed)
+            else:
+                env = gymnasium.make(self.environment_name, **self.env_config)
             if self.wrapping_fn is not None: env = self.wrapping_fn(env=env)
             return env
         if self.is_unity_environment: 
