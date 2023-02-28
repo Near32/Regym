@@ -1,12 +1,9 @@
 #git clone https://github.com/mila-iqia/babyai
-#cd babyai
-#git checkout 30a5107
-#pip install blosc==1.5.1
-#cd ..
-#git clone https://github.com/maximecb/gym-minigrid.git
-#cd gym-minigrid
-#pip install -e .
-#cd ../babyai
-#pip install -e .
-#export BABYAI_STORAGE=`pwd`
-pip install minigrid==2.1.0
+git clone https://github.com/Near32/babyai
+# Installation from a fork of the original repo.
+# The fork patches a bug in the BabyAI Bot...
+cd babyai
+git checkout patch-1
+pip install blosc==1.5.1
+pip install -e .
+export BABYAI_STORAGE=`pwd`

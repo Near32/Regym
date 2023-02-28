@@ -66,15 +66,22 @@ class BabyAIBotModule(Module):
         self.agents = {}
         self.last_actions = {}
         self.agents_initialized = {0:False}
+        self.agents_reset_history = {0:True}
 
-    def init_agents(self, missions):
+    def init_agents(self, missions, indices=None):
         self.nbr_agents = len(missions)
         for aidx, mission in missions.items():
+            if indices is not None \
+            and aidx not in indices:
+                continue
+            
             if aidx in self.agents_initialized \
             and self.agents_initialized[aidx]:   continue
             self.agents[aidx] = self.agent(mission)
-            self.last_actions[aidx] = None
-            self.agents_initialized[aidx] = True 
+            if self.agents_reset_history.get(aidx, True):
+                self.agents_reset_history[aidx] = False
+                self.last_actions[aidx] = None
+            self.agents_initialized[aidx] = True
     
     def extract_missions_from_infos(self):
         for aidx, infos in enumerate(self.new_infos):
@@ -92,27 +99,28 @@ class BabyAIBotModule(Module):
         self.new_observations = input_streams_dict['succ_observations']
         self.new_infos = input_streams_dict['succ_infos']
         
-        if len(input_streams_dict['reset_actors'])!=0:
-            assert all(
-                [   input_streams_dict['dones'][aidx] 
-                    for aidx in input_streams_dict['reset_actors']
-                ]
-            )
-            for aidx in input_streams_dict['reset_actors']:
-                self.agents_initialized[aidx] = False                
-        
+        '''
         # Re-init all the time:
         for aidx in self.agents_initialized:
             self.agents_initialized[aidx] = False                
-        
+        '''
+
         self.extract_missions_from_infos()
+        for midx, missions in self.missions.items():
+            if midx in self.agents_initialized: continue
+            self.agents_initialized[midx] = False
         if not all(self.agents_initialized.values()):
-            self.init_agents(self.missions)
+            indices = [idx for idx,value in self.agents_initialized.items() if value==False]
+            self.init_agents(self.missions, indices=indices)
         self.update_missions()
 
         self.new_actions = []
         for aidx in range(self.nbr_agents):
-            if self.pinput_streams_dict is not None\
+            if aidx in input_streams_dict['reset_actors']:
+                # Nothing to do, just wait for the next iteration
+                # to update the agent ...
+                new_action = 0
+            elif self.pinput_streams_dict is not None\
             and self.pinput_streams_dict['dones'] is not None\
             and self.pinput_streams_dict['dones'][aidx]:
                 new_action = self.last_actions[aidx]
@@ -123,13 +131,20 @@ class BabyAIBotModule(Module):
             else:
                 agent = self.agents[aidx]
                 last_action = self.last_actions[aidx] 
-                try:
-                    new_action = agent.replan(last_action).value
+                #try:
+                n_action = agent.replan(last_action)
+                new_action = n_action.value
+                '''
                 except Exception as e:
-                    new_action = 0
                     self.agents_initialized[aidx] = False
-                    print(f"BabyAI Bot : {aidx} : Exception : {e}")
+                    self.agents_reset_history[aidx] = True
+                    self.init_agents(self.missions, indices=[aidx])
+                    last_action = self.last_actions[aidx]
+                    agent = self.agents[aidx]
+                    new_action = agent.replan(last_action).value
+                '''
             self.new_actions.append(new_action)
+        
         self.last_actions = copy.deepcopy(self.new_actions)
         self.new_actions = np.asarray(self.new_actions)
         self.new_actions = np.reshape(self.new_actions, (self.nbr_agents, 1))
@@ -138,6 +153,17 @@ class BabyAIBotModule(Module):
         self.infos = copy.deepcopy(self.new_infos)
         self.actions = copy.deepcopy(self.new_actions)
 
+        # Prepare reset at the next iteration, when the infos will have been updated...
+        if len(input_streams_dict['reset_actors']):
+            assert all(
+                [   input_streams_dict['dones'][aidx] 
+                    for aidx in input_streams_dict['reset_actors']
+                ]
+            )
+            for aidx in input_streams_dict['reset_actors']:
+                self.agents_initialized[aidx] = False   
+                self.agents_reset_history[aidx] = True             
+        
         outputs_streams_dict[self.config['actions_stream_id']] = copy.deepcopy(self.new_actions)
         
         self.ppinput_streams_dict = copy.deepcopy(self.pinput_streams_dict)
