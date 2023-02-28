@@ -49,8 +49,8 @@ def predictor_based_goal_predicated_reward_fn2(
     with torch.no_grad():
         training = predictor.training
         predictor.train(False)
-        achieved_pred_goal = predictor(state).cpu()
-        target_pred_goal = predictor(target_state).cpu()
+        achieved_pred_goal = predictor(x=state).cpu()
+        target_pred_goal = predictor(x=target_state).cpu()
         predictor.train(training)
     abs_fn = torch.abs
     dist = abs_fn(achieved_pred_goal-target_pred_goal).float().mean()
@@ -106,8 +106,8 @@ def batched_predictor_based_goal_predicated_reward_fn2(
     with torch.no_grad():
         training = predictor.training
         predictor.train(False)
-        achieved_pred_goal = predictor(state, rnn_states=rnn_states).cpu()
-        target_pred_goal = predictor(target_state, rnn_states=target_rnn_states).cpu()
+        achieved_pred_goal = predictor(x=state, rnn_states=rnn_states).cpu()
+        target_pred_goal = predictor(x=target_state, rnn_states=target_rnn_states).cpu()
         predictor.train(training)
     abs_fn = torch.abs
     dist = abs_fn(achieved_pred_goal-target_pred_goal).float()
@@ -154,6 +154,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         """
         
         super(THERAlgorithmWrapper2, self).__init__(algorithm=algorithm)
+        self.hook_fns = []
+
         self.nbr_episode_success_range = 256
 
         if goal_predicated_reward_fn is None:   goal_predicated_reward_fn = state_eq_goal_reward_fn2
@@ -376,6 +378,14 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 if -1 not in per_episode_d2store: per_episode_d2store[-1] = []
                 per_episode_d2store[-1].append(d2store)
                 
+                for hook_fn in self.hook_fns:
+                    hook_fn(
+                        exp_dict=d2store,
+                        actor_index=actor_index,
+                        negative=False,
+                        self=self,
+                    )
+
                 # Store data in predictor storages if successfull:
                 if self.kwargs['THER_use_THER'] and r.item()>0:
                     if self.train_contrastively:
@@ -384,7 +394,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             with torch.no_grad():
                                 training = self.predictor.training
                                 self.predictor.train(False)
-                                target_pred_goal = self.predictor(target_state).cpu()
+                                target_pred_goal = self.predictor(x=target_state).cpu()
                                 self.predictor.train(training)
                             w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
                             self.contrastive_goal_value = w2idx["PAD"]+0*target_pred_goal
@@ -421,7 +431,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         actor_index=actor_index, 
                         negative=False,
                     )
-                    
+                   
                     goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
                     idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
                     
@@ -741,11 +751,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         successful_update = int(updated_acc >= best_acc)
         wandb.log({f"Training/THER_Predictor/SuccessfulUpdate":successful_update}, commit=False)
         if not successful_update:
-            self.predictor.load_state_dict(self.best_predictor.state_dict())
+            self.predictor.load_state_dict(self.best_predictor.state_dict(), strict=False)
             self.predictor_optimizer.load_state_dict(self.best_predictor_optimizer_sd)
             acc = best_acc
         else:
-            self.best_predictor.load_state_dict(self.predictor.state_dict())
+            self.best_predictor.load_state_dict(self.predictor.state_dict(), strict=False)
             self.best_predictor_optimizer_sd = self.predictor_optimizer.state_dict()
             acc = updated_acc 
 
@@ -817,6 +827,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
     def optimize_predictor(self, minibatch_size, samples):
         start = time.time()
         torch.set_grad_enabled(True)
+        self.predictor.train(True)
 
         beta = self.predictor_storages[0].beta if self.kwargs['THER_use_PER'] else 1.0
         
@@ -929,7 +940,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.predictor_optimizer.step()
         
         torch.set_grad_enabled(False)
-        
+        self.predictor.train(False)
+
         if importanceSamplingWeights is not None:
             # losses corresponding to sampled batch indices: 
             sampled_losses_per_item = torch.cat(sampled_losses_per_item, dim=0).cpu().detach().numpy()
