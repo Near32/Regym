@@ -507,6 +507,10 @@ def training_process(
     }
     project_name = task_config['project']
     wandb.init(project=project_name, config=config)
+    wandb.tensorboard.patch(
+        save=True, 
+        tensorboard_x=True,
+    )
     
     agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
     os.makedirs(agent.save_path, exist_ok=True)
@@ -575,12 +579,12 @@ def str2bool(instr):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger('Textual HER Benchmark')
+    logger = logging.getLogger('Emergent Textual HER Benchmark')
 
-    parser = argparse.ArgumentParser(description="THER - Test.")
+    parser = argparse.ArgumentParser(description="ETHER - Test.")
     parser.add_argument("--config", 
         type=str, 
-        default="./babyAI_THER_benchmark_config.yaml",
+        default="./babyAI_wandb_benchmark_ETHER_config.yaml",
     )
     
     parser.add_argument("--seed", 
@@ -737,8 +741,8 @@ def main():
     parser.add_argument("--single_pick_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_train_contrastively", type=str2bool, default="False",)
     parser.add_argument("--THER_contrastive_training_nbr_neg_examples", type=int, default=0,)
-    parser.add_argument("--THER_feedbacks_failure_reward", type=float, default=-1,)
-    parser.add_argument("--THER_feedbacks_success_reward", type=float, default=0,)
+    parser.add_argument("--THER_feedbacks_failure_reward", type=int, default=-1,)
+    parser.add_argument("--THER_feedbacks_success_reward", type=int, default=0,)
     parser.add_argument("--THER_relabel_terminal", type=str2bool, default="True",)
     parser.add_argument("--THER_train_on_success", type=str2bool, default="False",)
     parser.add_argument("--THER_predict_PADs", type=str2bool, default="False",)
@@ -752,6 +756,84 @@ def main():
     #    type=int, 
     #    default=32,
     #)
+    
+    parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
+    parser.add_argument("--ETHER_replay_capacity", type=int, default=4096)
+    parser.add_argument("--ETHER_test_replay_capacity", type=int, default=4096)
+    parser.add_argument("--ETHER_test_train_split_interval",type=int, default=5)
+    parser.add_argument("--ETHER_train_dataset_length", type=int, default=4096)
+    parser.add_argument("--ETHER_test_dataset_length", type=int, default=1024)
+    parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
+    parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=1)
+    parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_egocentric_tr_degrees", type=float, default=15)
+    parser.add_argument("--ETHER_rg_egocentric_tr_xy", type=float, default=10)
+    parser.add_argument("--ETHER_rg_egocentric", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_nbr_train_distractors", type=int, default=7)
+    parser.add_argument("--ETHER_rg_nbr_test_distractors", type=int, default=7)
+    parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_descriptive_ratio", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_observability", type=str, default='partial')
+    parser.add_argument("--ETHER_rg_max_sentence_length", type=int, default=10)
+    parser.add_argument("--ETHER_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ETHER_rg_object_centric", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
+    parser.add_argument("--ETHER_rg_vocab_size", type=int, default=32)
+    parser.add_argument("--ETHER_rg_force_eos", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_symbol_embedding_size", type=int, default=64)
+    parser.add_argument("--ETHER_rg_arch", type=str, default='BN+7x4x3xCNN')
+    parser.add_argument("--ETHER_rg_shared_architecture", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
+
+    parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
+    parser.add_argument("--ETHER_rg_cultural_speaker_substrate_size", type=int, default=1)
+    parser.add_argument("--ETHER_rg_cultural_listener_substrate_size", type=int, default=1)
+    parser.add_argument("--ETHER_rg_cultural_reset_strategy", type=str, default='uniformSL')
+    #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
+    parser.add_argument("--ETHER_rg_cultural_pressure_meta_learning_rate", type=float, default=1.0e-3)
+    parser.add_argument("--ETHER_rg_iterated_learning_scheme", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_iterated_learning_period", type=int, default=5)
+    parser.add_argument("--ETHER_rg_iterated_learning_rehearse_MDL", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
+    
+    parser.add_argument("--ETHER_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
+    parser.add_argument("--ETHER_rg_obverter_nbr_games_per_round", type=int, default=20)
+    parser.add_argument("--ETHER_rg_use_obverter_sampling", type=str2bool, default=False)
+    
+    parser.add_argument("--ETHER_rg_batch_size", type=int, default=32)
+    parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
+    parser.add_argument("--ETHER_rg_learning_rate", type=float, default=3.0e-4)
+    parser.add_argument("--ETHER_rg_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_emb_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_use_feat_converter", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=0)
+    parser.add_argument("--ETHER_rg_nbr_experience_repetition", type=int, default=1)
+    parser.add_argument("--ETHER_rg_agent_nbr_latent_dim", type=int, default=32)
+    parser.add_argument("--ETHER_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
+    
+    parser.add_argument("--ETHER_rg_mini_batch_size", type=int, default=32)
+    parser.add_argument("--ETHER_rg_optimizer_type", type=str, default='adam')
+    parser.add_argument("--ETHER_rg_nbr_epoch_per_update", type=int, default=3)
+
+    parser.add_argument("--ETHER_rg_metric_epoch_period", type=int, default=8)
+    parser.add_argument("--ETHER_rg_dis_metric_epoch_period", type=int, default=8)
+    parser.add_argument("--ETHER_rg_metric_batch_size", type=int, default=16)
+    parser.add_argument("--ETHER_rg_metric_fast", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_parallel_TS_worker", type=int, default=8)
+    parser.add_argument("--ETHER_rg_nbr_train_points", type=int, default=1024)
+    parser.add_argument("--ETHER_rg_nbr_eval_points", type=int, default=512)
+    parser.add_argument("--ETHER_rg_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_dis_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_seed", type=int, default=1)
+    parser.add_argument("--ETHER_rg_metric_active_factors_only", type=str2bool, default=True)
+    
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=2e6,
@@ -799,6 +881,14 @@ def main():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
+        if args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
+            dargs['ETHER_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
+            print(f"WARNING: ETHER rg max sentence length is different ({args.ETHER_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ETHER_rg_max_sentence_length']}")
+            import ipdb; ipdb.set_trace()
+        if args.ETHER_rg_vocab_size < agent_config['THER_vocab_size']:
+            dargs['ETHER_rg_vocab_size'] = agent_config['THER_vocab_size']
+            print(f"WARNING: ETHER rg vocab size is lower ({args.ETHER_rg_vocab_size}) than necessary, updating to: {dargs['ETHER_rg_vocab_size']}")
+            import ipdb; ipdb.set_trace()
         for k,v in dargs.items():
             task_config[k] = v
             agent_config[k] = v

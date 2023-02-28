@@ -295,7 +295,7 @@ class SplitReplayStorage(ReplayStorage):
         if test_capacity is None: test_capacity=capacity
         self.test_capacity = test_capacity
         self.test_train_split_interval = test_train_split_interval
-        self.data_count = 0
+        self.train_data_count = 0
         self.test_storage = ReplayStorage(capacity=self.test_capacity,
                                           keys=keys,
                                           circular_keys=circular_keys,
@@ -305,16 +305,11 @@ class SplitReplayStorage(ReplayStorage):
                                            circular_keys=circular_keys,
                                            circular_offsets=circular_offsets)
 
-    def add(self, data):
-        self.data_count += 1
-        if self.data_count % self.test_train_split_interval == 0:
-            '''
-            # Check whether the test_storage is at full capacity or not:
-            if len(self.test_storage) == self.test_capacity:
-                # Let us pop the value that is going to be erased next then...
-                data = self.test_storage.pop()
-                # and add it to the current storage: how can we do that without breaking the circular keys...?!
-            '''
+    def add(self, data, test_set=None):
+        if test_set is None:
+            self.train_data_count += 1
+            test_set = self.train_data_count % self.test_train_split_interval == 0
+        if test_set:
             self.test_storage.add(data=data)
         else:
             super(SplitReplayStorage, self).add(data=data)

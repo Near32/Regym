@@ -107,6 +107,24 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_gradient_clip: 10.0
     THER_weights_decay_lambda: 0.0 #1.0 # 1e-6
     
+ETHER_extra_hyperparameters: &ETHER_extra_hyperparameters
+    use_ETHER:  True
+    ETHER_use_ETHER:  True
+    
+    ETHER_exp_key: "succ_s" 
+    ETHER_train_dataset_length: 1024
+    ETHER_test_dataset_length: 1024
+
+    ETHER_nbr_epoch_per_update: 100
+    ETHER_rg_accuracy_threshold: 0.75
+    ETHER_split_strategy: None 
+
+    THER_predictor_learning_rate: 3.0e-4 #1e-3
+    THER_predictor_batch_size: 128 #128 #32
+    THER_predictor_nbr_minibatches: 10 #128 #32
+    THER_gradient_clip: 10.0
+    THER_weights_decay_lambda: 0.0 #1.0 # 1e-6
+
 LargeCNN: &LargeCNN
     sad: False 
 
@@ -205,7 +223,7 @@ Predictor: &Predictor
     predictor_decoder_embedding_size: 128
 
 
-THER_LargeCNN_Predictor: &THER_LargeCNN_Predictor
+ETHER_LargeCNN_Predictor: &ETHER_LargeCNN_Predictor
     double: True #False
     dueling: True #False
     noisy: False 
@@ -259,6 +277,7 @@ THER_LargeCNN_Predictor: &THER_LargeCNN_Predictor
     <<: *Predictor
     <<: *extra_hyperparameters
     <<: *THER_extra_hyperparameters
+    <<: *ETHER_extra_hyperparameters
 
 experiment:
     tasks: [{
@@ -272,7 +291,7 @@ experiment:
 
         'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m3/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
          
-        'agent-id': 'archi_r2d2_TH3R',
+        'agent-id': 'archi_r2d2_ETH3R',
         #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining',
         #'agent-id': '1step_double_THER_LargeCNN_HER40TrainPerCycle_16EpPerCycle_PredPiSharedPhi',
         
@@ -299,7 +318,7 @@ experiment:
         'reload': 'None',
     },]
     
-    experiment_id: 'THER_Benchmark'
+    experiment_id: 'ETHER_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 5.0e3
     benchmarking_record_episode_interval: None #1.0e8
@@ -307,8 +326,8 @@ experiment:
     seed: 1
 
 agents:    
-    1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining: &1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
-        <<: *THER_LargeCNN_Predictor
+    1step_prioritized_double_ETHER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining: &1step_prioritized_double_ETHER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
+        <<: *ETHER_LargeCNN_Predictor
         #double: True
         #dueling: True 
         #noisy: True 
@@ -334,8 +353,8 @@ agents:
         #nbr_training_iteration_per_cycle: 10 # HER: 40
         #nbr_episode_per_cycle:  16  # HER: 16
     
-    archi_r2d2_TH3R:
-        <<: *1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
+    archi_r2d2_ETH3R:
+        <<: *1step_prioritized_double_ETHER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
         
         #DEBUG:
         saving_interval: 1e10 #5e5
@@ -377,7 +396,7 @@ agents:
         eps_greedy_alpha: 2.0
         
         ArchiModel:
-            model_id: 'RL_FiLMedTHERModel'
+            model_id: 'RL_FiLMedETHERModel'
             hyperparameters:
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
@@ -610,7 +629,8 @@ agents:
             pipelines:
                 torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 head: ['CoreLSTM', 'RLHead']
-                instruction_generator: ['OracleTHER'] #['SharedObsEncoder', 'InstructionGeneratorMLP', 'InstructionGenerator']
+                #instruction_generator: ['OracleTHER'] 
+                instruction_generator: ['SharedObsEncoder', 'InstructionGeneratorMLP', 'InstructionGenerator']
         
         extra_inputs_infos: {
             'previous_reward':{
@@ -633,11 +653,12 @@ agents:
                 target_location: ['phi_body', 'extra_inputs']
             },
             
-            'achieved_goal':{
-                #shape: [28], #[63,], 
-                shape: [10], #20], 
-                target_location: ['OracleTHER']
-            },
+            # Uncomment the following if using THER_observe_achieved_goal
+            #'achieved_goal':{
+            #    #shape: [28], #[63,], 
+            #    shape: [10], #20], 
+            #    target_location: ['OracleTHER']
+            #},
             
  
             #'action_mask':{

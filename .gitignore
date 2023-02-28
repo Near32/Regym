@@ -34,8 +34,6 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
-Pipfile
-Pipfile.lock
 
 # Unit test / coverage reports
 htmlcov/
@@ -106,4 +104,4 @@ venv.bak/
 .mypy_cache/
 
 # vim
-Session.vim
+*.swp

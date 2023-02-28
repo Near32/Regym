@@ -1697,11 +1697,11 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         self.nbr_actions = env.action_space.n
         self.trajectory_wrapping = trajectory_wrapping
 
-    def reset(self):
+    def reset(self, **kwargs):
         self.previous_reward = np.zeros((1, 1))
         self.previous_action = np.zeros((1, self.nbr_actions))
         self.previous_action_int = np.zeros((1,1))
-        reset_output = self.env.reset()
+        reset_output = self.env.reset(**kwargs)
         if isinstance(reset_output, tuple):
             obs, infos = reset_output
         else:
@@ -1748,8 +1748,8 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
         self.nbr_actions = env.action_space.n
         self.trajectory_wrapping = trajectory_wrapping
 
-    def reset(self):
-        reset_output = self.env.reset()
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
         if isinstance(reset_output, tuple):
             obs, infos = reset_output
         else:
@@ -2417,8 +2417,10 @@ class DictFrameStack(gym.Wrapper):
             dim = kdd['dim']
 
             self.observations[k] = deque([], maxlen=self.stack)
-            assert(isinstance(self.env.observation_space.spaces[k], gym.spaces.Box))
-        
+            #assert(isinstance(self.env.observation_space.spaces[k], gym.spaces.Box))
+            assert( hasattr(self.env.observation_space.spaces[k], 'low') \
+                and hasattr(self.env.observation_space.spaces[k], 'high')
+                )
             low_obs_space = self.env.observation_space.spaces[k].low
             high_obs_space = self.env.observation_space.spaces[k].high
 
@@ -2514,7 +2516,7 @@ class DictFrameStack(gym.Wrapper):
 
             for _ in range(self.stack):
                 self.observations[k].append(observation)
-        return self._get_obs(obs) #, infos
+        return self._get_obs(obs), infos
     
     def step(self, action):
         obs, reward, done, infos = self.env.step(action)
@@ -2609,7 +2611,11 @@ class ConfigVideoRecorder(VideoRecorder):
 
 class PeriodicVideoRecorderWrapper(gym.Wrapper):
     def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array', record_obs=False):
-        env.metadata['render.modes'].append('rgb_array')
+        try:
+            env.metadata['render.modes'].append('rgb_array')
+        except Exception as e:
+            print(f"PeriodicVideoRecorderWrapper: WARNING: trying to use gymnasium metadata scheme... after : {e}")
+            env.metadata['render_modes'].append('rgb_array')
 
         gym.Wrapper.__init__(self, env)
          
@@ -2681,9 +2687,13 @@ class DictObservationSelectionWrapper(gym.Wrapper):
         self.action_space = env.action_space 
 
     def reset(self, **kwargs):
+        kwargs['return_info'] = True
         reset_output = self.env.reset(**kwargs)
         if isinstance(reset_output, tuple):
             observations, infos = reset_output
+            observations = [observations]
+            infos = [infos]
+            nbr_agent = 1
         elif isinstance(reset_output, list):
             observations = reset_output
             infos = [{} for _ in range(len(observations))]
@@ -2732,7 +2742,59 @@ class DictObservationSelectionWrapper(gym.Wrapper):
             **kwargs,
         )
  
-from gym_minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
+try:
+    from gym_minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
+except Exception as e:
+    print(f"WARNING: BabyAI wrappers are not found due to: {e}")
+    print(f"WARNING: trying from minigrid...")
+    #from minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
+    print("WARNING: BabyAI wrappers imported successfully from minigrid.")
+
+    import gymnasium
+    class RGBImgPartialObsWrapper(gym.ObservationWrapper):
+        def __init__(self, env, tile_size=8):
+            super().__init__(env)
+            # Rendering attributes for observations
+            self.tile_size = tile_size
+            obs_shape = env.observation_space.spaces["image"].shape
+            new_image_space = gymnasium.spaces.Box(
+                low=0,
+                high=255,
+                shape=(obs_shape[0] * tile_size, obs_shape[1] * tile_size, 3),
+                dtype="uint8",
+            )
+            self.observation_space = gymnasium.spaces.Dict(
+                {**self.observation_space.spaces, "image": new_image_space}
+            )
+        
+        def observation(self, obs):
+            rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)
+            if isinstance(obs, tuple):
+                assert len(obs) == 2
+                # reset:
+                t_obs = obs
+                obs = t_obs[0]
+                infos = t_obs[1]
+                assert isinstance(obs, dict)
+                obs["image"] = rgb_img_partial
+                return obs, infos
+            elif isinstance(obs, dict):
+                assert isinstance(obs, dict)
+                obs["image"] = rgb_img_partial
+                return obs
+            else:
+                raise NotImplementedError
+
+class Gymnasium2GymWrapper(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+    def step(self, action):
+        step_output = self.env.step(action)
+        if len(step_output) == 4:
+            next_observations, reward, done, next_infos = step_output
+        else:
+            next_observations, reward, done, truncated, next_infos = step_output
+        return next_observations, reward, done, next_infos
 
 def baseline_ther_wrapper(
     env, 
@@ -2756,8 +2818,9 @@ def baseline_ther_wrapper(
     babyai_mission=False,
     ):
     
+    env = Gymnasium2GymWrapper(env=env)
     env = TimeLimit(env, max_episode_steps=time_limit)
-    
+
     if use_rgb:
         if full_obs:
             env = RGBImgObsWrapper(env)
