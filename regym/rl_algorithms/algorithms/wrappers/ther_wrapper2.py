@@ -181,7 +181,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.use_oracle = self.predictor.use_oracle
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
-        self.best_predictor = copy.deepcopy(self.predictor)
+        self.best_predictor = self.predictor.clone()
 
         self.predictor_loss_fn = predictor_loss_fn
         #print(f"WARNING: THER loss_fn is {self.predictor_loss_fn}")
@@ -688,15 +688,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             # Reset the relevant episode buffer:
             self.episode_buffer[actor_index] = []
 
-        #wandb.log({f'PerEpisode/NbrBufferedExperiences': self.nbr_buffered_predictor_experience}, commit=False)
-        period_check = self.kwargs['THER_replay_period']
-        period_count_check = self.nbr_buffered_predictor_experience
-        
-        # Update predictor:
-        if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']\
-        and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
-            self.update_predictor()
-            
+        self.update_predictor(successful_traj=successful_traj)
+	   
     def predictor_store(self, exp_dict, actor_index=0, negative=False):
         # WARNING : multi storage is deprecated!
         actor_index = 0
@@ -709,7 +702,17 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         else:
             self.predictor_storages[actor_index].add(exp_dict, test_set=test_set)
 
-    def update_predictor(self):
+    def update_predictor(self, successful_traj=False):
+        period_check = self.kwargs['THER_replay_period']
+        period_count_check = self.nbr_buffered_predictor_experience
+        
+        # Update predictor:
+        if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
+            return
+        
+        if not((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
+            return 
+        
         full_update = True
         for it in range(self.kwargs['THER_nbr_training_iteration_per_update']):
             self.test_acc = self.train_predictor()

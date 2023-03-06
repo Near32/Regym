@@ -297,6 +297,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "stimulus_resize_dim":      stimulus_resize_dim, 
             
             "learning_rate":            self.kwargs["ETHER_rg_learning_rate"], #1e-3,
+            "weight_decay":             self.kwargs["ETHER_rg_weight_decay"],
             "adam_eps":                 1e-16,
             "dropout_prob":             self.kwargs["ETHER_rg_dropout_prob"],
             "embedding_dropout_prob":   self.kwargs["ETHER_rg_emb_dropout_prob"],
@@ -477,6 +478,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         optim_config = {
             "modules":modules,
             "learning_rate":self.kwargs["ETHER_rg_learning_rate"],
+            "weight_decay":self.kwargs["ETHER_rg_weight_decay"],
             "optimizer_type":self.kwargs["ETHER_rg_optimizer_type"],
             "with_gradient_clip":rg_config["with_gradient_clip"],
             "adam_eps":rg_config["adam_eps"],
@@ -825,17 +827,18 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.population_handler_id = population_handler_id
            
     def launch_referential_game(self, nbr_epoch=1):
-        self.rg_iteration+=1
-
         torch.set_grad_enabled(True)
         self.predictor.train(True)
-        self.referential_game.train(nbr_epoch=nbr_epoch,
+        self.referential_game.train(
+            #nbr_epoch=self.rg_iteration+nbr_epoch,
+            nbr_epoch=nbr_epoch,
             logger=self.logger,
             verbose_period=1,
         )
         self.predictor.train(False)
         torch.set_grad_enabled(False)
         
+        self.rg_iteration+=1 #nbr_epoch
         #self.referential_game.save(os.path.join(self.save_path, f"{self.rg_iteration}.rg"))
         self.logger.flush()
  
@@ -896,21 +899,42 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
 
         self.dataset_args = dataset_args
 
-    def update_predictor(self):
+    def update_predictor(self, successful_traj=False):
+        period_check = self.kwargs['THER_replay_period']
+        period_count_check = self.nbr_buffered_predictor_experience
+        
+        # Update predictor:
+        if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
+            return
+        if ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
+            self._update_predictor()
+        
+        # RG Update:
+        period_check = self.kwargs['ETHER_rg_training_period']
+        period_count_check = self.nbr_buffered_predictor_experience
+        if (period_count_check % period_check == 0):
+            self._rg_training()
+        
+    def _update_predictor(self):	
         full_update = True
         for it in range(self.kwargs['THER_nbr_training_iteration_per_update']):
             self.test_acc = self.train_predictor()
             if self.test_acc >= self.kwargs['THER_predictor_accuracy_threshold']:
                 full_update = False
                 break
+        wandb.log({f"Training/THER_Predictor/TestAccuracy":self.test_acc}, commit=False)
         wandb.log({f"Training/THER_Predictor/FullUpdate":int(full_update)}, commit=False)
-        
+    
+    def _rg_training(self):
         full_update = True
         for it in range(self.kwargs['ETHER_nbr_epoch_per_update']):
+            #self.test_acc = self.train_predictor()
+            self._update_predictor()
             self.ether_test_acc = self.finetune_predictor(update=(it==0))
             if self.ether_test_acc >= self.kwargs['ETHER_rg_accuracy_threshold']:
                 full_update = False
                 break
+        wandb.log({f"Training/ETHER/TestAccuracy":self.ether_test_acc}, commit=False)
         wandb.log({f"Training/ETHER/FullUpdate":int(full_update)}, commit=False)
 
     def finetune_predictor(self, update=False):

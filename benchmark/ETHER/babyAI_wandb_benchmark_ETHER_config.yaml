@@ -116,7 +116,7 @@ ETHER_extra_hyperparameters: &ETHER_extra_hyperparameters
     ETHER_test_dataset_length: 1024
 
     ETHER_nbr_epoch_per_update: 100
-    ETHER_rg_accuracy_threshold: 0.75
+    ETHER_rg_accuracy_threshold: 75
     ETHER_split_strategy: None 
 
     THER_predictor_learning_rate: 3.0e-4 #1e-3

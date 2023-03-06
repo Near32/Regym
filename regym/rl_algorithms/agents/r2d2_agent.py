@@ -243,7 +243,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                     print("WARNING : R2D2 Agent with THER : THER predictor DOES predict PAD tokens.")
                 else:
                     print("WARNING : R2D2 Agent with THER : THER predictor does NOT predict PAD tokens.")
-                if kwargs["use_ETHER"]:
+                if kwargs.get("use_ETHER", False):
                     predictor = ArchiPredictorSpeaker(model=model, **kwargs["ArchiModel"])
                 else:
                     predictor = ArchiPredictor(model=model, **kwargs["ArchiModel"])
@@ -298,7 +298,10 @@ class ArchiPredictor(nn.Module):
         ]) > 0
         if self.use_oracle:
             print("ARCHI PREDICTOR::WARNING: using OracleTHER.")
-        
+    
+    def clone(self):
+        return copy.deepcopy(self)
+ 
     def parameters(self):
         params = []
         for km, module in self.model.modules.items():
@@ -345,14 +348,25 @@ class ArchiPredictor(nn.Module):
             rnn_states=rnn_states,
         )
         
-        rdict = {
-            'prediction': output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_prediction"][0], 
-            'loss_per_item':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_loss_per_item"][0], 
-            'accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_accuracies"][0], 
-            'sentence_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_sentence_accuracies"][0],
-            'bos_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_bos_accuracies"][0], 
-            'bos_sentence_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_bos_sentence_accuracies"][0],
-        }
+        if self.use_oracle:
+            rdict = {
+                'prediction': output_stream_dict['next_rnn_states']["input0_prediction"][0], 
+                'loss_per_item':output_stream_dict['next_rnn_states']["input0_loss_per_item"][0], 
+                'accuracies':output_stream_dict['next_rnn_states']["input0_accuracies"][0], 
+                'sentence_accuracies':output_stream_dict['next_rnn_states']["input0_sentence_accuracies"][0],
+                'bos_accuracies':output_stream_dict['next_rnn_states']["input0_bos_accuracies"][0], 
+                'bos_sentence_accuracies':output_stream_dict['next_rnn_states']["input0_bos_sentence_accuracies"][0],
+            }
+        else:
+            rdict = {
+                'prediction': output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_prediction"][0], 
+                'loss_per_item':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_loss_per_item"][0], 
+                'accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_accuracies"][0], 
+                'sentence_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_sentence_accuracies"][0],
+                'bos_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_bos_accuracies"][0], 
+                'bos_sentence_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_bos_sentence_accuracies"][0],
+            }
+ 
 
         return rdict
 
@@ -372,6 +386,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             model=model,
             **kwargs,
         )
+        self.logger = None
         '''
         Speaker.__init__(
             self,
@@ -383,6 +398,10 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             kwargs=kwargs,
         )
         '''
+    
+    def clone(self):
+        self.reset()
+        return Speaker.clone(self)
 
     def speaker_init(
         self,
@@ -424,7 +443,11 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
     def reset(self, reset_language_model=False):
         # TODO: implement language model reset if
         # wanting to use iterated learning or cultural pressures...
-        self.tau_fc.apply(layer_init)
+        self.features = None
+        if hasattr(self, 'tau_fc'):
+            self.tau_fc.apply(layer_init)
+        if hasattr(self, 'tau'):
+            self.tau = None
         self._reset_rnn_states()
   
     def parameters(self):
@@ -433,7 +456,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             if km in self.model.pipelines["instruction_generator"]:
                 params += module.parameters()
         if hasattr(self, 'tau_fc'):
-            print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
+            #print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
             params += self.tau_fc.parameters()
         return params
 
