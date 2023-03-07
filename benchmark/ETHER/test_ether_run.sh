@@ -9,10 +9,11 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
---ETHER_rg_learning_rate=3.0e-4 --ETHER_rg_weight_decay=1.0e-4 \
+--ETHER_rg_learning_rate=3.0e-4 --ETHER_rg_weight_decay=1.0e-3 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=64 --ETHER_rg_accuracy_threshold=75 \
---ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=3 \
+--ETHER_rg_nbr_train_distractors=63 --ETHER_rg_nbr_test_distractors=3 \
 --ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
@@ -23,7 +24,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --THER_test_min_capacity=4 --THER_replay_period=1024 \
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
---THER_predictor_accuracy_safe_to_relabel_threshold=0.2 --THER_filter_predicate_fn=False \
+--THER_predictor_accuracy_safe_to_relabel_threshold=0.2 --THER_filter_predicate_fn=True \
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=40 \

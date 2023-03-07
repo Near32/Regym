@@ -595,7 +595,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     achieved_latent_goal_from_target_exp = batched_achieved_latent_goal_from_target_exp
                     if achieved_latent_goal_from_target_exp is not None:
                         achieved_latent_goal_from_target_exp = achieved_latent_goal_from_target_exp[0:1]
-
+                    last_terminal_idx = 0
                     for idx in range(episode_length):    
                         s = self.episode_buffer[actor_index][idx]['s']
                         a = self.episode_buffer[actor_index][idx]['a']
@@ -618,11 +618,16 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
                             if self.episode_length_reward_shaping:
                                 if new_her_r > 0:
-                                    new_her_r *= (1.0-float(idx)/self.timing_out_episode_length_threshold)
+                                    reshaping_idx = idx-last_terminal_idx
+                                    new_her_r *= (1.0-float(reshaping_idx)/self.timing_out_episode_length_threshold)
                             new_her_r = new_her_r*torch.ones_like(r)
 
                             if self.relabel_terminal:
-                                new_non_terminal = torch.zeros_like(non_terminal) if all(new_her_r>self.feedbacks['failure']) else torch.ones_like(non_terminal)
+                                if all(new_her_r>self.feedbacks['failure']):
+                                    last_terminal_idx = idx
+                                    new_non_terminal = torch.zeros_like(non_terminal)
+                                else:
+                                    new_non_terminal = torch.ones_like(non_terminal)
                             else:
                                 new_non_terminal = non_terminal
 

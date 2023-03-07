@@ -507,11 +507,12 @@ def training_process(
     }
     project_name = task_config['project']
     wandb.init(project=project_name, config=config)
+    '''
     wandb.tensorboard.patch(
         save=True, 
         tensorboard_x=True,
     )
-    
+    '''
     agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
     os.makedirs(agent.save_path, exist_ok=True)
     agent.save_path += "/checkpoint.agent"
@@ -778,7 +779,7 @@ def main():
     parser.add_argument("--ETHER_rg_egocentric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_nbr_train_distractors", type=int, default=7)
     parser.add_argument("--ETHER_rg_nbr_test_distractors", type=int, default=7)
-    parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_descriptive_ratio", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_observability", type=str, default='partial')
     parser.add_argument("--ETHER_rg_max_sentence_length", type=int, default=10)
@@ -817,7 +818,7 @@ def main():
     parser.add_argument("--ETHER_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_use_feat_converter", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=0)
+    parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=1)
     parser.add_argument("--ETHER_rg_nbr_experience_repetition", type=int, default=1)
     parser.add_argument("--ETHER_rg_agent_nbr_latent_dim", type=int, default=32)
     parser.add_argument("--ETHER_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
