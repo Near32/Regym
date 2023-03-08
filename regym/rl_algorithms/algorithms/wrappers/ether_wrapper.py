@@ -844,6 +844,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
  
     def update_datasets(self):
         assert len(self.predictor_storages)==1
+        kwargs = {'same_episode_target': False}
+        if 'similarity' in self.rg_config['distractor_sampling']:
+            kwargs['same_episode_target'] = True 
 
         self.rg_train_dataset = DemonstrationDataset(
             replay_storage=self.rg_storages[0],
@@ -852,6 +855,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_train_dataset_length,
             exp_key=self.rg_exp_key,
+            kwargs=kwargs,
         )
         
         self.rg_test_dataset = DemonstrationDataset(
@@ -862,6 +866,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_test_dataset_length,
             exp_key=self.rg_exp_key,
+            kwargs=kwargs,
         )
         
         need_dict_wrapping = {}
@@ -927,7 +932,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
     
     def _rg_training(self):
         full_update = True
-        for it in range(self.kwargs['ETHER_nbr_epoch_per_update']):
+        for it in range(self.kwargs['ETHER_rg_nbr_epoch_per_update']):
             #self.test_acc = self.train_predictor()
             self._update_predictor()
             self.ether_test_acc = self.finetune_predictor(update=(it==0))
