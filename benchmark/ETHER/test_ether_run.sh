@@ -1,4 +1,4 @@
-WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
+WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=20 \
 --config=babyAI_wandb_benchmark_ETHER_config.yaml \
 --n_step=3 --nbr_actor=32 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=2e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
@@ -9,14 +9,17 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
+--ETHER_lock_test_storage=True \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=1.0e-3 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=8 --ETHER_rg_accuracy_threshold=75 \
 --ETHER_rg_nbr_train_distractors=31 --ETHER_rg_nbr_test_distractors=31 \
+--ETHER_replay_capacity=1024 --ETHER_test_replay_capacity=512 \
 --ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \
---ETHER_rg_distractor_sampling=similarity-50 \
+--ETHER_rg_distractor_sampling=similarity-90 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
+--THER_lock_test_storage=True \
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=True \
 --THER_replay_capacity=1e2 --THER_min_capacity=12 \

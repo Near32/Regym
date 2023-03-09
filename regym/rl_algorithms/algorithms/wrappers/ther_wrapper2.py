@@ -264,6 +264,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['THER_predictor_test_train_split_interval'],
                         test_capacity=int(self.kwargs['THER_test_replay_capacity']),
+                        lock_test_storage=self.kwargs['THER_lock_test_storage'],
                     )
                 )
             else:
@@ -275,6 +276,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['THER_predictor_test_train_split_interval'],
                         test_capacity=int(self.kwargs['THER_test_replay_capacity']),
+                        lock_test_storage=self.kwargs['THER_lock_test_storage'],
                     )
                 )
 

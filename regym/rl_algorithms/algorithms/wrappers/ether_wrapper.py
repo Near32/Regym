@@ -154,6 +154,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['ETHER_test_train_split_interval'],
                         test_capacity=int(self.kwargs['ETHER_test_replay_capacity']),
+                        lock_test_storage=self.kwargs['ETHER_lock_test_storage'],
                     )
                 )
 
