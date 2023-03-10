@@ -1,15 +1,15 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ther.py --seed=10 \
 --config=babyAI_wandb_benchmark_OracleTHER_config.yaml \
 --n_step=3 --nbr_actor=32 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=2e3 --replay_capacity=5e3 --tau=1.0e-3 --learning_rate=6.25e-5 \
+--min_capacity=2e3 --replay_capacity=5e3 --tau=1.0e-3 --learning_rate=5e-5 \
 --sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=80 --nbr_episode_per_cycle=64 \
+--nbr_training_iteration_per_cycle=10 --nbr_episode_per_cycle=16 \
 --THER_use_THER=True --THER_use_PER=True --THER_observe_achieved_goal=True \
---THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=1 \
+--THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=True \
 --THER_replay_capacity=1e2 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \

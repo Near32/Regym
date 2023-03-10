@@ -612,7 +612,8 @@ class DQNAlgorithm(Algorithm):
 
         start = time.time()
         torch.set_grad_enabled(True)
-
+        self.model.train(True)
+        
         beta = 1.0
         if self.use_PER:
             if hasattr(self.storages[0].get_beta, "remote"):
@@ -737,6 +738,7 @@ class DQNAlgorithm(Algorithm):
             nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
         self.optimizer.step()
         
+        self.model.train(False)
         torch.set_grad_enabled(False)
 
         if self.use_PER :

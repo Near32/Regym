@@ -34,7 +34,14 @@ class ReplayBuffer():
 
 
 class ReplayStorage():
-    def __init__(self, capacity, keys=None, circular_keys={'succ_s':'s'}, circular_offsets={'succ_s':1}):
+    def __init__(
+        self, 
+        capacity, 
+        keys=None, 
+        circular_keys={'succ_s':'s'}, 
+        circular_offsets={'succ_s':1},
+        lock_storage=False,
+    ):
         '''
         Use a different circular offset['succ_s']=n to implement truncated n-step return...
         '''
@@ -47,6 +54,7 @@ class ReplayStorage():
         self.circular_keys = circular_keys
         self.circular_offsets = circular_offsets
         self.capacity = capacity
+        self.lock_storage = lock_storage
         """
         self.position = dict()
         self.current_size = dict()
@@ -72,6 +80,10 @@ class ReplayStorage():
         self.current_size[key] = 0
 
     def add(self, data):
+        if self.lock_storage \
+        and len(self) == self.capacity:
+            return 
+        
         for k, v in data.items():
             if not(k in self.keys or k in self.circular_keys):  continue
             if k in self.circular_keys: continue
@@ -278,13 +290,16 @@ class SharedReplayStorage(object):
 
 
 class SplitReplayStorage(ReplayStorage):
-    def __init__(self, 
-                 capacity, 
-                 keys=None, 
-                 circular_keys={'succ_s':'s'}, 
-                 circular_offsets={'succ_s':1},
-                 test_train_split_interval=10,
-                 test_capacity=None):
+    def __init__(
+        self, 
+        capacity, 
+        keys=None, 
+        circular_keys={'succ_s':'s'}, 
+        circular_offsets={'succ_s':1},
+        test_train_split_interval=10,
+        test_capacity=None,
+        lock_test_storage=False,
+    ):
         '''
         Contains two ReplayStorage, one for testing purpose and the other for training purpose.
         Use a different circular offset['succ_s']=n to implement truncated n-step return...
@@ -296,14 +311,20 @@ class SplitReplayStorage(ReplayStorage):
         self.test_capacity = test_capacity
         self.test_train_split_interval = test_train_split_interval
         self.train_data_count = 0
-        self.test_storage = ReplayStorage(capacity=self.test_capacity,
-                                          keys=keys,
-                                          circular_keys=circular_keys,
-                                          circular_offsets=circular_offsets)
-        super(SplitReplayStorage, self).__init__(capacity=capacity,
-                                           keys=keys,
-                                           circular_keys=circular_keys,
-                                           circular_offsets=circular_offsets)
+        self.test_storage = ReplayStorage(
+            capacity=self.test_capacity,
+            keys=keys,
+            circular_keys=circular_keys,
+            circular_offsets=circular_offsets,
+            lock_storage=lock_test_storage,
+        )
+        super(SplitReplayStorage, self).__init__(
+            capacity=capacity,
+            keys=keys,
+            circular_keys=circular_keys,
+            circular_offsets=circular_offsets,
+            lock_storage=False,
+        )
 
     def add(self, data, test_set=None):
         if test_set is None:

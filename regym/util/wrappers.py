@@ -2244,7 +2244,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             self.w2idx[w] = idx
             self.idx2w[idx] = w 
         
-        self.observation_space = env.observation_space
+        self.observation_space = copy.deepcopy(env.observation_space)
         
         for obs_key, map_key in self.observation_keys_mapping.items():
             self.observation_space.spaces[map_key] = gym.spaces.MultiDiscrete([len(self.vocabulary)]*self.max_sentence_length)
@@ -2291,7 +2291,7 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
 
-        self.observation_space = env.observation_space
+        self.observation_space = copy.deepcopy(env.observation_space)
         self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
 
     def observation( self, observation):

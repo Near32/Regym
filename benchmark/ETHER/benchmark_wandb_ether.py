@@ -507,11 +507,12 @@ def training_process(
     }
     project_name = task_config['project']
     wandb.init(project=project_name, config=config)
+    '''
     wandb.tensorboard.patch(
         save=True, 
         tensorboard_x=True,
     )
-    
+    '''
     agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
     os.makedirs(agent.save_path, exist_ok=True)
     agent.save_path += "/checkpoint.agent"
@@ -702,6 +703,7 @@ def main():
         type=float, 
         default=500, #250 #5000
     )
+    parser.add_argument("--THER_lock_test_storage", type=str2bool, default=False)
     parser.add_argument("--THER_test_replay_capacity", 
         type=float, 
         default=50, #25 #1000
@@ -758,17 +760,20 @@ def main():
     #)
     
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
+    parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
-    parser.add_argument("--ETHER_replay_capacity", type=int, default=4096)
-    parser.add_argument("--ETHER_test_replay_capacity", type=int, default=4096)
+    parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
+    parser.add_argument("--ETHER_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--ETHER_test_replay_capacity", type=int, default=512)
     parser.add_argument("--ETHER_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ETHER_train_dataset_length", type=int, default=4096)
     parser.add_argument("--ETHER_test_dataset_length", type=int, default=1024)
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
-    parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=1)
+    parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_egocentric_tr_degrees", type=float, default=15)
@@ -776,7 +781,7 @@ def main():
     parser.add_argument("--ETHER_rg_egocentric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_nbr_train_distractors", type=int, default=7)
     parser.add_argument("--ETHER_rg_nbr_test_distractors", type=int, default=7)
-    parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_descriptive_ratio", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_observability", type=str, default='partial')
     parser.add_argument("--ETHER_rg_max_sentence_length", type=int, default=10)
@@ -784,6 +789,7 @@ def main():
     parser.add_argument("--ETHER_rg_object_centric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
     parser.add_argument("--ETHER_rg_vocab_size", type=int, default=32)
+    # TODO : integrate this feature in ArchiPredictorSpeaker ...
     parser.add_argument("--ETHER_rg_force_eos", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_symbol_embedding_size", type=int, default=64)
     parser.add_argument("--ETHER_rg_arch", type=str, default='BN+7x4x3xCNN')
@@ -808,12 +814,13 @@ def main():
     parser.add_argument("--ETHER_rg_batch_size", type=int, default=32)
     parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
     parser.add_argument("--ETHER_rg_learning_rate", type=float, default=3.0e-4)
+    parser.add_argument("--ETHER_rg_weight_decay", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_emb_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_use_feat_converter", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=0)
+    parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=1)
     parser.add_argument("--ETHER_rg_nbr_experience_repetition", type=int, default=1)
     parser.add_argument("--ETHER_rg_agent_nbr_latent_dim", type=int, default=32)
     parser.add_argument("--ETHER_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
@@ -822,8 +829,8 @@ def main():
     parser.add_argument("--ETHER_rg_optimizer_type", type=str, default='adam')
     parser.add_argument("--ETHER_rg_nbr_epoch_per_update", type=int, default=3)
 
-    parser.add_argument("--ETHER_rg_metric_epoch_period", type=int, default=8)
-    parser.add_argument("--ETHER_rg_dis_metric_epoch_period", type=int, default=8)
+    parser.add_argument("--ETHER_rg_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ETHER_rg_dis_metric_epoch_period", type=int, default=10024)
     parser.add_argument("--ETHER_rg_metric_batch_size", type=int, default=16)
     parser.add_argument("--ETHER_rg_metric_fast", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_parallel_TS_worker", type=int, default=8)

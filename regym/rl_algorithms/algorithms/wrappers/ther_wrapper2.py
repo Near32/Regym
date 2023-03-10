@@ -181,7 +181,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.use_oracle = self.predictor.use_oracle
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
-        self.best_predictor = copy.deepcopy(self.predictor)
+        self.best_predictor = self.predictor.clone()
 
         self.predictor_loss_fn = predictor_loss_fn
         #print(f"WARNING: THER loss_fn is {self.predictor_loss_fn}")
@@ -264,6 +264,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['THER_predictor_test_train_split_interval'],
                         test_capacity=int(self.kwargs['THER_test_replay_capacity']),
+                        lock_test_storage=self.kwargs['THER_lock_test_storage'],
                     )
                 )
             else:
@@ -275,6 +276,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['THER_predictor_test_train_split_interval'],
                         test_capacity=int(self.kwargs['THER_test_replay_capacity']),
+                        lock_test_storage=self.kwargs['THER_lock_test_storage'],
                     )
                 )
 
@@ -595,7 +597,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     achieved_latent_goal_from_target_exp = batched_achieved_latent_goal_from_target_exp
                     if achieved_latent_goal_from_target_exp is not None:
                         achieved_latent_goal_from_target_exp = achieved_latent_goal_from_target_exp[0:1]
-
+                    last_terminal_idx = 0
                     for idx in range(episode_length):    
                         s = self.episode_buffer[actor_index][idx]['s']
                         a = self.episode_buffer[actor_index][idx]['a']
@@ -618,11 +620,16 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
                             if self.episode_length_reward_shaping:
                                 if new_her_r > 0:
-                                    new_her_r *= (1.0-float(idx)/self.timing_out_episode_length_threshold)
+                                    reshaping_idx = idx-last_terminal_idx
+                                    new_her_r *= (1.0-float(reshaping_idx)/self.timing_out_episode_length_threshold)
                             new_her_r = new_her_r*torch.ones_like(r)
 
                             if self.relabel_terminal:
-                                new_non_terminal = torch.zeros_like(non_terminal) if all(new_her_r>self.feedbacks['failure']) else torch.ones_like(non_terminal)
+                                if all(new_her_r>self.feedbacks['failure']):
+                                    last_terminal_idx = idx
+                                    new_non_terminal = torch.zeros_like(non_terminal)
+                                else:
+                                    new_non_terminal = torch.ones_like(non_terminal)
                             else:
                                 new_non_terminal = non_terminal
 
@@ -688,15 +695,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             # Reset the relevant episode buffer:
             self.episode_buffer[actor_index] = []
 
-        #wandb.log({f'PerEpisode/NbrBufferedExperiences': self.nbr_buffered_predictor_experience}, commit=False)
-        period_check = self.kwargs['THER_replay_period']
-        period_count_check = self.nbr_buffered_predictor_experience
-        
-        # Update predictor:
-        if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']\
-        and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
-            self.update_predictor()
-            
+        self.update_predictor(successful_traj=successful_traj)
+	   
     def predictor_store(self, exp_dict, actor_index=0, negative=False):
         # WARNING : multi storage is deprecated!
         actor_index = 0
@@ -709,7 +709,17 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         else:
             self.predictor_storages[actor_index].add(exp_dict, test_set=test_set)
 
-    def update_predictor(self):
+    def update_predictor(self, successful_traj=False):
+        period_check = self.kwargs['THER_replay_period']
+        period_count_check = self.nbr_buffered_predictor_experience
+        
+        # Update predictor:
+        if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
+            return
+        
+        if not((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
+            return 
+        
         full_update = True
         for it in range(self.kwargs['THER_nbr_training_iteration_per_update']):
             self.test_acc = self.train_predictor()
