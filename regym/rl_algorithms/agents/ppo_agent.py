@@ -651,7 +651,7 @@ def build_PPO_Agent_depr(task, config, agent_name):
                                                   critic_body=critic_body,
                                                   use_intrinsic_critic=use_rnd)
 
-    if task.action_type is 'Continuous' and task.observation_type is 'Continuous':
+    if task.action_type == 'Continuous' and task.observation_type == 'Continuous':
         model = GaussianActorCriticNet(task.observation_shape, task.action_dim,
                                        phi_body=phi_body,
                                        actor_body=actor_body,
@@ -717,7 +717,7 @@ def build_PPO_Agent(task, config, agent_name):
             else:
                 head_type = "CategoricalActorCriticNet"
 
-    if task.action_type is 'Continuous' and task.observation_type is 'Continuous':
+    if task.action_type == 'Continuous' and task.observation_type == 'Continuous':
         head_type = "GaussianActorCriticNet"
 
     kwargs = parse_and_check(kwargs, task)
