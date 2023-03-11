@@ -2763,8 +2763,10 @@ except Exception as e:
                 shape=(obs_shape[0] * tile_size, obs_shape[1] * tile_size, 3),
                 dtype="uint8",
             )
+            previous_obs_space = copy.deepcopy(self.observation_space.spaces)
+            previous_obs_space['symbolic_image'] = previous_obs_space['image']
             self.observation_space = gymnasium.spaces.Dict(
-                {**self.observation_space.spaces, "image": new_image_space}
+                {**previous_obs_space, "image": new_image_space}
             )
         
         def observation(self, obs):
@@ -2776,10 +2778,12 @@ except Exception as e:
                 obs = t_obs[0]
                 infos = t_obs[1]
                 assert isinstance(obs, dict)
+                obs['symbolic_image'] = obs['image']
                 obs["image"] = rgb_img_partial
                 return obs, infos
             elif isinstance(obs, dict):
                 assert isinstance(obs, dict)
+                obs['symbolic_image'] = obs['image']
                 obs["image"] = rgb_img_partial
                 return obs
             else:

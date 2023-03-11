@@ -767,6 +767,7 @@ def main():
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
+    parser.add_argument("--ETHER_rg_filter_out_non_unique", type=str2bool, default=False)
     parser.add_argument("--ETHER_lock_test_storage", type=str2bool, default=False)
     parser.add_argument("--ETHER_test_replay_capacity", type=int, default=512)
     parser.add_argument("--ETHER_test_train_split_interval",type=int, default=5)

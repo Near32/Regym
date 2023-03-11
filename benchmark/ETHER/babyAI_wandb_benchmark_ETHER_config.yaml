@@ -311,7 +311,7 @@ experiment:
         # The following requires a wrapper that provides direction,
         # as it is no always available...
         #'concatenate_keys_with_obs': ['direction', 'action'],
-        'concatenate_keys_with_obs': ['action'],
+        'concatenate_keys_with_obs': [], #'action'],
         'use_rgb': True,
         'full_obs': False,
         'single_pick_episode': False,
@@ -433,7 +433,8 @@ agents:
 
                 'SharedObsEncoder':
                     type: ConvolutionalNetworkModule
-                    input_shape: [16, 56, 56]
+                    #input_shape: [16, 56, 56]
+                    input_shape: [12, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
                     channels: ['BN32', 'BN32', 'BN64']
                     kernel_sizes: [3, 3, 3]

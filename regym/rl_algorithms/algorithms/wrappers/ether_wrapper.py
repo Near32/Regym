@@ -8,6 +8,7 @@ import wandb
 import torch
 import torchvision
 import torchvision.transforms as T 
+import numpy as np
 
 
 from regym.rl_algorithms.algorithms.wrappers.ther_wrapper2 import THERAlgorithmWrapper2
@@ -34,11 +35,15 @@ class GaussianBlur:
     """
     def __init__(self, sigma=[0.1, 2.0]):
         self.sigma = sigma
+        self.kernel_size = (5,5)
 
     def __call__(self, x):
-        raise NotImplementedError("This fn is expecting PIL images, not torch.Tensor")
         sigma = random.uniform(self.sigma[0], self.sigma[1])
-        x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        if isinstance(x, torch.Tensor):
+            x = T.functional.gaussian_blur(img=x, kernel_size=self.kernel_size, sigma=(sigma, sigma))     
+        else:
+            #raise NotImplementedError("This fn is expecting PIL images, not torch.Tensor")
+            x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
         return x
 
 ###########################################################
@@ -106,7 +111,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.hook_fns.append(
             ETHERAlgorithmWrapper.referential_game_store,
         )
-        
+        self.non_unique_data = 0
+        self.nbr_data = 0 
+
         self.ether_test_acc = 0.0
         
         self.rg_iteration = 0
@@ -120,6 +127,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
 
         self.rg_storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
+        keys += ['info']
         if self.recurrent:  keys += ['rnn_states', 'next_rnn_states']
         
         circular_keys= {} #{'succ_s':'s'}
@@ -173,6 +181,24 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             self.rg_storages[actor_index].add(exp_dict, priority=init_sampling_priority, test_set=test_set)
         else:
         '''
+        # CHECK for uniqueness:
+        self.nbr_data += 1 
+        unique = True
+        for idx in range(len(self.rg_storages[actor_index])):
+            if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == exp_dict['info']['symbolic_image']).reshape(-1)):
+                self.non_unique_data += 1
+                #self.nbr_data = self.rg_storages[actor_index].get_size()+self.rg_storages[actor_index].get_size(test=True)
+                unique = False
+                break
+        
+        wandb.log({f"Training/ETHER/NonUniqueDataRatio":float(self.non_unique_data)/(self.nbr_data+1)}, commit=False)
+        wandb.log({f"Training/ETHER/NonUniqueDataNbr": self.non_unique_data}, commit=False)
+        wandb.log({f"Training/ETHER/NbrData":self.nbr_data}, commit=False)
+        
+        if self.kwargs['ETHER_rg_filter_out_non_unique'] \
+        and not unique:  
+            return
+
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
 
     def init_referential_game(self):
