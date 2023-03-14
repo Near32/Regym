@@ -2317,8 +2317,8 @@ class BabyAIMissionWrapper(gym.Wrapper):
         info['babyai_mission'] = mission
         return info
 
-    def reset(self):
-        reset_output = self.env.reset()
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
         if isinstance(reset_output, tuple):
             obs, infos = reset_output
         else:
@@ -2743,6 +2743,7 @@ class DictObservationSelectionWrapper(gym.Wrapper):
         )
  
 try:
+    raise AssertionError("Deprecation of gym_minigrid's wrappers...")
     from gym_minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
 except Exception as e:
     print(f"WARNING: BabyAI wrappers are not found due to: {e}")

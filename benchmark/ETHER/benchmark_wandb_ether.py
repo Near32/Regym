@@ -659,6 +659,10 @@ def main():
         type=float, 
         default=0.0,
     )
+    parser.add_argument("--eps_greedy_alpha", 
+        type=float, 
+        default=2.0,
+    )
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
