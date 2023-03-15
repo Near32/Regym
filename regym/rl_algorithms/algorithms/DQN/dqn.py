@@ -729,7 +729,9 @@ class DQNAlgorithm(Algorithm):
                     'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item(),
                     'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item(),
                     'PerUpdate/PER_Beta':  beta
-                }) # self.param_update_counter)
+                    },
+                    commit=False,
+                ) # self.param_update_counter)
                 #wandb.run.history._data = wandb_data
 
             self.param_update_counter += 1 
@@ -934,6 +936,9 @@ class DQNAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
+        param_obs_counter = self._param_obs_counter
+        self._param_obs_counter = None 
+
         cloned_algo = copy.deepcopy(self)
         
         self.storages = storages
@@ -944,5 +949,8 @@ class DQNAlgorithm(Algorithm):
 
         self._param_update_counter = param_update_counter
         cloned_algo._param_update_counter = param_update_counter
+
+        self._param_obs_counter = param_obs_counter
+        cloned_algo._param_obs_counter = param_obs_counter
 
         return cloned_algo

@@ -2,6 +2,8 @@ from typing import Dict, List
 import torch
 import torch.nn.functional as F 
 
+import wandb 
+
 
 def compute_loss(states: torch.Tensor, 
                  actions: torch.Tensor,
@@ -130,33 +132,32 @@ def compute_loss(states: torch.Tensor,
     total_loss = policy_loss + rnd_weight * rnd_loss + value_weight * value_loss
     #total_loss = policy_loss + value_weight * value_loss
 
-    if summary_writer is not None:
-        summary_writer.add_scalar('Training/RatioMean', ratio.mean().cpu().item(), iteration_count)
-        #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
-        summary_writer.add_scalar('Training/ExtAdvantageMean', ext_advantages.mean().cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/IntAdvantageMean', int_advantages.mean().cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/AdvantageMean', advantages.mean().cpu().item(), iteration_count)
-        #summary_writer.add_histogram('Training/ExtAdvantage', ext_advantages.cpu(), iteration_count)
-        #summary_writer.add_histogram('Training/IntAdvantage', int_advantages.cpu(), iteration_count)
-        #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
-        summary_writer.add_scalar('Training/RNDLoss', int_reward_loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/ExtVLoss', ext_v_loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/IntVLoss', int_v_loss.cpu().item(), iteration_count)
-        
-        summary_writer.add_scalar('Training/MeanVValues', prediction['v'].cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/MeanReturns', ext_returns.cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/StdVValues', prediction['v'].cpu().std().item(), iteration_count)
-        summary_writer.add_scalar('Training/StdReturns', ext_returns.cpu().std().item(), iteration_count)
-        
-        summary_writer.add_scalar('Training/MeanIntVValues', prediction['int_v'].cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/MeanIntReturns', int_returns.cpu().mean().item(), iteration_count)
-        summary_writer.add_scalar('Training/StdIntVValues', prediction['int_v'].cpu().std().item(), iteration_count)
-        summary_writer.add_scalar('Training/StdIntReturns', int_returns.cpu().std().item(), iteration_count)
-        
-        summary_writer.add_scalar('Training/ValueLoss', value_loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/PolicyVal', policy_val.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/EntropyVal', entropy_val.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/PolicyLoss', policy_loss.cpu().item(), iteration_count)
-        summary_writer.add_scalar('Training/TotalLoss', total_loss.cpu().item(), iteration_count)
+    wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
+    wandb.log({'Training/ExtAdvantageMean': ext_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/IntAdvantageMean': int_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/AdvantageMean': advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    #summary_writer.add_histogram('Training/ExtAdvantage', ext_advantages.cpu(), iteration_count)
+    #summary_writer.add_histogram('Training/IntAdvantage', int_advantages.cpu(), iteration_count)
+    #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
+    wandb.log({'Training/RNDLoss': int_reward_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/ExtVLoss': ext_v_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/IntVLoss': int_v_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    
+    wandb.log({'Training/MeanVValues': prediction['v'].cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/MeanReturns': ext_returns.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/StdVValues': prediction['v'].cpu().std().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/StdReturns': ext_returns.cpu().std().item(), "training_step": iteration_count}, commit=False)
+    
+    wandb.log({'Training/MeanIntVValues': prediction['int_v'].cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/MeanIntReturns': int_returns.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/StdIntVValues': prediction['int_v'].cpu().std().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/StdIntReturns': int_returns.cpu().std().item(), "training_step": iteration_count}, commit=False)
+    
+    wandb.log({'Training/ValueLoss': value_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/PolicyVal': policy_val.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/EntropyVal': entropy_val.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/PolicyLoss': policy_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/TotalLoss': total_loss.cpu().item(), "training_step": iteration_count}, commit=False)
         
     return total_loss

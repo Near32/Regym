@@ -19,11 +19,37 @@ from regym.rl_algorithms.utils import _concatenate_hdict, _concatenate_list_hdic
 from ...networks import hard_update, random_sample
 from ...replay_buffers import Storage
 
+from regym.rl_algorithms.utils import archi_concat_fn
+from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
+
 from . import ppo_loss, rnd_loss, ppo_vae_loss
 from . import ppo_actor_loss, ppo_critic_loss
 
-
+import wandb
 summary_writer = None 
+
+import torch.multiprocessing as mp
+from multiprocessing.managers import SyncManager
+from multiprocessing.managers import NamespaceProxy
+import types 
+
+class SProxy(NamespaceProxy):
+    _exposed_ = tuple(dir(Storage))
+
+    def __getattr__(self, name):
+        result = super().__getattr__(name)
+        if isinstance(result, types.MethodType):
+            def wrapper(*args, **kwargs):
+                self._callmethod(name, args, kwargs)
+            return wrapper
+        return result
+    def __len__(self):
+        callmethod = object.__getattribute__(self, "_callmethod")        
+        return callmethod("__len__")
+
+SyncManager.register('Storage', Storage, SProxy)
+
+import logging 
 
 
 class PPOAlgorithm(Algorithm):
@@ -34,6 +60,7 @@ class PPOAlgorithm(Algorithm):
         optimizer=None, 
         target_intr_model=None, 
         predict_intr_model=None, 
+        loss_fn=ppo_loss.compute_loss,
         sum_writer=None,
         name="ppo_algo"):
         '''
@@ -58,6 +85,7 @@ class PPOAlgorithm(Algorithm):
         self.train_request_count =0 
 
         self.kwargs = copy.deepcopy(kwargs)
+        self.use_cuda = kwargs['use_cuda']
         self.nbr_actor = self.kwargs['nbr_actor']
         
         self.use_rnd = False
@@ -77,17 +105,21 @@ class PPOAlgorithm(Algorithm):
             self.update_period_intrinsic_reward = float(self.kwargs['rnd_update_period_running_meanstd_int_reward'])
             self.running_counter_intrinsic_return = 0
             self.update_period_intrinsic_return = float(self.kwargs['rnd_update_period_running_meanstd_int_reward'])
+        
+        self.goal_oriented = self.kwargs.get('goal_oriented', False)
+
+        self.weights_decay_lambda = float(self.kwargs.get('weights_decay_lambda', 0.0))
+        self.weights_entropy_lambda = float(self.kwargs.get('weights_entropy_lambda', 0.0))
+        self.weights_entropy_reg_alpha = float(self.kwargs.get('weights_entropy_reg_alpha', 0.0))
 
         self.running_counter_extrinsic_reward = 0
         self.ext_reward_mean = 0.0
         self.ext_reward_std = 1.0
             
-        self.use_vae = False
-        if 'use_vae' in self.kwargs and self.kwargs['use_vae']:
-            self.use_vae = True
+        self.use_vae = self.kwargs.get('use_vae', False)
 
         self.model = model
-        if self.kwargs['use_cuda']:
+        if self.use_cuda:
             self.model = self.model.cuda()
             if self.use_rnd:
                 self.target_intr_model = self.target_intr_model.cuda()
@@ -96,6 +128,7 @@ class PPOAlgorithm(Algorithm):
 
         if optimizer is None:
             parameters = self.model.parameters()
+            # TODO : find out whether the RND weights should be optimized separately ...
             if self.use_rnd: parameters = list(parameters)+list(self.predict_intr_model.parameters())
             # Tuning learning rate with respect to the number of actors:
             # Following: https://arxiv.org/abs/1705.04862
@@ -103,8 +136,18 @@ class PPOAlgorithm(Algorithm):
             if self.kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
             print(f"Learning rate: {lr}")
-            self.optimizer = optim.Adam(parameters, lr=lr, eps=float(self.kwargs['adam_eps']))
-        else: self.optimizer = optimizer
+            self.optimizer = optim.Adam(
+                parameters, 
+                lr=lr,
+                #TODO: find original paper values: betas=(0.9, 0.999),
+                eps=float(self.kwargs['adam_eps']),
+                weight_decay=float(self.kwargs.get('adam_weight_decay', 0.0)),
+            )
+        else: 
+            self.optimizer = optimizer
+        
+        self.loss_fn = loss_fn
+        print(f"WARNING: loss_fn is {self.loss_fn}")
 
         # DEPRECATED in order to allow extra_inputs infos 
         # stored in the rnn_states that acts as frame_states...
@@ -116,8 +159,9 @@ class PPOAlgorithm(Algorithm):
         if len(self.recurrent_nn_submodule_names): self.recurrent = True
 
         self.storages = None
+        # TODO ; integrate mp usage here if needs be, cf dqn.py
         self.reset_storages()
-
+        
         global summary_writer
         if sum_writer is not None: summary_writer = sum_writer
         self.summary_writer = summary_writer
@@ -125,12 +169,22 @@ class PPOAlgorithm(Algorithm):
             from regym import RaySharedVariable
             try:
                 self._param_update_counter = ray.get_actor(f"{self.name}.param_update_counter")
+                self._param_obs_counter = ray.get_actor(f"{self.name}.param_obs_counter")
             except ValueError:  # Name is not taken.
                 self._param_update_counter = RaySharedVariable.options(name=f"{self.name}.param_update_counter").remote(0)
+                self._param_obs_counter = RaySharedVariable.options(name=f"{self.name}.param_obs_counter").remote(0)
         else:
             from regym import SharedVariable
             self._param_update_counter = SharedVariable(0)
+            self._param_obs_counter = SharedVariable(0)
     
+    def parameters(self):
+        parameters = self.model.parameters()
+        # TODO : find out whether the RND weights should be optimized separately ...
+        if self.use_rnd: 
+            parameters = list(parameters)+list(self.predict_intr_model.parameters())
+        return parameters
+
     @property
     def param_update_counter(self):
         if isinstance(self._param_update_counter, ray.actor.ActorHandle):
@@ -145,6 +199,26 @@ class PPOAlgorithm(Algorithm):
         else:
             self._param_update_counter.set(val)
     
+    @property
+    def param_obs_counter(self):
+        if isinstance(self._param_obs_counter, ray.actor.ActorHandle):
+            return ray.get(self._param_obs_counter.get.remote())    
+        else:
+            return self._param_obs_counter.get()
+
+    @param_obs_counter.setter
+    def param_obs_counter(self, val):
+        if isinstance(self._param_obs_counter, ray.actor.ActorHandle):
+            self._param_obs_counter.set.remote(val) 
+        else:
+            self._param_obs_counter.set(val)
+    
+    def set_optimizer(self, optimizer):
+        self.optimizer.load_state_dict(optimizer.state_dict())
+
+    def get_optimizer(self):
+        return self.optimizer
+
     def get_models(self):
         return {'model': self.model}
 
@@ -161,6 +235,9 @@ class PPOAlgorithm(Algorithm):
 
     def get_update_count(self):
         return self.param_update_counter
+
+    def get_obs_count(self):
+        return self.param_obs_counter
 
     def reset_storages(self, nbr_actor=None):
         if nbr_actor is not None:
@@ -190,79 +267,9 @@ class PPOAlgorithm(Algorithm):
         global summary_writer
         if self.summary_writer is None:
             self.summary_writer = summary_writer
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerTrainingRequest/NbrStoredExperiences', nbr_stored_experiences, self.train_request_count)
+        wandb.log({'PerTrainingRequest/NbrStoredExperiences':  nbr_stored_experiences}, commit=False) # self.train_request_count)
         
         return nbr_stored_experiences
-
-    def train(self):
-        global summary_writer
-        if self.summary_writer is None:
-            self.summary_writer = summary_writer
-        if summary_writer is None:
-            summary_writer = self.summary_writer
-            
-        # Compute Returns and Advantages:
-        for idx, storage in enumerate(self.storages): 
-            if len(storage) <= 1: continue
-            storage.placeholder()
-            self.compute_advantages_and_returns(storage_idx=idx)
-            if self.use_rnd: 
-                self.compute_int_advantages_and_int_returns(storage_idx=idx, non_episodic=self.kwargs['rnd_non_episodic_int_r'])
-        
-        # Update observations running mean and std: 
-        if self.use_rnd: 
-            for idx, storage in enumerate(self.storages): 
-                if len(storage) <= 1: continue
-                for ob in storage.s: self.update_obs_mean_std(ob)
-        
-                
-        # states, actions, next_states, log_probs_old, returns, advantages, std_advantages, \
-        # int_returns, int_advantages, std_int_advantages, \
-        # target_random_features, rnn_states = self.retrieve_values_from_storages()
-        start = time.time()
-        samples = self.retrieve_values_from_storages()
-        end = time.time()
-
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/RetrieveValuesFn', end-start, self.param_update_counter)
-
-        #if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
-
-        start = time.time()
-        for it in range(self.kwargs['optimization_epochs']):
-            self.optimize_model(samples)
-            #self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
-        end = time.time()
-        
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizeModelFn', end-start, self.param_update_counter)
-        
-        self.reset_storages()
-
-    # def reformat_rnn_states(self, rnn_states):
-    #     '''
-    #     This function reformats the :param rnn_states: into 
-    #     a dict of dict of list of batched rnn_states.
-    #     :param rnn_states: list of dict of dict of list: each element is an rnn_state where:
-    #         - the first dictionnary has the name of the recurrent module in the architecture
-    #           as keys.
-    #         - the second dictionnary has the keys 'hidden', 'cell'.
-    #         - the items of this second dictionnary are lists of actual hidden/cell states for the GRU/LSTMBody.
-    #     '''
-    #     reformated_rnn_states = {k: {'hidden': [list()], 'cell': [list()]} for k in rnn_states[0]}
-    #     for rnn_state in rnn_states:
-    #         for k in rnn_state:
-    #             hstates, cstates = rnn_state[k]['hidden'], rnn_state[k]['cell']
-    #             for idx_layer, (h, c) in enumerate(zip(hstates, cstates)):
-    #                 reformated_rnn_states[k]['hidden'][0].append(h)
-    #                 reformated_rnn_states[k]['cell'][0].append(c)
-    #     for k in reformated_rnn_states:
-    #         hstates, cstates = reformated_rnn_states[k]['hidden'], reformated_rnn_states[k]['cell']
-    #         hstates = torch.cat(hstates[0], dim=0)
-    #         cstates = torch.cat(cstates[0], dim=0)
-    #         reformated_rnn_states[k] = {'hidden': [hstates], 'cell': [cstates]}
-    #     return reformated_rnn_states
 
     def normalize_ext_rewards(self, storage_idx):
         normalized_ext_rewards = []
@@ -363,12 +370,61 @@ class PPOAlgorithm(Algorithm):
 
         self.update_int_return_mean_std(int_returns.detach().cpu())
 
+    def train(self):
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        if summary_writer is None:
+            summary_writer = self.summary_writer
+            
+        # Compute Returns and Advantages:
+        start = time.time()
+        for idx, storage in enumerate(self.storages): 
+            if len(storage) <= 1: continue
+            storage.placeholder()
+            self.compute_advantages_and_returns(storage_idx=idx)
+            if self.use_rnd: 
+                self.compute_int_advantages_and_int_returns(storage_idx=idx, non_episodic=self.kwargs['rnd_non_episodic_int_r'])
+        end = time.time()
+        wandb.log({'PerUpdate/TimeComplexity/ComputeReturnsAdvantagesFn':  end-start}, commit=False) # self.param_update_counter)
+        
+        # Update observations running mean and std: 
+        start = time.time()
+        if self.use_rnd: 
+            for idx, storage in enumerate(self.storages): 
+                if len(storage) <= 1: continue
+                for ob in storage.s: self.update_obs_mean_std(ob)
+        end = time.time()
+        wandb.log({'PerUpdate/TimeComplexity/UpdateObsMeanStdFn':  end-start}, commit=False) # self.param_update_counter)
+        
+        # states, actions, next_states, log_probs_old, returns, advantages, std_advantages, \
+        # int_returns, int_advantages, std_int_advantages, \
+        # target_random_features, rnn_states = self.retrieve_values_from_storages()
+        start = time.time()
+        samples = self.retrieve_values_from_storages()
+        end = time.time()
+
+        wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
+
+        #if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
+
+        start = time.time()
+        for it in range(self.kwargs['optimization_epochs']):
+            self.optimize_model(samples)
+            #self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
+        end = time.time()
+        
+        wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
+        
+        self.reset_storages()
+
     def retrieve_values_from_storages(self):
         '''
         Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
         This function samples from each storage, concatenate the sampled elements on the batch dimension,
         and maintains the hierarchy of dictionnaries.
         '''
+        torch.set_grad_enabled(False)
         keys=['s', 'a', 'log_pi_a', 'ret', 'adv']
 
         fulls = {}
@@ -380,6 +436,7 @@ class PPOAlgorithm(Algorithm):
             keys += ['rnn_states'] #, 'next_rnn_states']
         
         """
+        # depr : goal update
         if self.goal_oriented:
             keys += ['g']
         """
@@ -400,7 +457,8 @@ class PPOAlgorithm(Algorithm):
                 if isinstance(value[0], dict): 
                     value = _concatenate_list_hdict(
                         lhds=value, 
-                        concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        #concat_fn=partial(torch.cat, dim=0),   # concatenate on the unrolling dimension (axis=1).
+                        concat_fn=archi_concat_fn,
                         preprocess_fn=(lambda x:x),
                     )
                 else:
@@ -410,9 +468,7 @@ class PPOAlgorithm(Algorithm):
             for key, value in values.items():
                 fulls[key].append(value)
         
-        keys = list(fulls.keys())
-        for key in keys:
-            value = fulls[key]
+        for key, value in fulls.items():
             if len(value) >1:
                 if isinstance(value[0], dict):
                     value = _concatenate_list_hdict(
@@ -533,6 +589,8 @@ class PPOAlgorithm(Algorithm):
         #                           for recurrent_submodule_name in rnn_states}
 
         start = time.time()
+        torch.set_grad_enabled(True)
+        self.model.train(True)
 
         states = samples['s']
         rnn_states = samples['rnn_states']
@@ -554,13 +612,16 @@ class PPOAlgorithm(Algorithm):
         else: 
             sampler = random_sample(np.arange(samples['s'].size(0)), self.kwargs['mini_batch_size'])
             #sampler = random_sample(np.arange(advantages.size(0)), self.kwargs['mini_batch_size'])
-            
+        sampler = list(sampler)
+        nbr_minibatches = len(sampler)
+
+        self.optimizer.zero_grad()
+
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
             
             sampled_rnn_states = None
             if self.recurrent:
-                #sampled_rnn_states = self.calculate_rnn_states_from_batch_indices(rnn_states, batch_indices, nbr_layers_per_rnn)
                 sampled_rnn_states = _extract_rnn_states_from_batch_indices(rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
 
             sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
@@ -592,7 +653,7 @@ class PPOAlgorithm(Algorithm):
                 states_mean = self.obs_mean.cuda() if self.kwargs['use_cuda'] else self.obs_mean
                 states_std = self.obs_std.cuda() if self.kwargs['use_cuda'] else self.obs_std
 
-            self.optimizer.zero_grad()
+            #self.optimizer.zero_grad()
             if self.use_rnd:
                 loss = rnd_loss.compute_loss(sampled_states, 
                                              sampled_actions, 
@@ -649,38 +710,43 @@ class PPOAlgorithm(Algorithm):
                                              iteration_count=self.param_update_counter,
                                              summary_writer=self.summary_writer)
 
+            (loss/nbr_minibatches).backward(retain_graph=False)
+            '''
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
             self.optimizer.step()
+            '''
 
-            if summary_writer is not None:
-                self.param_update_counter += 1 
-                '''
-                for name, param in self.model.named_parameters():
-                    if hasattr(param, 'grad') and param.grad is not None:
-                        summary_writer.add_histogram(f"Training/{name}", param.grad.cpu(), self.param_update_counter)
-                '''
-                if self.use_rnd:
-                    self.summary_writer.add_scalar('Training/IntRewardMean', self.int_reward_mean.cpu().item(), self.param_update_counter)
-                    self.summary_writer.add_scalar('Training/IntRewardStd', self.int_reward_std.cpu().item(), self.param_update_counter)
+            self.param_update_counter += 1 
+            '''
+            for name, param in self.model.named_parameters():
+                if hasattr(param, 'grad') and param.grad is not None:
+                    summary_writer.add_histogram(f"Training/{name}", param.grad.cpu(), self.param_update_counter)
+            '''
+        
+        if self.kwargs['gradient_clip'] > 1e-3:
+            nn.utils.clip_grad_norm_(self.parameters(), self.kwargs['gradient_clip'])
+        self.optimizer.step()
+        
+        self.model.train(False)
+        torch.set_grad_enabled(False)
 
         end = time.time()
-        if self.summary_writer is not None:
-            self.summary_writer.add_scalar('PerUpdate/TimeComplexity/OptimizationLoss', end-start, self.param_update_counter)
-            self.summary_writer.flush()
+        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
+        if self.use_rnd:
+            wandb.log({
+                'Training/IntRewardMean':  self.int_reward_mean.cpu().item(), 
+                'Training/IntRewardStd': self.int_reward_std.cpu().item(), 
+                },
+                commit=False,
+            )
 
         return
 
-    # def calculate_rnn_states_from_batch_indices(self, rnn_states, batch_indices, nbr_layers_per_rnn):
-    #     sampled_rnn_states = {k: {'hidden': [None]*nbr_layers_per_rnn[k], 'cell': [None]*nbr_layers_per_rnn[k]} for k in rnn_states}
-    #     for recurrent_submodule_name in sampled_rnn_states:
-    #         for idx in range(nbr_layers_per_rnn[recurrent_submodule_name]):
-    #             sampled_rnn_states[recurrent_submodule_name]['hidden'][idx] = rnn_states[recurrent_submodule_name]['hidden'][idx][batch_indices].cuda() if self.kwargs['use_cuda'] else rnn_states[recurrent_submodule_name]['hidden'][idx][batch_indices]
-    #             sampled_rnn_states[recurrent_submodule_name]['cell'][idx]   = rnn_states[recurrent_submodule_name]['cell'][idx][batch_indices].cuda() if self.kwargs['use_cuda'] else rnn_states[recurrent_submodule_name]['cell'][idx][batch_indices]
-    #     return sampled_rnn_states
-
     def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
+        if self.storages is None:
+            self.reset_storages()
         if not(with_replay_buffer): 
             storages = self.storages
             self.storages = None
@@ -691,15 +757,26 @@ class PPOAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
+        param_obs_counter = self._param_obs_counter
+        self._param_obs_counter = None 
+
+        if isinstance(self.model, ArchiModel):
+            self.model.reset()
+        
         cloned_algo = copy.deepcopy(self)
         
         if not(with_replay_buffer): 
             self.storages = storages
-        
+            if not minimal:
+                cloned_algo.reset_storages()
+                
         self.summary_writer = sum_writer
         
         self._param_update_counter = param_update_counter
         cloned_algo._param_update_counter = param_update_counter
+
+        self._param_obs_counter = param_obs_counter
+        cloned_algo._param_obs_counter = param_obs_counter
 
         # Goes through all variables 'Proxy' (dealing with multiprocessing)
         # contained in this class and removes them from clone
@@ -724,6 +801,9 @@ class PPOAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
+        param_obs_counter = self._param_obs_counter
+        self._param_obs_counter = None 
+
         cloned_algo = copy.deepcopy(self)
         
         self.storages = storages
@@ -734,6 +814,9 @@ class PPOAlgorithm(Algorithm):
 
         self._param_update_counter = param_update_counter
         cloned_algo._param_update_counter = param_update_counter
+
+        self._param_obs_counter = param_obs_counter
+        cloned_algo._param_obs_counter = param_obs_counter
 
         return cloned_algo
 
@@ -754,3 +837,4 @@ class PPOAlgorithm(Algorithm):
             if keyword not in kwargs:
                 raise ValueError(f"Keyword: '{keyword}' not found in kwargs")
         for keyword in keywords: check_kwarg_and_condition(keyword, kwargs)
+
