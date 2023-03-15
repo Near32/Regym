@@ -764,6 +764,7 @@ def main():
     #)
     
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
@@ -868,6 +869,9 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    if dargs['THER_contrastive_training_nbr_neg_examples'] != 0:
+        dargs['THER_train_contrastively'] = True
+
     print(dargs)
 
     #from gpuutils import GpuUtils

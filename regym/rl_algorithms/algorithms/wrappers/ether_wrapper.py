@@ -50,6 +50,38 @@ class GaussianBlur:
 ###########################################################
 ###########################################################
 
+class SplitImg:
+    def __init__(
+        self, 
+        transform,
+        input_channel_dim=-1,
+        transform_channel_dim=-1,
+        output_channel_dim=None,
+    ):
+        self.transform = transform
+        self.input_channel_dim = input_channel_dim
+        self.transform_channel_dim = transform_channel_dim
+        if output_channel_dim is None:
+            output_channel_dim = input_channel_dim
+        self.output_channel_dim = output_channel_dim
+        
+    def __call__(self, x):
+        assert len(x.shape)==3
+        if self.input_channel_dim!=self.transform_channel_dim:
+            x = x.transpose(self.transform_channel_dim,self.input_channel_dim)
+        xis = []
+        for xi in x.split(split_size=3,dim=self.transform_channel_dim):
+            tcdim = self.transform_channel_dim
+            out = self.transform(xi)
+            if not isinstance(out, torch.Tensor):
+                out = T.ToTensor()(out)
+                tcdim = 0
+            if tcdim!=self.output_channel_dim:
+                out = out.transpose(self.transform_channel_dim,self.output_channel_dim)
+            xis.append(out)
+        xis = torch.cat(xis, dim=self.output_channel_dim)
+        return xis
+
 
 class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
     def __init__(
@@ -209,7 +241,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         #    args.batch_size = args.batch_size // 2
         print(f"DC_version = {ReferentialGym.datasets.dataset.DC_version} and BS={self.kwargs['ETHER_rg_batch_size']}.")
         
-        obs_shape = getattr(self.rg_storages[0], self.kwargs['ETHER_exp_key'])[0][0].shape
+        obs_instance = getattr(self.rg_storages[0], self.kwargs['ETHER_exp_key'])[0][0]
+        obs_shape = obs_instance.shape
         stimulus_depth_dim = obs_shape[1]
         stimulus_resize_dim = obs_shape[-1] #args.resizeDim #64 #28
         normalize_rgb_values = False 
@@ -226,32 +259,58 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         transformations.append(transform)
         '''
         if self.kwargs["ETHER_rg_with_color_jitter_augmentation"]:
-            transformations = [T.RandomApply([T.ColorJitter(
-                brightness=0.8,
-                contrast=0.8,
-                saturation=0.8,
-                hue=0.1,
-            )
-            ], p=0.8)]+transformations
+            transformations = [T.RandomApply([
+                SplitImg(
+                    T.ColorJitter(
+                        brightness=0.8,
+                        contrast=0.8,
+                        saturation=0.8,
+                        hue=0.1,
+                    ),
+                    input_channel_dim=0,
+                    transform_channel_dim=0,
+                    output_channel_dim=0,
+                )], 
+                p=0.8,
+            )]+transformations
         
         if self.kwargs["ETHER_rg_with_gaussian_blur_augmentation"]:
-            transformations = [T.RandomApply([GaussianBlur([0.1,2.0])], p=0.5)]+transformations
+            transformations = [T.RandomApply([
+                SplitImg(
+                    GaussianBlur([0.1,2.0]),
+                    input_channel_dim=0,
+                    transform_channel_dim=-1,
+                    output_channel_dim=0,
+                )], p=0.5)]+transformations
         
         from ReferentialGym.datasets.utils import AddEgocentricInvariance
         ego_inv_transform = AddEgocentricInvariance()
         
         transform_degrees = self.kwargs["ETHER_rg_egocentric_tr_degrees"]
-        transform_translate = (self.kwargs["ETHER_rg_egocentric_tr_xy"], self.kwargs["ETHER_rg_egocentric_tr_xy"])
+        transform_translate = float(self.kwargs["ETHER_rg_egocentric_tr_xy"])/stimulus_resize_dim
+        transform_translate = (transform_translate, transform_translate)
         
         if self.kwargs["ETHER_rg_egocentric"]:
             transformations = [
-                ego_inv_transform,
-                T.RandomAffine(degrees=transform_degrees, 
-                     translate=transform_translate, 
-                     scale=None, 
-                     shear=None, 
-                     interpolation=T.InterpolationMode.BILINEAR, 
-                     fill=0),
+                SplitImg(
+                    ego_inv_transform,
+                    input_channel_dim=0,
+                    transform_channel_dim=-1,
+                    output_channel_dim=0,
+                ),
+                SplitImg(
+                    T.RandomAffine(
+                    degrees=transform_degrees, 
+                    translate=transform_translate, 
+                    scale=None, 
+                    shear=None, 
+                    interpolation=T.InterpolationMode.BILINEAR, 
+                    fill=0,
+                    ),
+                    input_channel_dim=0,
+                    transform_channel_dim=0,
+                    output_channel_dim=0,
+                ),
                 *transformations,
             ]
         
@@ -961,7 +1020,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         full_update = True
         for it in range(self.kwargs['ETHER_rg_nbr_epoch_per_update']):
             #self.test_acc = self.train_predictor()
-            self._update_predictor()
+            if self.kwargs['ETHER_use_supervised_training']:
+                self._update_predictor()
             self.ether_test_acc = self.finetune_predictor(update=(it==0))
             if self.ether_test_acc >= self.kwargs['ETHER_rg_accuracy_threshold']:
                 full_update = False

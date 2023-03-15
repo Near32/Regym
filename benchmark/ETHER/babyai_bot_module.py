@@ -131,10 +131,9 @@ class BabyAIBotModule(Module):
             else:
                 agent = self.agents[aidx]
                 last_action = self.last_actions[aidx] 
-                #try:
-                n_action = agent.replan(last_action)
-                new_action = n_action.value
-                '''
+                try:
+                    n_action = agent.replan(last_action)
+                    new_action = n_action.value
                 except Exception as e:
                     self.agents_initialized[aidx] = False
                     self.agents_reset_history[aidx] = True
@@ -142,7 +141,6 @@ class BabyAIBotModule(Module):
                     last_action = self.last_actions[aidx]
                     agent = self.agents[aidx]
                     new_action = agent.replan(last_action).value
-                '''
             self.new_actions.append(new_action)
         
         self.last_actions = copy.deepcopy(self.new_actions)

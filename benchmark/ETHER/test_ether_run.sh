@@ -2,7 +2,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --config=babyAI_wandb_benchmark_ETHER_config.yaml \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=2e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=5e3 --replay_capacity=6e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
@@ -10,10 +10,13 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
+--ETHER_rg_shared_architecture=True \
+--ETHER_use_supervised_training=False \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False \
---ETHER_rg_with_color_jitter_augmentation=False --ETHER_rg_with_gaussian_blur_augmentation=True \
+--ETHER_rg_with_color_jitter_augmentation=True --ETHER_rg_with_gaussian_blur_augmentation=True \
+--ETHER_rg_egocentric=True \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
---ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=1.0e-3 \
+--ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=2048 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=512 --ETHER_rg_accuracy_threshold=99 \
@@ -36,6 +39,6 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=40 \
 --BabyAI_Bot_action_override=True \
---train_observation_budget=2.0e7
+--train_observation_budget=3072
 
 
