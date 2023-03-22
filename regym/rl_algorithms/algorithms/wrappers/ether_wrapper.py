@@ -995,17 +995,29 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         period_count_check = self.nbr_buffered_predictor_experience
         
         # Update predictor:
-        if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
-            return
-        if ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
+        can_update_predictor = False
+        if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
+            can_update_predictor = True
+        if can_update_predictor \
+        and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
             self._update_predictor()
         
         # RG Update:
         period_check = self.kwargs['ETHER_rg_training_period']
         period_count_check = self.nbr_buffered_predictor_experience
-        if (period_count_check % period_check == 0):
+        can_rg_train = False
+        if len(self.rg_storages[0])>=self.kwargs['ETHER_replay_capacity']:
+            can_rg_train = True
+        quotient = period_count_check // period_check
+        previous_quotient = getattr(self, 'previous_ETHER_quotient', 0)
+        if can_rg_train \
+        and quotient != previous_quotient:
+        #and (period_count_check % period_check == 0):
+            self.previous_ETHER_quotient = quotient
             self._rg_training()
         
+        wandb.log({'Training/ETHER/storage_length': len(self.rg_storages[0])}, commit=False)
+
     def _update_predictor(self):	
         full_update = True
         for it in range(self.kwargs['THER_nbr_training_iteration_per_update']):
