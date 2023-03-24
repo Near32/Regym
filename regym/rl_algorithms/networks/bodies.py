@@ -133,12 +133,16 @@ class ConvolutionalBody(nn.Module):
                     padding=p,
                     bias=not add_bn
                 ) 
-                layer = layer_init(layer, w_scale=math.sqrt(2))
+                layer = layer_init(
+                    layer, 
+                    w_scale=math.sqrt(2), 
+                    init_type='ortho',
+                )
                 in_ch = cfg
                 self.features.append(layer)
                 if add_bn:
                     self.features.append(nn.BatchNorm2d(cfg))
-                self.features.append(self.non_linearities[idx](inplace=True))
+                self.features.append(self.non_linearities[idx](inplace=False))
                 # Update of the shape of the input-image, following Conv:
                 h_dim = (h_dim-k+2*p)//s+1
                 w_dim = (w_dim-k+2*p)//s+1
@@ -155,8 +159,13 @@ class ConvolutionalBody(nn.Module):
 
         self.fcs = nn.ModuleList()
         for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
-            self.fcs.append( layer_init(nn.Linear(nbr_in, nbr_out), w_scale=math.sqrt(2)))
-            self.fcs.append(self.non_linearities[-1](inplace=True))
+            self.fcs.append( layer_init(
+                nn.Linear(nbr_in, nbr_out), 
+                w_scale=math.sqrt(2),
+                init_type='ortho',
+                )
+            )
+            self.fcs.append(self.non_linearities[-1](inplace=False))
             if self.dropout:
                 self.fcs.append( nn.Dropout(p=self.dropout))
 
@@ -646,7 +655,7 @@ class BasicBlock(nn.Module):
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
@@ -695,7 +704,7 @@ class Bottleneck(nn.Module):
         self.bn2 = norm_layer(width)
         self.conv3 = conv1x1(width, planes * self.expansion)
         self.bn3 = norm_layer(planes * self.expansion)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.downsample = downsample
         self.stride = stride
 
@@ -755,7 +764,7 @@ class ResNet(nn.Module):
         self.conv1 = nn.Conv2d(self.input_shape[0], self.inplanes, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = norm_layer(self.inplanes)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 
                                        64, 

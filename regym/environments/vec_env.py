@@ -142,7 +142,7 @@ class VecEnv():
         return out
 
     def put_action_in_queue(self, action, idx):
-        if False: #self.single_agent:
+        if self.single_agent:
             if isinstance(action, list):
                 action = action[0]
                 if isinstance(action, np.ndarray) and action.shape[0]==1:

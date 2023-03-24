@@ -247,6 +247,12 @@ class PPOAlgorithm(Algorithm):
             for storage in self.storages: storage.reset()
             return 
 
+        keys = [
+            's', 'a', 'r', 'succ_s', 'non_terminal', 'info',
+            'v', 'q', 'pi', 'log_pi', 'ent', 'greedy_action',
+            'adv', 'ret', 'qa', 'log_pi_a',
+            'mean', 'action_logits', 'succ_info',
+        ]
         self.storages = []
         for i in range(self.nbr_actor):
             self.storages.append(Storage())
@@ -288,6 +294,7 @@ class PPOAlgorithm(Algorithm):
         return normalized_int_rewards
 
     def compute_advantages_and_returns(self, storage_idx, non_episodic=False):
+        torch.set_grad_enabled(False)
         ext_r = self.storages[storage_idx].r
         #norm_ext_r = self.normalize_ext_rewards(storage_idx)
         advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32))
@@ -332,6 +339,7 @@ class PPOAlgorithm(Algorithm):
         Indeed, int_r values in storages have been normalized upon computation.
         At computation-time, updates of the running mean and std are performed too.
         '''
+        torch.set_grad_enabled(False)
         norm_int_r = self.normalize_int_rewards(storage_idx)
         int_advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32))
         
@@ -468,6 +476,7 @@ class PPOAlgorithm(Algorithm):
             for key, value in values.items():
                 fulls[key].append(value)
         
+        out_fulls = {}
         for key, value in fulls.items():
             if len(value) >1:
                 if isinstance(value[0], dict):
@@ -481,11 +490,11 @@ class PPOAlgorithm(Algorithm):
             else:
                 value = value[0]
 
-            fulls[key] = value
+            out_fulls[key] = value
             if 'adv' in key:
-                fulls[f'std_{key}'] = self.standardize(value).squeeze()
+                out_fulls[f'std_{key}'] = self.standardize(value).squeeze()
 
-        return fulls
+        return out_fulls
 
     def standardize(self, x):
         stable_eps = 1e-30
@@ -564,6 +573,7 @@ class PPOAlgorithm(Algorithm):
           self.running_counter_intrinsic_return = 0
 
     def update_obs_mean_std(self, unnormalized_obs):
+        torch.set_grad_enabled(False)
         rmean = self.obs_mean
         rstd = self.obs_std
         rc = self.running_counter_obs
@@ -615,7 +625,7 @@ class PPOAlgorithm(Algorithm):
         sampler = list(sampler)
         nbr_minibatches = len(sampler)
 
-        self.optimizer.zero_grad()
+        #self.optimizer.zero_grad()
 
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
@@ -710,13 +720,15 @@ class PPOAlgorithm(Algorithm):
                                              iteration_count=self.param_update_counter,
                                              summary_writer=self.summary_writer)
 
+            '''
             (loss/nbr_minibatches).backward(retain_graph=False)
             '''
+            self.optimizer.zero_grad()
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
             self.optimizer.step()
-            '''
+            
 
             self.param_update_counter += 1 
             '''
@@ -725,10 +737,11 @@ class PPOAlgorithm(Algorithm):
                     summary_writer.add_histogram(f"Training/{name}", param.grad.cpu(), self.param_update_counter)
             '''
         
+        '''
         if self.kwargs['gradient_clip'] > 1e-3:
             nn.utils.clip_grad_norm_(self.parameters(), self.kwargs['gradient_clip'])
         self.optimizer.step()
-        
+        '''
         self.model.train(False)
         torch.set_grad_enabled(False)
 

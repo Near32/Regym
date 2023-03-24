@@ -461,6 +461,7 @@ class MARLEnvironmentModule(Module):
                 # haven't figured out why is the cloning function making it None...
                 test_agent(
                     env=self.test_env,
+                    env_configs=self.config['env_configs'],
                     agents=[agent.clone(training=False) for agent in self.agents],
                     update_count=self.agents[0].get_update_count(),
                     nbr_episode=self.config['test_nbr_episode'],

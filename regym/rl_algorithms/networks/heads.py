@@ -123,7 +123,11 @@ class CategoricalQNet(nn.Module):
         else:
             self.fc_critic = layer_fn(fc_critic_input_shape, self.action_dim)
             if layer_init_fn is not None:
-                self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
+                self.fc_critic = layer_init_fn(
+                    self.fc_critic, 
+                    w_scale=1e0,
+                    init_type='ortho',
+                )
 
     def reset_noise(self):
         self.apply(reset_noisy_layer)
@@ -387,7 +391,11 @@ class QNet(nn.Module):
         self.fc_critic = layer_fn(fc_critic_input_shape, 1)
 
         if layer_init_fn is not None:
-            self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
+            self.fc_critic = layer_init_fn(
+                self.fc_critic, 
+                w_scale=1e0,
+                init_type='ortho',
+            )
         else:
             self.fc_critic.weight.data.uniform_(-init_w, init_w)
             self.fc_critic.bias.data.uniform_(-init_w, init_w)
@@ -589,7 +597,12 @@ class GaussianActorNet(nn.Module):
         if self.noisy:  layer_fn = NoisyLinear
         self.fc_actor = layer_fn(fc_actor_input_shape, self.action_dim)
         if layer_init_fn is not None:
-            self.fc_actor = layer_init_fn(self.fc_actor, 1e0)
+            print(f'WARNING: using layer init fn : {layer_init_fn} in {self}')
+            self.fc_actor = layer_init_fn(
+                self.fc_actor, 
+                w_scale=1e-2,
+                init_type='ortho',
+            )
         else:
             self.fc_actor.weight.data.uniform_(-init_w, init_w)
             self.fc_actor.bias.data.uniform_(-init_w, init_w)
@@ -839,11 +852,21 @@ class ActorCriticNet(nn.Module):
         #self.fc_action = nn.Linear(actor_body.get_feature_shape(), action_dim)
         self.fc_action = nn.Linear(fc_actor_input_shape, action_dim)
         if layer_init_fn is not None:
-            self.fc_action = layer_init_fn(self.fc_action, 1e-3)
+            print(f'WARNING: using layer init fn : {layer_init_fn} in {self}')
+            self.fc_action = layer_init_fn(
+                self.fc_action, 
+                w_scale=1e-2,
+                init_type='ortho',
+            )
         #self.fc_critic = nn.Linear(critic_body.get_feature_shape(), 1)
         self.fc_critic = nn.Linear(fc_critic_input_shape, 1)
         if layer_init_fn is not None:
-            self.fc_critic = layer_init_fn(self.fc_critic, 1e0)
+            print(f'WARNING: using layer init fn : {layer_init_fn} in {self}')
+            self.fc_critic = layer_init_fn(
+                self.fc_critic, 
+                w_scale=1e0,
+                init_type='ortho',
+            )
 
         self.use_intrinsic_critic = use_intrinsic_critic
         self.fc_int_critic = None
@@ -851,7 +874,12 @@ class ActorCriticNet(nn.Module):
             #self.fc_int_critic = nn.Linear(critic_body.get_feature_shape(), 1)
             self.fc_int_critic = nn.Linear(fc_critic_input_shape, 1)
             if layer_init_fn is not None:
-                self.fc_int_critic = layer_init_fn(self.fc_int_critic, 1e-3)
+                print(f'WARNING: using layer init fn : {layer_init_fn} in {self}')
+                self.fc_int_critic = layer_init_fn(
+                    self.fc_int_critic, 
+                    w_scale=1e0,
+                    init_type='ortho',
+                )
 
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())

@@ -139,7 +139,16 @@ def run_episode_parallel(
                     pa_int_r = agent.get_intrinsic_reward(actor_index)
             """
             if not previous_done[actor_index]:
-                per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) )
+                per_actor_trajectories[actor_index].append((
+                    pa_obs, 
+                    pa_a, 
+                    pa_r, 
+                    pa_int_r, 
+                    #pa_succ_obs, 
+                    pa_done, 
+                    pa_info,
+                ))
+                #per_actor_trajectories[actor_index].append( (pa_obs, pa_a, pa_r, pa_int_r, pa_succ_obs, pa_done, pa_info) )
 
         observations = copy.deepcopy(succ_observations)
         info = copy.deepcopy(succ_info)
@@ -175,6 +184,7 @@ def run_episode_parallel(
 
 def test_agent(
     env, 
+    env_configs,
     agents, 
     update_count, 
     nbr_episode, 
@@ -213,7 +223,7 @@ def test_agent(
         agents,
         training=False,
         max_episode_length=max_episode_length,
-        env_configs=None,
+        env_configs=env_configs,
         save_traj=save_traj,
         render_mode=render_mode,
         obs_key=obs_key,

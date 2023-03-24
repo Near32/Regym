@@ -550,9 +550,15 @@ class GrayScaleObservationCV(gym.ObservationWrapper):
             self.observation_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
 
     def observation(self, observation):
+        need_reg = False 
+        if isinstance(observation, tuple):
+            observation, info = observation
+            need_reg = True
         observation = cv2.cvtColor(observation, cv2.COLOR_RGB2GRAY)
         if self.keep_dim:
             observation = np.expand_dims(observation, -1)
+        if need_reg:
+            observation = (observation, info)
         return observation
 
 
@@ -572,8 +578,18 @@ class FrameResizeWrapper(gym.ObservationWrapper):
         self.observation_space = gym.spaces.Box(low=low, high=high)
     
     def observation(self, observation):
-        obs = cv2.resize(observation, tuple(self.size))
+        need_reg = False 
+        if isinstance(observation, tuple):
+            observation, info = observation
+            need_reg = True
+        obs = cv2.resize(
+            observation, 
+            tuple(self.size), 
+            interpolation=cv2.INTER_AREA,
+        )
         obs = obs.reshape(self.observation_space.shape)
+        if need_reg:
+            obs = (obs, info)
         return obs
 
 
@@ -607,12 +623,12 @@ class EpisodicLifeEnv(gym.Wrapper):
         and the learner need not know about any of this behind-the-scenes.
         """
         if self.was_real_done:
-            obs = self.env.reset(**kwargs)
+            obs, info = self.env.reset(**kwargs)
         else:
             # no-op step to advance from terminal/lost life state
-            obs, _, _, _ = self.env.step(0)
+            obs, _, _, info = self.env.step(0)
         self.lives = self.env.unwrapped.ale.lives()
-        return obs
+        return obs, info
 
 class EpisodicPickEnv(gym.Wrapper):
     def __init__(self, env, pick_idx=0):
@@ -674,11 +690,11 @@ class FrameStack(gym.Wrapper):
         assert(len(self.observations) == self.stack)
         return LazyFrames(list(self.observations))
         
-    def reset(self, **args):
-        obs = self.env.reset()
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
         for _ in range(self.stack):
             self.observations.append(obs)
-        return self._get_obs()
+        return self._get_obs(), info
     
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
@@ -728,18 +744,19 @@ class NoopResetEnv(gym.Wrapper):
 
     def reset(self, **kwargs):
         """ Do no-op action for a number of steps in [1, noop_max]."""
-        self.env.reset(**kwargs)
+        obs, info = self.env.reset(**kwargs)
         if self.override_num_noops is not None:
             noops = self.override_num_noops
         else:
-            noops = self.unwrapped.np_random.randint(1, self.noop_max + 1) #pylint: disable=E1101
+            noops = 1+int(self.unwrapped.np_random.random()*self.noop_max)
+            #randint(1, self.noop_max + 1) #pylint: disable=E1101
         assert noops > 0
         obs = None
         for _ in range(noops):
-            obs, _, done, _ = self.env.step(self.noop_action)
+            obs, _, done, info = self.env.step(self.noop_action)
             if done:
                 obs = self.env.reset(**kwargs)
-        return obs
+        return obs, info
 
     def step(self, ac):
         return self.env.step(ac)
@@ -794,8 +811,13 @@ def baseline_atari_pixelwrap(env,
                              nbr_max_random_steps=30, 
                              clip_reward=True,
                              previous_reward_action=False):
+    env = Gymnasium2GymWrapper(env=env)
+    if size is not None and isinstance(size, int):
+        env = FrameResizeWrapper(env, size=size) 
+    #if size is not None and isinstance(size, int):
+    #    env = gym.wrappers.ResizeObservation(env, (size, size))
     if grayscale:
-        #env = GrayScaleObservation(env=env) 
+        #env = gym.wrappers.GrayScaleObservation(env,keep_dim=True)
         env = GrayScaleObservationCV(env=env) 
     
     if nbr_max_random_steps > 0:
@@ -804,8 +826,8 @@ def baseline_atari_pixelwrap(env,
     if skip > 0:
         env = MaxAndSkipEnv(env, skip=skip)
     
-    if size is not None and isinstance(size, int):
-        env = FrameResizeWrapper(env, size=size) 
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
     
     if single_life_episode:
         env = EpisodicLifeEnv(env)
@@ -1714,7 +1736,12 @@ class PreviousRewardActionInfoWrapper(gym.Wrapper):
         return obs, infos
 
     def step(self, action):
-        next_observation, reward, done, next_infos = self.env.step(action)
+        stepping_action = action
+        if isinstance(action, list):
+            if len(action)==1:
+                # Single Agent ...
+                stepping_action = action[0].item()
+        next_observation, reward, done, next_infos = self.env.step(stepping_action)
         
         self.previous_reward = np.ones((1, 1), dtype=np.float32)*reward
         global eye_actions
@@ -2746,11 +2773,10 @@ try:
     from gym_minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
 except Exception as e:
     print(f"WARNING: BabyAI wrappers are not found due to: {e}")
-    print(f"WARNING: trying from minigrid...")
+    #print(f"WARNING: trying from minigrid...")
     #from minigrid.wrappers import RGBImgPartialObsWrapper, RGBImgObsWrapper
-    print("WARNING: BabyAI wrappers imported successfully from minigrid.")
+    #print("WARNING: BabyAI wrappers imported successfully from minigrid.")
 
-    import gymnasium
     class RGBImgPartialObsWrapper(gym.ObservationWrapper):
         def __init__(self, env, tile_size=8):
             super().__init__(env)
@@ -2784,6 +2810,11 @@ except Exception as e:
                 return obs
             else:
                 raise NotImplementedError
+
+try:
+    import gymnasium
+except Exception as e:
+    print(f"Gymnasium could not be imported : {e}")
 
 class Gymnasium2GymWrapper(gym.Wrapper):
     def __init__(self, env):

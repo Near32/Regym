@@ -65,20 +65,26 @@ def generate_task(env_name: str,
 
     task = None
     env = None
-    if is_gym_environment and is_unity_environment: raise ValueError(f'{env_name} exists as both a Gym and an Unity environment. Rename Unity environment to remove duplicate problem.')
+    if is_gym_environment and is_unity_environment: 
+        raise ValueError(f'{env_name} exists as both a Gym and an Unity environment. Rename Unity environment to remove duplicate problem.')
     elif is_gym_environment or is_gymnasium_environment: 
         if is_gym_environment:
             env = gym.make(env_name, **env_config)
         else:
             env = gymnasium.make(env_name, **env_config)
-        print(f"WARNING: As a gymnasium environment, seeding is only available upon reset.")
-        print(f"WARNING: As a result, seeding is meant to enforce episode-level similarity, rather than environment-level control of the randomness.")
+            print(f"WARNING: As a gymnasium environment, seeding is only available upon reset.")
+            print(f"WARNING: As a result, seeding is meant to enforce episode-level similarity, rather than environment-level control of the randomness.")
         if wrapping_fn is not None: 
             env = wrapping_fn(env=env)
-        from .gymnasium_parser import parse_gymnasium_environment
-        task = parse_gymnasium_environment(env, env_type)
-    elif is_unity_environment: task = parse_unity_environment(env_name, env_type)
-    else: raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
+        if is_gym_environment:
+            task = parse_gym_environment(env, env_type)
+        else:
+            from .gymnasium_parser import parse_gymnasium_environment
+            task = parse_gymnasium_environment(env, env_type)
+    elif is_unity_environment: 
+        task = parse_unity_environment(env_name, env_type)
+    else: 
+        raise ValueError(f'Environment \'{env_name}\' was not recognized as either a Gym nor a Unity environment')
 
     env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, is_gymnasium_environment, wrapping_fn=wrapping_fn, env_config=env_config)
     test_env_creator = EnvironmentCreator(env_name, is_unity_environment, is_gym_environment, is_gymnasium_environment, wrapping_fn=test_wrapping_fn, env_config=test_env_config)

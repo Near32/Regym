@@ -19,6 +19,8 @@ from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
 from regym.rl_algorithms.utils import recursive_inplace_update
 from regym.rl_algorithms.agents.utils import generate_model, parse_and_check
 
+import wandb
+
 
 class PPOAgent(ExtraInputsHandlingAgent, Agent):
     def __init__(self, name, algorithm, extra_inputs_infos):
@@ -353,6 +355,16 @@ class PPOAgent(ExtraInputsHandlingAgent, Agent):
                     raise NotImplementedError 
 
         state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
+        '''
+        wandb.log({
+            "Model/StateMean": state.mean(),
+            "Model/StateStd": state.std(),
+            "Model/Min": state.min(),
+            "Model/Max": state.max(),
+            },
+            commit=False,
+        )
+        '''
         model = self.algorithm.unwrapped.get_models()['model']
         model = model.train(mode=self.training)
 
