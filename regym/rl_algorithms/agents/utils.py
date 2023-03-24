@@ -133,6 +133,37 @@ def generate_archi_model(
     kwargs: Dict) -> ArchiModel:
 
     config = kwargs["ArchiModel"]
+    
+    if isinstance(task.observation_shape, int):
+        input_dim = task.observation_shape
+    else:
+        input_dim = list(task.observation_shape)
+    
+    if isinstance(kwargs['observation_resize_dim'], int):
+        input_height, input_width = kwargs['observation_resize_dim'], kwargs['observation_resize_dim']
+    else:
+        input_height, input_width = kwargs['observation_resize_dim']
+
+    modules_type = [
+        module['type'] 
+        for m_name, module in config['modules'].items()
+    ]
+    if any(['Convolutional' in mt for mt in modules_type]):
+        kwargs['state_preprocess'] = partial(
+            ResizeCNNInterpolationFunction, 
+            size=input_height, 
+            normalize_rgb_values=True,
+        )
+        kwargs['preprocessed_observation_shape'] = [
+            input_dim[-1], 
+            input_height, 
+            input_width,
+        ]
+        if 'nbr_frame_stacking' in kwargs:
+            kwargs['preprocessed_observation_shape'][0] *=  kwargs['nbr_frame_stacking']
+        input_shape = kwargs['preprocessed_observation_shape']
+        #channels = [input_shape[0]] + kwargs['phi_arch_channels']
+    
     model = load_model(config)
     #model = model.share_memory()
 

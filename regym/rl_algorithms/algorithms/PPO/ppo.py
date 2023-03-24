@@ -705,20 +705,22 @@ class PPOAlgorithm(Algorithm):
                                              iteration_count=self.param_update_counter,
                                              summary_writer=self.summary_writer)
             else:
-                loss = ppo_loss.compute_loss(sampled_states, 
-                                             sampled_actions, 
-                                             sampled_log_probs_old,
-                                             sampled_returns, 
-                                             sampled_advantages, 
-                                             sampled_std_advantages,
-                                             rnn_states=sampled_rnn_states,
-                                             use_std_adv=self.kwargs['standardized_adv'],
-                                             ratio_clip=self.kwargs['ppo_ratio_clip'], 
-                                             entropy_weight=self.kwargs['entropy_weight'],
-                                             value_weight=self.kwargs['value_weight'],
-                                             model=self.model,
-                                             iteration_count=self.param_update_counter,
-                                             summary_writer=self.summary_writer)
+                loss = ppo_loss.compute_loss(
+                    sampled_states, 
+                    sampled_actions, 
+                    sampled_log_probs_old,
+                    sampled_returns, 
+                    sampled_advantages, 
+                    sampled_std_advantages,
+                    rnn_states=sampled_rnn_states,
+                    use_std_adv=self.kwargs['standardized_adv'],
+                    ratio_clip=self.kwargs['ppo_ratio_clip'], 
+                    entropy_weight=self.kwargs['entropy_weight'],
+                    value_weight=self.kwargs['value_weight'],
+                    model=self.model,
+                    iteration_count=self.param_update_counter,
+                    summary_writer=self.summary_writer,
+                )
 
             '''
             (loss/nbr_minibatches).backward(retain_graph=False)
