@@ -577,6 +577,10 @@ def str2bool(instr):
     else:
         raise NotImplementedError
 
+def intOrNone(instr):
+    if instr is None:
+        return None
+    return int(instr)
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -776,8 +780,8 @@ def main():
     parser.add_argument("--ETHER_lock_test_storage", type=str2bool, default=False)
     parser.add_argument("--ETHER_test_replay_capacity", type=int, default=512)
     parser.add_argument("--ETHER_test_train_split_interval",type=int, default=5)
-    parser.add_argument("--ETHER_train_dataset_length", type=int, default=4096)
-    parser.add_argument("--ETHER_test_dataset_length", type=int, default=1024)
+    parser.add_argument("--ETHER_train_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ETHER_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)

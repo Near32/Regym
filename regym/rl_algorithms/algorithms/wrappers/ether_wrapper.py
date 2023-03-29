@@ -149,6 +149,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.ether_test_acc = 0.0
         
         self.rg_iteration = 0
+        self.idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
         #self.init_referential_game()
         
     def _reset_rg_storages(self):
@@ -860,6 +861,66 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         )
         modules[listener_mig_disentanglement_metric_id] = listener_mig_disentanglement_metric_module
 
+        compactness_ambiguity_metric_id = "compactness_ambiguity_metric"
+        compactness_ambiguity_metric_input_stream_ids = {
+            #"model":"modules:current_speaker:ref:ref_agent",
+            "model":"modules:current_speaker:ref:ref_agent:_utter",
+            "representations":"modules:current_speaker:sentences_widx",
+            "experiences":"current_dataloader:sample:speaker_experiences", 
+            "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+            #"latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+            "indices":"current_dataloader:sample:speaker_indices", 
+        }
+
+        compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
+            id=compactness_ambiguity_metric_id,
+            input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
+            config = {
+                "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "epoch_period":self.kwargs["ETHER_rg_metric_epoch_period"],
+                "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
+                "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
+                "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
+                "resample": False, #self.kwargs["ETHER_rg_metric_resampling"],
+                "threshold":5e-2,#0.0,#1.0,
+                "random_state_seed":self.kwargs["ETHER_rg_seed"],
+                "verbose":False,
+                "idx2w": self.idx2w,
+            }
+        )
+        modules[compactness_ambiguity_metric_id] = compactness_ambiguity_metric_module
+
+        posbosdis_disentanglement_metric_id = "posbosdis_disentanglement_metric"
+        posbosdis_disentanglement_metric_input_stream_ids = {
+            #"model":"modules:current_speaker:ref:ref_agent",
+            "model":"modules:current_speaker:ref:ref_agent:_utter",
+            "representations":"modules:current_speaker:sentences_widx",
+            "experiences":"current_dataloader:sample:speaker_experiences", 
+            "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+            #"latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+            "indices":"current_dataloader:sample:speaker_indices", 
+        }
+
+        posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+            id=posbosdis_disentanglement_metric_id,
+            input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
+            config = {
+                "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "epoch_period":self.kwargs["ETHER_rg_metric_epoch_period"],
+                "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
+                "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
+                "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
+                "resample":self.kwargs["ETHER_rg_metric_resampling"],
+                "threshold":5e-2,#0.0,#1.0,
+                "random_state_seed":self.kwargs["ETHER_rg_seed"],
+                "verbose":False,
+                "active_factors_only":self.kwargs["ETHER_rg_metric_active_factors_only"],
+            }
+        )
+        modules[posbosdis_disentanglement_metric_id] = posbosdis_disentanglement_metric_module
+
         logger_id = "per_epoch_logger"
         logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
         modules[logger_id] = logger_module
@@ -896,12 +957,15 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         #pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     
         #pipelines[optim_id].append(topo_sim_metric_id)
-        pipelines[optim_id].append(speaker_topo_sim_metric_id)
+        #pipelines[optim_id].append(speaker_topo_sim_metric_id)
         #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
+        pipelines[optim_id].append(compactness_ambiguity_metric_id)
         #pipelines[optim_id].append(speaker_posbosdis_metric_id)
+        '''
         if "obverter" in self.kwargs["ETHER_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
+        '''
         pipelines[optim_id].append(inst_coord_metric_id)
         
         pipelines[optim_id].append(logger_id)
