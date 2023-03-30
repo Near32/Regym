@@ -10,7 +10,6 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
---ETHER_rg_metric_epoch_period=1 \
 --ETHER_rg_shared_architecture=True \
 --ETHER_use_supervised_training=False \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\

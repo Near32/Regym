@@ -878,7 +878,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             config = {
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
-                "epoch_period":self.kwargs["ETHER_rg_metric_epoch_period"],
+                "epoch_period":1,#self.kwargs["ETHER_rg_metric_epoch_period"],
                 "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
                 "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
@@ -957,7 +957,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         #pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     
         #pipelines[optim_id].append(topo_sim_metric_id)
-        #pipelines[optim_id].append(speaker_topo_sim_metric_id)
+        pipelines[optim_id].append(speaker_topo_sim_metric_id)
         #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
         pipelines[optim_id].append(compactness_ambiguity_metric_id)
         #pipelines[optim_id].append(speaker_posbosdis_metric_id)
