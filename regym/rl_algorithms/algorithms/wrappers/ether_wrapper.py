@@ -216,21 +216,22 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         '''
         # CHECK for uniqueness:
         self.nbr_data += 1 
-        unique = True
-        for idx in range(len(self.rg_storages[actor_index])):
-            if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == exp_dict['info']['symbolic_image']).reshape(-1)):
-                self.non_unique_data += 1
-                #self.nbr_data = self.rg_storages[actor_index].get_size()+self.rg_storages[actor_index].get_size(test=True)
-                unique = False
-                break
-        
-        wandb.log({f"Training/ETHER/NonUniqueDataRatio":float(self.non_unique_data)/(self.nbr_data+1)}, commit=False)
-        wandb.log({f"Training/ETHER/NonUniqueDataNbr": self.non_unique_data}, commit=False)
         wandb.log({f"Training/ETHER/NbrData":self.nbr_data}, commit=False)
+        if "symbolic_image" in exp_dict['info']:
+            unique = True
+            for idx in range(len(self.rg_storages[actor_index])):
+                if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == exp_dict['info']['symbolic_image']).reshape(-1)):
+                    self.non_unique_data += 1
+                    #self.nbr_data = self.rg_storages[actor_index].get_size()+self.rg_storages[actor_index].get_size(test=True)
+                    unique = False
+                    break
         
-        if self.kwargs['ETHER_rg_filter_out_non_unique'] \
-        and not unique:  
-            return
+            wandb.log({f"Training/ETHER/NonUniqueDataRatio":float(self.non_unique_data)/(self.nbr_data+1)}, commit=False)
+            wandb.log({f"Training/ETHER/NonUniqueDataNbr": self.non_unique_data}, commit=False)
+        
+            if self.kwargs['ETHER_rg_filter_out_non_unique'] \
+            and not unique:  
+                return
 
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
 

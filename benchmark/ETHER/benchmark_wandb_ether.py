@@ -19,6 +19,7 @@ from regym.util.wrappers import baseline_ther_wrapper
 
 #import babyai
 import minigrid
+#import miniworld 
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
@@ -394,13 +395,14 @@ def training_process(
       single_life_episode=task_config['single_life_episode'],
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=task_config['clip_reward'],
+      time_limit=task_config['time_limit'],
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
-      use_rgb=task_config['use_rgb'],
+      add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
@@ -415,13 +417,14 @@ def training_process(
       single_life_episode=False,
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=False,
+      time_limit=task_config['time_limit'],
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
-      use_rgb=task_config['use_rgb'],
+      add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
@@ -430,6 +433,8 @@ def training_process(
     
     video_recording_dirpath = os.path.join(base_path,'videos')
     video_recording_render_mode = 'rgb_array'
+    if "MiniWorld" in task_config['env-id']:
+        import miniworld
     task = generate_task(
       task_config['env-id'],
       env_type=EnvType.SINGLE_AGENT,
@@ -466,6 +471,7 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
 
+    agent_config['task_config'] = task_config
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
     regym.RegymSummaryWriterPath = base_path 

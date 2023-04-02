@@ -566,15 +566,46 @@ class FrameResizeWrapper(gym.ObservationWrapper):
         if isinstance(self.size, int):
             self.size = (self.size, self.size)
 
-        low = np.zeros((*self.size, self.env.observation_space.shape[-1]))
-        high  = 255*np.ones((*self.size, self.env.observation_space.shape[-1]))
+        if 'box' in type(self.env.observation_space).__name__.lower():
+            obs_shape = self.env.observation_space.shape
+            min_shape = min(obs_shape)
+            frame_shape = [min_shape, *self.size]
+            low = np.zeros(frame_shape) #self.size, self.env.observation_space.shape[-1]))
+            high  = 255*np.ones(frame_shape) #(*self.size, self.env.observation_space.shape[-1]))
         
-        self.observation_space = gym.spaces.Box(low=low, high=high)
-    
+            self.observation_space = gym.spaces.Box(low=low, high=high)
+        elif 'dict' in type(self.env.observation_space).__name__.lower():
+            assert 'image' in self.env.observation_space.spaces.keys()
+            obs_shape = env.observation_space.spaces["image"].shape
+            min_shape = min(obs_shape)
+            frame_shape = [min_shape, *self.size]
+            low = np.zeros(frame_shape) #self.size, self.env.observation_space.shape[-1]))
+            high  = 255*np.ones(frame_shape) #(*self.size, self.env.observation_space.shape[-1]))
+        
+            new_image_space = gym.spaces.Box(
+                low=low, high=high,
+                shape=frame_shape,
+                dtype="uint8",
+            )
+            previous_obs_space = copy.deepcopy(self.observation_space.spaces)
+            previous_obs_space['image'] = new_image_space
+            self.observation_space = gym.spaces.Dict(**previous_obs_space)
+        else:
+            raise NotImplementedError
+
     def observation(self, observation):
-        obs = cv2.resize(observation, tuple(self.size))
-        obs = obs.reshape(self.observation_space.shape)
-        return obs
+        if isinstance(observation, dict):
+            obs = observation['image']
+            obs = cv2.resize(obs, tuple(self.size))
+            obs = obs.transpose(2,1,0)
+            observation['image'] = obs
+            return observation
+        else:
+            obs = observation
+            obs = cv2.resize(obs, tuple(self.size))
+            obs = obs.transpose(0,2)
+            #obs = obs.reshape(self.observation_space.shape)
+            return obs
 
 
 # https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L275
@@ -2296,9 +2327,19 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
 
     def observation( self, observation):
         achieved_goal = "EoS"
-        if self.env.carrying is not None:
-            color = self.env.carrying.color
-            shape = self.env.carrying.type
+        color = None
+        shape = None
+        if hasattr(self.env, "carrying"):
+            if self.env.carrying is not None:
+                color = self.env.carrying.color
+                shape = self.env.carrying.type
+        else:
+            import ipdb; ipdb.set_trace()
+            carrying = self.env.agent.carrying
+            if carrying is not None:
+                shape = type(carrying).__name__.lower()
+                color = getattr(carrying, "color", None)
+        if color is not None and shape is not None:
             achieved_goal = f"pick up the {color} {shape}".lower()
         observation['behaviour_description'] = achieved_goal
         return observation
@@ -2793,6 +2834,30 @@ except Exception as e:
 class Gymnasium2GymWrapper(gym.Wrapper):
     def __init__(self, env):
         gym.Wrapper.__init__(self, env)
+
+        if 'dict' in type(self.env.observation_space).__name__.lower():
+            obs_space = {}
+            for key, space in self.env.observation_space.spaces.items():
+                if 'box' in type(space).__name__.lower():
+                    obs_space[key] = gym.spaces.Box(
+                        low=space.low,
+                        high=space.high,
+                        shape=space.shape,
+                        dtype=space.dtype,
+                    )
+                elif 'text' in type(space).__name__.lower():
+                    obs_space[key] = gym.spaces.Text(
+                        max_length=space.max_length,
+                        charset=frozenset(space.characters),
+                    )
+                elif 'discrete' in type(space).__name__.lower():
+                    obs_space[key] = gym.spaces.Discrete(n=space.n)
+                elif 'babyaimission' in type(space).__name__.lower():
+                    obs_space[key] = copy.deepcopy(space)
+                else:
+                    raise NotImplementedError
+            self.observation_space = gym.spaces.Dict(**obs_space)
+
     def step(self, action):
         step_output = self.env.step(action)
         if len(step_output) == 4:
@@ -2816,7 +2881,7 @@ def baseline_ther_wrapper(
     previous_reward_action=False,
     observation_key=None,
     concatenate_keys_with_obs=[],
-    use_rgb=False,
+    add_rgb_wrapper=False,
     full_obs=False,
     single_pick_episode=False,
     observe_achieved_goal=False,
@@ -2826,7 +2891,7 @@ def baseline_ther_wrapper(
     env = Gymnasium2GymWrapper(env=env)
     env = TimeLimit(env, max_episode_steps=time_limit)
 
-    if use_rgb:
+    if add_rgb_wrapper:
         if full_obs:
             env = RGBImgObsWrapper(env)
         else:
@@ -2837,9 +2902,12 @@ def baseline_ther_wrapper(
     if skip > 0:
         env = MaxAndSkipEnv(env, skip=skip)
     
-    if size is not None and 'None' not in size:
+    #if size is not None and 'None' not in size:
+    #    env = FrameResizeWrapper(env, size=size) 
+    if size is not None \
+    and (isinstance(size, int) or isinstance(size, list)):
         env = FrameResizeWrapper(env, size=size) 
-    
+     
     if single_life_episode:
         env = EpisodicLifeEnv(env)
     if single_pick_episode:
@@ -2884,7 +2952,8 @@ def baseline_ther_wrapper(
     
     if babyai_mission:
         env = BabyAIMissionWrapper(env=env)
-
+    
+    
     return env
 
 class DiscreteActionWrapper(gym.ActionWrapper):
