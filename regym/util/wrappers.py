@@ -575,7 +575,9 @@ class FrameResizeWrapper(gym.ObservationWrapper):
         if 'box' in type(self.env.observation_space).__name__.lower():
             obs_shape = self.env.observation_space.shape
             min_shape = min(obs_shape)
-            frame_shape = [min_shape, *self.size]
+            #TODO : regularise for THER:
+            #frame_shape = [min_shape, *self.size]
+            frame_shape = [*self.size, min_shape]
             low = np.zeros(frame_shape) #self.size, self.env.observation_space.shape[-1]))
             high  = 255*np.ones(frame_shape) #(*self.size, self.env.observation_space.shape[-1]))
         
@@ -584,7 +586,9 @@ class FrameResizeWrapper(gym.ObservationWrapper):
             assert 'image' in self.env.observation_space.spaces.keys()
             obs_shape = env.observation_space.spaces["image"].shape
             min_shape = min(obs_shape)
-            frame_shape = [min_shape, *self.size]
+            #TODO : regularise for THER:
+            #frame_shape = [min_shape, *self.size]
+            frame_shape = [*self.size, min_shape]
             low = np.zeros(frame_shape) #self.size, self.env.observation_space.shape[-1]))
             high  = 255*np.ones(frame_shape) #(*self.size, self.env.observation_space.shape[-1]))
         
@@ -600,33 +604,25 @@ class FrameResizeWrapper(gym.ObservationWrapper):
             raise NotImplementedError
 
     def observation(self, observation):
-        #TODO:
-        '''
         need_reg = False 
         if isinstance(observation, tuple):
             observation, info = observation
             need_reg = True
-        obs = cv2.resize(
-            observation, 
-            tuple(self.size), 
-            interpolation=cv2.INTER_AREA,
-        )
-        obs = obs.reshape(self.observation_space.shape)
-        if need_reg:
-            obs = (obs, info)
-        return obs
-        '''
         if isinstance(observation, dict):
             obs = observation['image']
             obs = cv2.resize(obs, tuple(self.size))
             obs = obs.transpose(2,1,0)
             observation['image'] = obs
+            if need_reg:
+                observation = (observation, info)
             return observation
         else:
             obs = observation
             obs = cv2.resize(obs, tuple(self.size))
-            obs = obs.transpose(0,2)
+            #obs = obs.transpose(0,2)
             #obs = obs.reshape(self.observation_space.shape)
+            if need_reg:
+                obs = (obs, info)
             return obs
 
 # https://github.com/openai/baselines/blob/9ee399f5b20cd70ac0a871927a6cf043b478193f/baselines/common/atari_wrappers.py#L275
@@ -838,16 +834,24 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(env, 
-                             size=None, 
-                             skip=4, 
-                             stack=4, 
-                             grayscale=True,  
-                             single_life_episode=True, 
-                             nbr_max_random_steps=30, 
-                             clip_reward=True,
-                             previous_reward_action=False):
+def baseline_atari_pixelwrap(
+    env, 
+    size=None, 
+    skip=4, 
+    stack=4, 
+    grayscale=True,  
+    single_life_episode=True, 
+    nbr_max_random_steps=30, 
+    clip_reward=True,
+    time_limit=18000,
+    previous_reward_action=False,
+):
+    if 'timelimit' in type(env).__name__.lower():
+        env._max_episode_steps = time_limit
+    else:
+        env = TimeLimit(env, max_episode_steps=time_limit)
     env = Gymnasium2GymWrapper(env=env)
+    
     if size is not None and isinstance(size, int):
         env = FrameResizeWrapper(env, size=size) 
     #if size is not None and isinstance(size, int):

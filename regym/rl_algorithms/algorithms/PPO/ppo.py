@@ -99,12 +99,8 @@ class PPOAlgorithm(Algorithm):
             self.update_period_obs = float(self.kwargs['rnd_update_period_running_meanstd_obs'])
             self.int_reward_mean = 0.0
             self.int_reward_std = 1.0
-            self.int_return_mean = 0.0
-            self.int_return_std = 1.0
             self.running_counter_intrinsic_reward = 0
             self.update_period_intrinsic_reward = float(self.kwargs['rnd_update_period_running_meanstd_int_reward'])
-            self.running_counter_intrinsic_return = 0
-            self.update_period_intrinsic_return = float(self.kwargs['rnd_update_period_running_meanstd_int_reward'])
         
         self.goal_oriented = self.kwargs.get('goal_oriented', False)
 
@@ -129,13 +125,23 @@ class PPOAlgorithm(Algorithm):
         if optimizer is None:
             parameters = self.model.parameters()
             # TODO : find out whether the RND weights should be optimized separately ...
-            if self.use_rnd: parameters = list(parameters)+list(self.predict_intr_model.parameters())
             # Tuning learning rate with respect to the number of actors:
             # Following: https://arxiv.org/abs/1705.04862
             lr = self.kwargs['learning_rate'] 
             if self.kwargs['lr_account_for_nbr_actor']:
                 lr *= self.nbr_actor
             print(f"Learning rate: {lr}")
+            
+            if self.use_rnd: 
+                #parameters = list(parameters)+list(self.predict_intr_model.parameters())
+                self.optimizer_rnd = optim.Adam(
+                    self.predict_intr_model.parameters(), 
+                    lr=lr,
+                    #TODO: find original paper values: betas=(0.9, 0.999),
+                    eps=float(self.kwargs['adam_eps']),
+                    weight_decay=float(self.kwargs.get('adam_weight_decay', 0.0)),
+                )
+            
             self.optimizer = optim.Adam(
                 parameters, 
                 lr=lr,
@@ -290,13 +296,16 @@ class PPOAlgorithm(Algorithm):
         for i in range(len(self.storages[storage_idx].int_r)):
             # Scaling alone:
             normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_reward_std+1e-8))
-            #normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_return_std+1e-8))
         return normalized_int_rewards
 
     def compute_advantages_and_returns(self, storage_idx, non_episodic=False):
         torch.set_grad_enabled(False)
         ext_r = self.storages[storage_idx].r
+        
+        # it is indeed not necessary to
+        # normalize the Extrinsic reward:
         #norm_ext_r = self.normalize_ext_rewards(storage_idx)
+        
         advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32))
         
         if self.storages[storage_idx].non_terminal[-1]: 
@@ -375,8 +384,6 @@ class PPOAlgorithm(Algorithm):
                 int_returns = int_advantages + self.storages[storage_idx].int_v[i].detach()
             self.storages[storage_idx].int_adv[i] = int_advantages.detach()
             self.storages[storage_idx].int_ret[i] = int_returns.detach()
-
-        self.update_int_return_mean_std(int_returns.detach().cpu())
 
     def train(self):
         global summary_writer
@@ -559,19 +566,6 @@ class PPOAlgorithm(Algorithm):
         if self.running_counter_intrinsic_reward >= self.update_period_intrinsic_reward:
           self.running_counter_intrinsic_reward = 0
 
-    def update_int_return_mean_std(self, unnormalized_ir):
-        rmean = self.int_return_mean
-        rstd = self.int_return_std
-        rc = self.running_counter_intrinsic_return
-
-        self.running_counter_intrinsic_return += 1
-        
-        self.int_return_mean = (self.int_return_mean*rc+unnormalized_ir)/self.running_counter_intrinsic_return
-        self.int_return_std = np.sqrt( ( np.power(self.int_return_std,2)*rc+np.power(unnormalized_ir-rmean, 2) ) / self.running_counter_intrinsic_return )
-        
-        if self.running_counter_intrinsic_return >= self.update_period_intrinsic_return:
-          self.running_counter_intrinsic_return = 0
-
     def update_obs_mean_std(self, unnormalized_obs):
         torch.set_grad_enabled(False)
         rmean = self.obs_mean
@@ -614,7 +608,8 @@ class PPOAlgorithm(Algorithm):
         start = time.time()
         torch.set_grad_enabled(True)
         self.model.train(True)
-
+        if self.use_rnd:    self.predict_intr_model.train(True)
+        
         states = samples['s']
         rnn_states = samples['rnn_states']
         actions = samples['a']
@@ -739,11 +734,16 @@ class PPOAlgorithm(Algorithm):
             (loss/nbr_minibatches).backward(retain_graph=False)
             '''
             self.optimizer.zero_grad()
+            if self.use_rnd:
+                self.optimizer_rnd.zero_grad()
+
             loss.backward(retain_graph=False)
             if self.kwargs['gradient_clip'] > 1e-3:
                 nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
             self.optimizer.step()
-            
+            if self.use_rnd:
+                # IMPORTANT : no gradient clipping for the RND loss ...
+                self.optimizer_rnd.step()
 
             self.param_update_counter += 1 
             '''
@@ -758,6 +758,7 @@ class PPOAlgorithm(Algorithm):
         self.optimizer.step()
         '''
         self.model.train(False)
+        if self.use_rnd:    self.predict_intr_model.train(False)
         torch.set_grad_enabled(False)
 
         end = time.time()

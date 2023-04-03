@@ -84,14 +84,18 @@ def compute_loss(states: torch.Tensor,
     advantages = ext_advantages + intrinsic_reward_ratio*int_advantages
     std_advantages = std_ext_advantages + intrinsic_reward_ratio*std_int_advantages
     
+    advantages = advantages.detach()
+    std_advantages = std_advantages.detach()
+
     prediction = model(states, actions, rnn_states=rnn_states)
     
-    ratio = torch.exp((prediction['log_pi_a'] - log_probs_old))
+    ratio = torch.exp((prediction['log_pi_a'] - log_probs_old.detach()))
     
+    #TODO: testing that std advantage is useful:
     obj = ratio * std_advantages
-    obj_clipped = torch.clamp(ratio,
-                              1.0 - ratio_clip,
-                              1.0 + ratio_clip) * std_advantages
+    obj_clipped = torch.clamp(ratio, 1.0 - ratio_clip,1.0 + ratio_clip) * std_advantages
+    #obj = ratio * advantages
+    #obj_clipped = torch.clamp(ratio, 1.0 - ratio_clip,1.0 + ratio_clip) * advantages
     
     policy_val = -torch.min(obj, obj_clipped).mean()
     entropy_val = prediction['ent'].mean()
@@ -100,8 +104,8 @@ def compute_loss(states: torch.Tensor,
     
     # Random Network Distillation loss:
     with torch.no_grad():
-        norm_next_states = (next_states-states_mean) / (states_std+1e-8)
-    if rnd_obs_clip > 1e-1:
+        norm_next_states = (next_states-states_mean.detach()) / (states_std.detach()+1e-8)
+    if rnd_obs_clip > 1e-3:
       norm_next_states = torch.clamp( norm_next_states, -rnd_obs_clip, rnd_obs_clip)
     pred_random_features = pred_intr_model(norm_next_states)
     
@@ -123,25 +127,58 @@ def compute_loss(states: torch.Tensor,
     
     #ext_v_loss = torch.nn.functional.smooth_l1_loss(ext_returns, prediction['v']) 
     #int_v_loss = torch.nn.functional.smooth_l1_loss(int_returns, prediction['int_v']) 
-    ext_v_loss = torch.nn.functional.mse_loss(input=prediction['v'], target=ext_returns) 
-    int_v_loss = torch.nn.functional.mse_loss(input=prediction['int_v'], target=int_returns) 
+    ext_v_loss = torch.nn.functional.mse_loss(input=prediction['v'], target=ext_returns.detach()) 
+    int_v_loss = torch.nn.functional.mse_loss(input=prediction['int_v'], target=int_returns.detach()) 
     
     value_loss = (ext_v_loss + int_v_loss)
     #value_loss = ext_v_loss
     rnd_loss = int_reward_loss 
-
+    
     total_loss = policy_loss + rnd_weight * rnd_loss + value_weight * value_loss
     #total_loss = policy_loss + value_weight * value_loss
 
-    wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({
+        'Training/RatioMean': ratio.mean().cpu().item(), 
+        'Training/RatioStd': ratio.std().cpu().item(), 
+        "training_step": iteration_count,
+        }, commit=False,
+    )
     #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
-    wandb.log({'Training/ExtAdvantageMean': ext_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/IntAdvantageMean': int_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/AdvantageMean': advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({
+        'Training/ExtAdvantageMean': ext_advantages.mean().cpu().item(), 
+        'Training/ExtAdvantageStd': ext_advantages.std().cpu().item(), 
+        "training_step": iteration_count,
+        }, commit=False,
+    )
+    wandb.log({
+        'Training/IntAdvantageMean': int_advantages.mean().cpu().item(), 
+        'Training/IntAdvantageStd': int_advantages.std().cpu().item(), 
+        "training_step": iteration_count,
+        }, commit=False,
+    )
+    wandb.log({
+        'Training/AdvantageMean': advantages.mean().cpu().item(), 
+        'Training/AdvantageStd': advantages.std().cpu().item(), 
+        "training_step": iteration_count,
+        }, commit=False,
+    )
     #summary_writer.add_histogram('Training/ExtAdvantage', ext_advantages.cpu(), iteration_count)
     #summary_writer.add_histogram('Training/IntAdvantage', int_advantages.cpu(), iteration_count)
     #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
-    wandb.log({'Training/RNDLoss': int_reward_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({
+        'Training/RND/StateStd/Mean': states_std.mean().cpu().item(), 
+        'Training/RND/StateStd/Std': states_std.std().cpu().item(), 
+        "training_step": iteration_count,
+        }, commit=False,
+    )
+    wandb.log({
+        'Training/RND/StateMean/Mean': states_mean.mean().cpu().item(), 
+        'Training/RND/StateMean/Std': states_mean.std().cpu().item(), 
+        "training_step": iteration_count,
+        }, commit=False,
+    )
+    wandb.log({'Training/RND/ObsClip': rnd_obs_clip, "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/RND/Loss': int_reward_loss.cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/ExtVLoss': ext_v_loss.cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/IntVLoss': int_v_loss.cpu().item(), "training_step": iteration_count}, commit=False)
     
@@ -157,6 +194,7 @@ def compute_loss(states: torch.Tensor,
     
     wandb.log({'Training/ValueLoss': value_loss.cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/PolicyVal': policy_val.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/EntropyWeight': entropy_weight, "training_step": iteration_count}, commit=False)
     wandb.log({'Training/EntropyVal': entropy_val.cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/PolicyLoss': policy_loss.cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/TotalLoss': total_loss.cpu().item(), "training_step": iteration_count}, commit=False)

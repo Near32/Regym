@@ -390,6 +390,7 @@ def training_process(
         grayscale=task_config['grayscale'],
         single_life_episode=task_config['single_life_episode'],
         nbr_max_random_steps=task_config['nbr_max_random_steps'],
+        time_limit=task_config['time_limit'],
         clip_reward=task_config['clip_reward'])
 
     test_pixel_wrapping_fn = partial(
@@ -400,6 +401,7 @@ def training_process(
         grayscale=task_config['grayscale'],
         single_life_episode=False,
         nbr_max_random_steps=task_config['nbr_max_random_steps'],
+        time_limit=task_config['time_limit'],
         clip_reward=False)
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -572,6 +574,10 @@ def main():
     parser.add_argument("--mini_batch_size", type=int, default=256)
     parser.add_argument("--optimization_epochs", type=int, default=4)
     parser.add_argument("--learning_rate", type=float, default=3e-4)
+    parser.add_argument("--ppo_ratio_clip", type=float, default=0.1)
+    parser.add_argument("--discount", type=float, default=0.999)
+    parser.add_argument("--intrinsic_discount", type=float, default=0.99)
+    parser.add_argument("--value_weight", type=float, default=0.5)
     parser.add_argument("--entropy_weight", type=float, default=0.01)
     parser.add_argument("--adam_eps", 
         type=float, 
@@ -595,6 +601,7 @@ def main():
     )
     parser.add_argument("--single_life_episode", type=str2bool, default="True",)
     parser.add_argument("--grayscale", type=str2bool, default="False",)
+    parser.add_argument("--time_limit", type=int, default=40000)
     parser.add_argument("--nbr_actor", 
         type=int, 
         default=4,
