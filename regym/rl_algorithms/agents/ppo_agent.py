@@ -9,6 +9,7 @@ import copy
 
 from ..algorithms.PPO import PPOAlgorithm, ppo_loss, rnd_loss
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
+from regym.rl_algorithms.networks import ConvolutionalBody, FCBody
 
 from regym.rl_algorithms.agents.agent import Agent, ExtraInputsHandlingAgent
 from .wrappers import DictHandlingAgentWrapper
@@ -246,7 +247,8 @@ class PPOAgent(ExtraInputsHandlingAgent, Agent):
             #########################################################################
             
             if self.use_rnd:
-                int_reward, target_int_f = self.algorithm.compute_intrinsic_reward(exp_dict['succ_s'])
+                with torch.no_grad():
+                    int_reward, target_int_f = self.algorithm.compute_intrinsic_reward(exp_dict['succ_s'])
                 rnd_dict = {'int_r':int_reward, 'target_int_f':target_int_f}
                 exp_dict.update(rnd_dict)
 
@@ -623,7 +625,10 @@ def build_PPO_Agent(task, config, agent_name):
                                                   kernel_sizes=kernels,
                                                   strides=strides,
                                                   paddings=paddings)
+        
+        print(target_intr_model)
         target_intr_model.share_memory()
+        print(predict_intr_model)
         predict_intr_model.share_memory()
 
     loss_fn = ppo_loss.compute_loss

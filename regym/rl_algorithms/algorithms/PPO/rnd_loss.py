@@ -99,7 +99,8 @@ def compute_loss(states: torch.Tensor,
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
     
     # Random Network Distillation loss:
-    norm_next_states = (next_states-states_mean) / (states_std+1e-8)
+    with torch.no_grad():
+        norm_next_states = (next_states-states_mean) / (states_std+1e-8)
     if rnd_obs_clip > 1e-1:
       norm_next_states = torch.clamp( norm_next_states, -rnd_obs_clip, rnd_obs_clip)
     pred_random_features = pred_intr_model(norm_next_states)

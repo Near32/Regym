@@ -248,6 +248,7 @@ def train_and_evaluate(
     sum_writer = config['sum_writer'] = SummaryWriter(sum_writer_path, flush_secs=1)
 
     config['base_path'] = base_path 
+    config['publish_trajectories'] = False
     config['offset_episode_count'] = offset_episode_count
     config['nbr_pretraining_steps'] = nbr_pretraining_steps 
     config['max_obs_count'] = nbr_max_observations
@@ -570,11 +571,8 @@ def main():
      
     parser.add_argument("--mini_batch_size", type=int, default=256)
     parser.add_argument("--optimization_epochs", type=int, default=4)
-    parser.add_argument("--learning_rate", 
-        type=float, 
-        help="learning rate",
-        default=3e-4,
-    )
+    parser.add_argument("--learning_rate", type=float, default=3e-4)
+    parser.add_argument("--entropy_weight", type=float, default=0.01)
     parser.add_argument("--adam_eps", 
         type=float, 
         default=1.0e-5,
@@ -595,6 +593,7 @@ def main():
         type=int, 
         default=30,
     )
+    parser.add_argument("--single_life_episode", type=str2bool, default="True",)
     parser.add_argument("--grayscale", type=str2bool, default="False",)
     parser.add_argument("--nbr_actor", 
         type=int, 

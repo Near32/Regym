@@ -497,7 +497,7 @@ class PPOAlgorithm(Algorithm):
         return out_fulls
 
     def standardize(self, x):
-        stable_eps = 1e-30
+        stable_eps = 1.0e-8 #1e-30
         return (x - x.mean()) / (x.std()+stable_eps)
 
     def compute_intrinsic_reward(self, states):
@@ -583,6 +583,19 @@ class PPOAlgorithm(Algorithm):
         self.obs_mean = (self.obs_mean*rc+unnormalized_obs)/self.running_counter_obs
         self.obs_std = np.sqrt( ( np.power(self.obs_std,2)*rc+np.power(unnormalized_obs-rmean, 2) ) / self.running_counter_obs )
         
+        '''
+        wandb.log({
+            #f"RND/obs_mean/Mean": self.obs_mean.mean().item(),
+            #f"RND/obs_mean/Std": self.obs_mean.std().item(),
+            #f"RND/obs_std/Mean": self.obs_std.mean().item(),
+            #f"RND/obs_std/Std": self.obs_std.std().item(),
+            f"RND/running_counter_obs": self.running_counter_obs,
+            f"RND/update_period_obs": self.update_period_obs,
+            },
+            commit = False,
+        )
+        '''
+
         if self.running_counter_obs >= self.update_period_obs:
           self.running_counter_obs = 0
 
