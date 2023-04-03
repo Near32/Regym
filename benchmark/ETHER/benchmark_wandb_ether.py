@@ -19,6 +19,7 @@ from regym.util.wrappers import baseline_ther_wrapper
 
 #import babyai
 import minigrid
+#import miniworld 
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
@@ -394,13 +395,14 @@ def training_process(
       single_life_episode=task_config['single_life_episode'],
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=task_config['clip_reward'],
+      time_limit=task_config['time_limit'],
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
-      use_rgb=task_config['use_rgb'],
+      add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
@@ -415,13 +417,14 @@ def training_process(
       single_life_episode=False,
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=False,
+      time_limit=task_config['time_limit'],
       max_sentence_length=agent_config['THER_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
-      use_rgb=task_config['use_rgb'],
+      add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
@@ -430,6 +433,8 @@ def training_process(
     
     video_recording_dirpath = os.path.join(base_path,'videos')
     video_recording_render_mode = 'rgb_array'
+    if "MiniWorld" in task_config['env-id']:
+        import miniworld
     task = generate_task(
       task_config['env-id'],
       env_type=EnvType.SINGLE_AGENT,
@@ -466,6 +471,7 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
 
+    agent_config['task_config'] = task_config
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
     regym.RegymSummaryWriterPath = base_path 
@@ -507,11 +513,12 @@ def training_process(
     }
     project_name = task_config['project']
     wandb.init(project=project_name, config=config)
+    '''
     wandb.tensorboard.patch(
         save=True, 
         tensorboard_x=True,
     )
-    
+    '''
     agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
     os.makedirs(agent.save_path, exist_ok=True)
     agent.save_path += "/checkpoint.agent"
@@ -576,6 +583,10 @@ def str2bool(instr):
     else:
         raise NotImplementedError
 
+def intOrNone(instr):
+    if instr is None:
+        return None
+    return int(instr)
 
 def main():
     logging.basicConfig(level=logging.INFO)
@@ -658,6 +669,10 @@ def main():
         type=float, 
         default=0.0,
     )
+    parser.add_argument("--eps_greedy_alpha", 
+        type=float, 
+        default=2.0,
+    )
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
@@ -702,6 +717,7 @@ def main():
         type=float, 
         default=500, #250 #5000
     )
+    parser.add_argument("--THER_lock_test_storage", type=str2bool, default=False)
     parser.add_argument("--THER_test_replay_capacity", 
         type=float, 
         default=50, #25 #1000
@@ -758,6 +774,7 @@ def main():
     #)
     
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
@@ -765,10 +782,12 @@ def main():
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
+    parser.add_argument("--ETHER_rg_filter_out_non_unique", type=str2bool, default=False)
+    parser.add_argument("--ETHER_lock_test_storage", type=str2bool, default=False)
     parser.add_argument("--ETHER_test_replay_capacity", type=int, default=512)
     parser.add_argument("--ETHER_test_train_split_interval",type=int, default=5)
-    parser.add_argument("--ETHER_train_dataset_length", type=int, default=4096)
-    parser.add_argument("--ETHER_test_dataset_length", type=int, default=1024)
+    parser.add_argument("--ETHER_train_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ETHER_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
@@ -778,7 +797,7 @@ def main():
     parser.add_argument("--ETHER_rg_egocentric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_nbr_train_distractors", type=int, default=7)
     parser.add_argument("--ETHER_rg_nbr_test_distractors", type=int, default=7)
-    parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_descriptive_ratio", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_observability", type=str, default='partial')
     parser.add_argument("--ETHER_rg_max_sentence_length", type=int, default=10)
@@ -817,7 +836,7 @@ def main():
     parser.add_argument("--ETHER_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_use_feat_converter", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=0)
+    parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=1)
     parser.add_argument("--ETHER_rg_nbr_experience_repetition", type=int, default=1)
     parser.add_argument("--ETHER_rg_agent_nbr_latent_dim", type=int, default=32)
     parser.add_argument("--ETHER_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
@@ -860,6 +879,9 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    if dargs['THER_contrastive_training_nbr_neg_examples'] != 0:
+        dargs['THER_train_contrastively'] = True
+
     print(dargs)
 
     #from gpuutils import GpuUtils

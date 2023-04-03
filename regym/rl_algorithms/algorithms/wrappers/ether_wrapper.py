@@ -8,6 +8,7 @@ import wandb
 import torch
 import torchvision
 import torchvision.transforms as T 
+import numpy as np
 
 
 from regym.rl_algorithms.algorithms.wrappers.ther_wrapper2 import THERAlgorithmWrapper2
@@ -34,16 +35,52 @@ class GaussianBlur:
     """
     def __init__(self, sigma=[0.1, 2.0]):
         self.sigma = sigma
+        self.kernel_size = (5,5)
 
     def __call__(self, x):
-        raise NotImplementedError("This fn is expecting PIL images, not torch.Tensor")
         sigma = random.uniform(self.sigma[0], self.sigma[1])
-        x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        if isinstance(x, torch.Tensor):
+            x = T.functional.gaussian_blur(img=x, kernel_size=self.kernel_size, sigma=(sigma, sigma))     
+        else:
+            #raise NotImplementedError("This fn is expecting PIL images, not torch.Tensor")
+            x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
         return x
 
 ###########################################################
 ###########################################################
 ###########################################################
+
+class SplitImg:
+    def __init__(
+        self, 
+        transform,
+        input_channel_dim=-1,
+        transform_channel_dim=-1,
+        output_channel_dim=None,
+    ):
+        self.transform = transform
+        self.input_channel_dim = input_channel_dim
+        self.transform_channel_dim = transform_channel_dim
+        if output_channel_dim is None:
+            output_channel_dim = input_channel_dim
+        self.output_channel_dim = output_channel_dim
+        
+    def __call__(self, x):
+        assert len(x.shape)==3
+        if self.input_channel_dim!=self.transform_channel_dim:
+            x = x.transpose(self.transform_channel_dim,self.input_channel_dim)
+        xis = []
+        for xi in x.split(split_size=3,dim=self.transform_channel_dim):
+            tcdim = self.transform_channel_dim
+            out = self.transform(xi)
+            if not isinstance(out, torch.Tensor):
+                out = T.ToTensor()(out)
+                tcdim = 0
+            if tcdim!=self.output_channel_dim:
+                out = out.transpose(self.transform_channel_dim,self.output_channel_dim)
+            xis.append(out)
+        xis = torch.cat(xis, dim=self.output_channel_dim)
+        return xis
 
 
 class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
@@ -106,10 +143,13 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.hook_fns.append(
             ETHERAlgorithmWrapper.referential_game_store,
         )
-        
+        self.non_unique_data = 0
+        self.nbr_data = 0 
+
         self.ether_test_acc = 0.0
         
         self.rg_iteration = 0
+        self.idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
         #self.init_referential_game()
         
     def _reset_rg_storages(self):
@@ -120,6 +160,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
 
         self.rg_storages = []
         keys = ['s', 'a', 'r', 'non_terminal']
+        keys += ['info']
         if self.recurrent:  keys += ['rnn_states', 'next_rnn_states']
         
         circular_keys= {} #{'succ_s':'s'}
@@ -154,6 +195,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                         circular_offsets=circular_offsets,
                         test_train_split_interval=self.kwargs['ETHER_test_train_split_interval'],
                         test_capacity=int(self.kwargs['ETHER_test_replay_capacity']),
+                        lock_test_storage=self.kwargs['ETHER_lock_test_storage'],
                     )
                 )
 
@@ -172,6 +214,25 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             self.rg_storages[actor_index].add(exp_dict, priority=init_sampling_priority, test_set=test_set)
         else:
         '''
+        # CHECK for uniqueness:
+        self.nbr_data += 1 
+        wandb.log({f"Training/ETHER/NbrData":self.nbr_data}, commit=False)
+        if "symbolic_image" in exp_dict['info']:
+            unique = True
+            for idx in range(len(self.rg_storages[actor_index])):
+                if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == exp_dict['info']['symbolic_image']).reshape(-1)):
+                    self.non_unique_data += 1
+                    #self.nbr_data = self.rg_storages[actor_index].get_size()+self.rg_storages[actor_index].get_size(test=True)
+                    unique = False
+                    break
+        
+            wandb.log({f"Training/ETHER/NonUniqueDataRatio":float(self.non_unique_data)/(self.nbr_data+1)}, commit=False)
+            wandb.log({f"Training/ETHER/NonUniqueDataNbr": self.non_unique_data}, commit=False)
+        
+            if self.kwargs['ETHER_rg_filter_out_non_unique'] \
+            and not unique:  
+                return
+
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
 
     def init_referential_game(self):
@@ -182,7 +243,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         #    args.batch_size = args.batch_size // 2
         print(f"DC_version = {ReferentialGym.datasets.dataset.DC_version} and BS={self.kwargs['ETHER_rg_batch_size']}.")
         
-        obs_shape = getattr(self.rg_storages[0], self.kwargs['ETHER_exp_key'])[0][0].shape
+        obs_instance = getattr(self.rg_storages[0], self.kwargs['ETHER_exp_key'])[0][0]
+        obs_shape = obs_instance.shape
         stimulus_depth_dim = obs_shape[1]
         stimulus_resize_dim = obs_shape[-1] #args.resizeDim #64 #28
         normalize_rgb_values = False 
@@ -199,32 +261,58 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         transformations.append(transform)
         '''
         if self.kwargs["ETHER_rg_with_color_jitter_augmentation"]:
-            transformations = [T.RandomApply([T.ColorJitter(
-                brightness=0.8,
-                contrast=0.8,
-                saturation=0.8,
-                hue=0.1,
-            )
-            ], p=0.8)]+transformations
+            transformations = [T.RandomApply([
+                SplitImg(
+                    T.ColorJitter(
+                        brightness=0.8,
+                        contrast=0.8,
+                        saturation=0.8,
+                        hue=0.1,
+                    ),
+                    input_channel_dim=0,
+                    transform_channel_dim=0,
+                    output_channel_dim=0,
+                )], 
+                p=0.8,
+            )]+transformations
         
         if self.kwargs["ETHER_rg_with_gaussian_blur_augmentation"]:
-            transformations = [T.RandomApply([GaussianBlur([0.1,2.0])], p=0.5)]+transformations
+            transformations = [T.RandomApply([
+                SplitImg(
+                    GaussianBlur([0.1,2.0]),
+                    input_channel_dim=0,
+                    transform_channel_dim=-1,
+                    output_channel_dim=0,
+                )], p=0.5)]+transformations
         
         from ReferentialGym.datasets.utils import AddEgocentricInvariance
         ego_inv_transform = AddEgocentricInvariance()
         
         transform_degrees = self.kwargs["ETHER_rg_egocentric_tr_degrees"]
-        transform_translate = (self.kwargs["ETHER_rg_egocentric_tr_xy"], self.kwargs["ETHER_rg_egocentric_tr_xy"])
+        transform_translate = float(self.kwargs["ETHER_rg_egocentric_tr_xy"])/stimulus_resize_dim
+        transform_translate = (transform_translate, transform_translate)
         
         if self.kwargs["ETHER_rg_egocentric"]:
             transformations = [
-                ego_inv_transform,
-                T.RandomAffine(degrees=transform_degrees, 
-                     translate=transform_translate, 
-                     scale=None, 
-                     shear=None, 
-                     interpolation=T.InterpolationMode.BILINEAR, 
-                     fill=0),
+                SplitImg(
+                    ego_inv_transform,
+                    input_channel_dim=0,
+                    transform_channel_dim=-1,
+                    output_channel_dim=0,
+                ),
+                SplitImg(
+                    T.RandomAffine(
+                    degrees=transform_degrees, 
+                    translate=transform_translate, 
+                    scale=None, 
+                    shear=None, 
+                    interpolation=T.InterpolationMode.BILINEAR, 
+                    fill=0,
+                    ),
+                    input_channel_dim=0,
+                    transform_channel_dim=0,
+                    output_channel_dim=0,
+                ),
                 *transformations,
             ]
         
@@ -774,6 +862,66 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         )
         modules[listener_mig_disentanglement_metric_id] = listener_mig_disentanglement_metric_module
 
+        compactness_ambiguity_metric_id = "compactness_ambiguity_metric"
+        compactness_ambiguity_metric_input_stream_ids = {
+            #"model":"modules:current_speaker:ref:ref_agent",
+            "model":"modules:current_speaker:ref:ref_agent:_utter",
+            "representations":"modules:current_speaker:sentences_widx",
+            "experiences":"current_dataloader:sample:speaker_experiences", 
+            "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+            #"latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+            "indices":"current_dataloader:sample:speaker_indices", 
+        }
+
+        compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
+            id=compactness_ambiguity_metric_id,
+            input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
+            config = {
+                "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "epoch_period":1,#self.kwargs["ETHER_rg_metric_epoch_period"],
+                "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
+                "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
+                "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
+                "resample": False, #self.kwargs["ETHER_rg_metric_resampling"],
+                "threshold":5e-2,#0.0,#1.0,
+                "random_state_seed":self.kwargs["ETHER_rg_seed"],
+                "verbose":False,
+                "idx2w": self.idx2w,
+            }
+        )
+        modules[compactness_ambiguity_metric_id] = compactness_ambiguity_metric_module
+
+        posbosdis_disentanglement_metric_id = "posbosdis_disentanglement_metric"
+        posbosdis_disentanglement_metric_input_stream_ids = {
+            #"model":"modules:current_speaker:ref:ref_agent",
+            "model":"modules:current_speaker:ref:ref_agent:_utter",
+            "representations":"modules:current_speaker:sentences_widx",
+            "experiences":"current_dataloader:sample:speaker_experiences", 
+            "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+            #"latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+            "indices":"current_dataloader:sample:speaker_indices", 
+        }
+
+        posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+            id=posbosdis_disentanglement_metric_id,
+            input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
+            config = {
+                "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "epoch_period":self.kwargs["ETHER_rg_metric_epoch_period"],
+                "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
+                "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
+                "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
+                "resample":self.kwargs["ETHER_rg_metric_resampling"],
+                "threshold":5e-2,#0.0,#1.0,
+                "random_state_seed":self.kwargs["ETHER_rg_seed"],
+                "verbose":False,
+                "active_factors_only":self.kwargs["ETHER_rg_metric_active_factors_only"],
+            }
+        )
+        modules[posbosdis_disentanglement_metric_id] = posbosdis_disentanglement_metric_module
+
         logger_id = "per_epoch_logger"
         logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
         modules[logger_id] = logger_module
@@ -812,10 +960,13 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         #pipelines[optim_id].append(topo_sim_metric_id)
         pipelines[optim_id].append(speaker_topo_sim_metric_id)
         #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
+        pipelines[optim_id].append(compactness_ambiguity_metric_id)
         #pipelines[optim_id].append(speaker_posbosdis_metric_id)
+        '''
         if "obverter" in self.kwargs["ETHER_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
+        '''
         pipelines[optim_id].append(inst_coord_metric_id)
         
         pipelines[optim_id].append(logger_id)
@@ -844,6 +995,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
  
     def update_datasets(self):
         assert len(self.predictor_storages)==1
+        kwargs = {'same_episode_target': False}
+        if 'similarity' in self.rg_config['distractor_sampling']:
+            kwargs['same_episode_target'] = True 
 
         self.rg_train_dataset = DemonstrationDataset(
             replay_storage=self.rg_storages[0],
@@ -852,6 +1006,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_train_dataset_length,
             exp_key=self.rg_exp_key,
+            kwargs=kwargs,
         )
         
         self.rg_test_dataset = DemonstrationDataset(
@@ -862,6 +1017,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_test_dataset_length,
             exp_key=self.rg_exp_key,
+            kwargs=kwargs,
         )
         
         need_dict_wrapping = {}
@@ -904,17 +1060,29 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         period_count_check = self.nbr_buffered_predictor_experience
         
         # Update predictor:
-        if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
-            return
-        if ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
+        can_update_predictor = False
+        if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
+            can_update_predictor = True
+        if can_update_predictor \
+        and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
             self._update_predictor()
         
         # RG Update:
         period_check = self.kwargs['ETHER_rg_training_period']
         period_count_check = self.nbr_buffered_predictor_experience
-        if (period_count_check % period_check == 0):
+        can_rg_train = False
+        if len(self.rg_storages[0])>=self.kwargs['ETHER_replay_capacity']:
+            can_rg_train = True
+        quotient = period_count_check // period_check
+        previous_quotient = getattr(self, 'previous_ETHER_quotient', 0)
+        if can_rg_train \
+        and quotient != previous_quotient:
+        #and (period_count_check % period_check == 0):
+            self.previous_ETHER_quotient = quotient
             self._rg_training()
         
+        wandb.log({'Training/ETHER/storage_length': len(self.rg_storages[0])}, commit=False)
+
     def _update_predictor(self):	
         full_update = True
         for it in range(self.kwargs['THER_nbr_training_iteration_per_update']):
@@ -927,9 +1095,10 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
     
     def _rg_training(self):
         full_update = True
-        for it in range(self.kwargs['ETHER_nbr_epoch_per_update']):
+        for it in range(self.kwargs['ETHER_rg_nbr_epoch_per_update']):
             #self.test_acc = self.train_predictor()
-            self._update_predictor()
+            if self.kwargs['ETHER_use_supervised_training']:
+                self._update_predictor()
             self.ether_test_acc = self.finetune_predictor(update=(it==0))
             if self.ether_test_acc >= self.kwargs['ETHER_rg_accuracy_threshold']:
                 full_update = False

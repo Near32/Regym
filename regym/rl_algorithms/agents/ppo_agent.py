@@ -562,7 +562,6 @@ class PPOAgent(ExtraInputsHandlingAgent, Agent):
         return clone
 
 
-
 def build_PPO_Agent(task, config, agent_name):
     '''
     :param task: Environment specific configuration
@@ -587,7 +586,7 @@ def build_PPO_Agent(task, config, agent_name):
             else:
                 head_type = "CategoricalActorCriticNet"
 
-    if task.action_type is 'Continuous' and task.observation_type is 'Continuous':
+    if task.action_type == 'Continuous' and task.observation_type == 'Continuous':
         head_type = "GaussianActorCriticNet"
 
     kwargs = parse_and_check(kwargs, task)

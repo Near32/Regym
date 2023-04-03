@@ -1,6 +1,6 @@
-WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
---config=babyAI_wandb_benchmark_ETHER_config.yaml \
---n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
+WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
+--config=miniworld_wandb_benchmark_ETHER_config.yaml \
+--n_step=3 --nbr_actor=2 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=5e3 --replay_capacity=6e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
@@ -42,5 +42,5 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 
 #--ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \
 #3072
-
+#PYOPENGL_PLATFORM=egl 
 

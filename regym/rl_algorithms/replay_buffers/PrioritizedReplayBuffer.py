@@ -781,16 +781,19 @@ class PrioritizedReplayStorage(ReplayStorage):
 
 
 class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
-    def __init__(self,
-                 capacity,
-                 alpha=0.9,
-                 beta=0.6,
-                 beta_increase_interval=None,
-                 keys=None,
-                 circular_keys={'succ_s':'s'},
-                 circular_offsets={'succ_s':1},
-                 test_train_split_interval=10,
-                 test_capacity=None):
+    def __init__(
+        self,
+        capacity,
+        alpha=0.9,
+        beta=0.6,
+        beta_increase_interval=None,
+        keys=None,
+        circular_keys={'succ_s':'s'},
+        circular_offsets={'succ_s':1},
+        test_train_split_interval=10,
+        test_capacity=None,
+        lock_test_storage=False,
+    ):
         if test_capacity is None: test_capacity=capacity
         self.test_capacity = test_capacity
         self.test_train_split_interval = test_train_split_interval
@@ -809,14 +812,17 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
             keys=keys,
             circular_keys=circular_keys,
             circular_offsets=circular_offsets,
+            lock_storage=lock_test_storage,
         )
-        super(SplitPrioritizedReplayStorage, self).__init__(capacity=capacity,
-                                                       alpha=alpha,
-                                                       beta=beta,
-                                                       beta_increase_interval=beta_increase_interval,
-                                                       keys=keys,
-                                                       circular_keys=circular_keys,
-                                                       circular_offsets=circular_offsets)
+        super(SplitPrioritizedReplayStorage, self).__init__(
+            capacity=capacity,
+            alpha=alpha,
+            beta=beta,
+            beta_increase_interval=beta_increase_interval,
+            keys=keys,
+            circular_keys=circular_keys,
+            circular_offsets=circular_offsets,
+        )
 
     def total(self, test=False):
         if test:
