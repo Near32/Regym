@@ -38,8 +38,8 @@ extra_hyperparameters: &extra_hyperparameters
 
 LargeCNN: &LargeCNN
         phi_arch: 'CNN'
-        actor_arch: 'None'
-        critic_arch: 'None'
+        actor_arch: 'MLP'
+        critic_arch: 'MLP'
         
         # Phi Body:
         phi_arch_channels: [32, 64, 64]
@@ -48,11 +48,14 @@ LargeCNN: &LargeCNN
         phi_arch_paddings: [1, 1, 1]
         phi_arch_feature_dim: 512
         phi_arch_hidden_units: [512,]
+        phi_arch_non_linearities: ['ReLU','ReLU', 'ReLU', 'ReLU', 'ReLU']
 
         # Actor architecture:
-        actor_arch_hidden_units: []
+        actor_arch_hidden_units: [512, 512]
+        actor_arch_non_linearities: ['ReLU', 'ReLU'] ]
         # Critic architecture:
-        critic_arch_hidden_units: []
+        critic_arch_hidden_units: [512,]
+        critic_arch_non_linearities: ['ReLU']
 
         
 ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5: &ppo_LargeCNN_obs84_GAE95_V1_E1m2_graclip5m1_ep3_b256_ratio1m1_h128_lr25m5

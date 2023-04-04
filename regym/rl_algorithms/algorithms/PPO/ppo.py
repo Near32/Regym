@@ -322,6 +322,8 @@ class PPOAlgorithm(Algorithm):
         self.storages[storage_idx].adv[-1] = torch.zeros(1,1)
         # Adding next state value to the storage for the computation of gae for previous states:
         self.storages[storage_idx].v.append(returns)
+        
+        #wandb.log({f"Training/FinalStateExtReturn_actor{storage_idx}":returns.item()}, commit=False)
 
         gae = 0.0
         #for i in reversed(range(len(self.storages[storage_idx])-1)):
@@ -341,6 +343,8 @@ class PPOAlgorithm(Algorithm):
                 returns = advantages + self.storages[storage_idx].v[i].detach()
             self.storages[storage_idx].adv[i] = advantages.detach()
             self.storages[storage_idx].ret[i] = returns.detach()
+        
+        #wandb.log({f"Training/MeanExtReturn_actor{storage_idx}": sum(self.storages[storage_idx].ret).mean().item()/self.kwargs['horizon']}, commit=False)
 
     def compute_int_advantages_and_int_returns(self, storage_idx, non_episodic=True):
         '''
@@ -426,7 +430,6 @@ class PPOAlgorithm(Algorithm):
         start = time.time()
         for it in range(self.kwargs['optimization_epochs']):
             self.optimize_model(samples)
-            #self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
         end = time.time()
         
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
@@ -593,7 +596,6 @@ class PPOAlgorithm(Algorithm):
         if self.running_counter_obs >= self.update_period_obs:
           self.running_counter_obs = 0
 
-    #def optimize_model(self, states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states=None):
     def optimize_model(self, samples):
         global summary_writer
         if self.summary_writer is None:
