@@ -67,6 +67,7 @@ class ConvolutionalBody(nn.Module):
         dropout=0.0, 
         non_linearities=[nn.ReLU],
         extra_inputs_infos: Dict={},
+        effective_input_channels=None,
         ):
         '''
         Default input channels assume a RGB image (3 channels).
@@ -81,7 +82,8 @@ class ConvolutionalBody(nn.Module):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
-
+        :param effective_input_channels: default is None, if it is an integer then
+                the input is sliced to take the first channels up until that integer.
         TODO: update calls to this constructor to use extra_inputs_infos if needs be...
         '''
         super(ConvolutionalBody, self).__init__()
@@ -96,6 +98,7 @@ class ConvolutionalBody(nn.Module):
         self.feature_dim = feature_dim
         if isinstance(feature_dim, tuple):
             self.feature_dim = feature_dim[-1]
+        self.effective_input_channels = effective_input_channels
 
         self.features = []
         # input_shape size: [channels, height, width]
@@ -170,6 +173,8 @@ class ConvolutionalBody(nn.Module):
                 self.fcs.append( nn.Dropout(p=self.dropout))
 
     def _compute_feat_map(self, x):
+        if self.effective_input_channels is not None:
+            x = x[:, 0:self.effective_input_channels,...]
         return self.features(x)
 
     def forward(self, x, non_lin_output=True):
