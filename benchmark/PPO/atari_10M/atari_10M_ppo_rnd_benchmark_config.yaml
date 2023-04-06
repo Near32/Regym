@@ -52,7 +52,7 @@ LargeCNN: &LargeCNN
 
         # Actor architecture:
         actor_arch_hidden_units: [512, 512]
-        actor_arch_non_linearities: ['ReLU', 'ReLU'] ]
+        actor_arch_non_linearities: ['ReLU', 'ReLU']
         # Critic architecture:
         critic_arch_hidden_units: [512,]
         critic_arch_non_linearities: ['ReLU']
