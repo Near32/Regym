@@ -52,6 +52,74 @@ SyncManager.register('Storage', Storage, SProxy)
 import logging 
 
 
+class RunningMeanStd(object):
+    def __init__(
+        self, 
+        mean=None, 
+        std=None, 
+        count=0,
+        shape=(1,),
+    ):
+        if mean is None:
+            self.mean = mean
+        else:
+            self.mean = mean*torch.ones(shape)
+        if std is None:
+            self.std = std
+        else:
+            self.std = std*torch.ones(shape)
+        self.count = count
+
+    def update(self, bdata:List[torch.Tensor]):
+        bdata = torch.stack(bdata, dim=0)
+        bmean = torch.mean(bdata, dim=0)
+        bstd = torch.std(bdata, dim=0)
+        bcount = len(bdata)
+        
+        if self.count == 0:
+            self.mean = bmean
+            self.std = bstd
+            self.count = bcount
+
+            return
+
+        self.update_from_moments(
+            bmean=bmean,
+            bstd=bstd,
+            bcount=bcount,
+        )
+    
+    def update_from_moments(self, bmean, bstd, bcount):
+        delta = bmean - self.mean
+        tot_count = self.count + bcount
+        
+        new_mean = self.mean + delta * bcount / tot_count
+        
+        bvar = torch.square(bstd)
+        var = torch.square(self.std)
+        m_a = var * self.count 
+        m_b = bvar * bcount
+        M2 = m_a + m_b + torch.square(delta) * self.count * bcount / tot_count
+        new_var = M2 / tot_count
+        
+        self.mean = new_mean
+        self.std = torch.sqrt(new_var)
+        self.count = tot_count
+
+        
+class RewardForwardFilter:
+    def __init__(self, gamma):
+        self.rewems = None
+        self.gamma = gamma
+
+    def update(self, rews):
+        if self.rewems is None:
+            self.rewems = rews
+        else:
+            self.rewems = self.rewems * self.gamma + rews
+        return self.rewems
+
+
 class PPOAlgorithm(Algorithm):
     def __init__(
         self, 
@@ -93,14 +161,12 @@ class PPOAlgorithm(Algorithm):
             self.use_rnd = True
             self.target_intr_model = target_intr_model
             self.predict_intr_model = predict_intr_model
-            self.obs_mean = 0.0
-            self.obs_std = 1.0
-            self.running_counter_obs = 0
-            self.update_period_obs = float(self.kwargs['rnd_update_period_running_meanstd_obs'])
-            self.int_reward_mean = 0.0
-            self.int_reward_std = 1.0
-            self.running_counter_intrinsic_reward = 0
-            self.update_period_intrinsic_reward = float(self.kwargs['rnd_update_period_running_meanstd_int_reward'])
+            #self.obs_rms = RunningMeanStd(mean=0.0, std=0.0, shape=(self.kwargs['input_shape']))
+            self.obs_rms = RunningMeanStd(mean=None, std=None)
+            self.obs_mean = self.obs_rms.mean
+            self.obs_std = self.obs_rms.std
+            self.discounted_int_returns = RewardForwardFilter(gamma=self.kwargs['intrinsic_discount'])
+            self.int_reward_rms = RunningMeanStd(mean=0.0, std=1.0)
         
         self.goal_oriented = self.kwargs.get('goal_oriented', False)
 
@@ -298,6 +364,13 @@ class PPOAlgorithm(Algorithm):
             normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_reward_std+1e-8))
         return normalized_int_rewards
 
+    def normalize_int_rewards_by_discounted_int_returns(self, storage_idx):
+        normalized_int_rewards = []
+        for i in range(len(self.storages[storage_idx].int_r)):
+            # Scaling alone:
+            normalized_int_rewards.append(self.storages[storage_idx].int_r[i] / (self.int_reward_rms.std+1e-8))
+        return normalized_int_rewards
+
     def compute_advantages_and_returns(self, storage_idx, non_episodic=False):
         torch.set_grad_enabled(False)
         ext_r = self.storages[storage_idx].r
@@ -322,6 +395,8 @@ class PPOAlgorithm(Algorithm):
         self.storages[storage_idx].adv[-1] = torch.zeros(1,1)
         # Adding next state value to the storage for the computation of gae for previous states:
         self.storages[storage_idx].v.append(returns)
+        
+        #wandb.log({f"Training/FinalStateExtReturn_actor{storage_idx}":returns.item()}, commit=False)
 
         gae = 0.0
         #for i in reversed(range(len(self.storages[storage_idx])-1)):
@@ -341,6 +416,8 @@ class PPOAlgorithm(Algorithm):
                 returns = advantages + self.storages[storage_idx].v[i].detach()
             self.storages[storage_idx].adv[i] = advantages.detach()
             self.storages[storage_idx].ret[i] = returns.detach()
+        
+        #wandb.log({f"Training/MeanExtReturn_actor{storage_idx}": sum(self.storages[storage_idx].ret).mean().item()/self.kwargs['horizon']}, commit=False)
 
     def compute_int_advantages_and_int_returns(self, storage_idx, non_episodic=True):
         '''
@@ -349,7 +426,10 @@ class PPOAlgorithm(Algorithm):
         At computation-time, updates of the running mean and std are performed too.
         '''
         torch.set_grad_enabled(False)
-        norm_int_r = self.normalize_int_rewards(storage_idx)
+        # TODO: the following is too much apparently,
+        #norm_int_r = self.normalize_int_rewards(storage_idx)
+        # just dividing by the discounted_int_return STD is enough:
+        norm_int_r = self.normalize_int_rewards_by_discounted_int_returns(storage_idx)
         int_advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32))
         
         #int_returns = self.storages[storage_idx].int_v[-1].detach()
@@ -358,7 +438,7 @@ class PPOAlgorithm(Algorithm):
             int_returns, _ = self.compute_intrinsic_reward(next_state)
             int_returns.unsqueeze_(0).unsqueeze_(1)
             # Normalization (scaling):
-            int_returns = int_returns / (self.int_reward_std+1e-8)
+            int_returns = int_returns / (self.int_reward_rms.std+1e-8)
         else:
             int_returns = torch.zeros(1,1)
         # Adding next state return/value and dummy advantages to the storage on the N+1 spots: 
@@ -392,6 +472,37 @@ class PPOAlgorithm(Algorithm):
         if summary_writer is None:
             summary_writer = self.summary_writer
             
+        # Normalize Int Return :
+        if self.use_rnd:
+            start = time.time()
+            pstep_pactor_int_reward = []
+            for idx, storage in enumerate(self.storages):
+                if len(storage) <= 1: continue
+                storage.placeholder()
+                pstep_pactor_int_reward.append(torch.stack(storage.int_r))
+            pstep_pactor_int_reward = torch.stack(pstep_pactor_int_reward, dim=1)
+            # (horizon x nbr_actors) 
+            pstep_pactor_curiosity_discounted_int_returns = torch.stack(
+                [self.discounted_int_returns.update(pstep_int_reward)
+                for pstep_int_reward in pstep_pactor_int_reward.data],
+                dim=1,
+            )
+            # (horizon x nbr_actors)
+            bmean, bstd, bcount = (
+                torch.mean(pstep_pactor_curiosity_discounted_int_returns),
+                torch.std(pstep_pactor_curiosity_discounted_int_returns),
+                pstep_pactor_curiosity_discounted_int_returns.shape[1],
+            )
+            
+            self.int_reward_rms.update_from_moments(
+                bmean=bmean,
+                bstd=bstd,
+                bcount=bcount,
+            )
+
+            end = time.time()
+            wandb.log({'PerUpdate/TimeComplexity/UpdateIntRewardRunningMeanStdFn':  end-start}, commit=False) # self.param_update_counter)
+        
         # Compute Returns and Advantages:
         start = time.time()
         for idx, storage in enumerate(self.storages): 
@@ -408,10 +519,14 @@ class PPOAlgorithm(Algorithm):
         if self.use_rnd: 
             for idx, storage in enumerate(self.storages): 
                 if len(storage) <= 1: continue
-                for ob in storage.s: self.update_obs_mean_std(ob)
+                self.obs_rms.update(storage.s)
+                #for ob in storage.s: self.update_obs_mean_std(ob)
         end = time.time()
         wandb.log({'PerUpdate/TimeComplexity/UpdateObsMeanStdFn':  end-start}, commit=False) # self.param_update_counter)
-        
+        self.obs_mean = self.obs_rms.mean
+        self.obs_std = self.obs_rms.std
+        # (1, *obs_shape)
+
         # states, actions, next_states, log_probs_old, returns, advantages, std_advantages, \
         # int_returns, int_advantages, std_int_advantages, \
         # target_random_features, rnn_states = self.retrieve_values_from_storages()
@@ -426,12 +541,14 @@ class PPOAlgorithm(Algorithm):
         start = time.time()
         for it in range(self.kwargs['optimization_epochs']):
             self.optimize_model(samples)
-            #self.optimize_model(states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states)
         end = time.time()
         
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
         self.reset_storages()
+        #if self.running_counter_intrinsic_reward >= self.kwargs['horizon']*self.nbr_actor: #self.update_period_intrinsic_reward:
+        #  self.running_counter_intrinsic_reward = 0
+
 
     def retrieve_values_from_storages(self):
         '''
@@ -508,7 +625,11 @@ class PPOAlgorithm(Algorithm):
         return (x - x.mean()) / (x.std()+stable_eps)
 
     def compute_intrinsic_reward(self, states):
-        normalized_states = (states-self.obs_mean) / (self.obs_std+1e-8) 
+        if self.obs_rms.mean is not None:
+            normalized_states = (states-self.obs_rms.mean) / (self.obs_rms.std+1e-8) 
+        else:
+            normalized_states = states
+
         if self.kwargs['rnd_obs_clip'] > 1e-3:
           normalized_states = torch.clamp( normalized_states, -self.kwargs['rnd_obs_clip'], self.kwargs['rnd_obs_clip'])
         if self.kwargs['use_cuda']: normalized_states = normalized_states.cuda()
@@ -528,13 +649,13 @@ class PPOAlgorithm(Algorithm):
         #int_reward = torch.nn.functional.smooth_l1_loss(target_features,pred_features)
         
         #int_reward = torch.nn.functional.mse_loss(target_features,pred_features)
-        int_reward = (target_features-pred_features).pow(2).sum(1) / 2
+        int_reward = ((target_features-pred_features).pow(2).sum(1) / 2).data
         #int_reward = torch.nn.functional.mse_loss(softmax_target_features,pred_features)
         
         # No clipping on the intrinsic reward in the original paper:
         #int_reward = torch.clamp(int_reward, -1, 1)
         int_reward = int_reward.detach().cpu().squeeze()
-        self.update_int_reward_mean_std(int_reward)
+        # TODO self.update_int_reward_mean_std(int_reward)
 
         # Normalization will be done upon usage...
         # Kept intact here for logging purposes...        
@@ -553,18 +674,48 @@ class PPOAlgorithm(Algorithm):
             self.ext_reward_mean = (self.ext_reward_mean*rc+unnormalized_er)/self.running_counter_extrinsic_reward
             self.ext_reward_std = np.sqrt( ( np.power(self.ext_reward_std,2)*rc+np.power(unnormalized_er-rmean, 2) ) / self.running_counter_extrinsic_reward )
         
+    def update_int_reward_mean_std_batch(self, ir):
+        rmean = self.int_reward_mean*torch.ones(1)
+        rstd = self.int_reward_std*torch.ones(1)
+        rc = self.running_counter_intrinsic_reward
+        
+        ir = torch.stack(ir)
+        bmean = torch.mean(ir)
+        bvar = torch.var(ir)
+        bcount = len(ir)
+
+        delta = bmean - rmean
+        tot_count = rc + bcount
+        
+        new_mean = rmean + delta * bcount / tot_count
+        
+        var = torch.square(rstd)
+        m_a = var * rc 
+        m_b = bvar * bcount
+        M2 = m_a + m_b + torch.square(delta) * rc * bcount / tot_count
+        new_var = M2 / tot_count
+        
+        self.int_reward_mean = new_mean
+        self.int_reward_std = torch.sqrt(new_var)
+        self.running_counter_intrinsic_reward = tot_count
+        wandb.log({f"Training/RunningIntRewardCounter": self.running_counter_intrinsic_reward}, commit=False)
+        
     def update_int_reward_mean_std(self, unnormalized_ir):
         rmean = self.int_reward_mean
         rstd = self.int_reward_std
         rc = self.running_counter_intrinsic_reward
 
         self.running_counter_intrinsic_reward += 1
+        wandb.log({f"Training/RunningIntRewardCounter": self.running_counter_intrinsic_reward}, commit=False)
         
         self.int_reward_mean = (self.int_reward_mean*rc+unnormalized_ir)/self.running_counter_intrinsic_reward
-        self.int_reward_std = np.sqrt( ( np.power(self.int_reward_std,2)*rc+np.power(unnormalized_ir-rmean, 2) ) / self.running_counter_intrinsic_reward )
+        self.int_reward_std = np.sqrt( 
+                (np.power(self.int_reward_std,2)*rc+np.power(unnormalized_ir-rmean, 2) ) / self.running_counter_intrinsic_reward )
         
-        if self.running_counter_intrinsic_reward >= self.update_period_intrinsic_reward:
-          self.running_counter_intrinsic_reward = 0
+        # TODO : the following is moved and the condition is changed
+        # for the update to occur after each update of the agent occuring.
+        #if self.running_counter_intrinsic_reward >= self.update_period_intrinsic_reward:
+        #  self.running_counter_intrinsic_reward = 0
 
     def update_obs_mean_std(self, unnormalized_obs):
         torch.set_grad_enabled(False)
@@ -590,10 +741,9 @@ class PPOAlgorithm(Algorithm):
         )
         '''
 
-        if self.running_counter_obs >= self.update_period_obs:
-          self.running_counter_obs = 0
+        # TODO : if self.running_counter_obs >= self.update_period_obs:
+        #   self.running_counter_obs = 0
 
-    #def optimize_model(self, states, actions, next_states, log_probs_old, returns, advantages, std_advantages, int_returns, int_advantages, std_int_advantages, target_random_features, rnn_states=None):
     def optimize_model(self, samples):
         global summary_writer
         if self.summary_writer is None:
@@ -765,8 +915,8 @@ class PPOAlgorithm(Algorithm):
         wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
         if self.use_rnd:
             wandb.log({
-                'Training/IntRewardMean':  self.int_reward_mean.cpu().item(), 
-                'Training/IntRewardStd': self.int_reward_std.cpu().item(), 
+                'Training/IntRewardMean':  self.int_reward_rms.mean.cpu().item(), 
+                'Training/IntRewardStd': self.int_reward_rms.std.cpu().item(), 
                 },
                 commit=False,
             )

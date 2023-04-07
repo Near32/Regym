@@ -271,6 +271,16 @@ def _generate_model(
                                 'shape':shape, 
                                 'target_location':tl
                             }
+            non_linearities = list(kwargs.get('phi_arch_non_linearities', [None]))
+            for nlidx, nl in enumerate(non_linearities):
+                if isinstance(nl, str):
+                    if 'leakyrelu' in nl.lower():
+                        non_linearities[nlidx] = nn.LeakyReLU
+                    elif 'relu' in nl.lower():
+                        non_linearities[nlidx] = nn.ReLU
+                    else:
+                        raise NotImplementedError
+
             phi_body = ConvolutionalBody(
                 input_shape=input_shape,
                 feature_dim=output_dim,
@@ -278,6 +288,7 @@ def _generate_model(
                 kernel_sizes=kernels,
                 strides=strides,
                 paddings=paddings,
+                non_linearities=non_linearities,
                 extra_inputs_infos=extra_inputs_infos_phi_body,
             )
 
@@ -475,7 +486,22 @@ def _generate_model(
             hidden_units=(output_dim,)
             if 'actor_arch_hidden_units' in kwargs:
                 hidden_units = list(kwargs['actor_arch_hidden_units'])
-            actor_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
+            non_linearities = list(kwargs.get('actor_arch_non_linearities', [None]))
+            for nlidx, nl in enumerate(non_linearities):
+                if isinstance(nl, str):
+                    if 'leakyrelu' in nl.lower():
+                        non_linearities[nlidx] = nn.LeakyReLU
+                    elif 'relu' in nl.lower():
+                        non_linearities[nlidx] = nn.ReLU
+                    else:
+                        raise NotImplementedError
+
+            actor_body = FCBody(
+                input_dim, 
+                hidden_units=hidden_units, 
+                non_linearities=non_linearities,
+                #gate=F.leaky_relu,
+            )
         elif kwargs['actor_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])
@@ -697,7 +723,22 @@ def _generate_model(
             hidden_units=(output_dim,)
             if 'critic_arch_hidden_units' in kwargs:
                 hidden_units = list(kwargs['critic_arch_hidden_units'])
-            critic_body = FCBody(input_dim, hidden_units=hidden_units, gate=F.leaky_relu)
+            non_linearities = list(kwargs.get('critic_arch_non_linearities', [None]))
+            for nlidx, nl in enumerate(non_linearities):
+                if isinstance(nl, str):
+                    if 'leakyrelu' in nl.lower():
+                        non_linearities[nlidx] = nn.LeakyReLU
+                    elif 'relu' in nl.lower():
+                        non_linearities[nlidx] = nn.ReLU
+                    else:
+                        raise NotImplementedError
+
+            critic_body = FCBody(
+                input_dim, 
+                hidden_units=hidden_units, 
+                non_linearities=non_linearities,
+                #gate=F.leaky_relu,
+            )
         elif kwargs['critic_arch'] == 'CNN':
             # Assuming raw pixels input, the shape is dependant on the observation_resize_dim specified by the user:
             #kwargs['state_preprocess'] = partial(ResizeCNNPreprocessFunction, size=config['observation_resize_dim'])

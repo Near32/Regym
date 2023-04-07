@@ -2,6 +2,7 @@ from typing import Dict, Any
 
 import ray
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from functools import partial
@@ -605,25 +606,41 @@ def build_PPO_Agent(task, config, agent_name):
             target_intr_model = FCBody(task.observation_shape, hidden_units=kwargs['rnd_feature_net_fc_arch_hidden_units'], gate=F.leaky_relu)
             predict_intr_model = FCBody(task.observation_shape, hidden_units=kwargs['rnd_feature_net_fc_arch_hidden_units'], gate=F.leaky_relu)
         elif 'CNN' in kwargs['rnd_arch']:
-            input_shape = kwargs['preprocessed_observation_shape']
+            input_shape = copy.deepcopy(kwargs['preprocessed_observation_shape'])
+            # Add selection for only the last frame if stacking:
+            nbr_frame_stacking = kwargs['rnd_nbr_frame_stacking']
+            input_shape[0] = input_channels = input_shape[0]//nbr_frame_stacking
             channels = [input_shape[0]] + kwargs['rnd_arch_channels']
             kernels = kwargs['rnd_arch_kernels']
             strides = kwargs['rnd_arch_strides']
             paddings = kwargs['rnd_arch_paddings']
             output_dim = kwargs['rnd_arch_feature_dim']
-            target_intr_model = ConvolutionalBody(input_shape=input_shape,
-                                                  feature_dim=output_dim,
-                                                  channels=channels,
-                                                  kernel_sizes=kernels,
-                                                  strides=strides,
-                                                  paddings=paddings)
-            output_dim = (256,256,)+(output_dim,)
-            predict_intr_model = ConvolutionalBody(input_shape=input_shape,
-                                                  feature_dim=output_dim,
-                                                  channels=channels,
-                                                  kernel_sizes=kernels,
-                                                  strides=strides,
-                                                  paddings=paddings)
+            non_linearities = [nn.LeakyReLU]*3
+            non_linearities += [nn.ReLU]
+            # TODO output_dim = (256,256,)+(output_dim,)
+            target_intr_model = ConvolutionalBody(
+                input_shape=input_shape,
+                effective_input_channels=input_channels,
+                feature_dim=output_dim,
+                channels=channels,
+                kernel_sizes=kernels,
+                strides=strides,
+                paddings=paddings,
+                non_linearities=non_linearities,
+            )
+            output_dim = (512,512,)+(output_dim,)
+            non_linearities += [nn.ReLU]*2
+            # TODO output_dim = (256,256,)+(output_dim,)
+            predict_intr_model = ConvolutionalBody(
+                input_shape=input_shape,
+                effective_input_channels=input_channels,
+                feature_dim=output_dim,
+                channels=channels,
+                kernel_sizes=kernels,
+                strides=strides,
+                paddings=paddings,
+                non_linearities=non_linearities,
+            )
         
         print(target_intr_model)
         target_intr_model.share_memory()

@@ -67,6 +67,7 @@ class ConvolutionalBody(nn.Module):
         dropout=0.0, 
         non_linearities=[nn.ReLU],
         extra_inputs_infos: Dict={},
+        effective_input_channels=None,
         ):
         '''
         Default input channels assume a RGB image (3 channels).
@@ -81,21 +82,27 @@ class ConvolutionalBody(nn.Module):
         :param dropout: dropout probability to use.
         :param non_linearities: list of non-linear nn.Functional functions to use
                 after each convolutional layer.
-
+        :param effective_input_channels: default is None, if it is an integer then
+                the input is sliced to take the first channels up until that integer.
         TODO: update calls to this constructor to use extra_inputs_infos if needs be...
         '''
         super(ConvolutionalBody, self).__init__()
+        self.feature_dim = feature_dim
+        mlp_size = 1
+        if isinstance(feature_dim, tuple):
+            self.feature_dim = feature_dim[-1]
+            mlp_size = len(feature_dim)
+
         self.dropout = dropout
         self.non_linearities = non_linearities
         if not isinstance(non_linearities, list):
-            self.non_linearities = [non_linearities] * (len(channels) - 1)
+            self.non_linearities = [non_linearities] * (len(channels)+mlp_size - 1)
         else:
-            while len(self.non_linearities) <= (len(channels) - 1):
-                self.non_linearities.append(self.non_linearities[0])
+            while len(self.non_linearities) < (len(channels)+(mlp_size-1) - 1):
+                # TODO :self.non_linearities.append(self.non_linearities[-1])
+                self.non_linearities.append(None)
 
-        self.feature_dim = feature_dim
-        if isinstance(feature_dim, tuple):
-            self.feature_dim = feature_dim[-1]
+        self.effective_input_channels = effective_input_channels
 
         self.features = []
         # input_shape size: [channels, height, width]
@@ -142,7 +149,8 @@ class ConvolutionalBody(nn.Module):
                 self.features.append(layer)
                 if add_bn:
                     self.features.append(nn.BatchNorm2d(cfg))
-                self.features.append(self.non_linearities[idx](inplace=False))
+                if self.non_linearities[idx] is not None:
+                    self.features.append(self.non_linearities[idx](inplace=False))
                 # Update of the shape of the input-image, following Conv:
                 h_dim = (h_dim-k+2*p)//s+1
                 w_dim = (w_dim-k+2*p)//s+1
@@ -158,18 +166,23 @@ class ConvolutionalBody(nn.Module):
             hidden_units = hidden_units + (self.feature_dim,)
 
         self.fcs = nn.ModuleList()
-        for nbr_in, nbr_out in zip(hidden_units, hidden_units[1:]):
+        for lidx, (nbr_in, nbr_out) in enumerate(zip(hidden_units, hidden_units[1:])):
             self.fcs.append( layer_init(
                 nn.Linear(nbr_in, nbr_out), 
                 w_scale=math.sqrt(2),
                 init_type='ortho',
                 )
             )
-            self.fcs.append(self.non_linearities[-1](inplace=False))
+            #if lidx < mlp_size-1:
+            nonlin_idx = len(channels)-1+lidx
+            if self.non_linearities[nonlin_idx] is not None:
+                self.fcs.append(self.non_linearities[nonlin_idx](inplace=False))
             if self.dropout:
                 self.fcs.append( nn.Dropout(p=self.dropout))
 
     def _compute_feat_map(self, x):
+        if self.effective_input_channels is not None:
+            x = x[:, 0:self.effective_input_channels,...]
         return self.features(x)
 
     def forward(self, x, non_lin_output=True):
@@ -190,8 +203,6 @@ class ConvolutionalBody(nn.Module):
         features = feat_map.reshape(feat_map.size(0), -1)
         for idx, fc in enumerate(self.fcs):
             features = fc(features)
-            if idx != len(self.fcs)-1 or non_lin_output:
-                features = F.relu(features)
 
         return features
 
@@ -1025,14 +1036,17 @@ class FCBody(nn.Module):
         if not isinstance(non_linearities, list):
             self.non_linearities = [non_linearities] * (len(dims) - 1)
         else:
-            while len(self.non_linearities) <= (len(dims) - 1):
-                self.non_linearities.append(self.non_linearities[0])
+            while len(self.non_linearities) < (len(dims) - 1):
+                # TODO :self.non_linearities.append(self.non_linearities[0])
+                self.non_linearities.append(None)
         
         self.layers = []
         in_ch = dims[0]
         for idx, cfg in enumerate(dims[1:]):
             add_non_lin = True
             if not(add_non_lin_final_layer) and idx == len(dims)-2:  add_non_lin = False
+            if self.non_linearities[idx] is None:   add_non_lin = False
+
             add_dp = (self.dropout > 0.0)
             dropout = self.dropout
             add_bn = False
@@ -1068,7 +1082,7 @@ class FCBody(nn.Module):
             if layer_init_fn is not None:
                 layer = layer_init_fn(layer)#, w_scale=math.sqrt(2))
             else:
-                layer = layer_init(layer, w_scale=math.sqrt(2))
+                layer = layer_init(layer, w_scale=0.01)
             in_ch = cfg
             self.layers.append(layer)
             if add_bn:
