@@ -51,6 +51,31 @@ class R2D2Algorithm(DQNAlgorithm):
                 "Sequence_replay_unroll_length-sequence_replay_burn_in_length needs to be set to a value greater \
                  than n_step return, in order to be able to compute the bellman target."
         
+        # DEPRECATED in order to allow extra_inputs infos 
+        # stored in the rnn_states that acts as frame_states...
+        #self.recurrent = False
+        self.recurrent = True
+        
+        # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
+        # elements that do not concern the model trained by this algorithm, given that it is now use-able inside I2A...
+        self.recurrent_nn_submodule_names = [hyperparameter for hyperparameter, value in self.kwargs.items() if isinstance(value, str) and 'RNN' in value]
+
+        self.keys = ['s', 'a', 'r', 'non_terminal']
+        if self.recurrent:  self.keys += ['rnn_states']
+        
+        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
+        self.circular_keys={'succ_s':'s'}
+        # On the contrary to DQNAlgorithm,
+        # since we are dealing with batches of unrolled experiences,
+        # succ_s ought to be the sequence of unrolled experiences that comes
+        # directly after the current unrolled sequence s:
+        self.circular_offsets={'succ_s':1}
+        
+        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
+        if self.recurrent:
+            self.circular_keys.update({'next_rnn_states':'rnn_states'})
+            self.circular_offsets.update({'next_rnn_states':1})
+
         super().__init__(
             kwargs=kwargs, 
             model=model, 
@@ -85,26 +110,6 @@ class R2D2Algorithm(DQNAlgorithm):
         storage_capacity = self.replay_buffer_capacity // nbr_storages
         
         self.storages = []
-        keys = ['s', 'a', 'r', 'non_terminal']
-        if self.recurrent:  keys += ['rnn_states']
-        """
-        # depr : goal update
-        if self.goal_oriented:    keys += ['g']
-        """
-        
-        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
-        circular_keys={'succ_s':'s'}
-        # On the contrary to DQNAlgorithm,
-        # since we are dealing with batches of unrolled experiences,
-        # succ_s ought to be the sequence of unrolled experiences that comes
-        # directly after the current unrolled sequence s:
-        circular_offsets={'succ_s':1}
-        
-        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
-        if self.recurrent:
-            circular_keys.update({'next_rnn_states':'rnn_states'})
-            circular_offsets.update({'next_rnn_states':1})
-
         beta_increase_interval = None
         if 'PER_beta_increase_interval' in self.kwargs and self.kwargs['PER_beta_increase_interval']!='None':
             beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
@@ -126,9 +131,9 @@ class R2D2Algorithm(DQNAlgorithm):
                         beta=self.kwargs['PER_beta'],
                         beta_increase_interval=beta_increase_interval,
                         eta=self.kwargs['sequence_replay_PER_eta'],
-                        keys=keys,
-                        circular_keys=circular_keys,                 
-                        circular_offsets=circular_offsets
+                        keys=self.keys,
+                        circular_keys=self.circular_keys,                 
+                        circular_offsets=self.circular_offsets
                     )
                 else:
                     if self.use_mp:
@@ -141,18 +146,18 @@ class R2D2Algorithm(DQNAlgorithm):
                             beta=self.kwargs['PER_beta'],
                             beta_increase_interval=beta_increase_interval,
                             eta=self.kwargs['sequence_replay_PER_eta'],
-                            keys=keys,
-                            circular_keys=circular_keys,                 
-                            circular_offsets=circular_offsets
+                            keys=self.keys,
+                            circular_keys=self.circular_keys,
+                            circular_offsets=self.circular_offsets,
                         )
                 self.storages.append(storage)
             else:
                 self.storages.append(
                     ReplayStorage(
                         capacity=storage_capacity,
-                        keys=keys,
-                        circular_keys=circular_keys,                 
-                        circular_offsets=circular_offsets
+                        keys=self.keys,
+                        circular_keys=self.circular_keys,                 
+                        circular_offsets=self.circular_offsets
                     )
                 )
 

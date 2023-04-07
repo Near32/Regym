@@ -667,11 +667,6 @@ class DQNAlgorithm(Algorithm):
                 # (batch_size, unroll_dim, ...)
 
             sampled_goals = None
-            """
-            # depr : goal update
-            if self.goal_oriented:
-                sampled_goals = goals[batch_indices].cuda() if self.kwargs['use_cuda'] else goals[batch_indices]
-            """
 
             sampled_importanceSamplingWeights = None
             if self.use_PER:
@@ -800,12 +795,6 @@ class DQNAlgorithm(Algorithm):
             # (batch_size, unroll_dim, ...)
 
         sampled_goals = None
-
-        """
-        # depr : goal update
-        if self.goal_oriented:
-            sampled_goals = goals[batch_indices].cuda() if self.kwargs['use_cuda'] else goals[batch_indices]
-        """
 
         sampled_importanceSamplingWeights = None
         # if self.use_PER:

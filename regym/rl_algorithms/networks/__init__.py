@@ -14,6 +14,10 @@ from .heads import SquashedGaussianActorNet, GaussianActorNet, CategoricalActorC
 from .heads import QNet, CategoricalQNet, InstructionPredictor
 from .heads import EnsembleQNet
 
+from .archi_predictor import ArchiPredictor
+from .archi_predictor_speaker import ArchiPredictorSpeaker
+
+
 import torch.nn.functional as F 
 
 def choose_architecture(architecture, 

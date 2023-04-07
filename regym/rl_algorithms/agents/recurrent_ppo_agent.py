@@ -6,10 +6,9 @@ import torch
 import torch.nn as nn
 import ray
 
-from regym.rl_algorithms.agents.agent import ExtraInputsHandlingAgent
-from regym.rl_algorithms.agents.dqn_agent import DQNAgent
+from regym.rl_algorithms.agents.r2d2_agent import R2D2Agent
 from regym.rl_algorithms.agents.utils import generate_model, parse_and_check, build_ther_predictor
-from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
+from regym.rl_algorithms.algorithms.RecurrentPPO import RecurrentPPOAlgorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
 from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
@@ -17,51 +16,67 @@ from regym.rl_algorithms.algorithms.wrappers import ETHERAlgorithmWrapper
 from regym.rl_algorithms.networks import ArchiPredictor, ArchiPredictorSpeaker
 
 
-class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
+class RecurrentPPOAgent(R2D2Agent):
     def __init__(self, name, algorithm, extra_inputs_infos):
-        # Both init will call the self's reset_rnn_states following self.mro's order, i.e. ExtraInputs's one first.
-        ExtraInputsHandlingAgent.__init__(
+        R2D2Agent.__init__(
             self,
             name=name,
             algorithm=algorithm,
             extra_inputs_infos=extra_inputs_infos
         )
-        DQNAgent.__init__(
-            self,
-            name=name,
-            algorithm=algorithm
-        )
 
-    def _take_action(self, state, infos=None, as_logit=False, training=False):
-        return DQNAgent.take_action(self, state=state, infos=infos, as_logit=as_logit, training=training)
-
-    def _query_action(self, state, infos=None, as_logit=False, training=False):
-        return DQNAgent.query_action(self, state=state, infos=infos, as_logit=as_logit, training=training)
-
-    def _handle_experience(self, s, a, r, succ_s, done, goals=None, infos=None, succ_infos=None):
+    def train(self):
         '''
-        Note: the batch size may differ from the nbr_actor as soon as some
-        actors' episodes end before the others...
-
-        :param s: numpy tensor of states of shape batch x state_shape.
-        :param a: numpy tensor of actions of shape batch x action_shape.
-        :param r: numpy tensor of rewards of shape batch x reward_shape.
-        :param succ_s: numpy tensor of successive states of shape batch x state_shape.
-        :param done: list of boolean (batch=nbr_actor) x state_shape.
-        :param goals: Dictionnary of goals 'achieved_goal' and 'desired_goal' for each state 's' and 'succ_s'.
-        :param infos: Dictionnary of information from the environment.
+        Trains like PPOAgent.
         '''
-        DQNAgent.handle_experience(
-            self,
-            s=s,
-            a=a,
-            r=r,
-            succ_s=succ_s,
-            done=done,
-            goals=goals,
-            infos=infos,
-            succ_infos=succ_infos,
-        )
+        nbr_updates = 0
+
+        if self.training \
+        and self.algorithm.stored_experiences() > self.algorithm.kwargs['horizon']*self.nbr_actor:
+            self.algorithm.train()
+            
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
+            wandb.log({
+                f'PerUpdate/ActorLearnerSynchroRemainingUpdates':
+                nbr_update_remaining
+                }, 
+                #self.algorithm.unwrapped.get_update_count()
+            )
+            
+            # Update actor's models:
+            if self.async_learner\
+            and (self.handled_experiences // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
+                self.previous_actor_models_update_quotient = self.handled_experiences // self.actor_models_update_steps_interval
+                new_models_cpu = {k:copy.deepcopy(m).cpu() for k,m in self.algorithm.get_models().items()}
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+                else:
+                    actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+                
+                actor_learner_shared_dict["models"] = new_models_cpu
+                actor_learner_shared_dict["models_update_required"] = [True]*len(actor_learner_shared_dict["models_update_required"])
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+
+            obs_count = self.algorithm.unwrapped.get_obs_count()
+            if self.async_learner\
+            and self.save_path is not None \
+            and (obs_count // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = obs_count // self.saving_interval
+                original_save_path = self.save_path
+                self.save_path = original_save_path.split(".agent")[0]+"."+str(int(self.previous_save_quotient))+".agent"
+                self.save()
+                self.save_path = original_save_path
+
+        return 
 
     def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
         '''
@@ -73,7 +88,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
             minimal=minimal
         )
 
-        clone = R2D2Agent(
+        clone = RecurrentPPOAgent(
             name=self.name,
             algorithm=cloned_algo,
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos)
@@ -107,7 +122,7 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         self.async_actor = False
 
         cloned_algo = self.algorithm.async_actor()
-        clone = R2D2Agent(
+        clone = RecurrentPPOAgent(
             name=self.name,
             algorithm=cloned_algo,
             extra_inputs_infos=copy.deepcopy(self.extra_inputs_infos)
@@ -151,9 +166,11 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         return clone
 
 
-def build_R2D2_Agent(task: 'regym.environments.Task',
-                     config: Dict,
-                     agent_name: str):
+def build_RecurrentPPO_Agent(
+    task: 'regym.environments.Task',
+    config: Dict,
+    agent_name: str,
+):
     '''
     TODO: say that config is the same as DQN agent except for
     - expert_demonstrations: ReplayStorage object with expert demonstrations
@@ -162,7 +179,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                   experiences. Should be small (i.e 1/256)
     - sequence_length:  TODO
 
-    :returns: R2D2 agent
+    :returns: RecurrentPPO agent
     '''
 
     kwargs = config.copy()
@@ -179,13 +196,25 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         kwargs['observation_resize_dim'] = task.observation_shape[0] if isinstance(task.observation_shape, tuple) else task.observation_shape
     #if 'None' in kwargs['goal_resize_dim']:  kwargs['goal_resize_dim'] = task.goal_shape[0] if isinstance(task.goal_shape, tuple) else task.goal_shape
 
-    kwargs = parse_and_check(kwargs, task)
+    if task.action_type == 'Discrete':
+        if task.observation_type == 'Discrete':
+            head_type = "CategoricalActorCriticNet"
+        elif task.observation_type == 'Continuous':
+            if 'use_vae' in kwargs and kwargs['use_vae']:
+                head_type = "CategoricalActorCriticVAENet"
+                raise NotImplementedError
+            else:
+                head_type = "CategoricalActorCriticNet"
 
-    model = generate_model(task, kwargs)
+    if task.action_type == 'Continuous' and task.observation_type == 'Continuous':
+        head_type = "GaussianActorCriticNet"
+
+    kwargs = parse_and_check(kwargs, task)
+    model = generate_model(task, kwargs, head_type=head_type)
 
     print(model)
 
-    algorithm = R2D2Algorithm(
+    algorithm = RecurrentPPOAlgorithm(
         kwargs=kwargs,
         model=model,
         name=f"{agent_name}_algo",
@@ -242,9 +271,9 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                 assert "instruction_generator" in kwargs['ArchiModel']['pipelines']
                 if kwargs.get("THER_predict_PADs", False):
                     model.modules["InstructionGenerator"].predict_PADs = kwargs["THER_predict_PADs"]
-                    print("WARNING : R2D2 Agent with THER : THER predictor DOES predict PAD tokens.")
+                    print("WARNING : RecurrentPPO Agent with THER : THER predictor DOES predict PAD tokens.")
                 else:
-                    print("WARNING : R2D2 Agent with THER : THER predictor does NOT predict PAD tokens.")
+                    print("WARNING : RecurrentPPO Agent with THER : THER predictor does NOT predict PAD tokens.")
                 if kwargs.get("use_ETHER", False):
                     predictor = ArchiPredictorSpeaker(model=model, **kwargs["ArchiModel"])
                 else:
@@ -281,7 +310,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
         algorithm = wrapper(**wrapper_kwargs)
     
-    agent = R2D2Agent(
+    agent = RecurrentPPOAgent(
         name=agent_name,
         algorithm=algorithm,
         extra_inputs_infos=kwargs['extra_inputs_infos'],
