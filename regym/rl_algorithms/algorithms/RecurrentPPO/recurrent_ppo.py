@@ -22,6 +22,73 @@ import wandb
 sum_writer = None
 
 
+class RunningMeanStd(object):
+    def __init__(
+        self, 
+        mean=None, 
+        std=None, 
+        count=0,
+        shape=(1,),
+    ):
+        if mean is None:
+            self.mean = mean
+        else:
+            self.mean = mean*torch.ones(shape)
+        if std is None:
+            self.std = std
+        else:
+            self.std = std*torch.ones(shape)
+        self.count = count
+
+    def update(self, bdata:List[torch.Tensor]):
+        bdata = torch.stack(bdata, dim=0)
+        bmean = torch.mean(bdata, dim=0)
+        bstd = torch.std(bdata, dim=0)
+        bcount = len(bdata)
+        
+        if self.count == 0:
+            self.mean = bmean
+            self.std = bstd
+            self.count = bcount
+
+            return
+
+        self.update_from_moments(
+            bmean=bmean,
+            bstd=bstd,
+            bcount=bcount,
+        )
+    
+    def update_from_moments(self, bmean, bstd, bcount):
+        delta = bmean - self.mean
+        tot_count = self.count + bcount
+        
+        new_mean = self.mean + delta * bcount / tot_count
+        
+        bvar = torch.square(bstd)
+        var = torch.square(self.std)
+        m_a = var * self.count 
+        m_b = bvar * bcount
+        M2 = m_a + m_b + torch.square(delta) * self.count * bcount / tot_count
+        new_var = M2 / tot_count
+        
+        self.mean = new_mean
+        self.std = torch.sqrt(new_var)
+        self.count = tot_count
+
+        
+class RewardForwardFilter:
+    def __init__(self, gamma):
+        self.rewems = None
+        self.gamma = gamma
+
+    def update(self, rews):
+        if self.rewems is None:
+            self.rewems = rews
+        else:
+            self.rewems = self.rewems * self.gamma + rews
+        return self.rewems
+
 
 class RecurrentPPOAlgorithm(R2D2Algorithm):
     def __init__(
@@ -34,7 +101,22 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         name='recurrent_ppo_algo',
         single_storage=True,
     ):
-        
+        '''
+        Refer to original paper for further explanation: https://arxiv.org/pdf/1707.06347.pdf
+        horizon: (0, infinity) Number of timesteps that will elapse in between optimization calls.
+        discount: (0,1) Reward discount factor
+        use_gae: Flag, wether to use Generalized Advantage Estimation (GAE) (instead of return base estimation)
+        gae_tau: (0,1) GAE hyperparameter.
+        use_cuda: Flag, to specify whether to use CUDA tensors in Pytorch calculations
+        entropy_weight: (0,1) Coefficient for (regularatization) entropy based loss
+        gradient_clip: float, Clips gradients to reduce the chance of destructive updates
+        optimization_epochs: int, Number of epochs per optimization step.
+        mini_batch_size: int, Mini batch size to use to calculate losses (Use power of 2 for efficciency)
+        ppo_ratio_clip: float, clip boundaries (1 - clip, 1 + clip) used in clipping loss function.
+        learning_rate: float, optimizer learning rate.
+        adam_eps: (float), Small Epsilon value used for ADAM optimizer. Prevents numerical instability when v^{hat} (Second momentum estimator) is near 0.
+        model: (Pytorch nn.Module) Used to represent BOTH policy network and value network
+        ''' 
         Algorithm.__init__(self=self, name=name)
         self.single_storage = single_storage
 
@@ -199,6 +281,98 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         if "model" in models_dict:
             hard_update(self.model, models_dict["model"])
     
+    def compute_advantages_and_returns(
+        self,
+        storage_idx,
+        non_episodic=False,
+        normalizer=None,
+    ):
+        r = self.storages[storage_idx].r
+        v = self.storages[storage_idx].v
+        v_key = 'v'
+        non_terminal = self.storages[storage_idx].non_terminal
+        succ_s = self.storages[storage_idx].succ_s
+        rnn_states = self.storages[storage_idx].rnn_states
+
+        advantages, returns = self._compute_advantages_and_returns(
+            r=r,
+            v=v,
+            v_key=v_key,
+            non_terminal=non_terminal,
+            succ_s=succ_s,
+            rnn_states=rnn_states,
+            discount=self.kwargs['discount'],
+            gae_tau=self.kwargs['gae_tau'],
+            non_episodic=non_episodic,
+            normalizer=normalizer,
+        )
+
+        self.storages[storage_idx].adv = advantages
+        self.storages[storage_idx].adv = returns
+        
+        return 
+
+    def _compute_advantages_and_returns(
+        self, 
+        r,
+        v,
+        v_key,
+        non_terminal,
+        succ_s,
+        rnn_states,
+        discount,
+        gae_tau,
+        non_episodic=False,
+        normalizer=None,
+    ):
+        torch.set_grad_enabled(False)
+        
+        ret = torch.zeros_like(r)
+        adv = torch.zeros_like(r)
+
+        if normalizer is not None:
+            r = r / normalizer
+        
+        advantages = torch.from_numpy(np.zeros((1, 1), dtype=np.float32))
+        
+        if non_terminal[-1]: 
+            next_state = succ_s[-1].cuda() if self.kwargs['use_cuda'] else succ_s[-1]
+            rnn_states = None
+            if self.recurrent:
+                rnn_states = rnn_states[-1]
+            returns = next_state_value = self.model(next_state, rnn_states=rnn_states)[v_key].cpu().detach()
+        else:
+            returns = torch.zeros(1,1)
+        
+        # Adding next state return/value and dummy advantages to the storage on the N+1 spots: 
+        # not used during optimization, but necessary to compute the returns and advantages of previous states.
+        ret[-1] = returns 
+        adv[-1] = torch.zeros(1,1)
+        # Adding next state value to the storage for the computation of gae for previous states:
+        if isinstance(v, list):
+            v.append(returns)
+        else:
+            assert isinstance(v, torch.Tensor)
+            v = torch.cat([v, returns], dim=0)
+
+        gae = 0.0
+        for i in reversed(range(len(r))):
+            if not self.kwargs['use_gae']:
+                if non_episodic:    notdone = 1.0
+                else:               notdone = non_terminal[i]
+                returns = r[i] + discount * notdone * returns
+                advantages = returns - v[i].detach()
+            else:
+                if non_episodic:    notdone = 1.0
+                else:               notdone = non_terminal[i]
+                td_error = r[i]  + discount * notdone * v[i + 1].detach() - v[i].detach()
+                advantages = gae = td_error + discount * gae_tau * notdone * gae 
+                returns = advantages + v[i].detach()
+            adv[i] = advantages.detach()
+            ret[i] = returns.detach()
+        
+        return ret, adv
+
     def train(self, minibatch_size:int=None):
         global summary_writer
         if self.summary_writer is None:
@@ -206,7 +380,35 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
 
         if minibatch_size is None:  minibatch_size = self.batch_size
 
+        # Compute Returns and Advantages:
         start = time.time()
+        for idx, storage in enumerate(self.storages): 
+            if len(storage) <= 1: continue
+            storage.placeholder()
+            self.compute_advantages_and_returns(storage_idx=idx)
+            '''
+            if self.use_rnd: 
+                self.compute_int_advantages_and_int_returns(storage_idx=idx, non_episodic=self.kwargs['rnd_non_episodic_int_r'])
+            '''
+        end = time.time()
+        wandb.log({'PerUpdate/TimeComplexity/ComputeReturnsAdvantagesFn':  end-start}, commit=False) # self.param_update_counter)
+        
+        # Update observations running mean and std: 
+        '''
+        if self.use_rnd: 
+            start = time.time()
+            for idx, storage in enumerate(self.storages): 
+                if len(storage) <= 1: continue
+                self.obs_rms.update(storage.s)
+            end = time.time()
+            wandb.log({'PerUpdate/TimeComplexity/UpdateObsMeanStdFn':  end-start}, commit=False) # self.param_update_counter)
+            self.obs_mean = self.obs_rms.mean
+            self.obs_std = self.obs_rms.std
+            # (1, *obs_shape)
+        '''
+        
+        start = time.time()
+        #samples = self.retrieve_values_from_storages()
         if self.use_mp:
             samples = self._retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
         else:
@@ -215,11 +417,20 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
 
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
 
+        #if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
 
         start = time.time()
-        self.optimize_model(minibatch_size, samples)
+        #self.optimize_model(minibatch_size, samples)
+        for it in range(self.kwargs['optimization_epochs']):
+            self.optimize_model(
+                minibatch_size=None,
+                samples=samples,
+            )
         end = time.time()
         
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
+        self.reset_storages()
+
+
       
