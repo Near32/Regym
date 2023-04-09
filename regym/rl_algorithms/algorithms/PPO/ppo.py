@@ -567,12 +567,6 @@ class PPOAlgorithm(Algorithm):
         if self.recurrent:
             keys += ['rnn_states'] #, 'next_rnn_states']
         
-        """
-        # depr : goal update
-        if self.goal_oriented:
-            keys += ['g']
-        """
-
         for key in keys:    
             fulls[key] = []
 

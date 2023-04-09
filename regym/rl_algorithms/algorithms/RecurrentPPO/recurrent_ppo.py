@@ -148,7 +148,6 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
 
         self.use_PER = self.kwargs['use_PER']
-        self.use_HER = self.kwargs.get('use_HER', False)
 
         self.weights_decay_lambda = float(self.kwargs.get('weights_decay_lambda', 0.0))
         self.weights_entropy_lambda = float(self.kwargs.get('weights_entropy_lambda', 0.0))
@@ -206,7 +205,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         ]
         if self.recurrent:
             self.keys.append('rnn_states')
-            #self.keys.append('next_rnn_states')
+            self.circular_keys.update({'next_rnn_states':'rnn_states'})
+            self.circular_offsets.update({'next_rnn_states':1})
           
         # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         self.circular_keys={'succ_s':'s'}
@@ -216,11 +216,6 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         # directly after the current unrolled sequence s:
         self.circular_offsets={'succ_s':1}
         
-        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
-        if self.recurrent:
-            self.circular_keys.update({'next_rnn_states':'rnn_states'})
-            self.circular_offsets.update({'next_rnn_states':1})
-
         self.storages = None
         self.use_mp = False 
         if self.use_mp:
@@ -410,6 +405,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         start = time.time()
         #samples = self.retrieve_values_from_storages()
         if self.use_mp:
+            raise NotImplementedError
             samples = self._retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
         else:
             samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)

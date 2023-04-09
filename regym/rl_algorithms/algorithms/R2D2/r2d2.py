@@ -61,8 +61,12 @@ class R2D2Algorithm(DQNAlgorithm):
         self.recurrent_nn_submodule_names = [hyperparameter for hyperparameter, value in self.kwargs.items() if isinstance(value, str) and 'RNN' in value]
 
         self.keys = ['s', 'a', 'r', 'non_terminal']
-        if self.recurrent:  self.keys += ['rnn_states']
-        
+        if self.recurrent:  
+            self.keys += ['rnn_states']
+            self.circular_keys.update({'next_rnn_states':'rnn_states'})
+            self.circular_offsets.update({'next_rnn_states':1})
+
+         
         # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         self.circular_keys={'succ_s':'s'}
         # On the contrary to DQNAlgorithm,
@@ -71,11 +75,6 @@ class R2D2Algorithm(DQNAlgorithm):
         # directly after the current unrolled sequence s:
         self.circular_offsets={'succ_s':1}
         
-        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
-        if self.recurrent:
-            self.circular_keys.update({'next_rnn_states':'rnn_states'})
-            self.circular_offsets.update({'next_rnn_states':1})
-
         super().__init__(
             kwargs=kwargs, 
             model=model, 

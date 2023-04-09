@@ -353,11 +353,6 @@ class DQNAlgorithm(Algorithm):
         keys = ['s', 'a', 'r', 'non_terminal']
         if self.recurrent:  keys += ['rnn_states']
 
-        """
-        # depr : goal update
-        if self.goal_oriented:    keys += ['g']
-        """
-        
         circular_keys={'succ_s':'s'}
         circular_offsets={'succ_s':self.n_step}
         if self.recurrent:
@@ -519,7 +514,12 @@ class DQNAlgorithm(Algorithm):
             time.sleep(1)
         return regym.samples
 
-    def retrieve_values_from_storages(self, minibatch_size: int, storages: ReplayStorage=None):
+    def retrieve_values_from_storages(
+        self, 
+        minibatch_size: int, 
+        storages: ReplayStorage=None,
+        keys=None,
+    ):
         '''
         Each storage stores in their key entries either numpy arrays or hierarchical dictionnaries of numpy arrays.
         This function samples from each storage, concatenate the sampled elements on the batch dimension,
@@ -528,7 +528,8 @@ class DQNAlgorithm(Algorithm):
         torch.set_grad_enabled(False)
         if storages is None: storages = self.storages
 
-        keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
+        if keys is None:
+            keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
 
         fulls = {}
         
@@ -536,14 +537,11 @@ class DQNAlgorithm(Algorithm):
             fulls['importanceSamplingWeights'] = []
 
         if self.recurrent:
-            keys += ['rnn_states', 'next_rnn_states']
+            if 'rnn_states' not in keys:
+                keys += ['rnn_states']
+            if 'next_rnn_states' not in keys:
+                keys += ['next_rnn_states']
         
-        """
-        # depr : goal update
-        if self.goal_oriented:
-            keys += ['g']
-        """
-
         for key in keys:    fulls[key] = []
 
         using_ray = isinstance(storages[0], ray.actor.ActorHandle)
