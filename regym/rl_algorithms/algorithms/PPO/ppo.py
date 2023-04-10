@@ -204,8 +204,8 @@ class PPOAlgorithm(Algorithm):
                     self.predict_intr_model.parameters(), 
                     lr=lr,
                     #TODO: find original paper values: betas=(0.9, 0.999),
-                    eps=float(self.kwargs['adam_eps']),
-                    weight_decay=float(self.kwargs.get('adam_weight_decay', 0.0)),
+                    eps=float(self.kwargs.get('rnd_adam_eps', self.kwargs['adam_eps'])),
+                    weight_decay=float(self.kwargs.get('rnd_adam_weight_decay', 0.0)),
                 )
             
             self.optimizer = optim.Adam(
