@@ -65,7 +65,6 @@ class R2D2Algorithm(DQNAlgorithm):
             self.keys += ['rnn_states']
             self.circular_keys.update({'next_rnn_states':'rnn_states'})
             self.circular_offsets.update({'next_rnn_states':1})
-
          
         # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         self.circular_keys={'succ_s':'s'}
@@ -83,6 +82,10 @@ class R2D2Algorithm(DQNAlgorithm):
             loss_fn=loss_fn, 
             sum_writer=sum_writer
         )
+        
+        self.keys_to_retrieve = ['s', 'a', 'succ_s', 'r', 'non_terminal']
+        if self.recurrent:  
+            self.keys_to_retrieve += ['rnn_states', 'next_rnn_states']
         
         self.storage_buffer_refresh_period = 32
         self.storage_buffers = [list() for _ in range(self.nbr_actor)]

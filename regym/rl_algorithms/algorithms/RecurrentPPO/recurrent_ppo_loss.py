@@ -20,49 +20,55 @@ from regym.rl_algorithms.algorithms.R2D2.r2d2_loss import roll_sequences, batche
 
 use_BPTT = True
 
-def compute_loss(states: torch.Tensor,
-                 actions: torch.Tensor,
-                 next_states: torch.Tensor,
-                 rewards: torch.Tensor,
-                 non_terminals: torch.Tensor,
-                 model: torch.nn.Module,
-                 target_model: torch.nn.Module,
-                 gamma: float = 0.99,
-                 weights_decay_lambda: float = 0.0,
-                 weights_entropy_lambda: float = 0.0,
-                 weights_entropy_reg_alpha: float = 0.0,
-                 HER_target_clamping: bool = False,
-                 summary_writer: object = None,
-                 iteration_count: int = 0,
-                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
-                 next_rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
-                 kwargs:Optional[Dict]=None) -> torch.Tensor:
+def compute_loss(
+    samples: Dict[str, torch.Tensor],
+    models: Dict[str, torch.nn.Module],
+    summary_writer: object = None,
+    iteration_count: int = 0,
+    kwargs:Optional[Dict[str, object]]=None,
+) -> torch.Tensor:
     '''
-    :param states: Dimension: batch_size x unroll_length x state_size: States visited by the agent.
-    :param actions: Dimension: batch_size x unroll_length x action_size. Actions which the agent
+    Computes the loss of an actor critic model using the
+    loss function from equation (9) in the paper:
+    Proximal Policy Optimization Algorithms: https://arxiv.org/abs/1707.06347
+
+    :param samples: Dictionnary of many different possible elements:
+        :param states: Dimension: batch_size x unroll_length x state_size: States visited by the agent.
+        :param actions: Dimension: batch_size x unroll_length x action_size. Actions which the agent
                     took at every state in :param states: with the same index.
-    :param next_states: Dimension: batch_size x unroll_length x state_size: Next sequence of unrolled states visited by the agent.
-    :param non_terminals: Dimension: batch_size x unroll_length x 1: Non-terminal integers.
-    :param rewards: Dimension: batch_size x unroll_length x 1. Environment rewards, or n-step returns if using n-step returns.
-    :param model: torch.nn.Module used to compute the loss.
-    :param target_model: torch.nn.Module used to compute the loss.
-    :param gamma: float discount factor.
-    :param weights_decay_lambda: Coefficient to be used for the weight decay loss.
-    :param rnn_states: The :param model: can be made up of different submodules.
-                       Some of these submodules will feature an LSTM architecture.
-                       This parameter is a dictionary which maps recurrent submodule names
-                       to a dictionary which contains 2 lists of tensors, each list
-                       corresponding to the 'hidden' and 'cell' states of
-                       the LSTM submodules. These tensors are used by the
-                       :param model: when calculating the policy probability ratio.
-    :param next_rnn_states: Resulting 'hidden' and 'cell' states of the LSTM submodules after
-                            feedforwarding :param states: in :param model:. See :param rnn_states:
-                            for further details on type and shape.
+        :param next_states: Dimension: batch_size x unroll_length x state_size: Next sequence of unrolled states visited by the agent.
+        :param non_terminals: Dimension: batch_size x unroll_length x 1: Non-terminal integers.
+        :param rewards: Dimension: batch_size x unroll_length x 1. Environment rewards, or n-step returns if using n-step returns.
+        :param log_probs_old: Dimension: batch_size. Log probability of taking the action with the same index in :param actions:. Used to compute the policy probability ratio. Refer to original paper equation (6)
+        :param returns: Dimension: batch_size x 1. Empirical returns obtained via calculating the discounted return from the environment's rewards.
+        :param advantages: Dimension: batch_size. Estimated advantage function for every state and action in :param states: and :param actions: (respectively) with the same index.
+        :param std_advantages: Dimension: batch_size. Estimated standardized advantage function for every state and action in :param states: and :param actions: (respectively) with the same index.
+        :param rnn_states: The :param model: can be made up of different submodules. Some of these submodules will feature an LSTM architecture. This parameter is a dictionary which maps recurrent submodule names to a dictionary which contains 2 lists of tensors, each list corresponding to the 'hidden' and 'cell' states of the LSTM submodules. These tensors are used by the :param model: when calculating the policy probability ratio.
+        :param next_rnn_states: Resulting 'hidden' and 'cell' states of the LSTM submodules after feedforwarding :param states: in :param model:. See :param rnn_states: for further details on type and shape.
+    :param models: Dictionnary of all the necessary models, e.g. training model and target model : torch.nn.Module used to compute the loss.
+    :param kwargs: Dictionnary of different hyperparameters such as :
+        :param gamma: float discount factor.
+        :param weights_decay_lambda: Coefficient to be used for the weight decay loss.
+        :param use_std_adv: bool deciding whether to use a standardized advantage or not.
+        :param ratio_clip: Epsilon value used to clip the policy ratio's value. This parameter acts as the radius of the Trust Region. Refer to original paper equation (7).
+        :param entropy_weight: Coefficient to be used for the entropy bonus for the loss function. Refer to original paper eq (9).
+        :param value_weight: Coefficient to be used for the value loss for the loss function. Refer to original paper eq (9).
     '''
     #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
     unroll_length = states.shape[1]
-    map_keys=['qa', 'a', 'ent', 'legal_ent']
+    map_keys=['v','log_pi_a', 'a', 'ent', 'legal_ent']
+    
+    states = samples['states']
+    actions = samples['actions']
+    non_terminals = samples['non_terminals']
+    rnn_states = samples['rnn_states']
+    returns = samples['returns']
+    advantages = samples['advantages']
+    std_advantages = samples['std_advantages']
+    log_probs_old = samples['log_probs_old']
+
+    model = models['model']
 
     start = time.time()
     assign_fn = None
@@ -84,11 +90,28 @@ def compute_loss(states: torch.Tensor,
             time_indices_end=kwargs['sequence_replay_unroll_length'],
             preprocess_fn= None if use_BPTT else (lambda x:x.detach()), # not performing BPTT
         )
-        _, training_rewards = torch.split(
-            rewards, 
+        _, training_returns = torch.split(
+            returns, 
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
         )
+        _, training_advantages = torch.split(
+            advantages, 
+            split_size_or_sections=[burn_in_length, training_length],
+            dim=1
+        )
+        _, training_std_advantages = torch.split(
+            std_advantages, 
+            split_size_or_sections=[burn_in_length, training_length],
+            dim=1
+        )
+        
+        _, training_log_probs_olds = torch.split(
+            log_probs_old, 
+            split_size_or_sections=[burn_in_length, training_length],
+            dim=1
+        )
+
         burn_in_non_terminals, training_non_terminals = torch.split(
             non_terminals, 
             split_size_or_sections=[burn_in_length, training_length],
@@ -117,22 +140,6 @@ def compute_loss(states: torch.Tensor,
             map_keys=map_keys,
         )
 
-        #target_model.reset_noise()
-
-        burned_in_target_predictions, \
-        unrolled_target_predictions, \
-        burned_in_rnn_states_target_inputs = batched_unrolled_inferences(
-            unroll_length=burn_in_length,
-            model=target_model, 
-            states=states, #burn_in_states, 
-            non_terminals=burn_in_non_terminals,
-            rnn_states=rnn_states,
-            grad_enabler=False,
-            use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
-            extras=False,
-            map_keys=map_keys,
-        )
-
         # Replace the burned in rnn states in the training rnn states:
         training_rnn_states = replace_rnn_states_at_time_indices(
             rnn_states_batched=_training_rnn_states, 
@@ -142,23 +149,16 @@ def compute_loss(states: torch.Tensor,
             assign_fn=assign_fn,
         )
 
-        training_target_rnn_states = replace_rnn_states_at_time_indices(
-            rnn_states_batched=_training_rnn_states, 
-            replacing_rnn_states_batched=burned_in_rnn_states_target_inputs, 
-            time_indices_start=0, 
-            time_indices_end=0,
-            assign_fn=assign_fn,
-        )
     else:
         training_length = unroll_length
         training_states = states 
         training_actions = actions 
-        training_rewards = rewards
         training_non_terminals = non_terminals
         training_rnn_states = rnn_states
-        training_target_rnn_states = rnn_states
-
-    training_next_states = next_states
+        training_returns = returns
+        training_advantages = advantages
+        training_std_advantages = std_advantages
+        training_log_probs_old = log_probs_old
 
     # Unrolled predictions is using the stored RNN states.
     # burned_in_predictions is using the online RNN states computed in the function loop.
@@ -175,52 +175,54 @@ def compute_loss(states: torch.Tensor,
         map_keys=map_keys,
     )
 
-    #target_model.reset_noise()
-
-    training_burned_in_target_predictions, \
-    training_unrolled_target_predictions, _ = batched_unrolled_inferences(
-        unroll_length=training_length,
-        model=target_model, 
-        states=training_states, 
-        non_terminals=training_non_terminals,
-        rnn_states=training_target_rnn_states,
-        grad_enabler=False,
-        use_zero_initial_states=kwargs['sequence_replay_use_zero_initial_states'],
-        extras=not(kwargs['burn_in']) or not(kwargs['sequence_replay_use_online_states']),
-        map_keys=map_keys,
-    )
-
     if kwargs['burn_in'] or kwargs['sequence_replay_use_online_states']:
         training_predictions = training_burned_in_predictions
-        training_target_predictions = training_burned_in_target_predictions
     else:
         training_predictions = training_unrolled_predictions
-        training_target_predictions = training_unrolled_target_predictions
     
-    qa_values_key = "qa"
+    #prediction = model(obs=states, action=actions, rnn_states=rnn_states)
     
-    Q_Si_values = training_predictions[qa_values_key]
-    # (batch_size, unroll_dim, ...)
-    online_greedy_action = Q_Si_values.max(dim=-1, keepdim=True)[1]#.reshape(batch_size, training_length, Q_Si_values.shape[])
-    # (batch_size, unroll_dim, ...)
+    ratio = torch.exp((training_predictions['log_pi_a'] - training_log_probs_old))
     
-    # Stable training: crucial: cf loss equation of Ape-X paper in section 3.1 Ape-X DQN:
-    Q_Si_Ai_value = Q_Si_values.gather(
-        dim=-1, 
-        index=training_actions
+    if kwargs['use_std_adv']:
+      adv = training_std_advantages
+    else:
+      adv = training_advantages
+
+    obj = ratio * adv
+    obj_clipped = torch.clamp(ratio,
+                              1.0 - kwargs['ratio_clip'],
+                              1.0 + kwargs['ratio_clip']) * adv
+    
+    import ipdb; ipdb.set_trace()
+    # TODO : check dimensions and impact of mean over whole...
+    policy_val = -torch.min(obj, obj_clipped).mean()
+    entropy_val = training_predictions['ent'].mean()
+    policy_loss = policy_val - kwargs['entropy_weight'] * entropy_val 
+    # L^{clip} and L^{S} from original paper
+    #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
+    
+    value_loss = kwargs['value_weight'] * torch.nn.functional.mse_loss(
+        input=training_predictions['v'], 
+        target=training_returns,
     )
-    # (batch_size, unroll_dim, /player_dim,/ 1)
-    
-    unscaled_targetQ_Si_A_values = inv_vfr(training_target_predictions[qa_values_key])
-    # (batch_size, training_length, /player_dim,/ num_actions)
-    
-    # Double Q learning target:
-    unscaled_targetQ_Si_onlineGreedyAction = unscaled_targetQ_Si_A_values.gather(
-        dim=-1, 
-        index=online_greedy_action
-    )
-    # (batch_size, training_length, /player_dim,/ 1)
-    
+    total_loss = policy_loss + value_loss
+
+    wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
+    wandb.log({'Training/AdvantageMean': training_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
+    wandb.log({'Training/MeanVValues': training_predictions['v'].cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/MeanReturns': returns.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/StdVValues': training_predictions['v'].cpu().std().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/StdReturns': training_returns.cpu().std().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/ValueLoss': value_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/PolicyVal': policy_val.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/EntropyVal': entropy_val.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/PolicyLoss': policy_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/TotalLoss': total_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+        
+    '''
     if weights_entropy_reg_alpha > 1.0e-12:
         # Adding entropy regularisation term for soft-DQN:
         online_target_entropy = training_target_predictions["legal_ent"]
@@ -230,39 +232,10 @@ def compute_loss(states: torch.Tensor,
         unscaled_targetQ_Si_onlineGreedyAction = weights_entropy_reg_alpha*torch.log(
             torch.exp(Q_Si_values/weights_entropy_reg_alpha).sum(dim=-1)
         ).unsqueeze(-1)
-    
-    unscaled_Q_Si_Ai_value = inv_vfr(Q_Si_Ai_value)
+    '''
 
-    if len(training_rewards.shape) > 3:
-        assert ("vdn" in kwargs and kwargs["vdn"])
-        unscaled_bellman_target_Sipn_onlineGreedyAction = torch.zeros_like(training_rewards[:,:,0])
-        for pidx in range(kwargs['vdn_nbr_players']):
-            unscaled_bellman_target_Sipn_onlineGreedyAction += compute_n_step_bellman_target(
-                training_rewards=training_rewards[:,:,pidx],
-                training_non_terminals=training_non_terminals,
-                unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction[:,:,pidx],
-                gamma=gamma,
-                kwargs=kwargs
-            )
-        unscaled_Q_Si_Ai_value = unscaled_Q_Si_Ai_value.sum(dim=2)
-    else:
-        unscaled_bellman_target_Sipn_onlineGreedyAction = compute_n_step_bellman_target(
-            training_rewards=training_rewards,
-            training_non_terminals=training_non_terminals,
-            unscaled_targetQ_Si_onlineGreedyAction=unscaled_targetQ_Si_onlineGreedyAction,
-            gamma=gamma,
-            kwargs=kwargs
-        )
-    # (batch_size, training_length, ...)
-    
-    #unscaled_bellman_target_Sipn_onlineGreedyAction = unscaled_bellman_target_Sipn_onlineGreedyAction.sum(dim=2)
-    assert len(unscaled_bellman_target_Sipn_onlineGreedyAction.shape) == 3  
-    
-    Q_Si_Ai_value = vfr(unscaled_Q_Si_Ai_value)    
-    scaled_bellman_target_Sipn_onlineGreedyAction = vfr(unscaled_bellman_target_Sipn_onlineGreedyAction)
-    
-    # Compute loss:
-    # Abs:
+    #TODO
+    '''
     if HER_target_clamping:
         # clip the unscaled target to [-50,0]
         unscaled_bellman_target_Sipn_onlineGreedyAction = torch.clamp(
@@ -270,46 +243,17 @@ def compute_loss(states: torch.Tensor,
             -1. / (1 - gamma),
             0.0
         )
-    td_error = torch.abs(unscaled_bellman_target_Sipn_onlineGreedyAction.detach() - unscaled_Q_Si_Ai_value)
-    scaled_td_error = torch.abs(scaled_bellman_target_Sipn_onlineGreedyAction.detach() - Q_Si_Ai_value)
-    assert list(td_error.shape) == [batch_size, training_length, 1]
+    '''
 
-    # Hanabi_SAD repo does not use the scaled values:
-    loss_per_item = td_error
-    diff_squared = td_error.pow(2.0)
-    # SEED RL repo uses the scaled td error for priorities:
-    #loss_per_item = scaled_td_error
-    #diff_squared = scaled_td_error.pow(2.0)
-
+    '''
     if use_PER and importanceSamplingWeights is not None:
       diff_squared = importanceSamplingWeights.reshape((batch_size, 1, 1)) * diff_squared
       assert list(diff_squared.shape) == [batch_size, training_length, 1]
+    '''
 
-    # not sure where this masking strategy comes from, maybe forget about it
-    # since the distribution of qa values is more expressive without it...
-    # the initial rational for it was to allow training on the last value only if terminal...
-    assert kwargs["r2d2_loss_masking"], "r2d2_loss_masking must be True for this test."
-    if kwargs["r2d2_loss_masking"]:
-        mask = torch.ones_like(diff_squared)
-        # Combined:
-        assert kwargs['r2d2_loss_masking_n_step_regularisation'], "debugging in progress"
-        if kwargs['r2d2_loss_masking_n_step_regularisation']:
-            mask[:, -kwargs["n_step"]:, ...] = (1-training_non_terminals[:,-kwargs['n_step']:,...])
-
-        loss_per_item = loss_per_item*mask
-        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['legal_ent'].mean()
-    else:
-        mask = torch.ones_like(diff_squared)
-        loss_per_item = loss_per_item*mask
-        loss = 0.5*torch.mean(diff_squared*mask)-weights_entropy_lambda*training_predictions['legal_ent'].mean()
-    
-    end = time.time()
-
-    #wandb_data = copy.deepcopy(wandb.run.history._data)
-    #wandb.run.history._data = {}
-    wandb.log({'Training/TimeComplexity':  end-start, "training_step":iteration_count}, commit=False)
-    
     if kwargs.get("logging", False):
+        raise NotImplementedError
+        # TODO : deal with next_states not being defined...
         columns = ["stimulus_(t)", "stimulus_(t-1)"]
         #columns += [f"a_(t-{v})" for v in range(4)]
         sample_table = wandb.Table(columns=columns) 
@@ -341,32 +285,11 @@ def compute_loss(states: torch.Tensor,
                 ]
             )
 
-        wandb.log({f"Training/R2D2StimuliTable":sample_table}, commit=False)
+        wandb.log({f"Training/RecurrentPPOStimuliTable":sample_table}, commit=False)
 
-    wandb.log({'Training/MeanTrainingReward':  training_rewards.cpu().mean().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MinTrainingReward':  training_rewards.cpu().min().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MaxTrainingReward':  training_rewards.cpu().max().item(), "training_step":iteration_count}, commit=False)
-
-    wandb.log({'Training/MeanTargetQsi':  unscaled_targetQ_Si_A_values.cpu().mean().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MinTargetQsi':  unscaled_targetQ_Si_A_values.cpu().min().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MaxTargetQsi':  unscaled_targetQ_Si_A_values.cpu().max().item(), "training_step":iteration_count}, commit=False)
-    
-    wandb.log({'Training/MeanBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().mean().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MinBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().min().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MaxBellmanTarget':  unscaled_bellman_target_Sipn_onlineGreedyAction.cpu().max().item(), "training_step":iteration_count}, commit=False)
-    
-    wandb.log({'Training/MeanQAValues':  training_predictions['qa'].cpu().mean().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MinQAValues':  training_predictions['qa'].cpu().min().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/MaxQAValues':  training_predictions['qa'].cpu().max().item(), "training_step":iteration_count}, commit=False)
-    
-    wandb.log({'Training/StdQAValues':  training_predictions['qa'].cpu().std().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/QAValueLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/LegalEntropyVal':  training_predictions['legal_ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
-    wandb.log({'Training/EntropyVal':  training_predictions['ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
-    
     wandb.log({}, commit=True)
     #wandb.run.history._data = wandb_data
 
-    return loss, loss_per_item
+    return total_loss.mean(), total_loss
 
 

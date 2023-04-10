@@ -153,6 +153,20 @@ class DQNAlgorithm(Algorithm):
             regym.sampling_config['keep_sampling'] = False
             regym.sampling_config['minibatch_size'] = 32
             
+            if not hasattr(self, 'keys'):
+                self.keys = ['s', 'a', 'r', 'non_terminal']
+                self.keys_to_retrieve = ['s', 'a', 'succ_s', 'r', 'non_terminal']
+                if self.recurrent:
+                    self.keys += ['rnn_states']
+                    self.keys_to_retrieve += ['rnn_states', 'next_rnn_states']
+            
+            self.kremap = {
+                's':'states',
+                'a':'actions',
+                'r':'rewards',
+                'non_terminal':'non_terminals',
+                'succ_s':'next_states',
+            }
             self.reset_storages()
             
             logger = logging.getLogger()
@@ -529,19 +543,13 @@ class DQNAlgorithm(Algorithm):
         if storages is None: storages = self.storages
 
         if keys is None:
-            keys=['s', 'a', 'succ_s', 'r', 'non_terminal']
+            keys= self.keys_to_retrieve
+            #['s', 'a', 'succ_s', 'r', 'non_terminal']
 
         fulls = {}
-        
         if self.use_PER:
             fulls['importanceSamplingWeights'] = []
 
-        if self.recurrent:
-            if 'rnn_states' not in keys:
-                keys += ['rnn_states']
-            if 'next_rnn_states' not in keys:
-                keys += ['next_rnn_states']
-        
         for key in keys:    fulls[key] = []
 
         using_ray = isinstance(storages[0], ray.actor.ActorHandle)
@@ -620,18 +628,6 @@ class DQNAlgorithm(Algorithm):
             else:
                 beta = self.storages[0].get_beta()
 
-        states = samples['s']
-        actions = samples['a']
-        next_states = samples['succ_s']
-        rewards = samples['r']
-        non_terminals = samples['non_terminal']
-
-        rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
-        next_rnn_states = samples['next_rnn_states'] if 'next_rnn_states' in samples else None
-        goals = samples['g'] if 'g' in samples else None
-
-        importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
-
         # For each actor, there is one mini_batch update:
         #sampler = list(random_sample(np.arange(states.size(0)), optimisation_minibatch_size))
         sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
@@ -639,10 +635,6 @@ class DQNAlgorithm(Algorithm):
         nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size 
         list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
                                 for storage_idx, _ in enumerate(self.storages)]
-        '''
-        list_batch_indices = [storage_idx*minibatch_size+np.arange(minibatch_size) \
-                                for storage_idx, _ in enumerate(self.storages)]
-        '''
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
@@ -653,29 +645,29 @@ class DQNAlgorithm(Algorithm):
             batch_indices = torch.from_numpy(batch_indices).long()
             sampled_batch_indices.append(batch_indices)
 
-            sampled_rnn_states = None
-            sampled_next_rnn_states = None
-            if self.recurrent:
-                sampled_rnn_states, sampled_next_rnn_states = self.sample_from_rnn_states(
-                    rnn_states, 
-                    next_rnn_states, 
-                    batch_indices, 
-                    use_cuda=self.kwargs['use_cuda']
-                )
+            sampled_samples = {}
+            for k in samples:
+                out_k = k
+                if k in self.kremap:
+                    out_k = self.kremap[k]
+                
+                v = samples[k]
+                if v is None:   
+                    sampled_samples[out_k] = None
+                    continue
+                if 'rnn' in k:
+                    v = _extract_rnn_states_from_batch_indices(
+                        v, 
+                        batch_indices, 
+                        use_cuda=self.kwargs['use_cuda'],
+                    )
+                elif self.kwargs['use_cuda']:
+                    v = v[batch_indices].cuda() 
+                else: 
+                    v = v[batch_indices]
+                
+                sampled_samples[out_k] = v
                 # (batch_size, unroll_dim, ...)
-
-            sampled_goals = None
-
-            sampled_importanceSamplingWeights = None
-            if self.use_PER:
-                sampled_importanceSamplingWeights = importanceSamplingWeights[batch_indices].cuda() if self.kwargs['use_cuda'] else importanceSamplingWeights[batch_indices]
-            
-            sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
-            sampled_actions = actions[batch_indices].cuda() if self.kwargs['use_cuda'] else actions[batch_indices]
-            sampled_next_states = next_states[batch_indices].cuda() if self.kwargs['use_cuda'] else next_states[batch_indices]
-            sampled_rewards = rewards[batch_indices].cuda() if self.kwargs['use_cuda'] else rewards[batch_indices]
-            sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
-            # (batch_size, unroll_dim, ...)
 
             #self.optimizer.zero_grad()
             
@@ -684,27 +676,21 @@ class DQNAlgorithm(Algorithm):
                 raise NotImplementedError
 	
             self.kwargs["logging"] = False # (self.param_update_counter % 32) == 0
-            loss, loss_per_item = self.loss_fn(sampled_states, 
-                                          sampled_actions, 
-                                          sampled_next_states,
-                                          sampled_rewards,
-                                          sampled_non_terminals,
-                                          rnn_states=sampled_rnn_states,
-                                          next_rnn_states=sampled_next_rnn_states,
-                                          goals=sampled_goals,
-                                          gamma=self.GAMMA,
-                                          model=self.model,
-                                          target_model=self.target_model,
-                                          weights_decay_lambda=self.weights_decay_lambda,
-                                          weights_entropy_lambda=self.weights_entropy_lambda,
-                                          weights_entropy_reg_alpha=self.weights_entropy_reg_alpha,
-                                          use_PER=self.use_PER,
-                                          PER_beta=beta,
-                                          importanceSamplingWeights=sampled_importanceSamplingWeights,
-                                          HER_target_clamping=HER_target_clamping,
-                                          iteration_count=self.param_update_counter,
-                                          summary_writer=self.summary_writer,
-                                          kwargs=self.kwargs)
+            loss, loss_per_item = self.loss_fn(
+                samples=sampled_samples,
+                models=self.get_models()
+                summary_writer=self.summary_writer,
+                iteration_count=self.param_update_counter,
+                
+                gamma=self.GAMMA,
+                weights_decay_lambda=self.weights_decay_lambda,
+                weights_entropy_lambda=self.weights_entropy_lambda,
+                weights_entropy_reg_alpha=self.weights_entropy_reg_alpha,
+                use_PER=self.use_PER,
+                PER_beta=beta,
+                HER_target_clamping=HER_target_clamping,
+                **self.kwargs,
+            )
             
             (loss/nbr_minibatches).backward(retain_graph=False)
             '''
@@ -719,8 +705,8 @@ class DQNAlgorithm(Algorithm):
                 #wandb_data = copy.deepcopy(wandb.run.history._data)
                 #wandb.run.history._data = {}
                 wandb.log({
-                    'PerUpdate/ImportanceSamplingMean':  sampled_importanceSamplingWeights.cpu().mean().item(),
-                    'PerUpdate/ImportanceSamplingStd':  sampled_importanceSamplingWeights.cpu().std().item(),
+                    'PerUpdate/ImportanceSamplingMean':  sampled_samples['importanceSamplingWeights'].cpu().mean().item(),
+                    'PerUpdate/ImportanceSamplingStd':  sampled_samples['importanceSamplingWeights'].cpu().std().item(),
                     'PerUpdate/PER_Beta':  beta
                     },
                     commit=False,

@@ -783,27 +783,13 @@ def compute_n_step_bellman_target_sad(
     return unscaled_bellman_target_Sipn_onlineGreedyAction
 
 # Adapted from: https://github.com/google-research/seed_rl/blob/34fb2874d41241eb4d5a03344619fb4e34dd9be6/agents/r2d2/learner.py#L333
-def compute_loss(states: torch.Tensor,
-                 actions: torch.Tensor,
-                 next_states: torch.Tensor,
-                 rewards: torch.Tensor,
-                 non_terminals: torch.Tensor,
-                 goals: torch.Tensor,
-                 model: torch.nn.Module,
-                 target_model: torch.nn.Module,
-                 gamma: float = 0.99,
-                 weights_decay_lambda: float = 0.0,
-                 weights_entropy_lambda: float = 0.0,
-                 weights_entropy_reg_alpha: float = 0.0,
-                 use_PER: bool = False,
-                 PER_beta: float = 1.0,
-                 importanceSamplingWeights: torch.Tensor = None,
-                 HER_target_clamping: bool = False,
-                 summary_writer: object = None,
-                 iteration_count: int = 0,
-                 rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
-                 next_rnn_states: Dict[str, Dict[str, List[torch.Tensor]]] = None,
-                 kwargs:Optional[Dict]=None) -> torch.Tensor:
+def compute_loss(
+    samples: Dict[str, torch.Tensor],
+    models: Dict[str, torch.nn.Module],
+    summary_writer: object = None,
+    iteration_count: int = 0,
+    **kwargs:Optional[Dict[str, object]]=None,
+) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x unroll_length x state_size: States visited by the agent.
     :param actions: Dimension: batch_size x unroll_length x action_size. Actions which the agent
@@ -827,6 +813,27 @@ def compute_loss(states: torch.Tensor,
                             feedforwarding :param states: in :param model:. See :param rnn_states:
                             for further details on type and shape.
     '''
+	states = samples['states']
+	actions = samples['actions']
+	next_states = samples['next_states']
+	rewards = samples['rewards']
+	non_terminals = samples['non_terminals']
+	goals = samples['goals']
+	rnn_states = samples['rnn_states']
+	next_rnn_states = samples['next_rnn_states']
+    importanceSamplingWeights = samples['importanceSamplingWeights']
+    
+    model = models['model']
+	target_model = models['target_model']
+	
+    gamma = kwargs['gamma']
+	weights_decay_lambda = kwargs['weights_decay_lambda']
+	weights_entropy_lambda = kwargs['weights_entropy_lambda']
+	weights_entropy_reg_alpha = kwargs['weights_entropy_reg_alpha']
+	use_PER = kwargs['use_PER']
+	PER_beta = kwargs['PER_beta']
+	HER_target_clamping = kwargs['HER_target_clamping']
+    
     #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
     unroll_length = states.shape[1]

@@ -216,38 +216,28 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         # directly after the current unrolled sequence s:
         self.circular_offsets={'succ_s':1}
         
-        self.storages = None
-        self.use_mp = False 
-        if self.use_mp:
-            #torch.multiprocessing.freeze_support()
-            if not hasattr(regym, 'AlgoManager'):
-                torch.multiprocessing.set_start_method("forkserver")#, force=True)
-                regym.AlgoManager = mp.Manager()
-            #regym.RegymManager = SyncManager()
-            #regym.RegymManager.start()
+        self.keys_to_retrieve = [
+            's','a','non_terminal','ret','adv','std_adv', 
+            'v','log_pi_a','ent',
+        ] #copy.deepcopy(self.keys)
+        if self.recurrent:  
+            self.keys_to_retrieve += ['rnn_states', 'next_rnn_states']
+        
+        self.kremap = {
+            's':'states',
+            'a':'actions',
+            'ret':'returns',
+            'adv':'advantages',
+            'std_adv':'std_advantages',
+            'non_terminal':'non_terminals',
+            'log_pi_a':'log_probs_old',
 
-            regym.samples = regym.AlgoManager.dict()
-            regym.sampling_config = regym.AlgoManager.dict()
-            regym.sampling_config['stay_on'] = True
-            regym.sampling_config['keep_sampling'] = False
-            regym.sampling_config['minibatch_size'] = 32
-            
-            self.reset_storages()
-            
-            logger = logging.getLogger()
-            logger.setLevel(logging.DEBUG)
-            
-            regym.sampling_process = mp.Process(
-                target=self._mp_sampling,
-                kwargs={
-                    'storages':self.storages,
-                    'sampling_config':regym.sampling_config,
-                    'samples':regym.samples,
-                },
-            )
-            regym.sampling_process.start()
-        else:
-            self.reset_storages()
+            'v':'v',
+            'ent':'ent',
+        }
+        
+        self.storages = None
+        self.reset_storages()
         
         self.storage_buffers = [list() for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
@@ -289,7 +279,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         succ_s = self.storages[storage_idx].succ_s
         rnn_states = self.storages[storage_idx].rnn_states
 
-        advantages, returns = self._compute_advantages_and_returns(
+        out_d = self._compute_advantages_and_returns(
             r=r,
             v=v,
             v_key=v_key,
@@ -302,8 +292,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             normalizer=normalizer,
         )
 
-        self.storages[storage_idx].adv = advantages
-        self.storages[storage_idx].adv = returns
+        self.storages[storage_idx].adv = out_d['advantages']
+        self.storages[storage_idx].ret = out_d['returns']
         
         return 
 
@@ -322,6 +312,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
     ):
         torch.set_grad_enabled(False)
         
+        import ipdb; ipdb.set_trace()
+        # TODO : Need to regularise the unroll dim:
         ret = torch.zeros_like(r)
         adv = torch.zeros_like(r)
 
@@ -366,7 +358,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             adv[i] = advantages.detach()
             ret[i] = returns.detach()
         
-        return ret, adv
+        return {'returns':ret, 'advantages':adv}
 
     def train(self, minibatch_size:int=None):
         global summary_writer
@@ -404,11 +396,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         start = time.time()
         #samples = self.retrieve_values_from_storages()
-        if self.use_mp:
-            raise NotImplementedError
-            samples = self._retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
-        else:
-            samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
+        samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
         end = time.time()
 
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
@@ -429,4 +417,3 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         self.reset_storages()
 
 
-      
