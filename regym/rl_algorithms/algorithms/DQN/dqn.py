@@ -678,7 +678,7 @@ class DQNAlgorithm(Algorithm):
             self.kwargs["logging"] = False # (self.param_update_counter % 32) == 0
             loss, loss_per_item = self.loss_fn(
                 samples=sampled_samples,
-                models=self.get_models()
+                models=self.get_models(),
                 summary_writer=self.summary_writer,
                 iteration_count=self.param_update_counter,
                 

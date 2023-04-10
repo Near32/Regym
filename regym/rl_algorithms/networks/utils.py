@@ -165,26 +165,13 @@ def ResizeCNNInterpolationFunction(x, size, use_cuda=False, normalize_rgb_values
                                  to interval (0-1)
     '''
     x = np.array(x).astype(np.float32)
-    
-    h,w = x.shape[1:3]
-    '''
-    osize = h
-    if h != w:
-        osize = max([h, w])
-        b = x.shape[0]
-        c = x.shape[3]
-        x_flat = x.reshape((-1, h, w))
-        xs = []
-        for idx in range(x_flat.shape[0]):
-            xs.append( cv2.resize(x_flat[idx], (osize, osize)).reshape((1, osize, osize)))
-        xs = np.concatenate(xs, axis=0)
-        x = xs.reshape((b, osize, osize, c))
-
-    scaling_factor = float(size)/osize
-    '''
     b = x.shape[0]
-    c = x.shape[3]
-    x = x.transpose(0, 3, 1, 2)
+    shape = x.shape
+    if shape[-1]==shape[-2]:
+        c,h,w = x.shape[1:]
+    else:
+        h,w,c = x.shape[1:]
+        x = x.transpose(0, 3, 1, 2)
     # b x c x h x w 
     if size is not None and size != h:
         x_flat = x.reshape((-1, h, w))

@@ -45,7 +45,9 @@ setup(
       'tensorboardx',
       'opencv-python',
       # PREVIOUSLY: 'torch',#==1.8.1',
-      'torch==1.12.0',
+      # THEN : 'torch==1.12.0',
+      # NOW:
+      'torch==1.13.1',
       'torchvision',
       'cvxopt',
       'scipy',
@@ -59,7 +61,7 @@ setup(
       'h5py',
       'seaborn',
       'pyglet',
-      'wandb==0.12.21',
+      'wandb>=0.12.21',
     ] + test_requirements,
 
     python_requires=">=3.6",

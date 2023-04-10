@@ -203,11 +203,6 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             'adv', 'ret', 'qa', 'log_pi_a',
             'mean', 'action_logits', 'succ_info',
         ]
-        if self.recurrent:
-            self.keys.append('rnn_states')
-            self.circular_keys.update({'next_rnn_states':'rnn_states'})
-            self.circular_offsets.update({'next_rnn_states':1})
-          
         # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         self.circular_keys={'succ_s':'s'}
         # On the contrary to DQNAlgorithm,
@@ -216,6 +211,11 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         # directly after the current unrolled sequence s:
         self.circular_offsets={'succ_s':1}
         
+        if self.recurrent:
+            self.keys.append('rnn_states')
+            self.circular_keys.update({'next_rnn_states':'rnn_states'})
+            self.circular_offsets.update({'next_rnn_states':1})
+          
         self.keys_to_retrieve = [
             's','a','non_terminal','ret','adv','std_adv', 
             'v','log_pi_a','ent',

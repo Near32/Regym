@@ -3,7 +3,7 @@ from os import listdir
 from os.path import isfile, join
 from typing import List, Callable, Tuple, Any
 import torch
-from .agents import [
+from .agents import (
     TabularQLearningAgent, 
     DQNAgent, 
     THERAgent, 
@@ -11,7 +11,7 @@ from .agents import [
     RecurrentPPOAgent, 
     A2CAgent, 
     MixedStrategyAgent,
-]
+)
 from enum import Enum
 
 AgentType = Enum("AgentType", "DQN THER TQL PPO A2C MixedStrategyAgent")

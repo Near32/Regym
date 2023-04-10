@@ -58,14 +58,9 @@ class R2D2Algorithm(DQNAlgorithm):
         
         # TECHNICAL DEBT: check for recurrent property by looking at the modules in the model rather than relying on the kwargs that may contain
         # elements that do not concern the model trained by this algorithm, given that it is now use-able inside I2A...
-        self.recurrent_nn_submodule_names = [hyperparameter for hyperparameter, value in self.kwargs.items() if isinstance(value, str) and 'RNN' in value]
+        self.recurrent_nn_submodule_names = [hyperparameter for hyperparameter, value in kwargs.items() if isinstance(value, str) and 'RNN' in value]
 
         self.keys = ['s', 'a', 'r', 'non_terminal']
-        if self.recurrent:  
-            self.keys += ['rnn_states']
-            self.circular_keys.update({'next_rnn_states':'rnn_states'})
-            self.circular_offsets.update({'next_rnn_states':1})
-         
         # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
         self.circular_keys={'succ_s':'s'}
         # On the contrary to DQNAlgorithm,
@@ -74,6 +69,11 @@ class R2D2Algorithm(DQNAlgorithm):
         # directly after the current unrolled sequence s:
         self.circular_offsets={'succ_s':1}
         
+        if self.recurrent:  
+            self.keys += ['rnn_states']
+            self.circular_keys.update({'next_rnn_states':'rnn_states'})
+            self.circular_offsets.update({'next_rnn_states':1})
+         
         super().__init__(
             kwargs=kwargs, 
             model=model, 

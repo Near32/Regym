@@ -788,7 +788,7 @@ def compute_loss(
     models: Dict[str, torch.nn.Module],
     summary_writer: object = None,
     iteration_count: int = 0,
-    **kwargs:Optional[Dict[str, object]]=None,
+    **kwargs:Optional[Dict[str, object]],#=None,
 ) -> torch.Tensor:
     '''
     :param states: Dimension: batch_size x unroll_length x state_size: States visited by the agent.
@@ -813,26 +813,26 @@ def compute_loss(
                             feedforwarding :param states: in :param model:. See :param rnn_states:
                             for further details on type and shape.
     '''
-	states = samples['states']
-	actions = samples['actions']
-	next_states = samples['next_states']
-	rewards = samples['rewards']
-	non_terminals = samples['non_terminals']
-	goals = samples['goals']
-	rnn_states = samples['rnn_states']
-	next_rnn_states = samples['next_rnn_states']
+    states = samples['states']
+    actions = samples['actions']
+    next_states = samples['next_states']
+    rewards = samples['rewards']
+    non_terminals = samples['non_terminals']
+    goals = samples['goals']
+    rnn_states = samples['rnn_states']
+    next_rnn_states = samples['next_rnn_states']
     importanceSamplingWeights = samples['importanceSamplingWeights']
     
     model = models['model']
-	target_model = models['target_model']
-	
+    target_model = models['target_model']
+    
     gamma = kwargs['gamma']
-	weights_decay_lambda = kwargs['weights_decay_lambda']
-	weights_entropy_lambda = kwargs['weights_entropy_lambda']
-	weights_entropy_reg_alpha = kwargs['weights_entropy_reg_alpha']
-	use_PER = kwargs['use_PER']
-	PER_beta = kwargs['PER_beta']
-	HER_target_clamping = kwargs['HER_target_clamping']
+    weights_decay_lambda = kwargs['weights_decay_lambda']
+    weights_entropy_lambda = kwargs['weights_entropy_lambda']
+    weights_entropy_reg_alpha = kwargs['weights_entropy_reg_alpha']
+    use_PER = kwargs['use_PER']
+    PER_beta = kwargs['PER_beta']
+    HER_target_clamping = kwargs['HER_target_clamping']
     
     #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]

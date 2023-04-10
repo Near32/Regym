@@ -1079,7 +1079,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         and quotient != previous_quotient:
         #and (period_count_check % period_check == 0):
             self.previous_ETHER_quotient = quotient
-            self._rg_training()
+            if self.kwargs['ETHER_use_ETHER']:
+                self._rg_training()
         
         wandb.log({'Training/ETHER/storage_length': len(self.rg_storages[0])}, commit=False)
 

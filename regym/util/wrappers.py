@@ -1840,6 +1840,9 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
             if len(action)==1:
                 # Single Agent ...
                 stepping_action = action[0].item()
+        elif isinstance(action, int):
+            # single agent, need to regularise the format :
+            action = [action*np.ones((1,),dtype=int)]
         next_observation, reward, done, next_infos = self.env.step(stepping_action)
         nbr_agent = len(next_infos)
         
