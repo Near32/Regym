@@ -15,6 +15,7 @@ from regym.rl_algorithms import build_THER2_Agent
 from regym.rl_algorithms import build_R2D2_Agent
 from regym.rl_algorithms import build_R2D3_Agent
 from regym.rl_algorithms import build_TabularQ_Agent
+from regym.rl_algorithms import build_RecurrentPPO_Agent
 from regym.rl_algorithms import build_PPO_Agent
 from regym.rl_algorithms import build_A2C_Agent
 from regym.rl_algorithms import build_DDPG_Agent
@@ -70,7 +71,8 @@ def initialize_agents(task, agent_configurations):
         if 'ther' in agent_name.lower(): return build_THER_Agent(task, config, agent_name)
         if 'r2d2' in agent_name.lower(): return build_R2D2_Agent(task, config, agent_name)
         if 'r2d3' in agent_name.lower(): return build_R2D3_Agent(task, config, agent_name)
-        if 'ppo' in agent_name.lower(): return build_PPO_Agent(task, config, agent_name)
+        if 'recurrent_ppo' in agent_name.lower(): return build_RecurrentPPO_Agent(task, config, agent_name)
+        elif 'ppo' in agent_name.lower(): return build_PPO_Agent(task, config, agent_name)
         if 'a2c' in agent_name.lower(): return build_A2C_Agent(task, config, agent_name)
         if 'ddpg' in agent_name.lower(): return build_DDPG_Agent(task, config, agent_name)
         if 'td3' in agent_name.lower(): return build_TD3_Agent(task, config, agent_name)

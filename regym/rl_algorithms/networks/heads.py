@@ -1114,6 +1114,131 @@ class CategoricalActorCriticNet(ActorCriticNet):
 
         return prediction
 
+    def get_torso(self):
+        def torso_forward(obs, action=None, rnn_states=None, goal=None):
+            self.goal_oriented = False
+            if not(self.goal_oriented):  assert(goal==None)
+            
+            if self.goal_oriented:
+                if self.goal_state_flattening:
+                    obs = torch.cat([obs, goal], dim=1)
+
+            next_rnn_states = None 
+            if rnn_states is not None:
+                next_rnn_states = copy_hdict(rnn_states)
+
+            if rnn_states is not None and 'phi_body' in rnn_states:
+                phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )
+            else:
+                phi = self.phi_body(obs)
+
+            gphi = None
+            if self.goal_oriented and not(self.goal_state_flattening):
+                if rnn_states is not None and 'goal_phi_body' in rnn_states:
+                    gphi, next_rnn_states['goal_phi_body'] = self.goal_phi_body( (goal, rnn_states['goal_phi_body']) )
+                else:
+                    gphi = self.phi_body(goal)
+
+                phi = torch.cat([phi, gphi], dim=1)
+
+            return phi, next_rnn_states
+
+        return torso_forward
+
+    def get_head(self):
+        def head_forward(phi, action=None, rnn_states=None, goal=None):
+            batch_size = phi.shape[0]
+            
+            next_rnn_states = None 
+            if rnn_states is not None:
+                next_rnn_states = copy_hdict(rnn_states)
+
+            if rnn_states is not None and 'actor_body' in rnn_states:
+                phi_a, next_rnn_states['actor_body'] = self.actor_body( (phi, rnn_states['actor_body']) )
+            else:
+                phi_a = self.actor_body(phi)
+
+            if 'final_actor_layer' in rnn_states:
+                extra_inputs = extract_subtree(
+                    in_dict=rnn_states['final_actor_layer'],
+                    node_id='extra_inputs',
+                )
+            
+                extra_inputs = [v[0].to(phi_a.dtype).to(phi_a.device) for v in extra_inputs.values()]
+                if len(extra_inputs): phi_a = torch.cat([phi_a]+extra_inputs, dim=-1)
+            
+            if rnn_states is not None and 'critic_body' in rnn_states:
+                phi_v, next_rnn_states['critic_body'] = self.critic_body( (phi, rnn_states['critic_body']) )
+            else:
+                phi_v = self.critic_body(phi)
+
+            if 'final_critic_layer' in rnn_states:
+                extra_inputs = extract_subtree(
+                    in_dict=rnn_states['final_critic_layer'],
+                    node_id='extra_inputs',
+                )
+            
+                extra_inputs = [v[0].to(phi_v.dtype).to(phi_v.device) for v in extra_inputs.values()]
+                if len(extra_inputs): phi_v = torch.cat([phi_v]+extra_inputs, dim=-1)
+            
+            # batch x action_dim
+            v = self.fc_critic(phi_v)
+            if self.use_intrinsic_critic:
+                int_v = self.fc_int_critic(phi_v)
+            # batch x 1
+
+            # NORMAL:
+            logits = self.fc_action(phi_a)
+            probs = F.softmax( logits, dim=-1 )
+            #https://github.com/pytorch/pytorch/issues/7014
+            #probs = torch.clamp(probs, -1e10, 1e10)
+            #log_probs = F.log_softmax(logits, dim=-1)
+            log_probs = torch.log(probs+EPS)
+            entropy = -torch.sum(probs*log_probs, dim=-1)#, keepdim=True)
+            # batch #x 1
+            
+            legal_actions = torch.ones_like(logits)
+            if 'head' in rnn_states \
+            and 'extra_inputs' in rnn_states['head'] \
+            and 'legal_actions' in rnn_states['head']['extra_inputs']:
+                legal_actions = rnn_states['head']['extra_inputs']['legal_actions'][0]
+                next_rnn_states['head'] = rnn_states['head']
+            legal_actions = legal_actions.to(logits.device)
+            
+            # The following accounts for player dimension if VDN:
+            legal_qa = (1+logits-logits.min(dim=-1, keepdim=True)[0]) * legal_actions
+            
+            greedy_action = legal_qa.max(dim=-1, keepdim=True)[1]
+            if action is None:
+                #action = (probs+EPS).multinomial(num_samples=1).squeeze(1)
+                #action = torch.multinomial( probs, num_samples=1).squeeze(1)
+                action = torch.multinomial(legal_qa.softmax(dim=-1), num_samples=1)#.reshape((batch_size,))
+                # batch #x 1
+            #log_probs = log_probs.gather(1, action.unsqueeze(1)).squeeze(1)
+            log_probs = log_probs.gather(1, action).squeeze(1)
+            # batch #x 1
+            
+            prediction = {
+                'a': action,
+                'greedy_action': greedy_action,
+                'log_pi_a': log_probs,
+                'action_logits': logits,
+                'ent': entropy,
+                'v': v
+            }
+        
+            if self.use_intrinsic_critic:
+                prediction['int_v'] = int_v
+            
+            prediction.update({
+                'rnn_states': rnn_states,
+                'next_rnn_states': next_rnn_states}
+            )
+            
+            return prediction
+        
+        return head_forward
+
 
 class CategoricalActorCriticVAENet(CategoricalActorCriticNet):
     def __init__(self,
@@ -1132,3 +1257,5 @@ class CategoricalActorCriticVAENet(CategoricalActorCriticNet):
 
     def compute_vae_loss(self, states):
         return self.network.phi_body.compute_vae_loss(states)
+
+

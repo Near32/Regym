@@ -79,9 +79,6 @@ class RecurrentPPOAgent(R2D2Agent):
         return 
 
     def clone(self, training=None, with_replay_buffer=False, clone_proxies=False, minimal=False):
-        '''
-        TODO: test
-        '''
         cloned_algo = self.algorithm.clone(
             with_replay_buffer=with_replay_buffer,
             clone_proxies=clone_proxies,
@@ -115,9 +112,6 @@ class RecurrentPPOAgent(R2D2Agent):
 
 
     def get_async_actor(self, training=None, with_replay_buffer=False):
-        '''
-        TODO: test
-        '''
         self.async_learner = True
         self.async_actor = False
 

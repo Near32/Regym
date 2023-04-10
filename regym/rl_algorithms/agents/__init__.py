@@ -7,6 +7,7 @@ from .r2d3_agent import build_R2D3_Agent, R2D3Agent
 from .ther_agent import build_THER_Agent, THERAgent
 from .ther2_agent import build_THER2_Agent, THER2Agent
 from .ppo_agent import build_PPO_Agent, PPOAgent
+from .recurrent_ppo_agent import build_RecurrentPPO_Agent, RecurrentPPOAgent
 from .reinforce_agent import build_Reinforce_Agent, ReinforceAgent
 from .a2c_agent import build_A2C_Agent, A2CAgent
 from .ddpg_agent import build_DDPG_Agent, DDPGAgent
