@@ -818,7 +818,7 @@ def compute_loss(
     next_states = samples['next_states']
     rewards = samples['rewards']
     non_terminals = samples['non_terminals']
-    goals = samples['goals']
+    goals = None #samples['goals']
     rnn_states = samples['rnn_states']
     next_rnn_states = samples['next_rnn_states']
     importanceSamplingWeights = samples['importanceSamplingWeights']
@@ -827,11 +827,11 @@ def compute_loss(
     target_model = models['target_model']
     
     gamma = kwargs['gamma']
-    weights_decay_lambda = kwargs['weights_decay_lambda']
-    weights_entropy_lambda = kwargs['weights_entropy_lambda']
-    weights_entropy_reg_alpha = kwargs['weights_entropy_reg_alpha']
+    weights_decay_lambda = float(kwargs.get('weights_decay_lambda', 0.0))
+    weights_entropy_lambda = float(kwargs.get('weights_entropy_lambda', 0.0))
+    weights_entropy_reg_alpha = float(kwargs.get('weights_entropy_reg_alpha', 0.0))
     use_PER = kwargs['use_PER']
-    PER_beta = kwargs['PER_beta']
+    PER_beta = kwargs['PER_running_beta']
     HER_target_clamping = kwargs['HER_target_clamping']
     
     #torch.autograd.set_detect_anomaly(True)

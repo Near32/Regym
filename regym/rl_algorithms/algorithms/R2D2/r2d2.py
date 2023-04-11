@@ -83,6 +83,13 @@ class R2D2Algorithm(DQNAlgorithm):
             sum_writer=sum_writer
         )
         
+        self.kremap = {
+            's':'states',
+            'a':'actions',
+            'r':'rewards',
+            'non_terminal':'non_terminals',
+            'succ_s':'next_states',
+        }
         self.keys_to_retrieve = ['s', 'a', 'succ_s', 'r', 'non_terminal']
         if self.recurrent:  
             self.keys_to_retrieve += ['rnn_states', 'next_rnn_states']

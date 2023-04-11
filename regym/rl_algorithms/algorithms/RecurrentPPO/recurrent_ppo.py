@@ -141,20 +141,20 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         self.nbr_actor = self.kwargs['nbr_actor']
         
         self.n_step = 1
+        # LEGACY:
+        '''
         if self.kwargs.get('n_step', None) is not None:
             raise NotImplementedError
         
         if self.n_step > 1:
             self.n_step_buffers = [deque(maxlen=self.n_step) for _ in range(self.nbr_actor)]
 
+        '''
+
         self.use_PER = self.kwargs['use_PER']
 
-        self.weights_decay_lambda = float(self.kwargs.get('weights_decay_lambda', 0.0))
-        self.weights_entropy_lambda = float(self.kwargs.get('weights_entropy_lambda', 0.0))
-        self.weights_entropy_reg_alpha = float(self.kwargs.get('weights_entropy_reg_alpha', 0.0))
-        
-        
-        # TODO : self.min_capacity = int(float(kwargs["min_capacity"]))
+        # TODO : check it is okey...
+        # self.min_capacity = int(float(kwargs["min_capacity"]))
         self.horizon = kwargs['horizon']
         self.min_capacity = horizon*self.nbr_actor
         self.batch_size = int(kwargs["batch_size"])

@@ -87,11 +87,6 @@ class DQNAlgorithm(Algorithm):
 
         assert (self.use_HER and self.goal_oriented) or not(self.goal_oriented)
 
-        self.weights_decay_lambda = float(self.kwargs['weights_decay_lambda']) if 'weights_decay_lambda' in self.kwargs else 0.0
-        self.weights_entropy_lambda = float(self.kwargs['weights_entropy_lambda']) if 'weights_entropy_lambda' in self.kwargs else 0.0
-        self.weights_entropy_reg_alpha = float(self.kwargs.get('weights_entropy_reg_alpha', 0.0))
-        
-        
         self.model = model
         if self.kwargs['use_cuda']:
             self.model = self.model.cuda()
@@ -629,8 +624,8 @@ class DQNAlgorithm(Algorithm):
                 beta = self.storages[0].get_beta()
 
         # For each actor, there is one mini_batch update:
-        #sampler = list(random_sample(np.arange(states.size(0)), optimisation_minibatch_size))
-        sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
+        #sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
+        sampler = list(random_sample(np.arange(samples['s'].size(0)), minibatch_size))
         nbr_minibatches = len(sampler)
         nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size 
         list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
@@ -671,7 +666,6 @@ class DQNAlgorithm(Algorithm):
 
             #self.optimizer.zero_grad()
             
-            HER_target_clamping = self.kwargs['HER_target_clamping'] if 'HER_target_clamping' in self.kwargs else False
             if self.use_HER and 'HER_target_clamping' not in self.kwargs:
                 raise NotImplementedError
 	
@@ -683,12 +677,7 @@ class DQNAlgorithm(Algorithm):
                 iteration_count=self.param_update_counter,
                 
                 gamma=self.GAMMA,
-                weights_decay_lambda=self.weights_decay_lambda,
-                weights_entropy_lambda=self.weights_entropy_lambda,
-                weights_entropy_reg_alpha=self.weights_entropy_reg_alpha,
-                use_PER=self.use_PER,
-                PER_beta=beta,
-                HER_target_clamping=HER_target_clamping,
+                PER_running_beta=beta,
                 **self.kwargs,
             )
             
@@ -744,53 +733,48 @@ class DQNAlgorithm(Algorithm):
             self.summary_writer = summary_writer
         
         start = time.time()
-
+        torch.set_grad_enabled(False)
+        self.model.train(False)
+        
         beta = 1.0
-        # if self.use_PER:
-        #     if hasattr(self.storages[0].get_beta, "remote"):
-        #         beta_id = self.storages[0].get_beta.remote()
-        #         beta = ray.get(beta_id)
-        #     else:
-        #         beta = self.storages[0].get_beta()
-
-        states = samples['s']
-        actions = samples['a']
-        next_states = samples['succ_s']
-        rewards = samples['r']
-        non_terminals = samples['non_terminal']
-
-        rnn_states = samples['rnn_states'] if 'rnn_states' in samples else None
-        next_rnn_states = samples['next_rnn_states'] if 'next_rnn_states' in samples else None
-        goals = samples['g'] if 'g' in samples else None
-
-        #importanceSamplingWeights = samples['importanceSamplingWeights'] if 'importanceSamplingWeights' in samples else None
-
-        batch_indices = torch.arange(states.shape[0])
         
-        sampled_rnn_states = None
-        sampled_next_rnn_states = None
-        if self.recurrent:
-            sampled_rnn_states, sampled_next_rnn_states = self.sample_from_rnn_states(
-                rnn_states, 
-                next_rnn_states, 
-                batch_indices, 
-                use_cuda=self.kwargs['use_cuda']
-            )
+        batch_indices = torch.arange(samples['s'].shape[0])
+        sampled_samples = {}
+        for k in samples:
+            out_k = k
+            if k in self.kremap:
+                out_k = self.kremap[k]
+            
+            v = samples[k]
+            if v is None:   
+                sampled_samples[out_k] = None
+                continue
+            if 'rnn' in k:
+                v = _extract_rnn_states_from_batch_indices(
+                    v, 
+                    batch_indices, 
+                    use_cuda=self.kwargs['use_cuda'],
+                )
+            elif self.kwargs['use_cuda']:
+                v = v[batch_indices].cuda() 
+            else: 
+                v = v[batch_indices]
+            
+            sampled_samples[out_k] = v
             # (batch_size, unroll_dim, ...)
-
-        sampled_goals = None
-
-        sampled_importanceSamplingWeights = None
-        # if self.use_PER:
-        #     sampled_importanceSamplingWeights = importanceSamplingWeights[batch_indices].cuda() if self.kwargs['use_cuda'] else importanceSamplingWeights[batch_indices]
-        
-        sampled_states = states[batch_indices].cuda() if self.kwargs['use_cuda'] else states[batch_indices]
-        sampled_actions = actions[batch_indices].cuda() if self.kwargs['use_cuda'] else actions[batch_indices]
-        sampled_next_states = next_states[batch_indices].cuda() if self.kwargs['use_cuda'] else next_states[batch_indices]
-        sampled_rewards = rewards[batch_indices].cuda() if self.kwargs['use_cuda'] else rewards[batch_indices]
-        sampled_non_terminals = non_terminals[batch_indices].cuda() if self.kwargs['use_cuda'] else non_terminals[batch_indices]
-        # (batch_size, unroll_dim, ...)
-
+         
+        loss, loss_per_item = self.loss_fn(
+            samples=sampled_samples,
+            models=self.get_models(),
+            summary_writer=self.summary_writer,
+            iteration_count=self.param_update_counter,
+            
+            gamma=self.GAMMA,
+            PER_running_beta=beta,
+            **self.kwargs,
+        )
+            
+        '''
         loss, loss_per_item = self.loss_fn(
             sampled_states, 
             sampled_actions, 
@@ -813,6 +797,7 @@ class DQNAlgorithm(Algorithm):
             summary_writer=None,
             kwargs=self.kwargs
         )
+        '''
 
         end = time.time()
         
