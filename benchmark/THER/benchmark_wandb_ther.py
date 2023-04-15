@@ -400,7 +400,7 @@ def training_process(
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
-      use_rgb=task_config['use_rgb'],
+      add_rgb_wrapper=task_config['use_rgb'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
@@ -421,7 +421,7 @@ def training_process(
       previous_reward_action=task_config['previous_reward_action'],
       observation_key=task_config['observation_key'],
       concatenate_keys_with_obs=task_config['concatenate_keys_with_obs'],
-      use_rgb=task_config['use_rgb'],
+      add_rgb_wrapper=task_config['use_rgb'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
@@ -706,10 +706,8 @@ def main():
         type=float, 
         default=32, #1e4
     )
-    parser.add_argument("--THER_test_min_capacity", 
-        type=float, 
-        default=12, #1e4
-    )
+    parser.add_argument("--THER_test_min_capacity", type=float, default=12)
+    parser.add_argument("--THER_lock_test_storage", type=str2bool, default=False)
     parser.add_argument("--THER_predictor_nbr_minibatches", 
         type=int, 
         default=8,
