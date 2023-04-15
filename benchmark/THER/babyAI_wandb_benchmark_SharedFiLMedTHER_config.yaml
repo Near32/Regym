@@ -282,6 +282,7 @@ experiment:
         'otherplay': False,
         'nbr_frame_skipping': 0,
         'nbr_frame_stacking': 4, #1,
+        'frame_depth': 4,
         'single_life_episode': False,
         'nbr_max_random_steps': 0,
         'clip_reward': False,

@@ -466,6 +466,7 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
 
+    agent_config['task_config'] = task_config
     agent_config['nbr_actor'] = task_config['nbr_actor']
 
     regym.RegymSummaryWriterPath = base_path 
