@@ -17,7 +17,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --ETHER_rg_egocentric=False \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=40096 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=512 --ETHER_rg_accuracy_threshold=99 \
 --ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=7 \
@@ -38,7 +38,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=40 \
 --BabyAI_Bot_action_override=False \
---train_observation_budget=6144
+--train_observation_budget=60144
 
 #--ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \
 #3072
