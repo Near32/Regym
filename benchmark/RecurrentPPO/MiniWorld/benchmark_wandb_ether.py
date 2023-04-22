@@ -634,6 +634,18 @@ def main():
         help="learning rate",
         default=3e-4,
     )
+    parser.add_argument("--mini_batch_size", type=int, default=256)
+    parser.add_argument("--standardized_adv", type=str2bool, default=True)
+    parser.add_argument("--optimization_epochs", type=int, default=4)
+    parser.add_argument("--horizon", type=int, default=128)
+    parser.add_argument("--ppo_ratio_clip", type=float, default=0.1)
+    parser.add_argument("--discount", type=float, default=0.999)
+    parser.add_argument("--intrinsic_discount", type=float, default=0.99)
+    parser.add_argument("--value_weight", type=float, default=0.5)
+    parser.add_argument("--entropy_weight", type=float, default=0.01)
+    #parser.add_argument("--single_life_episode", type=str2bool, default="True",)
+    parser.add_argument("--grayscale", type=str2bool, default="False",)
+    parser.add_argument("--time_limit", type=int, default=40000)
     parser.add_argument("--ther_adam_weight_decay", 
         type=float, 
         default=0.0,
@@ -695,7 +707,7 @@ def main():
     )
     parser.add_argument("--min_capacity", 
         type=float, 
-        default=1e3,
+        default=0,
     )
     parser.add_argument("--replay_capacity", 
         type=float, 
@@ -750,6 +762,8 @@ def main():
         type=int,
         default=10,#3 #10 #5
     )
+    parser.add_argument("--use_HER", type=str2bool, default="True",)
+    parser.add_argument("--use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
@@ -773,6 +787,7 @@ def main():
     #    default=32,
     #)
     
+    parser.add_argument("--use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)

@@ -1,15 +1,15 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
 --config=miniworld_wandb_benchmark_ETHER+RPPO_config.yaml \
---n_step=3 --nbr_actor=2 --eps_greedy_alpha=2.0 \
+--nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=1e3 --replay_capacity=6e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
---sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
---sequence_replay_store_on_terminal=False --HER_target_clamping=False \
+--HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
---ETHER_use_ETHER=False --THER_use_THER=True \
+--use_HER=False --use_ETHER=False --use_THER=False \
+--ETHER_use_ETHER=False --THER_use_THER=False \
 --ETHER_rg_shared_architecture=True \
 --ETHER_use_supervised_training=False \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\

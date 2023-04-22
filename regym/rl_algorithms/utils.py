@@ -251,10 +251,12 @@ def _extract_from_rnn_states(rnn_states_batched: Dict,
     return rnn_states
 
 
-def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
-                                           batch_indices: torch.Tensor,
-                                           use_cuda: bool=False,
-                                           map_keys: Optional[List]=None): #['hidden', 'cell']):
+def _extract_rnn_states_from_batch_indices(
+    rnn_states_batched: Dict,
+    batch_indices: torch.Tensor,
+    use_cuda: bool=False,
+    map_keys: Optional[List]=None,
+): 
     if rnn_states_batched is None:  return None
 
     rnn_states = {k: {} for k in rnn_states_batched}
@@ -280,6 +282,45 @@ def _extract_rnn_states_from_batch_indices(rnn_states_batched: Dict,
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name],
                 batch_indices=batch_indices,
+                use_cuda=use_cuda,
+                map_keys=map_keys
+            )
+    return rnn_states
+
+
+def _extract_rnn_states_from_seq_indices(
+    rnn_states_batched: Dict,
+    seq_indices: torch.Tensor,
+    use_cuda: bool=False,
+    map_keys: Optional[List]=None,
+): 
+    if rnn_states_batched is None:  return None
+
+    rnn_states = {k: {} for k in rnn_states_batched}
+    for recurrent_submodule_name in rnn_states_batched:
+        if is_leaf(rnn_states_batched[recurrent_submodule_name]):
+            rnn_states[recurrent_submodule_name] = {}
+            eff_map_keys = map_keys if map_keys is not None else rnn_states_batched[recurrent_submodule_name].keys()
+            for key in eff_map_keys:
+                if key in rnn_states_batched[recurrent_submodule_name]:
+                    rnn_states[recurrent_submodule_name][key] = []
+                    for idx in range(len(rnn_states_batched[recurrent_submodule_name][key])):
+                        value = rnn_states_batched[recurrent_submodule_name][key][idx]
+                        sparse_v = False
+                        if value.is_sparse:
+                            sparse_v = True
+                            value = value.to_dense()
+                        new_value = value[:, seq_indices,...]
+                        if len(seq_indices) == 1:
+                            new_value = new_value.squeeze(1)
+                        if use_cuda: new_value = new_value.cuda()
+                        if sparse_v:
+                            new_value = new_value.to_sparse()
+                        rnn_states[recurrent_submodule_name][key].append(new_value)
+        else:
+            rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_seq_indices(
+                rnn_states_batched=rnn_states_batched[recurrent_submodule_name],
+                seq_indices=seq_indices,
                 use_cuda=use_cuda,
                 map_keys=map_keys
             )

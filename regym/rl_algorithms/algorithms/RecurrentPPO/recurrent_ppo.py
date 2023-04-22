@@ -3,10 +3,12 @@ from typing import Dict, List, Any, Optional, Callable
 import copy
 from collections import deque 
 from functools import partial 
+import time 
 
 import ray
 import numpy as np
 import torch
+import torch.optim as optim
 import torch.nn as nn
 
 import matplotlib.pyplot as plt 
@@ -15,12 +17,26 @@ import regym
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.algorithms.RecurrentPPO import recurrent_ppo_loss
-from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage, SharedPrioritizedReplayStorage
-from regym.rl_algorithms.utils import archi_concat_fn, concat_fn, _concatenate_hdict, _concatenate_list_hdict
+from regym.rl_algorithms.replay_buffers import (
+    ReplayStorage, 
+    PrioritizedReplayStorage, 
+    SharedPrioritizedReplayStorage,
+)
+from regym.rl_algorithms.utils import (
+    archi_concat_fn, 
+    concat_fn, 
+    _concatenate_hdict, 
+    _concatenate_list_hdict, 
+    _extract_rnn_states_from_seq_indices,
+)
 
 import wandb
-sum_writer = None
+summary_writer = None 
 
+
+def standardize(x):
+    stable_eps = 1.0e-12
+    return (x - x.mean()) / (x.std()+stable_eps)
 
 class RunningMeanStd(object):
     def __init__(
@@ -99,7 +115,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         loss_fn: Callable = recurrent_ppo_loss.compute_loss,
         sum_writer=None,
         name='recurrent_ppo_algo',
-        single_storage=True,
+        single_storage=False,
     ):
         '''
         Refer to original paper for further explanation: https://arxiv.org/pdf/1707.06347.pdf
@@ -119,20 +135,16 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         ''' 
         Algorithm.__init__(self=self, name=name)
         self.single_storage = single_storage
-
+        
         print(kwargs)
 
-        self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
-        self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
+        #self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
+        #self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
         self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
         
-        self.sequence_replay_store_on_terminal = kwargs["sequence_replay_store_on_terminal"]
+        #self.sequence_replay_store_on_terminal = kwargs["sequence_replay_store_on_terminal"]
         
-        self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
-        
-        assert kwargs['n_step'] < kwargs['sequence_replay_unroll_length']-kwargs['sequence_replay_burn_in_length'], \
-                "Sequence_replay_unroll_length-sequence_replay_burn_in_length needs to be set to a value greater \
-                 than n_step return, in order to be able to compute the bellman target."
+        #self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
         
         self.train_request_count = 0 
 
@@ -140,6 +152,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         self.use_cuda = kwargs["use_cuda"]
         self.nbr_actor = self.kwargs['nbr_actor']
         
+        self.use_HER = self.kwargs['use_HER'] if 'use_HER' in self.kwargs else False
         self.n_step = 1
         # LEGACY:
         '''
@@ -151,12 +164,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
 
         '''
 
-        self.use_PER = self.kwargs['use_PER']
-
-        # TODO : check it is okey...
-        # self.min_capacity = int(float(kwargs["min_capacity"]))
         self.horizon = kwargs['horizon']
-        self.min_capacity = horizon*self.nbr_actor
+        self.min_capacity = 1 #self.horizon*self.nbr_actor
         self.batch_size = int(kwargs["batch_size"])
         self.nbr_minibatches = int(kwargs["nbr_minibatches"])
 
@@ -200,28 +209,24 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         self.keys = [
             's', 'a', 'r', 'succ_s', 'non_terminal', 'info',
             'v', 'q', 'pi', 'log_pi', 'ent', 'greedy_action',
-            'adv', 'ret', 'qa', 'log_pi_a',
+            'adv', 'std_adv', 'ret', 'qa', 'log_pi_a',
             'mean', 'action_logits', 'succ_info',
         ]
-        # TODO: WARNING: rnn states can be handled that way but it is meaningless since dealing with sequences...
-        self.circular_keys={'succ_s':'s'}
-        # On the contrary to DQNAlgorithm,
-        # since we are dealing with batches of unrolled experiences,
-        # succ_s ought to be the sequence of unrolled experiences that comes
-        # directly after the current unrolled sequence s:
-        self.circular_offsets={'succ_s':1}
+        self.circular_keys={}
+        self.circular_offsets={}
         
         if self.recurrent:
             self.keys.append('rnn_states')
-            self.circular_keys.update({'next_rnn_states':'rnn_states'})
-            self.circular_offsets.update({'next_rnn_states':1})
+            #self.circular_keys.update({'next_rnn_states':'rnn_states'})
+            #self.circular_offsets.update({'next_rnn_states':1})
           
         self.keys_to_retrieve = [
             's','a','non_terminal','ret','adv','std_adv', 
             'v','log_pi_a','ent',
         ] #copy.deepcopy(self.keys)
         if self.recurrent:  
-            self.keys_to_retrieve += ['rnn_states', 'next_rnn_states']
+            self.keys_to_retrieve += ['rnn_states']
+            #'next_rnn_states']
         
         self.kremap = {
             's':'states',
@@ -237,12 +242,18 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         }
         
         self.storages = None
+        self.use_mp = False 
+        self.replay_buffer_capacity = self.nbr_actor
+        self.sequence_replay_unroll_length = self.horizon
+        self.sequence_replay_overlap_length = 0
+        self.sequence_replay_store_on_terminal = False
+        if self.kwargs['use_PER']:
+            print("WARNING: RPPO cannot use PER.")
+            print("WARNING: Falling back onto normal ReplayStorage.")
+            self.kwargs['use_PER'] = False 
+        self.use_PER = self.kwargs['use_PER'] 
         self.reset_storages()
         
-        self.storage_buffers = [list() for _ in range(self.nbr_actor)]
-        self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
-        self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
-
         global summary_writer
         if sum_writer is not None: summary_writer = sum_writer
         self.summary_writer = summary_writer
@@ -259,6 +270,14 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             self._param_update_counter = SharedVariable(0)
             self._param_obs_counter = SharedVariable(0)
         
+    def reset_storages(self, nbr_actor: int=None):
+        R2D2Algorithm.reset_storages(self, nbr_actor=nbr_actor)
+
+        self.storage_buffers = [list() for _ in range(self.nbr_actor)]
+        self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
+        self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
+        return 
+
     def get_models(self):
         return {'model': self.model}
 
@@ -272,12 +291,12 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         non_episodic=False,
         normalizer=None,
     ):
-        r = self.storages[storage_idx].r
-        v = self.storages[storage_idx].v
+        r = self.storages[storage_idx].r[0][0][0]
+        v = self.storages[storage_idx].v[0][0][0]
         v_key = 'v'
-        non_terminal = self.storages[storage_idx].non_terminal
-        succ_s = self.storages[storage_idx].succ_s
-        rnn_states = self.storages[storage_idx].rnn_states
+        non_terminal = self.storages[storage_idx].non_terminal[0][0][0].squeeze().tolist()
+        succ_s = self.storages[storage_idx].succ_s[0][0][0]
+        rnn_states = self.storages[storage_idx].rnn_states[0][0]
 
         out_d = self._compute_advantages_and_returns(
             r=r,
@@ -292,8 +311,13 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             normalizer=normalizer,
         )
 
-        self.storages[storage_idx].adv = out_d['advantages']
-        self.storages[storage_idx].ret = out_d['returns']
+        self.storages[storage_idx].add(
+            data={
+                'adv':out_d['advantages'].unsqueeze(0), 
+                'std_adv':standardize(out_d['advantages'].unsqueeze(0)), 
+                'ret':out_d['returns'].unsqueeze(0),
+            },
+        )
         
         return 
 
@@ -311,9 +335,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         normalizer=None,
     ):
         torch.set_grad_enabled(False)
-        
-        import ipdb; ipdb.set_trace()
-        # TODO : Need to regularise the unroll dim:
+        self.model.train(False)
+
         ret = torch.zeros_like(r)
         adv = torch.zeros_like(r)
 
@@ -324,10 +347,19 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         if non_terminal[-1]: 
             next_state = succ_s[-1].cuda() if self.kwargs['use_cuda'] else succ_s[-1]
-            rnn_states = None
+            next_state = next_state.unsqueeze(0)
             if self.recurrent:
-                rnn_states = rnn_states[-1]
-            returns = next_state_value = self.model(next_state, rnn_states=rnn_states)[v_key].cpu().detach()
+                seq_indices = [-1]
+                final_rnn_states = _extract_rnn_states_from_seq_indices(
+                    rnn_states, 
+                    seq_indices, 
+                    use_cuda=self.kwargs['use_cuda'],
+                )
+            final_prediction = next_state_value = self.model(
+                next_state, 
+                rnn_states=final_rnn_states,
+            )
+            returns = final_prediction[v_key].cpu().detach()
         else:
             returns = torch.zeros(1,1)
         
@@ -370,8 +402,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         # Compute Returns and Advantages:
         start = time.time()
         for idx, storage in enumerate(self.storages): 
-            if len(storage) <= 1: continue
-            storage.placeholder()
+            #if len(storage) <= 1: continue
+            #storage.placeholder()
             self.compute_advantages_and_returns(storage_idx=idx)
             '''
             if self.use_rnd: 
@@ -396,7 +428,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         start = time.time()
         #samples = self.retrieve_values_from_storages()
-        samples = self.retrieve_values_from_storages(minibatch_size=self.nbr_minibatches*minibatch_size)
+        samples = self.retrieve_values_from_storages(minibatch_size=1)
         end = time.time()
 
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
@@ -407,7 +439,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         #self.optimize_model(minibatch_size, samples)
         for it in range(self.kwargs['optimization_epochs']):
             self.optimize_model(
-                minibatch_size=None,
+                minibatch_size=self.nbr_actor,
                 samples=samples,
             )
         end = time.time()
@@ -415,5 +447,55 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
         self.reset_storages()
+        
+        return
+    
+    def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
+        if self.storages is None:
+            self.reset_storages()
+        if not(with_replay_buffer): 
+            storages = self.storages
+            self.storages = None
+            
+        sum_writer = self.summary_writer
+        self.summary_writer = None
+        
+        param_update_counter = self._param_update_counter
+        self._param_update_counter = None 
 
+        if isinstance(self.model, ArchiModel):
+            self.model.reset()
+        
+        param_obs_counter = self._param_obs_counter
+        self._param_obs_counter = None 
 
+        cloned_algo = copy.deepcopy(self)
+         
+        if not(with_replay_buffer): 
+            self.storages = storages
+            # the following line might increase the size of the clone algo:
+            if not minimal:
+                cloned_algo.reset_storages()
+
+        self.summary_writer = sum_writer
+        
+        self._param_update_counter = param_update_counter
+        cloned_algo._param_update_counter = param_update_counter
+
+        self._param_obs_counter = param_obs_counter
+        cloned_algo._param_obs_counter = param_obs_counter
+
+        # Goes through all variables 'Proxy' (dealing with multiprocessing)
+        # contained in this class and removes them from clone
+        if not(clone_proxies):
+            proxy_key_values = [
+                (key, value) 
+                for key, value in cloned_algo.__dict__.items() 
+                if ('Proxy' in str(type(value)))
+            ]
+            for key, value in proxy_key_values:
+                setattr(cloned_algo, key, None)
+
+        return cloned_algo
+
+    

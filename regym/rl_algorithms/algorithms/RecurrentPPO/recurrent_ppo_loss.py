@@ -25,7 +25,7 @@ def compute_loss(
     models: Dict[str, torch.nn.Module],
     summary_writer: object = None,
     iteration_count: int = 0,
-    kwargs:Optional[Dict[str, object]]=None,
+    **kwargs:Optional[Dict[str, object]],#=None,
 ) -> torch.Tensor:
     '''
     Computes the loss of an actor critic model using the
@@ -55,10 +55,6 @@ def compute_loss(
         :param value_weight: Coefficient to be used for the value loss for the loss function. Refer to original paper eq (9).
     '''
     #torch.autograd.set_detect_anomaly(True)
-    batch_size = states.shape[0]
-    unroll_length = states.shape[1]
-    map_keys=['v','log_pi_a', 'a', 'ent', 'legal_ent']
-    
     states = samples['states']
     actions = samples['actions']
     non_terminals = samples['non_terminals']
@@ -70,6 +66,12 @@ def compute_loss(
 
     model = models['model']
 
+    batch_size = states.shape[0]
+    unroll_length = states.shape[1]
+    map_keys=['v','log_pi_a', 'a', 'ent',]
+    # TODO: if using 'legal_ent', then need to make it
+    # an output of the relevant RLHead too.
+    
     start = time.time()
     assign_fn = None
     if isinstance(model, ArchiModel):
@@ -184,20 +186,19 @@ def compute_loss(
     
     ratio = torch.exp((training_predictions['log_pi_a'] - training_log_probs_old))
     
-    if kwargs['use_std_adv']:
+    if kwargs['standardized_adv']:
       adv = training_std_advantages
     else:
       adv = training_advantages
 
+    adv = adv.reshape((batch_size, training_length))
     obj = ratio * adv
     obj_clipped = torch.clamp(ratio,
-                              1.0 - kwargs['ratio_clip'],
-                              1.0 + kwargs['ratio_clip']) * adv
+                              1.0 - kwargs['ppo_ratio_clip'],
+                              1.0 + kwargs['ppo_ratio_clip']) * adv
     
-    import ipdb; ipdb.set_trace()
-    # TODO : check dimensions and impact of mean over whole...
-    policy_val = -torch.min(obj, obj_clipped).mean()
-    entropy_val = training_predictions['ent'].mean()
+    policy_val = -torch.min(obj, obj_clipped) #.mean()
+    entropy_val = training_predictions['ent'] #.mean()
     policy_loss = policy_val - kwargs['entropy_weight'] * entropy_val 
     # L^{clip} and L^{S} from original paper
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
@@ -205,8 +206,12 @@ def compute_loss(
     value_loss = kwargs['value_weight'] * torch.nn.functional.mse_loss(
         input=training_predictions['v'], 
         target=training_returns,
-    )
+        reduction='none',
+    ).reshape((batch_size, training_length))
+
     total_loss = policy_loss + value_loss
+    # Mean over unroll_length :
+    total_loss = total_loss.mean(-1)
 
     wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
     #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
@@ -216,11 +221,11 @@ def compute_loss(
     wandb.log({'Training/MeanReturns': returns.cpu().mean().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/StdVValues': training_predictions['v'].cpu().std().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/StdReturns': training_returns.cpu().std().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/ValueLoss': value_loss.cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/PolicyVal': policy_val.cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/EntropyVal': entropy_val.cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/PolicyLoss': policy_loss.cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/TotalLoss': total_loss.cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/ValueLoss': value_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/PolicyVal': policy_val.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/EntropyVal': entropy_val.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/PolicyLoss': policy_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/TotalLoss': total_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
         
     '''
     if weights_entropy_reg_alpha > 1.0e-12:

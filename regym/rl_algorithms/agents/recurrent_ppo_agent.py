@@ -15,6 +15,8 @@ from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAl
 from regym.rl_algorithms.algorithms.wrappers import ETHERAlgorithmWrapper
 from regym.rl_algorithms.networks import ArchiPredictor, ArchiPredictorSpeaker
 
+import wandb
+
 
 class RecurrentPPOAgent(R2D2Agent):
     def __init__(self, name, algorithm, extra_inputs_infos):
@@ -25,6 +27,79 @@ class RecurrentPPOAgent(R2D2Agent):
             extra_inputs_infos=extra_inputs_infos
         )
 
+    def _take_action(self, state, infos=None, as_logit=False, training=False):
+        torch.set_grad_enabled(training)
+        
+        if self.async_actor:
+            # Update the algorithm's model if needs be:
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            if actor_learner_shared_dict["models_update_required"][self.async_actor_idx]:
+                actor_learner_shared_dict["models_update_required"][self.async_actor_idx] = False
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+                
+                if "models" in actor_learner_shared_dict.keys():
+                    new_models = actor_learner_shared_dict["models"]
+                    self.algorithm.set_models(new_models)
+                else:
+                    raise NotImplementedError 
+
+        state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
+        '''
+        wandb.log({
+            "Model/StateMean": state.mean(),
+            "Model/StateStd": state.std(),
+            "Model/Min": state.min(),
+            "Model/Max": state.max(),
+            },
+            commit=False,
+        )
+        '''
+        model = self.algorithm.unwrapped.get_models()['model']
+        model = model.train(mode=self.training)
+
+        if self.training:
+            self.nbr_steps += state.shape[0]
+        
+        self.current_prediction = self.query_model(model, state)
+        # Post-process and update the rnn_states from the current prediction:
+        # self.rnn_states <-- self.current_prediction['next_rnn_states']
+        # WARNING: _post_process affects self.rnn_states. It is imperative to
+        # manipulate a copy of it outside of the agent's manipulation, e.g.
+        # when feeding it to the models.
+        self.current_prediction = self._post_process(self.current_prediction)
+        
+        if as_logit:
+            import ipdb; ipdb.set_trace()
+            # Probably should return log_pi_a rather...
+            return self.current_prediction['log_a']
+
+        #action = self.current_prediction['a'].numpy()
+        actions = self.current_prediction['a'].reshape((-1,1)).numpy()
+        greedy_action = self.current_prediction['greedy_action'].reshape((-1,1)).numpy()
+
+        if not(self.training):
+            return greedy_action
+        
+        # N.B. : no need to care about legal actions here as it is handled
+        # in the model's RLHead, and we do not sample any new random actions.
+
+        if "sad" in self.kwargs \
+        and self.kwargs["sad"]:
+            action_dict = {
+                'action': actions,
+                'greedy_action': greedy_action,
+            }
+            return action_dict 
+
+        return actions
+
     def train(self):
         '''
         Trains like PPOAgent.
@@ -32,7 +107,7 @@ class RecurrentPPOAgent(R2D2Agent):
         nbr_updates = 0
 
         if self.training \
-        and self.algorithm.stored_experiences() > self.algorithm.kwargs['horizon']*self.nbr_actor:
+        and self.algorithm.unwrapped.stored_experiences() >= self.algorithm.unwrapped.kwargs['horizon']*self.nbr_actor:
             self.algorithm.train()
             
             if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
