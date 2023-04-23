@@ -567,6 +567,8 @@ agents:
                     config:
                         predict_PADs: False
                         diversity_loss_weighting: False #True
+                        rectify_contrastive_imbalance: False
+                        semantic_embeddings_prior: False
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorMLP:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"
@@ -577,6 +579,7 @@ agents:
             output_mappings:
                 "a" : "modules:RLHead:a"
                 "ent" : "modules:RLHead:ent"
+                "legal_ent" : "modules:RLHead:legal_ent"
                 "qa" : "modules:RLHead:qa"
                 "log_a" : "modules:RLHead:log_a"
             
