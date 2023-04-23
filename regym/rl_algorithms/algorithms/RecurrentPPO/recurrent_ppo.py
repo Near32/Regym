@@ -30,6 +30,8 @@ from regym.rl_algorithms.utils import (
     _extract_rnn_states_from_seq_indices,
 )
 
+from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
+
 import wandb
 summary_writer = None 
 
@@ -277,6 +279,9 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
         return 
+
+    def set_nbr_actor(self, nbr_actor):
+        self.nbr_actor = nbr_actor
 
     def get_models(self):
         return {'model': self.model}

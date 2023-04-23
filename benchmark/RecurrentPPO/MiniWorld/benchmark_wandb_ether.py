@@ -645,7 +645,7 @@ def main():
     parser.add_argument("--entropy_weight", type=float, default=0.01)
     #parser.add_argument("--single_life_episode", type=str2bool, default="True",)
     parser.add_argument("--grayscale", type=str2bool, default="False",)
-    parser.add_argument("--time_limit", type=int, default=40000)
+    parser.add_argument("--time_limit", type=int, default=400)
     parser.add_argument("--ther_adam_weight_decay", 
         type=float, 
         default=0.0,

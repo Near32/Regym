@@ -37,7 +37,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=400 \
---BabyAI_Bot_action_override=False \
+--BabyAI_Bot_action_override=False --time_limit=400 \
 --train_observation_budget=1.0e7
 
 #--ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \
