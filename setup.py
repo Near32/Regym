@@ -31,7 +31,7 @@ setup(
     zip_safe=False,
 
     install_requires=[
-      'gym',
+      'gym==0.25',
       'ray',
       'coloredlogs',
       'scikit-image',
