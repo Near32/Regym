@@ -282,6 +282,7 @@ experiment:
         'otherplay': False,
         'nbr_frame_skipping': 0,
         'nbr_frame_stacking': 4, #1,
+        'frame_depth': 4,
         'single_life_episode': False,
         'nbr_max_random_steps': 0,
         'clip_reward': False,
@@ -404,8 +405,8 @@ agents:
                         lstm_hidden: "inputs:CoreLSTM:hidden"
                         lstm_cell: "inputs:CoreLSTM:cell"
                         iteration: "inputs:CoreLSTM:iteration"
-                    output_stream_ids:
-                        lstm_output: "inputs:CoreLSTM:lstm_output"
+                    #output_stream_ids:
+                    #    lstm_output: "inputs:CoreLSTM:lstm_output"
                     use_cuda: True
 
                 'SharedObsEncoder':
@@ -429,7 +430,7 @@ agents:
     
                 'CommEncoder':
                     type: EmbeddingRNNModule 
-                    voc_size: *THER_vocab_size
+                    vocab_size: *THER_vocab_size
                     feature_dim: *feature_dim 
                     embedding_size: *feature_dim 
                     hidden_units: *hidden_dim
@@ -526,6 +527,7 @@ agents:
                     config:
                         'dim': -1
                         'use_cuda': True
+                        'output_dim': *lstm_input_dim #321
                     input_stream_ids:
                         #input0: "inputs:ObsEncoder:processed_input"
                         #input1: "inputs:CommEncoder:processed_input"
@@ -541,7 +543,8 @@ agents:
                     dueling: True
                     config: None
                     input_stream_ids: 
-                        input0: "inputs:CoreLSTM:lstm_output"
+                        #input0: "inputs:CoreLSTM:lstm_output"
+                        input0: "inputs:CoreLSTM:output"
                         input1: "inputs:critic_body:extra_inputs:previous_reward"
                         input2: "inputs:critic_body:extra_inputs:previous_action"
                         #input3: "inputs:critic_body:extra_inputs:action_mask"
@@ -564,6 +567,8 @@ agents:
                     config:
                         predict_PADs: False
                         diversity_loss_weighting: False #True
+                        rectify_contrastive_imbalance: False
+                        semantic_embeddings_prior: False
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorMLP:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"
@@ -574,6 +579,7 @@ agents:
             output_mappings:
                 "a" : "modules:RLHead:a"
                 "ent" : "modules:RLHead:ent"
+                "legal_ent" : "modules:RLHead:legal_ent"
                 "qa" : "modules:RLHead:qa"
                 "log_a" : "modules:RLHead:log_a"
             

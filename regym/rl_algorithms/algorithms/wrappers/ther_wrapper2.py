@@ -155,6 +155,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         
         super(THERAlgorithmWrapper2, self).__init__(algorithm=algorithm)
         self.hook_fns = []
+        self.semantic_cooccurrence_test = False 
 
         self.nbr_episode_success_range = 256
 
@@ -215,6 +216,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.target_goal_key_from_info = target_goal_key_from_info
         self.achieved_latent_goal_key_from_info = achieved_latent_goal_key_from_info
         self.target_latent_goal_key_from_info = target_latent_goal_key_from_info
+
+        self.per_goal_episode_counts = {}
+        columns = ["color_goal", "shape_goal", "semantic", "color", "shape"]
+        self.co_occurrence_table = wandb.Table(columns=columns)
+        self.idx2w = copy.deepcopy(self.predictor.model.modules['InstructionGenerator'].idx2w)
 
         self.episode_count = 0
         self.param_predictor_update_counter = 0
@@ -314,6 +320,91 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         return postprocess_fn(value)
 
     def store(self, exp_dict, actor_index=0):
+        #################
+        #################
+        # Semantic Co-Occurrence Data logging :
+        if self.semantic_cooccurrence_test:
+            COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
+            IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
+
+            OBJECT_TO_IDX = {
+                "unseen": 0,
+                "empty": 1,
+                "wall": 2,
+                "floor": 3,
+                "door": 4,
+                "key": 5,
+                "ball": 6,
+                "box": 7,
+                "goal": 8,
+                "lava": 9,
+                "agent": 10,
+            }
+            IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
+        
+            if 'symbolic_image' in exp_dict['info']:
+                rnn_states = exp_dict['rnn_states']
+                goal = rnn_states['phi_body']['extra_inputs']['desired_goal'][0][0]
+                lang_goal = [self.idx2w[token.item()] for token in goal] 
+                str_goal = ' '.join(lang_goal)
+                color_goal = [word for word in lang_goal if word in COLOR_TO_IDX.keys()]
+                if len(color_goal)==0:
+                    color_goal = 'NA'
+                else:
+                    color_goal = color_goal[0]
+                shape_goal = [word for word in lang_goal if word in OBJECT_TO_IDX.keys()]
+                if len(shape_goal)==0:
+                    shape_goal = 'object'
+                else:
+                    shape_goal = shape_goal[0]
+                
+                if str_goal not in self.per_goal_episode_counts:
+                    self.per_goal_episode_counts[str_goal] = 0
+                elif exp_dict['non_terminal'].item() == 0:
+                    self.per_goal_episode_counts[str_goal] += 1
+
+                symb_image = exp_dict['info']['symbolic_image']
+                for i in range(symb_image.shape[0]):
+                    for j in range(symb_image.shape[1]):
+                        if symb_image[i,j,0] <= 3 : continue
+                        color_idx = symb_image[i,j,1]
+                        shape_idx = symb_image[i,j,0]
+                        color = IDX_TO_COLOR[color_idx]
+                        shape = IDX_TO_OBJECT[shape_idx]
+                        data = [
+                            color_goal,
+                            shape_goal,
+                            color,
+                            color,
+                            shape,
+                        ]
+                        self.co_occurrence_table.add_data(*data)
+                        data = [
+                            color_goal,
+                            shape_goal,
+                            shape,
+                            color,
+                            shape,
+                        ]
+                        self.co_occurrence_table.add_data(*data)
+            
+                count_threshold = 8
+                if all([count >= count_threshold for lg, count in self.per_goal_episode_counts.items()]):
+                    wandb.log({f"PerEpisode/SemanticCoOccurrenceTable": self.co_occurrence_table}, commit=False)
+                    self.per_goal_episode_counts = {}
+                    columns = ["color_goal", "shape_goal", "semantic", "color", "shape"]
+                    self.co_occurrence_table = wandb.Table(columns=columns)
+            
+                wandb.log({
+                    f"PerEpisode/SemanticCoOccurrenceCounts/{str_goal}":value
+                    for str_goal, value in self.per_goal_episode_counts.items()
+                    },
+                    commit=False,
+                )
+        #################
+        #################
+        #################
+
         self.episode_buffer[actor_index].append(exp_dict)
         self.nbr_buffered_predictor_experience += 1
 

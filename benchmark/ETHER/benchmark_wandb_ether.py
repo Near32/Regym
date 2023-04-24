@@ -812,6 +812,9 @@ def main():
     parser.add_argument("--ETHER_rg_shared_architecture", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
+    parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    
     parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
     parser.add_argument("--ETHER_rg_cultural_speaker_substrate_size", type=int, default=1)
     parser.add_argument("--ETHER_rg_cultural_listener_substrate_size", type=int, default=1)
