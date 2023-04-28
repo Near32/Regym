@@ -9,7 +9,7 @@ class ArchiPredictor(nn.Module):
     def __init__(self, model, **kwargs):
         nn.Module.__init__(self)
         self.model = model
-        self.predictor_kwargs = kwargs
+        self.archi_kwargs = kwargs
         self.use_oracle = len([
             m_id for m_id in self.model.pipelines["instruction_generator"]
             if 'oracle' in m_id.lower()
@@ -42,7 +42,7 @@ class ArchiPredictor(nn.Module):
         }
          
         if gt_sentences is None:
-            return_feature_only=self.predictor_kwargs["features_id"]["instruction_generator"]
+            return_feature_only=self.archi_kwargs["features_id"]["instruction_generator"]
         else:
             return_feature_only = None 
             input_dict['rnn_states']['gt_sentences'] = gt_sentences
@@ -50,7 +50,7 @@ class ArchiPredictor(nn.Module):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.predictor_kwargs["pipelines"]["instruction_generator"]
+                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
             },
             return_feature_only=return_feature_only,
         )
