@@ -416,6 +416,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             
             "with_logits_mdl_principle":       self.kwargs['ETHER_rg_with_logits_mdl_principle'],
             "logits_mdl_principle_factor":     self.kwargs['ETHER_rg_logits_mdl_principle_factor'],
+            "logits_mdl_principle_accuracy_threshold":     self.kwargs['ETHER_rg_logits_mdl_principle_accuracy_threshold'],
             
             "with_mdl_principle":       False,
             "mdl_principle_factor":     5e-2,
@@ -561,6 +562,17 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         modules[current_speaker_id] = rg_modules.CurrentAgentModule(id=current_speaker_id,role="speaker")
         modules[current_listener_id] = rg_modules.CurrentAgentModule(id=current_listener_id,role="listener")
         
+        if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
+            sem_cooc_grounding_id = "sem_cooccurrence_grounding_0"
+            sem_cooc_grounding_config = {
+                "lambda_factor": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_lambda", 1.0),
+                "noise_magnitude": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", 0.0),
+            }
+            modules[sem_cooc_grounding_id] = rg_modules.build_CoOccurrenceSemanticGroundingLossModule(
+                id=sem_cooc_grounding_id,
+                config=sem_cooc_grounding_config,
+            )
+
         ## Pipelines:
         pipelines = {}
         
@@ -945,6 +957,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             ]
         
         pipelines[optim_id] = []
+        if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
+            pipelines[optim_id].append(sem_cooc_grounding_id)
         if self.kwargs["ETHER_rg_homoscedastic_multitasks_loss"]:
             pipelines[optim_id].append(homo_id)
         pipelines[optim_id].append(optim_id)
@@ -1009,6 +1023,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_train_dataset_length,
             exp_key=self.rg_exp_key,
+            grounding_signal_key=self.kwargs.get("ETHER_grounding_signal_key", None),
             kwargs=kwargs,
         )
         
@@ -1020,6 +1035,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_test_dataset_length,
             exp_key=self.rg_exp_key,
+            grounding_signal_key=self.kwargs.get("ETHER_grounding_signal_key", None),
             kwargs=kwargs,
         )
         

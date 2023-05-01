@@ -30,13 +30,13 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ther.py \
 --ther_adam_weight_decay=0 \
 --tau=0.0004 \
 --weights_entropy_lambda=0 \
---n_step=3 --nbr_actor=8 \
---replay_capacity=10000 \
+--n_step=3 --nbr_actor=32 \
+--replay_capacity=6000 \
 --r2d2_use_value_function_rescaling=False \
 --sequence_replay_burn_in_ratio=0.5 \
 --sequence_replay_overlap_length=10 \
 --sequence_replay_unroll_length=20 \
 --single_pick_episode=True \
---train_observation_budget=200000 \
+--train_observation_budget=2000000 \
 
 

@@ -112,6 +112,11 @@ ETHER_extra_hyperparameters: &ETHER_extra_hyperparameters
     ETHER_use_ETHER:  True
     
     ETHER_exp_key: "succ_s" 
+    ETHER_rg_use_semantic_cooccurrence_grounding: True
+    ETHER_grounding_signal_key: "info:desired_goal"
+    ETHER_rg_semantic_cooccurrence_grounding_lambda: 1.0
+    ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude: 0.0
+    
     ETHER_train_dataset_length: 1024
     ETHER_test_dataset_length: 1024
 
@@ -320,7 +325,7 @@ experiment:
         'reload': 'None',
     },]
     
-    experiment_id: 'ETHER_Benchmark'
+    experiment_id: 'ETHER_BabyAI_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 5.0e3
     benchmarking_record_episode_interval: None #1.0e8
@@ -396,6 +401,8 @@ agents:
         
         epsend: 0.4
         eps_greedy_alpha: 2.0
+        
+        semantic_embeddings_prior: &semantic_embeddings_prior True
         
         ArchiModel:
             model_id: 'RL_FiLMedETHERModel'
@@ -593,7 +600,7 @@ agents:
                         predict_PADs: False
                         diversity_loss_weighting: False #True
                         rectify_contrastive_imbalance: False
-                        semantic_embeddings_prior: False
+                        semantic_embeddings_prior: *semantic_embeddings_prior
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorMLP:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"

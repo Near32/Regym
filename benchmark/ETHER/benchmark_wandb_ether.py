@@ -780,6 +780,10 @@ def main():
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ETHER_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_grounding_signal_key", type=str, default="info:desired_goal",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
     parser.add_argument("--ETHER_rg_filter_out_non_unique", type=str2bool, default=False)
@@ -814,6 +818,7 @@ def main():
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
     parser.add_argument("--ETHER_rg_cultural_speaker_substrate_size", type=int, default=1)

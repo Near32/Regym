@@ -2302,12 +2302,20 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         self.vocabulary = set([w.lower() for w in vocabulary])
         
 
+        #########################################
+        #MODIF1: padding with EoS and making sure EoS is index 0 of vocabulary!
         # Make padding_idx=0:
-        self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
+        #self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
+        self.vocabulary = list(self.vocabulary)
+        #########################################
 
-        while len(self.vocabulary) < self.vocab_size:
+        while len(self.vocabulary) < self.vocab_size-2:
             self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
         self.vocabulary = list(set(self.vocabulary))
+        #########################################
+        #MODIF1: padding with EoS and making sure EoS is index 0 of vocabulary!
+        self.vocabulary = ['EoS', 'SoS'] + self.vocabulary
+        #########################################
         
         self.w2idx = {}
         self.idx2w = {}
@@ -2340,7 +2348,11 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
                     self.w2idx[w] = len(self.vocabulary)-1
                     self.idx2w[len(self.vocabulary)-1] = w 
             
-            idx_goal = self.w2idx['PAD']*np.ones(shape=(1,self.max_sentence_length)).astype(int)
+            #########################################
+            #MODIF1: padding with EoS :
+            #idx_goal = self.w2idx['PAD']*np.ones(shape=(1,self.max_sentence_length)).astype(int)
+            idx_goal = self.w2idx['EoS']*np.ones(shape=(1,self.max_sentence_length)).astype(int)
+            #########################################
             final_idx = min(self.max_sentence_length, len(t_goal))
             for idx in range(final_idx):
                 idx_goal[...,idx] = self.w2idx[t_goal[idx]]

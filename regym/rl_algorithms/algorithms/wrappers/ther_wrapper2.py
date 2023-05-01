@@ -542,7 +542,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         stimulus_t = succ_s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
                         stimulus_t = stimulus_t.astype(np.uint8)
                         stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
-                        stimulus_tm = s[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
+                        stimulus_tm = s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
                         stimulus_tm = stimulus_tm.astype(np.uint8)
                         stimulus_tm = wandb.Video(stimulus_tm, fps=1, format="gif")
                         previous_action_int = [
