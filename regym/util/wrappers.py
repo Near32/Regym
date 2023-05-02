@@ -2357,7 +2357,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             for idx in range(final_idx):
                 idx_goal[...,idx] = self.w2idx[t_goal[idx]]
             # Add 'EoS' token:
-            idx_goal[...,final_idx] = self.w2idx['EoS']
+            idx_goal[...,final_idx-1] = self.w2idx['EoS']
             #padded_idx_goal = nn.utils.rnn.pad_sequence(idx_goal, padding_value=self.w2idx["PAD"])
             #observation[map_key] = padded_idx_goal
             
@@ -3186,6 +3186,11 @@ class Gymnasium2GymWrapper(gym.Wrapper):
                         max_length=space.max_length,
                         charset=frozenset(space.characters),
                     )
+                elif 'multidiscrete' in type(space).__name__.lower():
+                    obs_space[key] = gym.spaces.MultiDiscrete(
+                        nvec=space.nvec, 
+                        dtype=space.dtype,
+                    )
                 elif 'discrete' in type(space).__name__.lower():
                     obs_space[key] = gym.spaces.Discrete(n=space.n)
                 elif 'babyaimission' in type(space).__name__.lower():
@@ -3223,8 +3228,20 @@ def baseline_ther_wrapper(
     single_pick_episode=False,
     observe_achieved_goal=False,
     babyai_mission=False,
+    miniworld_entity_visibility_oracle=False,
     ):
     
+    if miniworld_entity_visibility_oracle:
+        from miniworld.wrappers import EntityVisibilityOracleWrapper
+        env = EntityVisibilityOracleWrapper(
+            env=env,
+            relevant_entity_types=["Box", "Key", "Ball"],
+            qualifying_area_ratio=0.15,
+            qualifying_screen_ratio=0.025,
+            as_obs=True,
+            verbose=False,
+        )
+
     env = Gymnasium2GymWrapper(env=env)
     env = TimeLimit(env, max_episode_steps=time_limit)
 
@@ -3271,6 +3288,8 @@ def baseline_ther_wrapper(
     if observe_achieved_goal:
         env = BehaviourDescriptionWrapper(env=env, max_sentence_length=max_sentence_length)
         observation_keys_mapping['behaviour_description'] = 'achieved_goal'
+    if miniworld_entity_visibility_oracle:
+        observation_keys_mapping['visible_entities'] = "visible_entities_widx"
 
     env = TextualGoal2IdxWrapper(
         env=env,

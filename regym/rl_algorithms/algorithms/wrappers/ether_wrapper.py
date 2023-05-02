@@ -227,13 +227,6 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
         
         self.init_referential_game()
-        ###
-        save_path = os.path.join(wandb.run.dir, f"referential_game")
-        print(f"ETHER: Referential Game NEW PATH: {save_path}")
-        self.save_path = save_path 
-        ###
-        
-        import ipdb; ipdb.set_trace()
         self.goal_predicated_reward_fn_kwargs = {
             'listener': self.listener,
             'use_continuous_feedback': self.kwargs.get('ETHER_use_continuous_feedback', False),
@@ -291,8 +284,6 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 )
 
     def referential_game_store(self, exp_dict, actor_index=0, negative=False):
-        actor_index = 0
-        
         if not hasattr(self, "nbr_handled_rg_experience"):
             self.nbr_handled_rg_experience = 0
         self.nbr_handled_rg_experience += 1
@@ -324,6 +315,10 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             and not unique:  
                 return
 
+        # TODO: implement multi storage approach
+        # No, it is not necessary, because the function is called on consecutive states,
+        # all coming from the actor, until end is reached, and then one episode at a time
+        actor_index = 0
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
 
     def init_referential_game(self):
@@ -334,9 +329,18 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         #    args.batch_size = args.batch_size // 2
         print(f"DC_version = {ReferentialGym.datasets.dataset.DC_version} and BS={self.kwargs['ETHER_rg_batch_size']}.")
         
-        obs_instance = getattr(self.rg_storages[0], self.kwargs['ETHER_exp_key'])[0][0]
-        obs_shape = obs_instance.shape
-        stimulus_depth_dim = obs_shape[1]
+        try:
+            obs_instance = getattr(self.rg_storages[0], self.kwargs['ETHER_exp_key'])[0][0]
+            obs_shape = obs_instance.shape
+            # Format is [ batch_size =1  x depth x w x h]
+            stimulus_depth_dim = obs_shape[1]
+        except Exception as e:
+            print(e)
+            obs_instance = None
+            obs_shape = self.kwargs["preprocessed_observation_shape"]
+            # Format is [ depth x w x h]
+            stimulus_depth_dim = obs_shape[0]
+
         stimulus_resize_dim = obs_shape[-1] #args.resizeDim #64 #28
         normalize_rgb_values = False 
         transformations = []
@@ -978,11 +982,15 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             #"latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
             "indices":"current_dataloader:sample:speaker_indices", 
         }
+        if self.kwargs.get("ETHER_rg_sanity_check_compactness_ambiguity_metric", False):
+            compactness_ambiguity_metric_input_stream_ids["representations"] = \
+                "current_dataloader:sample:speaker_grounding_signal"
 
         compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
+                "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
                 "epoch_period":1,#self.kwargs["ETHER_rg_metric_epoch_period"],
@@ -994,6 +1002,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "random_state_seed":self.kwargs["ETHER_rg_seed"],
                 "verbose":False,
                 "idx2w": self.idx2w,
+                "kwargs": self.kwargs,
             }
         )
         modules[compactness_ambiguity_metric_id] = compactness_ambiguity_metric_module
@@ -1219,6 +1228,12 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
 
     def finetune_predictor(self, update=False):
         if self.rg_iteration == 0:
+            ###
+            save_path = os.path.join(wandb.run.dir, f"referential_game")
+            print(f"ETHER: Referential Game NEW PATH: {save_path}")
+            self.save_path = save_path 
+            ###
+            
             ###
             from ReferentialGym.utils import statsLogger
             logger = statsLogger(path=save_path,dumpPeriod=100)

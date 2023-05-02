@@ -407,6 +407,7 @@ def training_process(
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -429,6 +430,7 @@ def training_process(
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -766,6 +768,7 @@ def main():
     parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -777,6 +780,7 @@ def main():
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
     parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
+    parser.add_argument("--ETHER_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
@@ -892,6 +896,14 @@ def main():
     if dargs['THER_contrastive_training_nbr_neg_examples'] != 0:
         dargs['THER_train_contrastively'] = True
 
+    if dargs["ETHER_rg_sanity_check_compactness_ambiguity_metric"]:
+        import ipdb; ipdb.set_trace()
+        dargs["ETHER_grounding_signal_key"] = "info:visible_entities_widx"
+        dargs["MiniWorld_entity_visibility_oracle"] = True
+        dargs["ETHER_rg_use_semantic_cooccurrence_grounding"] = False
+        print("WARNING :: sanity check in progress for compactness ambiguity metric.")
+        print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
+    
     print(dargs)
 
     #from gpuutils import GpuUtils

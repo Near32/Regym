@@ -61,7 +61,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_use_predictor:  True
     THER_predictor_policy_shared_phi: False
 
-    THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
+    THER_max_sentence_length: &THER_max_sentence_length 20 #10 # 20 
     THER_vocabulary: &THER_vocabulary [
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
@@ -653,7 +653,7 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [*THER_max_sentence_length ], #[10], #20], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             
