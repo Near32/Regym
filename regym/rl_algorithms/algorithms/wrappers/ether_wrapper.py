@@ -82,6 +82,81 @@ class SplitImg:
         xis = torch.cat(xis, dim=self.output_channel_dim)
         return xis
 
+def batched_listener_based_goal_predicated_reward_fn(
+    predictor, 
+    achieved_exp:List[Dict[str,object]], 
+    target_exp:List[Dict[str,object]], 
+    _extract_goal_from_info_fn=None, 
+    goal_key:str="achieved_goal",
+    latent_goal_key:str=None,
+    epsilon:float=1e0,
+    feedbacks:Dict[str,float]={"failure":-1, "success":0},
+    reward_shape:List[int]=[1,1],
+    **kwargs:Dict[str,object],
+    ):
+    '''
+    Relabelling an unsuccessful trajectory, so the desired_exp's goal is not achieved.
+    We want to know whether the goal that is achieved on the :param target_exp:'s succ_s
+    is achieved on the :param achieved_exp:'s succ_s.
+    
+    :param kwargs: must contain an entry 'listener' whose value is the listener agent to
+    query to evaluate the alignement between the previously-mentioned goal and achieved succ_s.
+    
+    Returns :param feedbacks['failure']: for failure and :param feedbacks['success']: for success,
+    unless :param kwargs['use_continuous_feedback']: is provided and True, then an interpolation
+    between the previously mentioned values is performed.
+    '''
+    listener = kwargs['listener']
+
+    target_latent_goal = None 
+
+    state = torch.stack(
+        [exp['succ_s'] for exp in achieved_exp],
+        dim=0,
+    )
+    target_state = torch.stack(
+        [exp['succ_s'] for exp in target_exp],
+        dim=0,
+    )
+    
+    rnn_states = _concatenate_list_hdict(
+        lhds=[exp['next_rnn_states'] for exp in achieved_exp], 
+        concat_fn=archi_concat_fn,
+        preprocess_fn=(lambda x:x),
+    )
+    
+    target_rnn_states = _concatenate_list_hdict(
+        lhds=[exp['next_rnn_states'] for exp in target_exp], 
+        concat_fn=archi_concat_fn,
+        preprocess_fn=(lambda x:x),
+    )
+    
+    with torch.no_grad():
+        training = predictor.training
+        predictor.train(False)
+        listener_training = listener.training
+        listener.train(False)
+
+        target_pred_goal = predictor(x=target_state, rnn_states=target_rnn_states).cpu()
+        
+        #achieved_pred_goal = predictor(x=state, rnn_states=rnn_states).cpu()
+        # TODO: feed listener with proper input kwargs
+        listener_output = listener()
+        
+        predictor.train(training)
+        listener.train(listener_training)
+
+    if kwargs.get("use_continuous_feedback", False):
+        reward_range = feedbacks['success']-feedbacks['failure']
+        reward = listener_output*reward_range + feedbacks['failure']
+        reward = reward.reshape((reward_shape))
+    else:
+        reward_mask = listener_output >= listener.predicate_threshold
+        reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+        reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
+    
+    return reward, target_pred_goal, target_latent_goal
+
 
 class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
     def __init__(
@@ -150,8 +225,24 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         self.rg_iteration = 0
         self.idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
-        #self.init_referential_game()
         
+        self.init_referential_game()
+        ###
+        save_path = os.path.join(wandb.run.dir, f"referential_game")
+        print(f"ETHER: Referential Game NEW PATH: {save_path}")
+        self.save_path = save_path 
+        ###
+        
+        import ipdb; ipdb.set_trace()
+        self.goal_predicated_reward_fn_kwargs = {
+            'listener': self.listener,
+            'use_continuous_feedback': self.kwargs.get('ETHER_use_continuous_feedback', False),
+        }
+        
+        if self.kwargs.get("ETHER_listener_based_predicated_reward_fn", False):
+            import ipdb; ipdb.set_trace()
+            self.goal_predicated_reward_fn = batched_listener_based_predicated_reward_fn
+
     def _reset_rg_storages(self):
         if self.rg_storages is not None:
             for storage in self.rg_storages: storage.reset()
@@ -1128,13 +1219,6 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
 
     def finetune_predictor(self, update=False):
         if self.rg_iteration == 0:
-            self.init_referential_game()
-            ###
-            save_path = os.path.join(wandb.run.dir, f"referential_game")
-            print(f"ETHER: Referential Game NEW PATH: {save_path}")
-            self.save_path = save_path 
-            ###
-            
             ###
             from ReferentialGym.utils import statsLogger
             logger = statsLogger(path=save_path,dumpPeriod=100)

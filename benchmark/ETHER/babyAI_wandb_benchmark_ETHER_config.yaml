@@ -117,6 +117,9 @@ ETHER_extra_hyperparameters: &ETHER_extra_hyperparameters
     ETHER_rg_semantic_cooccurrence_grounding_lambda: 1.0
     ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude: 0.0
     
+    ETHER_use_continuous_feedback: False
+    ETHER_listener_based_predicated_reward_fn: False 
+
     ETHER_train_dataset_length: 1024
     ETHER_test_dataset_length: 1024
 

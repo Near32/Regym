@@ -775,6 +775,8 @@ def main():
     
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
+    parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)

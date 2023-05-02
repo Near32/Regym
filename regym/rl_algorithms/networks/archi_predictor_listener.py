@@ -11,7 +11,7 @@ from ReferentialGym.networks import layer_init
 from ReferentialGym.utils import gumbel_softmax
 
 
-class ArchiPredictorSpeaker(ArchiPredictor, DiscriminativeListener):
+class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
     def __init__(
         self,
         model,
@@ -304,7 +304,8 @@ class ArchiPredictorSpeaker(ArchiPredictor, DiscriminativeListener):
             output_probs = output_logits.softmax(dim=-1)
         else:
             output_probs = output_logits
-        output = output_probs[:,0] > self.predicate_threshold
+        #output = output_probs[:,0] > self.predicate_threshold
+        output = output_probs[:, 0]
 
         return output
     

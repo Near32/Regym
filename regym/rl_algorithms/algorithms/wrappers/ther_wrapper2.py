@@ -70,6 +70,7 @@ def batched_predictor_based_goal_predicated_reward_fn2(
     epsilon:float=1e0,
     feedbacks:Dict[str,float]={"failure":-1, "success":0},
     reward_shape:List[int]=[1,1],
+    **kwargs:Dict[str,object],
     ):
     '''
     Relabelling an unsuccessful trajectory, so the desired_exp's goal is not interesting.
@@ -161,6 +162,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
 
         if goal_predicated_reward_fn is None:   goal_predicated_reward_fn = state_eq_goal_reward_fn2
         if _extract_goal_from_info_fn is None:  _extract_goal_from_info_fn = self._extract_goal_from_info_default_fn
+
+        self.goal_predicated_reward_fn_kwargs = {}
 
         self.extra_inputs_infos = extra_inputs_infos
         self.filtering_fn = filtering_fn 
@@ -582,7 +585,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         latent_goal_key=self.achieved_latent_goal_key_from_info,
                         epsilon=1e-1,
                         feedbacks=self.feedbacks,
-                        reward_shape=self.reward_shape
+                        reward_shape=self.reward_shape,
+                        **self.goal_predicated_reward_fn_kwargs,
                     )
                     
                     positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
@@ -667,7 +671,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         latent_goal_key=self.achieved_latent_goal_key_from_info,
                         epsilon=1e-1,
                         feedbacks=self.feedbacks,
-                        reward_shape=self.reward_shape
+                        reward_shape=self.reward_shape,
+                        **self.goal_predicated_reward_fn_kwargs,
                     )
                     
                     positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
