@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=ether_sweep        # Job name
+#SBATCH --mail-type=ALL             # Mail events (NONE, BEGIN, END, FAIL, ALL)
+#SBATCH --mail-user=kyd500@york.ac.uk      # Where to send mail  
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --ntasks=1                       # Run a single task
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=64gb                        # Job memory request
+#SBATCH --time=168:00:00                  # Time limit hrs:min:sec
+#SBATCH --output=array_job_%A_%a.log     # Standard output and error log
+#SBATCH --array=1-2                      # Array range
+ 
+echo My working directory is `pwd`
+echo Running array job index $SLURM_ARRAY_TASK_ID, on host:
+echo -e '\t'`hostname` at `date`
+echo
+
+module purge 
+module restore pytorch
+cd ~/scratch/git/ETHER/Regym/benchmark/ETHER/
+source venv/bin/activate
+wandb login 7231280ded636904441899ef265f5c2877dc0f6e
+wandb agent near3213/ETHER/e8xjyp9t
+

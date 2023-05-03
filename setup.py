@@ -55,7 +55,7 @@ setup(
       #'iglu',
       #'gridworld',
       'celluloid',
-      'sklearn',
+      'scikit-learn', #'sklearn',
       'coloredlogs',
       'scikit-image',
       'h5py',

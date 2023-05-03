@@ -877,6 +877,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         )
         modules[listener_mig_disentanglement_metric_id] = listener_mig_disentanglement_metric_module
 
+        '''
         compactness_ambiguity_metric_id = "compactness_ambiguity_metric"
         compactness_ambiguity_metric_input_stream_ids = {
             #"model":"modules:current_speaker:ref:ref_agent",
@@ -887,7 +888,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             #"latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
             "indices":"current_dataloader:sample:speaker_indices", 
         }
-
+        
         compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
@@ -906,7 +907,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             }
         )
         modules[compactness_ambiguity_metric_id] = compactness_ambiguity_metric_module
-
+        '''
+        	
         posbosdis_disentanglement_metric_id = "posbosdis_disentanglement_metric"
         posbosdis_disentanglement_metric_input_stream_ids = {
             #"model":"modules:current_speaker:ref:ref_agent",
@@ -977,8 +979,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         #pipelines[optim_id].append(topo_sim_metric_id)
         pipelines[optim_id].append(speaker_topo_sim_metric_id)
         #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
-        pipelines[optim_id].append(compactness_ambiguity_metric_id)
         #pipelines[optim_id].append(speaker_posbosdis_metric_id)
+        
+        #pipelines[optim_id].append(compactness_ambiguity_metric_id)
         '''
         if "obverter" in self.kwargs["ETHER_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
