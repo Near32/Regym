@@ -76,6 +76,17 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         
         self.reset()
 
+    def _tidyup(self):
+        """
+        Called at the agent level at the end of the `compute` function.
+        """
+        self.embedding_tf_final_outputs = None
+
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = list()
+            self.compactness_losses.clear()
+            self.buffer_cnn_output_dict = dict()
+
     def reset(self, reset_language_model=False):
         # TODO: implement language model reset if
         # wanting to use iterated learning or cultural pressures...

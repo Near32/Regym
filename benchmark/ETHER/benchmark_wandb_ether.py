@@ -840,6 +840,7 @@ def main():
     parser.add_argument("--ETHER_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
     parser.add_argument("--ETHER_rg_obverter_nbr_games_per_round", type=int, default=20)
     parser.add_argument("--ETHER_rg_use_obverter_sampling", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
     
     parser.add_argument("--ETHER_rg_batch_size", type=int, default=32)
     parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
@@ -904,6 +905,12 @@ def main():
         print("WARNING :: sanity check in progress for compactness ambiguity metric.")
         print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
     
+    if dargs["ETHER_listener_based_predicated_reward_fn"]:
+        assert dargs["ETHER_rg_descriptive"]
+    
+    if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
+        dargs["ETHER_rg_use_obverter_sampling"] = True
+
     print(dargs)
 
     #from gpuutils import GpuUtils
