@@ -3239,6 +3239,7 @@ def baseline_ther_wrapper(
             qualifying_area_ratio=0.15,
             qualifying_screen_ratio=0.025,
             as_obs=True,
+            with_top_view=True,
             verbose=False,
         )
 

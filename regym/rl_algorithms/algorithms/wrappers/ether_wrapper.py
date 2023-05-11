@@ -418,8 +418,16 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             self.nbr_handled_rg_experience = 0
         self.nbr_handled_rg_experience += 1
         
+        '''
+        No longer putting any data into the split test set as it is
+        messing about with the compactness-ambiguity metric visualisation.
+        '''
+        '''
         test_set = None
         if negative:    test_set = False
+        '''
+        test_set = False 
+
         '''
         if self.kwargs['ETHER_use_PER']:
             init_sampling_priority = None 
@@ -1135,7 +1143,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         if self.kwargs.get("ETHER_rg_sanity_check_compactness_ambiguity_metric", False):
             compactness_ambiguity_metric_input_stream_ids["representations"] = \
                 "current_dataloader:sample:speaker_grounding_signal"
-
+            compactness_ambiguity_metric_input_stream_ids["top_view"] = "current_dataloader:sample:speaker_top_view" 
+            compactness_ambiguity_metric_input_stream_ids["agent_pos_in_top_view"] = "current_dataloader:sample:speaker_agent_pos_in_top_view" 
+            
         compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
@@ -1266,6 +1276,15 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         if 'similarity' in self.rg_config['distractor_sampling']:
             kwargs['same_episode_target'] = True 
 
+        extra_keys_dict = {
+            "grounding_signal":self.kwargs.get("ETHER_grounding_signal_key", None),
+        }
+        if self.kwargs.get("ETHER_rg_sanity_check_compactness_ambiguity_metric", False):
+            extra_keys_dict.update({
+                "top_view":"info:top_view",
+                "agent_pos_in_top_view":"info:agent_pos_in_top_view",
+            })
+        
         self.rg_train_dataset = DemonstrationDataset(
             replay_storage=self.rg_storages[0],
             train=True,
@@ -1273,7 +1292,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_train_dataset_length,
             exp_key=self.rg_exp_key,
-            grounding_signal_key=self.kwargs.get("ETHER_grounding_signal_key", None),
+            extra_keys_dict=extra_keys_dict,
             kwargs=kwargs,
         )
         
@@ -1285,7 +1304,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_test_dataset_length,
             exp_key=self.rg_exp_key,
-            grounding_signal_key=self.kwargs.get("ETHER_grounding_signal_key", None),
+            extra_keys_dict=extra_keys_dict,
             kwargs=kwargs,
         )
         
