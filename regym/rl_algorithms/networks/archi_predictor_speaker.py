@@ -7,7 +7,7 @@ import torch.nn as nn
 from .archi_predictor import ArchiPredictor
 
 from ReferentialGym.agents import Speaker
-from ReferentialGym.networks import layer_init
+from ReferentialGym.networks import layer_init, BetaVAE
 from ReferentialGym.utils import gumbel_softmax
 
 
