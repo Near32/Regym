@@ -17,9 +17,9 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_supervised_training=True \
 --ETHER_use_continuous_feedback=False \
---ETHER_listener_based_predicated_reward_fn=True \
+--ETHER_listener_based_predicated_reward_fn=False \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
---ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0 \
+--ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0e1 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_with_color_jitter_augmentation=False --ETHER_rg_with_gaussian_blur_augmentation=True \
@@ -30,7 +30,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=32 --ETHER_rg_accuracy_threshold=99 \
 --ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=7 \
---ETHER_replay_capacity=1024 --ETHER_test_replay_capacity=512 \
+--ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=512 \
 --ETHER_rg_distractor_sampling=uniform \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
 --THER_lock_test_storage=True \
