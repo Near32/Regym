@@ -826,6 +826,16 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 config=sem_cooc_grounding_config,
             )
 
+        if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
+            sem_grounding_id = "sem_grounding_metric_0"
+            sem_grounding_config = {
+                'idx2w':self.idx2w,
+            }
+            modules[sem_grounding_id] = rg_modules.build_SemanticGroundingMetricModule(
+                id=sem_grounding_id,
+                config=sem_grounding_config,
+            )
+
         ## Pipelines:
         pipelines = {}
         
@@ -845,6 +855,14 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             config=optim_config,
         )
         modules[optim_id] = optim_module
+        
+        if self.kwargs["ETHER_rg_homoscedastic_multitasks_loss"]:
+            homo_id = "homo0"
+            homo_config = {"use_cuda":self.kwargs["ETHER_rg_use_cuda"]}
+            modules[homo_id] = rg_modules.build_HomoscedasticMultiTasksLossModule(
+                id=homo_id,
+                config=homo_config,
+            )
         
         grad_recorder_id = "grad_recorder"
         grad_recorder_module = rg_modules.build_GradRecorderModule(id=grad_recorder_id)
@@ -1152,7 +1170,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             config = {
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
                 "epoch_period":1,#self.kwargs["ETHER_rg_metric_epoch_period"],
                 "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
@@ -1183,7 +1201,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
             config = {
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
                 "epoch_period":self.kwargs["ETHER_rg_metric_epoch_period"],
                 "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
@@ -1219,6 +1237,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         pipelines[optim_id] = []
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             pipelines[optim_id].append(sem_cooc_grounding_id)
+        if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
+            pipelines[optim_id].append(sem_grounding_id)
         if self.kwargs["ETHER_rg_homoscedastic_multitasks_loss"]:
             pipelines[optim_id].append(homo_id)
         pipelines[optim_id].append(optim_id)
@@ -1284,7 +1304,11 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "top_view":"info:top_view",
                 "agent_pos_in_top_view":"info:agent_pos_in_top_view",
             })
-        
+        if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
+            extra_keys_dict.update({
+                "semantic_signal":"info:symbolic_image",
+            })
+         
         self.rg_train_dataset = DemonstrationDataset(
             replay_storage=self.rg_storages[0],
             train=True,

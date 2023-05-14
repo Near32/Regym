@@ -786,6 +786,7 @@ def main():
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ETHER_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
     parser.add_argument("--ETHER_grounding_signal_key", type=str, default="info:desired_goal",)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
