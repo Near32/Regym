@@ -1,4 +1,4 @@
-WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
+WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=20 \
 --config=babyAI_wandb_benchmark_ETHER_config.yaml \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
@@ -20,7 +20,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --ETHER_listener_based_predicated_reward_fn=False \
 --ETHER_rg_with_semantic_grounding_metric=True \
 --ETHER_rg_homoscedastic_multitasks_loss=False \
---ETHER_rg_use_semantic_cooccurrence_grounding=True \
+--ETHER_rg_use_semantic_cooccurrence_grounding=False \
 --ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0e2 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
@@ -29,7 +29,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=3e-4 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
---ETHER_rg_descriptive=False ETHER_rg_object_centric=False \
+--ETHER_rg_descriptive=False --ETHER_rg_object_centric=False \
 --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=8 --ETHER_rg_accuracy_threshold=99 \
 --ETHER_rg_nbr_train_distractors=31 --ETHER_rg_nbr_test_distractors=7 \
