@@ -821,6 +821,7 @@ def main():
     parser.add_argument("--ETHER_rg_symbol_embedding_size", type=int, default=64)
     parser.add_argument("--ETHER_rg_arch", type=str, default='BN+7x4x3xCNN')
     parser.add_argument("--ETHER_rg_shared_architecture", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)

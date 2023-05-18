@@ -584,7 +584,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "symbol_embedding_size":    self.kwargs["ETHER_rg_symbol_embedding_size"], #64
             
             "agent_architecture":       self.kwargs["ETHER_rg_arch"], #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
-            "shared_architecture": self.kwargs["ETHER_rg_shared_architecture"],
+            "shared_architecture":      self.kwargs["ETHER_rg_shared_architecture"],
+            "normalize_features":       self.kwargs["ETHER_rg_normalize_features"],
             "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
             "agent_loss_type":          self.kwargs["ETHER_rg_agent_loss_type"], #"NLL"
             

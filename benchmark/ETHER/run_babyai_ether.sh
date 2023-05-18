@@ -1,4 +1,4 @@
-WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=20 \
+WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=30 \
 --config=babyAI_wandb_benchmark_ETHER_config.yaml \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
@@ -11,6 +11,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
 --ETHER_rg_shared_architecture=False \
+--ETHER_rg_normalize_features=True \
 --ETHER_rg_with_logits_mdl_principle=True \
 --ETHER_rg_logits_mdl_principle_factor=1.0e-5 \
 --ETHER_rg_logits_mdl_principle_accuracy_threshold=10.0 \
@@ -50,6 +51,6 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --single_pick_episode=True --THER_timing_out_episode_length_threshold=40 \
 --BabyAI_Bot_action_override=False \
---train_observation_budget=200000
+--train_observation_budget=2000000
 
 
