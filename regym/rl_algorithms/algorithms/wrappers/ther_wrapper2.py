@@ -20,6 +20,7 @@ from regym.rl_algorithms.replay_buffers import PrioritizedReplayStorage, SplitRe
 from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict, copy_hdict
 
 import wandb 
+import pandas as pd
 
 
 def predictor_based_goal_predicated_reward_fn2(
@@ -182,6 +183,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.test_acc = 0.0
 
         self.predictor = predictor 
+        
         self.use_oracle = self.predictor.use_oracle
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
@@ -325,6 +327,13 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
     def store(self, exp_dict, actor_index=0):
         #################
         #################
+        # Vocabulary logging:
+        if not hasattr(self, "w2idx"):
+            self.w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
+            vocab_data = {"token_idx": list(self.w2idx.values()), "token": list(self.w2idx.keys())}
+            vocab_df = pd.DataFrame(vocab_data)
+            wandb.log({"VocabularyTable":wandb.Table(data=vocab_df),}, commit=True)
+         
         # Semantic Co-Occurrence Data logging :
         if self.semantic_cooccurrence_test:
             COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
@@ -493,7 +502,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 target_pred_goal = self.predictor(x=target_state).cpu()
                                 self.predictor.train(training)
                             w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
-                            self.contrastive_goal_value = w2idx["PAD"]+0*target_pred_goal
+                            # PADDING with EoS:
+                            self.contrastive_goal_value = w2idx["EoS"]+0*target_pred_goal
                             self.contrastive_goal_value[..., 0] = w2idx["EoS"]
                         
                         for ctr_example_idx in range(self.contrastive_training_nbr_neg_examples):

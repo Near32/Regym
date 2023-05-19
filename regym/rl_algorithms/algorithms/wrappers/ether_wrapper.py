@@ -166,7 +166,9 @@ class ListenerWrapper(nn.Module):
             experiences=experiences, 
         )
         
-        decision_probs = output_dict['decision'].softmax(dim=-1)
+        decision_probs = output_dict['decision']
+        if self.listener_agent.kwargs['descriptive']:
+            decision_probs = decision_probs.softmax(dim=-1)
         # (batch_size x max_sentence_length x nbr_distractors+1)
         
         final_decision_probs = self.get_final_decision(
@@ -264,7 +266,7 @@ def batched_listener_based_goal_predicated_reward_fn(
         listener.train(listener_training)
     
     target_pred_goal = target_pred_goal.cpu()
-    listener.predicate_threshold = 0.9*target_descriptive_probs.item()
+    listener.predicate_threshold = target_descriptive_probs.item()-1.0e-4
     wandb.log({f"ListenerWrapper/TargerPredicateDecisionProbs": target_descriptive_probs.item()}, commit=False)
 
     if kwargs.get("use_continuous_feedback", False):
@@ -272,7 +274,7 @@ def batched_listener_based_goal_predicated_reward_fn(
         reward = descriptive_probs*reward_range + feedbacks['failure']
         reward = reward.reshape((reward_shape))
     else:
-        reward_mask = descriptive_probs >= listener.predicate_threshold
+        reward_mask = descriptive_probs > listener.predicate_threshold
         reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
         reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
     
