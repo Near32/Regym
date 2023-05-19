@@ -908,7 +908,7 @@ def main():
         print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
     
     if dargs["ETHER_listener_based_predicated_reward_fn"]:
-        assert dargs["ETHER_rg_descriptive"]
+        print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
     
     if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
         dargs["ETHER_rg_use_obverter_sampling"] = True

@@ -11,14 +11,14 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --se
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
 --ETHER_rg_shared_architecture=False \
---ETHER_rg_normalize_features=True \
+--ETHER_rg_normalize_features=False \
 --ETHER_rg_with_logits_mdl_principle=True \
 --ETHER_rg_logits_mdl_principle_factor=1.0e-5 \
 --ETHER_rg_logits_mdl_principle_accuracy_threshold=10.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_supervised_training=True \
 --ETHER_use_continuous_feedback=False \
---ETHER_listener_based_predicated_reward_fn=False \
+--ETHER_listener_based_predicated_reward_fn=True \
 --ETHER_rg_with_semantic_grounding_metric=True \
 --ETHER_rg_homoscedastic_multitasks_loss=False \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
