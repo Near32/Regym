@@ -414,6 +414,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "with_listener_entropy_regularization":  False,
             "entropy_regularization_factor":    -1e-2,
             
+            "with_logits_mdl_principle":       self.kwargs['ETHER_rg_with_logits_mdl_principle'],
+            "logits_mdl_principle_factor":     self.kwargs['ETHER_rg_logits_mdl_principle_factor'],
+            
             "with_mdl_principle":       False,
             "mdl_principle_factor":     5e-2,
             
