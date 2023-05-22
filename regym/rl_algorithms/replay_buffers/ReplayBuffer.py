@@ -140,7 +140,8 @@ class ReplayStorage():
                 k = self.circular_keys[k]
             # dealing with a proxy...:
             v = getattr(self, k)[0]
-            if indices_ is None: indices_ = np.arange(self.current_size[k]-cidx)
+            if indices_ is None: 
+                indices_ = np.arange(self.current_size[k]-cidx)
             else:
                 # Check that all indices are in range:
                 for idx in range(len(indices_)):
@@ -170,7 +171,11 @@ class ReplayStorage():
                 min_current_size = self.current_size[key]
 
         if min_current_size-1 > 0:
-            indices = np.random.choice(np.arange(min_current_size-1), batch_size)
+            indices = np.random.choice(
+                np.arange(min_current_size), 
+                batch_size,
+                replace=False,
+            )
         else:
             indices = None #[0]*batch_size
         data = self.cat(keys=keys, indices=indices)

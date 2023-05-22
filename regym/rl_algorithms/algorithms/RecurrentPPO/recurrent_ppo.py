@@ -140,13 +140,6 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         print(kwargs)
 
-        #self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
-        #self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
-        self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
-        
-        #self.sequence_replay_store_on_terminal = kwargs["sequence_replay_store_on_terminal"]
-        
-        #self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
         
         self.train_request_count = 0 
 
@@ -245,15 +238,33 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         self.storages = None
         self.use_mp = False 
-        self.replay_buffer_capacity = self.nbr_actor
-        self.sequence_replay_unroll_length = self.horizon
         self.sequence_replay_overlap_length = 0
+        self.kwargs['sequence_replay_overlap_length'] = 0
+        
+        # PREVIOUSLY : when forcing the unroll lenght:
+        #self.sequence_replay_unroll_length = self.horizon
+        #self.kwargs['sequence_replay_unroll_length'] = self.horizon
+        # NOW: letting it be set by user:
+        self.sequence_replay_unroll_length = self.kwargs['sequence_replay_unroll_length']
+
         self.sequence_replay_store_on_terminal = False
-        if self.kwargs['use_PER']:
+        self.sequence_replay_burn_in_ratio = self.kwargs['sequence_replay_burn_in_ratio']
+        self.sequence_replay_burn_in_length = int(self.sequence_replay_unroll_length*self.sequence_replay_burn_in_ratio)
+        self.kwargs['sequence_replay_burn_in_length'] = self.sequence_replay_burn_in_length
+        #self.sequence_replay_store_on_terminal = kwargs["sequence_replay_store_on_terminal"]
+        #self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
+        
+        #PREVIOUSLY: only as many as there were actors, and so there would be only one element per storage of length horizon:
+        #self.replay_buffer_capacity = self.nbr_actor * (self.horizon // self.sequence_replay_unroll_length)
+        # NOW: we still want to separate over the different actors,
+        # and also we want the horizon to be separate over the different unroll length : 
+        self.replay_buffer_capacity = self.nbr_actor * (self.horizon // self.sequence_replay_unroll_length)
+        
+        if self.kwargs.get('use_PER', False):
             print("WARNING: RPPO cannot use PER.")
             print("WARNING: Falling back onto normal ReplayStorage.")
-            self.kwargs['use_PER'] = False 
-        self.use_PER = self.kwargs['use_PER'] 
+        self.kwargs['use_PER'] = False 
+        self.use_PER = False
         self.reset_storages()
         
         global summary_writer
@@ -296,12 +307,29 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         non_episodic=False,
         normalizer=None,
     ):
-        r = self.storages[storage_idx].r[0][0][0]
-        v = self.storages[storage_idx].v[0][0][0]
-        v_key = 'v'
-        non_terminal = self.storages[storage_idx].non_terminal[0][0][0].squeeze().tolist()
-        succ_s = self.storages[storage_idx].succ_s[0][0][0]
-        rnn_states = self.storages[storage_idx].rnn_states[0][0]
+        rs = []
+        vs = []
+        non_terminals = []
+
+        for sidx in range(len(self.storages[storage_idx])):
+            r = self.storages[storage_idx].r[0][0][0]
+            v = self.storages[storage_idx].v[0][0][0]
+            # (temporal_dim=unroll_length x 1)
+            v_key = 'v'
+            non_terminal = self.storages[storage_idx].non_terminal[0][0][0]#.squeeze().tolist()
+            
+            rs.append(r)
+            vs.append(v)
+            non_terminals.append(non_terminal)
+        
+        # (temporal_dim=unroll_length x 1)
+        r = torch.cat(rs, dim=0)
+        v = torch.cat(vs, dim=0)
+        non_terminal = torch.cat(non_terminals, dim=0).squeeze().tolist()
+        # (temporal_dim = nbr_storages * unroll_length x 1)
+        
+        succ_s = self.storages[storage_idx].succ_s[0][sidx][0]
+        rnn_states = self.storages[storage_idx].rnn_states[0][sidx]
 
         out_d = self._compute_advantages_and_returns(
             r=r,
@@ -315,14 +343,30 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             non_episodic=non_episodic,
             normalizer=normalizer,
         )
-
-        self.storages[storage_idx].add(
-            data={
-                'adv':out_d['advantages'].unsqueeze(0), 
-                'std_adv':standardize(out_d['advantages'].unsqueeze(0)), 
-                'ret':out_d['returns'].unsqueeze(0),
-            },
+        
+        advs = torch.split(
+            out_d['advantages'], 
+            self.sequence_replay_unroll_length,
         )
+        
+        std_advs = torch.split(
+            standardize(out_d['advantages']),
+            self.sequence_replay_unroll_length,
+        )
+
+        rets = torch.split(
+            out_d['returns'], 
+            self.sequence_replay_unroll_length,
+        )
+        
+        for adv, std_adv, ret in zip(advs, std_advs, rets):
+            self.storages[storage_idx].add(
+                data={
+                    'adv':adv.unsqueeze(0), 
+                    'std_adv':std_adv.unsqueeze(0), 
+                    'ret':ret.unsqueeze(0),
+                },
+            )
         
         return 
 
@@ -433,7 +477,12 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         start = time.time()
         #samples = self.retrieve_values_from_storages()
-        samples = self.retrieve_values_from_storages(minibatch_size=1)
+        # PREVIOUSLY:
+        #samples = self.retrieve_values_from_storages(minibatch_size=1)
+        # NOW: 
+        # in order to make sure to sample the whole dataset we put
+        # minibatch_size to the size of the dataset:
+        samples = self.retrieve_values_from_storages(minibatch_size=len(self.storages[0]))
         end = time.time()
 
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)

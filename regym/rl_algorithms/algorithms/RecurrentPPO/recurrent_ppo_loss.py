@@ -108,7 +108,7 @@ def compute_loss(
             dim=1
         )
         
-        _, training_log_probs_olds = torch.split(
+        _, training_log_probs_old = torch.split(
             log_probs_old, 
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
@@ -209,9 +209,11 @@ def compute_loss(
         reduction='none',
     ).reshape((batch_size, training_length))
 
-    total_loss = policy_loss + value_loss
+    # TODO: Testing in progress : trying mean then addition to check if it affects anything:
+    #total_loss = policy_loss + value_loss
+    total_loss = policy_loss.mean(-1) + value_loss.mean(-1)
     # Mean over unroll_length :
-    total_loss = total_loss.mean(-1)
+    #total_loss = total_loss.mean(-1)
 
     wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
     #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
