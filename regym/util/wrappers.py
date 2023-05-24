@@ -631,6 +631,15 @@ class EpisodicLifeEnv(gym.Wrapper):
     def __init__(self, env):
         """Make end-of-life == end-of-episode, but only reset on true game over.
         Done by DeepMind for the DQN and co. since it helps value estimation.
+        WARNING: As the ale no longer provides the same behaviour
+        around lives and scores.
+        For instance, the lives/score paradigm can no longer be used 
+        in Pong to account for the lives...
+
+        N.B.: It has now been updated to account for non-positive rewards
+        as the loss of a life.
+        It is now suitable for Pong, at least.
+
         """
         gym.Wrapper.__init__(self, env)
         self.lives = 0
@@ -646,6 +655,8 @@ class EpisodicLifeEnv(gym.Wrapper):
             # for Qbert sometimes we stay in lives == 0 condition for a few frames
             # so it's important to keep lives > 0, so that we only reset once
             # the environment advertises done.
+            done = True
+        elif reward < 0:
             done = True
         self.lives = lives
         return obs, reward, done, info

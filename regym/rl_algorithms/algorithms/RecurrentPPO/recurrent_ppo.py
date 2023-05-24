@@ -312,11 +312,11 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         non_terminals = []
 
         for sidx in range(len(self.storages[storage_idx])):
-            r = self.storages[storage_idx].r[0][0][0]
-            v = self.storages[storage_idx].v[0][0][0]
+            r = self.storages[storage_idx].r[0][sidx][0]
+            v = self.storages[storage_idx].v[0][sidx][0]
             # (temporal_dim=unroll_length x 1)
             v_key = 'v'
-            non_terminal = self.storages[storage_idx].non_terminal[0][0][0]#.squeeze().tolist()
+            non_terminal = self.storages[storage_idx].non_terminal[0][sidx][0]#.squeeze().tolist()
             
             rs.append(r)
             vs.append(v)
@@ -328,6 +328,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         non_terminal = torch.cat(non_terminals, dim=0).squeeze().tolist()
         # (temporal_dim = nbr_storages * unroll_length x 1)
         
+        # sidx contains the last segment of temporally-ordered data
         succ_s = self.storages[storage_idx].succ_s[0][sidx][0]
         rnn_states = self.storages[storage_idx].rnn_states[0][sidx]
 
@@ -410,7 +411,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             )
             returns = final_prediction[v_key].cpu().detach()
         else:
-            returns = torch.zeros(1,1)
+            returns = r[-1].reshape((1,1)) #torch.zeros(1,1)
         
         # Adding next state return/value and dummy advantages to the storage on the N+1 spots: 
         # not used during optimization, but necessary to compute the returns and advantages of previous states.

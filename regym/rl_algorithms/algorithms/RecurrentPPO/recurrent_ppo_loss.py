@@ -184,22 +184,29 @@ def compute_loss(
     
     #prediction = model(obs=states, action=actions, rnn_states=rnn_states)
     
-    ratio = torch.exp((training_predictions['log_pi_a'] - training_log_probs_old))
+    ratio = torch.exp((training_predictions['log_pi_a'] - training_log_probs_old.detach()))
     
     if kwargs['standardized_adv']:
-      adv = training_std_advantages
+      #adv = training_std_advantages
+      # Standardize on minibatch:
+      def standardize(x):
+          stable_eps = 1.0e-8
+          std_x = (x-x.mean())/(x.std()+stable_eps)
+          return std_x
+      adv = standardize(training_advantages)
     else:
-      adv = training_advantages
+      adv = training_advantages.detach()
 
     adv = adv.reshape((batch_size, training_length))
-    obj = ratio * adv
+    obj = ratio * adv.detach()
     obj_clipped = torch.clamp(ratio,
                               1.0 - kwargs['ppo_ratio_clip'],
-                              1.0 + kwargs['ppo_ratio_clip']) * adv
+                              1.0 + kwargs['ppo_ratio_clip']) * adv.detach()
     
-    policy_val = -torch.min(obj, obj_clipped) #.mean()
+    policy_val = policy_loss = -torch.min(obj, obj_clipped) #.mean()
     entropy_val = training_predictions['ent'] #.mean()
-    policy_loss = policy_val - kwargs['entropy_weight'] * entropy_val 
+
+    #policy_loss = policy_val - kwargs['entropy_weight'] * entropy_val 
     # L^{clip} and L^{S} from original paper
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
     
@@ -212,12 +219,14 @@ def compute_loss(
     # TODO: Testing in progress : trying mean then addition to check if it affects anything:
     #total_loss = policy_loss + value_loss
     total_loss = policy_loss.mean(-1) + value_loss.mean(-1)
+    total_loss = policy_loss.mean(-1) + value_loss.mean(-1) - kwargs['entropy_weight']*entropy_val.mean(-1)
     # Mean over unroll_length :
     #total_loss = total_loss.mean(-1)
 
     wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
     #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
     wandb.log({'Training/AdvantageMean': training_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/AdvantageStd': training_advantages.std().cpu().item(), "training_step": iteration_count}, commit=False)
     #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
     wandb.log({'Training/MeanVValues': training_predictions['v'].cpu().mean().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/MeanReturns': returns.cpu().mean().item(), "training_step": iteration_count}, commit=False)
