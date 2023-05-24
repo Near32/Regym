@@ -6,7 +6,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --discount=0.999 --ppo_ratio_clip=0.1 \
 --nbr_actor=8 --mini_batch_size=256 --batch_size=256 \
 --learning_rate=2.5e-4 --gradient_clip=0.5 \
---entropy_weight=0.0001 \
+--entropy_weight=0.01 \
 --sequence_replay_burn_in_ratio=0.0 --sequence_replay_unroll_length=32 \
 --sequence_replay_use_online_states=True \
 --sequence_replay_use_zero_initial_states=True \

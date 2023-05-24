@@ -169,6 +169,12 @@ def compute_loss(
         unroll_length=training_length,
         model=model, 
         states=training_states, 
+        ##############################################################
+        # WARNING : in R2D2, the evaluation is relying on the current 
+        # estimate of the best action. 
+        # but in PPO, we use the offline estime:
+        actions=training_actions,
+        ##############################################################
         non_terminals=training_non_terminals,
         rnn_states=training_rnn_states,
         grad_enabler=True,

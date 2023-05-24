@@ -341,6 +341,7 @@ def batched_unrolled_inferences(
     states: torch.Tensor, 
     non_terminals: torch.Tensor,
     rnn_states: Dict[str, Dict[str, List[torch.Tensor]]],
+    actions: torch.Tensor=None,
     goals: torch.Tensor=None,
     grad_enabler: bool=False,
     use_zero_initial_states: bool=False,
@@ -358,6 +359,7 @@ def batched_unrolled_inferences(
     :param rnn_states: Hierarchy of dictionnaries containing as leaf the hidden an cell states of the relevant recurrent modules.
                         The shapes are batch_first, i.e. (batch_size, unroll_dim, ...).
     :param goals: Dimension batch_size x goal shape: Goal of the agent.
+    :param actions: torch.Tensor of shape (batch_size, unroll_dim, ...) to use as action to evaluate, unless it is None.
     :param grad_enable: boolean specifying whether to compute gradient.
     :param use_zero_initial_states: boolean specifying whether the initial recurrent states are zeroed or sampled from the unrolled sequence.
     :param map_keys: List of strings containings the keys we want to extract and concatenate in the returned predictions.
@@ -449,10 +451,18 @@ def batched_unrolled_inferences(
             return burn_in_prediction, burn_in_prediction, None 
     else:
         model_head = model 
-        head_input = states 
+        head_input = states
+    
+    head_action_input = actions
 
     if vdn:
         head_input = head_input.transpose(1,2).reshape(-1, eff_unroll_length, *head_input.shape[3:])
+        if actions is not None:
+            # TODO : to test :
+            import ipdb; ipdb.set_trace()
+            head_action_input = head_action_input.transpose(1,2).reshape(
+                (-1, eff_unroll_length, *head_action_input.shape[3:]),
+            )
         batching_time_dim_lambda_fn = (
             lambda x: 
             x.transpose(1,2).reshape((batch_size*num_players, eff_unroll_length, *x.shape[3:]))
@@ -488,12 +498,25 @@ def batched_unrolled_inferences(
     with torch.set_grad_enabled(grad_enabler):
         for unroll_id in range(unroll_length):
             inputs = head_input[:, unroll_id,...]
+            
+            action_inputs = None
+            if actions is not None:
+                action_inputs = head_action_input[:, unroll_id,...]
+                
             non_terminals_input = non_terminals[:, unroll_id, ...].reshape(batch_size)
 
-            burn_in_prediction = model_head(inputs, rnn_states=burn_in_rnn_states_inputs)
+            burn_in_prediction = model_head(
+                inputs, 
+                action=action_inputs,
+                rnn_states=burn_in_rnn_states_inputs,
+            )
             
             if extras:
-                unrolled_prediction = model_head(inputs, rnn_states=unrolled_rnn_states_inputs)
+                unrolled_prediction = model_head(
+                    inputs, 
+                    action=action_inputs,
+                    rnn_states=unrolled_rnn_states_inputs,
+                )
             
             burn_in_predictions.append(burn_in_prediction)
             if extras:

@@ -326,7 +326,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         r = torch.cat(rs, dim=0)
         v = torch.cat(vs, dim=0)
         non_terminal = torch.cat(non_terminals, dim=0).squeeze().tolist()
-        # (temporal_dim = nbr_storages * unroll_length x 1)
+        # (temporal_dim = nbr entries in storage * unroll_length x 1)
         
         # sidx contains the last segment of temporally-ordered data
         succ_s = self.storages[storage_idx].succ_s[0][sidx][0]
