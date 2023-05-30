@@ -50,6 +50,7 @@ class RecurrentPPOAgent(R2D2Agent):
                 else:
                     raise NotImplementedError 
 
+        self.state_preprocessing = partial(PreprocessFunction, normalization=True)
         state = self.state_preprocessing(state, use_cuda=self.algorithm.kwargs['use_cuda'])
         '''
         wandb.log({

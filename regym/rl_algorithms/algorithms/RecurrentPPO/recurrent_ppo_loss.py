@@ -59,6 +59,7 @@ def compute_loss(
     actions = samples['actions']
     non_terminals = samples['non_terminals']
     rnn_states = samples['rnn_states']
+    values = samples['v']
     returns = samples['returns']
     advantages = samples['advantages']
     std_advantages = samples['std_advantages']
@@ -86,11 +87,21 @@ def compute_loss(
             split_size_or_sections=[burn_in_length, training_length],
             dim=1
         )
+        burn_in_actions, training_actions = torch.split(
+            actions, 
+            split_size_or_sections=[burn_in_length, training_length],
+            dim=1
+        )
         _training_rnn_states = extract_rnn_states_from_time_indices(
             rnn_states, 
             time_indices_start=kwargs['sequence_replay_burn_in_length'],
             time_indices_end=kwargs['sequence_replay_unroll_length'],
             preprocess_fn= None if use_BPTT else (lambda x:x.detach()), # not performing BPTT
+        )
+        _, training_values = torch.split(
+            values, 
+            split_size_or_sections=[burn_in_length, training_length],
+            dim=1
         )
         _, training_returns = torch.split(
             returns, 
@@ -134,6 +145,12 @@ def compute_loss(
             unroll_length=burn_in_length,
             model=model, 
             states=states, #burn_in_states, 
+            ##############################################################
+            # WARNING : in R2D2, the evaluation is relying on the current 
+            # estimate of the best action. 
+            # but in PPO, we use the offline estime:
+            actions=burn_in_actions,
+            ##############################################################
             non_terminals=burn_in_non_terminals,
             rnn_states=rnn_states,
             grad_enabler=False,
@@ -157,6 +174,7 @@ def compute_loss(
         training_actions = actions 
         training_non_terminals = non_terminals
         training_rnn_states = rnn_states
+        training_values = values
         training_returns = returns
         training_advantages = advantages
         training_std_advantages = std_advantages
@@ -190,10 +208,13 @@ def compute_loss(
     
     #prediction = model(obs=states, action=actions, rnn_states=rnn_states)
     
-    ratio = torch.exp((training_predictions['log_pi_a'] - training_log_probs_old.detach()))
+    logratio = training_predictions['log_pi_a'] - training_log_probs_old.detach()
+    ratio = logratio.exp()
     
     if kwargs['standardized_adv']:
-      #adv = training_std_advantages
+      '''
+      adv = training_std_advantages
+      '''
       # Standardize on minibatch:
       def standardize(x):
           stable_eps = 1.0e-8
@@ -204,23 +225,54 @@ def compute_loss(
       adv = training_advantages.detach()
 
     adv = adv.reshape((batch_size, training_length))
+    '''
     obj = ratio * adv.detach()
     obj_clipped = torch.clamp(ratio,
                               1.0 - kwargs['ppo_ratio_clip'],
                               1.0 + kwargs['ppo_ratio_clip']) * adv.detach()
     
     policy_val = policy_loss = -torch.min(obj, obj_clipped) #.mean()
+    '''
+    obj = -adv*ratio
+    obj_clipped = -adv*torch.clamp(
+        ratio,
+        1.0 - kwargs['ppo_ratio_clip'],
+        1.0 + kwargs['ppo_ratio_clip'],
+    )
+    policy_val = policy_loss = torch.max(obj, obj_clipped) #.mean()
     entropy_val = training_predictions['ent'] #.mean()
 
     #policy_loss = policy_val - kwargs['entropy_weight'] * entropy_val 
     # L^{clip} and L^{S} from original paper
     #policy_loss = -torch.min(obj, obj_clipped).mean() - entropy_weight * prediction['ent'].mean() # L^{clip} and L^{S} from original paper
+   
+    if kwargs.get("clip_vloss", True):
+        v_loss_unclipped = (training_predictions['v'] - training_returns) ** 2
+        v_clipped = training_values + torch.clamp(
+            training_predictions['v'] - training_values,
+            -kwargs['ppo_ratio_clip'],
+            kwargs['ppo_ratio_clip'],
+        )
+        v_loss_clipped = (v_clipped - training_returns) ** 2
+        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+        value_loss = kwargs['value_weight'] * v_loss_max
+    else: 
+        value_loss = kwargs['value_weight'] * torch.nn.functional.mse_loss(
+            input=training_predictions['v'], 
+            target=training_returns,
+            reduction='none',
+        )
+    value_loss = value_loss.reshape((batch_size, training_length))
     
-    value_loss = kwargs['value_weight'] * torch.nn.functional.mse_loss(
-        input=training_predictions['v'], 
-        target=training_returns,
-        reduction='none',
-    ).reshape((batch_size, training_length))
+    value_diff = training_returns - training_predictions['v']
+    xvar = 1-value_diff.var()/(training_returns.var()+1e-5)
+    
+    with torch.no_grad():
+        # calculate approx_kl http://joschu.net/blog/kl-approx.html
+        # old_approx_kl = (-logratio).mean()
+        approx_kl = (ratio - 1) - logratio
+        clipfracs = ((ratio - 1.0).abs() > kwargs['ppo_ratio_clip'])
+        clipfracs = clipfracs.float()
 
     # TODO: Testing in progress : trying mean then addition to check if it affects anything:
     #total_loss = policy_loss + value_loss
@@ -229,6 +281,9 @@ def compute_loss(
     # Mean over unroll_length :
     #total_loss = total_loss.mean(-1)
 
+    wandb.log({'Training/ExplainedVariance': xvar.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/ApproxKL': approx_kl.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb.log({'Training/ClipFracs': clipfracs.mean().cpu().item(), "training_step": iteration_count}, commit=False)
     wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
     #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
     wandb.log({'Training/AdvantageMean': training_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)

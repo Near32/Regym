@@ -846,7 +846,7 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(
+def depr_baseline_atari_pixelwrap(
     env, 
     size=None, 
     skip=4, 
@@ -890,6 +890,59 @@ def baseline_atari_pixelwrap(
     if clip_reward:
         env = ClipRewardEnv(env)
 
+    if previous_reward_action:
+        env = PreviousRewardActionInfoWrapper(env=env)
+    
+    return env
+
+
+def baseline_atari_pixelwrap(
+    env, 
+    size=None, 
+    skip=4, 
+    stack=4, 
+    grayscale=True,  
+    single_life_episode=True, 
+    nbr_max_random_steps=30, 
+    clip_reward=True,
+    time_limit=18000,
+    previous_reward_action=False,
+):
+    env = gym.wrappers.RecordEpisodeStatistics(env)
+    
+    if 'timelimit' in type(env).__name__.lower():
+        env._max_episode_steps = time_limit
+    else:
+        env = TimeLimit(env, max_episode_steps=time_limit)
+    env = Gymnasium2GymWrapper(env=env)
+    
+    if nbr_max_random_steps > 0:
+        env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
+    
+    if skip > 0:
+        env = MaxAndSkipEnv(env, skip=skip)
+    
+    if single_life_episode:
+        env = EpisodicLifeEnv(env)
+    
+    if clip_reward:
+        env = ClipRewardEnv(env)
+
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    if size is not None and isinstance(size, int):
+        env = gym.wrappers.ResizeObservation(env, (size, size))
+    if grayscale:
+        env = gym.wrappers.GrayScaleObservation(env,keep_dim=True)
+        #env = GrayScaleObservationCV(env=env) 
+    
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    
+    if stack > 1:
+        env = FrameStack(env, stack=stack)
+        #env = gym.wrappers.FrameStack(env, stack)
+    
     if previous_reward_action:
         env = PreviousRewardActionInfoWrapper(env=env)
     

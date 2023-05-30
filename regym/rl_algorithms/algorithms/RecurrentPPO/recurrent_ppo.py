@@ -14,6 +14,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt 
 
 import regym
+from regym.rl_algorithms.networks import random_sample
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.algorithms.RecurrentPPO import recurrent_ppo_loss
@@ -28,6 +29,7 @@ from regym.rl_algorithms.utils import (
     _concatenate_hdict, 
     _concatenate_list_hdict, 
     _extract_rnn_states_from_seq_indices,
+    _extract_rnn_states_from_batch_indices, 
 )
 
 from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
@@ -181,7 +183,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             self.optimizer = optim.Adam(
                 parameters, 
                 lr=lr, 
-                betas=(0.9,0.999), 
+                #betas=(0.9,0.999), 
                 eps=float(kwargs['adam_eps']),
                 weight_decay=float(kwargs.get("adam_weight_decay", 0.0)),
             )
@@ -494,7 +496,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         #self.optimize_model(minibatch_size, samples)
         for it in range(self.kwargs['optimization_epochs']):
             self.optimize_model(
-                minibatch_size=self.nbr_actor,
+                nbr_minibatches=4, #TODO: bring it up
+                #minibatch_size=self.nbr_actor,
                 samples=samples,
             )
         end = time.time()
@@ -505,6 +508,141 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         return
     
+    def optimize_model(
+        self, 
+        samples: Dict, 
+        minibatch_size:int=None, 
+        nbr_minibatches:int=None,
+    ):
+        '''
+        WARNING: Overriden from DQN :
+        PPO requires an optimization step for each minibatch rather than accumulate gradients at each minibatch and only then update...
+        '''
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        
+        if minibatch_size is None:
+            assert nbr_minibatches is not None
+            minibatch_size = samples['s'].shape[0] // nbr_minibatches
+        
+        start = time.time()
+        torch.set_grad_enabled(True)
+        self.model.train(True)
+        
+        beta = 1.0
+        if self.use_PER:
+            if hasattr(self.storages[0].get_beta, "remote"):
+                beta_id = self.storages[0].get_beta.remote()
+                beta = ray.get(beta_id)
+            else:
+                beta = self.storages[0].get_beta()
+
+        # For each actor, there is one mini_batch update:
+        #sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
+        sampler = list(random_sample(np.arange(samples['s'].size(0)), minibatch_size))
+        nbr_minibatches = len(sampler)
+        nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size 
+        list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
+                                for storage_idx, _ in enumerate(self.storages)]
+        array_batch_indices = np.concatenate(list_batch_indices, axis=0)
+        sampled_batch_indices = []
+        sampled_losses_per_item = []
+        
+        #self.optimizer.zero_grad()
+        for batch_indices in sampler:
+            batch_indices = torch.from_numpy(batch_indices).long()
+            sampled_batch_indices.append(batch_indices)
+
+            sampled_samples = {}
+            for k in samples:
+                out_k = k
+                if k in self.kremap:
+                    out_k = self.kremap[k]
+                
+                v = samples[k]
+                if v is None:   
+                    sampled_samples[out_k] = None
+                    continue
+                if 'rnn' in k:
+                    v = _extract_rnn_states_from_batch_indices(
+                        v, 
+                        batch_indices, 
+                        use_cuda=self.kwargs['use_cuda'],
+                    )
+                elif self.kwargs['use_cuda']:
+                    v = v[batch_indices].cuda() 
+                else: 
+                    v = v[batch_indices]
+                
+                sampled_samples[out_k] = v
+                # (batch_size, unroll_dim, ...)
+
+            self.optimizer.zero_grad()
+            
+            if self.use_HER and 'HER_target_clamping' not in self.kwargs:
+                raise NotImplementedError
+	
+            self.kwargs["logging"] = False # (self.param_update_counter % 32) == 0
+            loss, loss_per_item = self.loss_fn(
+                samples=sampled_samples,
+                models=self.get_models(),
+                summary_writer=self.summary_writer,
+                iteration_count=self.param_update_counter,
+                
+                gamma=self.GAMMA,
+                PER_running_beta=beta,
+                **self.kwargs,
+            )
+            
+            '''
+            (loss/nbr_minibatches).backward(retain_graph=False)
+            '''
+            loss.backward(retain_graph=False)
+            if self.kwargs['gradient_clip'] > 1e-3:
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+            self.optimizer.step()
+
+            if self.use_PER:
+                sampled_losses_per_item.append(loss_per_item)
+                #wandb_data = copy.deepcopy(wandb.run.history._data)
+                #wandb.run.history._data = {}
+                wandb.log({
+                    'PerUpdate/ImportanceSamplingMean':  sampled_samples['importanceSamplingWeights'].cpu().mean().item(),
+                    'PerUpdate/ImportanceSamplingStd':  sampled_samples['importanceSamplingWeights'].cpu().std().item(),
+                    'PerUpdate/PER_Beta':  beta
+                    },
+                    commit=False,
+                ) # self.param_update_counter)
+                #wandb.run.history._data = wandb_data
+
+            self.param_update_counter += 1 
+
+        '''
+        if self.kwargs['gradient_clip'] > 1e-3:
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+        self.optimizer.step()
+        '''
+
+        self.model.train(False)
+        torch.set_grad_enabled(False)
+
+        if self.use_PER :
+            sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
+            # let us align the batch indices with the losses:
+            array_batch_indices = array_batch_indices[sampled_batch_indices]
+            # Now we can iterate through the losses and retrieve what 
+            # storage and what batch index they were associated with:
+            self._update_replay_buffer_priorities(
+                sampled_losses_per_item=sampled_losses_per_item, 
+                array_batch_indices=array_batch_indices,
+                minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
+            )
+
+        end = time.time()
+        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
+
+
     def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
         if self.storages is None:
             self.reset_storages()
