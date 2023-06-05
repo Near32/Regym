@@ -407,6 +407,7 @@ def training_process(
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -429,6 +430,7 @@ def training_process(
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -766,6 +768,7 @@ def main():
     parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -775,11 +778,19 @@ def main():
     
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
+    parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
+    parser.add_argument("--ETHER_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ETHER_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_grounding_signal_key", type=str, default="info:desired_goal",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
     parser.add_argument("--ETHER_rg_filter_out_non_unique", type=str2bool, default=False)
@@ -810,8 +821,13 @@ def main():
     parser.add_argument("--ETHER_rg_symbol_embedding_size", type=int, default=64)
     parser.add_argument("--ETHER_rg_arch", type=str, default='BN+7x4x3xCNN')
     parser.add_argument("--ETHER_rg_shared_architecture", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
+    parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
+    
     parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
     parser.add_argument("--ETHER_rg_cultural_speaker_substrate_size", type=int, default=1)
     parser.add_argument("--ETHER_rg_cultural_listener_substrate_size", type=int, default=1)
@@ -826,6 +842,7 @@ def main():
     parser.add_argument("--ETHER_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
     parser.add_argument("--ETHER_rg_obverter_nbr_games_per_round", type=int, default=20)
     parser.add_argument("--ETHER_rg_use_obverter_sampling", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
     
     parser.add_argument("--ETHER_rg_batch_size", type=int, default=32)
     parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
@@ -881,6 +898,20 @@ def main():
     
     if dargs['THER_contrastive_training_nbr_neg_examples'] != 0:
         dargs['THER_train_contrastively'] = True
+
+    if dargs["ETHER_rg_sanity_check_compactness_ambiguity_metric"]:
+        import ipdb; ipdb.set_trace()
+        dargs["ETHER_grounding_signal_key"] = "info:visible_entities_widx"
+        dargs["MiniWorld_entity_visibility_oracle"] = True
+        dargs["ETHER_rg_use_semantic_cooccurrence_grounding"] = False
+        print("WARNING :: sanity check in progress for compactness ambiguity metric.")
+        print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
+    
+    if dargs["ETHER_listener_based_predicated_reward_fn"]:
+        print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
+    
+    if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
+        dargs["ETHER_rg_use_obverter_sampling"] = True
 
     print(dargs)
 

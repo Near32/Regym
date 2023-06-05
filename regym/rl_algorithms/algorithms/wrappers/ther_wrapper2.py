@@ -20,6 +20,7 @@ from regym.rl_algorithms.replay_buffers import PrioritizedReplayStorage, SplitRe
 from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict, copy_hdict
 
 import wandb 
+import pandas as pd
 
 
 def predictor_based_goal_predicated_reward_fn2(
@@ -70,6 +71,7 @@ def batched_predictor_based_goal_predicated_reward_fn2(
     epsilon:float=1e0,
     feedbacks:Dict[str,float]={"failure":-1, "success":0},
     reward_shape:List[int]=[1,1],
+    **kwargs:Dict[str,object],
     ):
     '''
     Relabelling an unsuccessful trajectory, so the desired_exp's goal is not interesting.
@@ -155,11 +157,14 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         
         super(THERAlgorithmWrapper2, self).__init__(algorithm=algorithm)
         self.hook_fns = []
+        self.semantic_cooccurrence_test = False 
 
         self.nbr_episode_success_range = 256
 
         if goal_predicated_reward_fn is None:   goal_predicated_reward_fn = state_eq_goal_reward_fn2
         if _extract_goal_from_info_fn is None:  _extract_goal_from_info_fn = self._extract_goal_from_info_default_fn
+
+        self.goal_predicated_reward_fn_kwargs = {}
 
         self.extra_inputs_infos = extra_inputs_infos
         self.filtering_fn = filtering_fn 
@@ -178,6 +183,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.test_acc = 0.0
 
         self.predictor = predictor 
+        
         self.use_oracle = self.predictor.use_oracle
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
@@ -215,6 +221,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.target_goal_key_from_info = target_goal_key_from_info
         self.achieved_latent_goal_key_from_info = achieved_latent_goal_key_from_info
         self.target_latent_goal_key_from_info = target_latent_goal_key_from_info
+
+        self.per_goal_episode_counts = {}
+        columns = ["color_goal", "shape_goal", "semantic", "color", "shape"]
+        self.co_occurrence_table = wandb.Table(columns=columns)
+        self.idx2w = copy.deepcopy(self.predictor.model.modules['InstructionGenerator'].idx2w)
 
         self.episode_count = 0
         self.param_predictor_update_counter = 0
@@ -314,6 +325,98 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         return postprocess_fn(value)
 
     def store(self, exp_dict, actor_index=0):
+        #################
+        #################
+        # Vocabulary logging:
+        if not hasattr(self, "w2idx"):
+            self.w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
+            vocab_data = {"token_idx": list(self.w2idx.values()), "token": list(self.w2idx.keys())}
+            vocab_df = pd.DataFrame(vocab_data)
+            wandb.log({"VocabularyTable":wandb.Table(data=vocab_df),}, commit=True)
+         
+        # Semantic Co-Occurrence Data logging :
+        if self.semantic_cooccurrence_test:
+            COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
+            IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
+
+            OBJECT_TO_IDX = {
+                "unseen": 0,
+                "empty": 1,
+                "wall": 2,
+                "floor": 3,
+                "door": 4,
+                "key": 5,
+                "ball": 6,
+                "box": 7,
+                "goal": 8,
+                "lava": 9,
+                "agent": 10,
+            }
+            IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
+        
+            if 'symbolic_image' in exp_dict['info']:
+                rnn_states = exp_dict['rnn_states']
+                goal = rnn_states['phi_body']['extra_inputs']['desired_goal'][0][0]
+                lang_goal = [self.idx2w[token.item()] for token in goal] 
+                str_goal = ' '.join(lang_goal)
+                color_goal = [word for word in lang_goal if word in COLOR_TO_IDX.keys()]
+                if len(color_goal)==0:
+                    color_goal = 'NA'
+                else:
+                    color_goal = color_goal[0]
+                shape_goal = [word for word in lang_goal if word in OBJECT_TO_IDX.keys()]
+                if len(shape_goal)==0:
+                    shape_goal = 'object'
+                else:
+                    shape_goal = shape_goal[0]
+                
+                if str_goal not in self.per_goal_episode_counts:
+                    self.per_goal_episode_counts[str_goal] = 0
+                elif exp_dict['non_terminal'].item() == 0:
+                    self.per_goal_episode_counts[str_goal] += 1
+
+                symb_image = exp_dict['info']['symbolic_image']
+                for i in range(symb_image.shape[0]):
+                    for j in range(symb_image.shape[1]):
+                        if symb_image[i,j,0] <= 3 : continue
+                        color_idx = symb_image[i,j,1]
+                        shape_idx = symb_image[i,j,0]
+                        color = IDX_TO_COLOR[color_idx]
+                        shape = IDX_TO_OBJECT[shape_idx]
+                        data = [
+                            color_goal,
+                            shape_goal,
+                            color,
+                            color,
+                            shape,
+                        ]
+                        self.co_occurrence_table.add_data(*data)
+                        data = [
+                            color_goal,
+                            shape_goal,
+                            shape,
+                            color,
+                            shape,
+                        ]
+                        self.co_occurrence_table.add_data(*data)
+            
+                count_threshold = 8
+                if all([count >= count_threshold for lg, count in self.per_goal_episode_counts.items()]):
+                    wandb.log({f"PerEpisode/SemanticCoOccurrenceTable": self.co_occurrence_table}, commit=False)
+                    self.per_goal_episode_counts = {}
+                    columns = ["color_goal", "shape_goal", "semantic", "color", "shape"]
+                    self.co_occurrence_table = wandb.Table(columns=columns)
+            
+                wandb.log({
+                    f"PerEpisode/SemanticCoOccurrenceCounts/{str_goal}":value
+                    for str_goal, value in self.per_goal_episode_counts.items()
+                    },
+                    commit=False,
+                )
+        #################
+        #################
+        #################
+
         self.episode_buffer[actor_index].append(exp_dict)
         self.nbr_buffered_predictor_experience += 1
 
@@ -399,7 +502,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 target_pred_goal = self.predictor(x=target_state).cpu()
                                 self.predictor.train(training)
                             w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
-                            self.contrastive_goal_value = w2idx["PAD"]+0*target_pred_goal
+                            # PADDING with EoS:
+                            self.contrastive_goal_value = w2idx["EoS"]+0*target_pred_goal
                             self.contrastive_goal_value[..., 0] = w2idx["EoS"]
                         
                         for ctr_example_idx in range(self.contrastive_training_nbr_neg_examples):
@@ -437,41 +541,42 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
                     idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
                     
-                    if not hasattr(self, "sample_table"):
-                        columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
-                        columns += ["stimulus_(t)", "stimulus_(t-1)"]
-                        columns += [f"a_(t-{v})" for v in range(4)]
-                        self.sample_table = wandb.Table(columns=columns) 
+                    if self.kwargs.get('THER_log_samples', False):
+                        if not hasattr(self, "sample_table"):
+                            columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
+                            columns += ["stimulus_(t)", "stimulus_(t-1)"]
+                            columns += [f"a_(t-{v})" for v in range(4)]
+                            self.sample_table = wandb.Table(columns=columns) 
                     
-                    for bidx in range(1):
-                        if self.nbr_handled_predictor_experience % 16 != 0: continue
-                        gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
-                        nbr_frames = self.kwargs['task_config']['nbr_frame_stacking'] #succ_s[bidx].shape[0]//4
-                        frame_depth = self.kwargs['task_config']['frame_depth']
-                        stimulus_t = succ_s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
-                        stimulus_t = stimulus_t.astype(np.uint8)
-                        stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
-                        stimulus_tm = s[bidx].cpu().reshape(nbr_frames,4,56,56).numpy()[:,:3]*255
-                        stimulus_tm = stimulus_tm.astype(np.uint8)
-                        stimulus_tm = wandb.Video(stimulus_tm, fps=1, format="gif")
-                        previous_action_int = [
-                            self.episode_buffer[actor_index][aidx]["rnn_states"]['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item()
-                            for aidx in [idx, idx-1, idx-2, idx-3]
-                        ]
-                        self.sample_table.add_data(*[
-                            *gt_word_sentence,
-                            stimulus_t,
-                            stimulus_tm,
-                            *previous_action_int
+                        for bidx in range(1):
+                            if self.nbr_handled_predictor_experience % 16 != 0: continue
+                            gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
+                            nbr_frames = self.kwargs['task_config']['nbr_frame_stacking'] #succ_s[bidx].shape[0]//4
+                            frame_depth = self.kwargs['task_config']['frame_depth']
+                            stimulus_t = succ_s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
+                            stimulus_t = stimulus_t.astype(np.uint8)
+                            stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
+                            stimulus_tm = s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
+                            stimulus_tm = stimulus_tm.astype(np.uint8)
+                            stimulus_tm = wandb.Video(stimulus_tm, fps=1, format="gif")
+                            previous_action_int = [
+                                self.episode_buffer[actor_index][aidx]["rnn_states"]['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item()
+                                for aidx in [idx, idx-1, idx-2, idx-3]
                             ]
-                        )
-
-                    if self.nbr_handled_predictor_experience % 128 == 0:
-                        wandb.log({f"PerEpisode/SampleTable":self.sample_table}, commit=False)
-                        columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
-                        columns += ["stimulus_(t)", "stimulus_(t-1)"]
-                        columns += [f"a_(t-{v})" for v in range(4)]
-                        self.sample_table = wandb.Table(columns=columns) 
+                            self.sample_table.add_data(*[
+                                *gt_word_sentence,
+                                stimulus_t,
+                                stimulus_tm,
+                                *previous_action_int
+                                ]
+                            )
+    
+                        if self.nbr_handled_predictor_experience % 128 == 0:
+                            wandb.log({f"PerEpisode/SampleTable":self.sample_table}, commit=False)
+                            columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
+                            columns += ["stimulus_(t)", "stimulus_(t-1)"]
+                            columns += [f"a_(t-{v})" for v in range(4)]
+                            self.sample_table = wandb.Table(columns=columns) 
 
                     wandb.log({'Training/THER_Predictor/DatasetSize': self.nbr_handled_predictor_experience}, commit=False) # self.param_predictor_update_counter)
                     if self.algorithm.summary_writer is not None:
@@ -491,7 +596,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         latent_goal_key=self.achieved_latent_goal_key_from_info,
                         epsilon=1e-1,
                         feedbacks=self.feedbacks,
-                        reward_shape=self.reward_shape
+                        reward_shape=self.reward_shape,
+                        **self.goal_predicated_reward_fn_kwargs,
                     )
                     
                     positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
@@ -576,7 +682,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         latent_goal_key=self.achieved_latent_goal_key_from_info,
                         epsilon=1e-1,
                         feedbacks=self.feedbacks,
-                        reward_shape=self.reward_shape
+                        reward_shape=self.reward_shape,
+                        **self.goal_predicated_reward_fn_kwargs,
                     )
                     
                     positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)

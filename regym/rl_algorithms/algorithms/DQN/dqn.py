@@ -555,7 +555,7 @@ class DQNAlgorithm(Algorithm):
             else:
                 storage_size = len(storage)
                 
-            if storage_size <= 1: continue
+            if storage_size < 1: continue
             #if len(storage) <= 1: continue
             if self.use_PER:
                 if using_ray:
@@ -635,7 +635,6 @@ class DQNAlgorithm(Algorithm):
         sampled_losses_per_item = []
         
         self.optimizer.zero_grad()
-
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
             sampled_batch_indices.append(batch_indices)

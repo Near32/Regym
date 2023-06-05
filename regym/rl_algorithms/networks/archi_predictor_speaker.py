@@ -7,7 +7,7 @@ import torch.nn as nn
 from .archi_predictor import ArchiPredictor
 
 from ReferentialGym.agents import Speaker
-from ReferentialGym.networks import layer_init
+from ReferentialGym.networks import layer_init, BetaVAE
 from ReferentialGym.utils import gumbel_softmax
 
 
@@ -49,7 +49,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         logger=None,
     ):
         model = self.model
-        pkwargs = self.predictor_kwargs
+        pkwargs = self.archi_kwargs
 
         Speaker.__init__(
             self,
@@ -70,11 +70,22 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         self.cnn_encoder = self.model.modules['SharedObsEncoder']
 
         self.tau_fc = nn.Sequential(
-            nn.Linear(self.predictor_kwargs['hyperparameters']['hidden_dim'], 1,bias=False),
+            nn.Linear(self.archi_kwargs['hyperparameters']['hidden_dim'], 1,bias=False),
             nn.Softplus(),
         )
         
         self.reset()
+
+    def _tidyup(self):
+        """
+        Called at the agent level at the end of the `compute` function.
+        """
+        self.embedding_tf_final_outputs = None
+
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = list()
+            self.compactness_losses.clear()
+            self.buffer_cnn_output_dict = dict()
 
     def reset(self, reset_language_model=False):
         # TODO: implement language model reset if
@@ -124,7 +135,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.predictor_kwargs["pipelines"]["instruction_generator"]
+                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
             },
             return_feature_only=return_feature_only,
         )
@@ -165,7 +176,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         }
          
         if gt_sentences is None:
-            return_feature_only=self.predictor_kwargs["features_id"]["instruction_generator"]
+            return_feature_only=self.archi_kwargs["features_id"]["instruction_generator"]
         else:
             return_feature_only = None 
             input_dict['rnn_states']['gt_sentences'] = gt_sentences
@@ -173,7 +184,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.predictor_kwargs["pipelines"]["instruction_generator"]
+                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
             },
             return_feature_only=return_feature_only,
         )

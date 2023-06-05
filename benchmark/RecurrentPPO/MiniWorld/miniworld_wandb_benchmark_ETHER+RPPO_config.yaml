@@ -1,7 +1,17 @@
 PPO_extra_hyperparameters: &ppo_extra_hyperparameters
     standardized_adv: True
     lr_account_for_nbr_actor: False 
-
+    discount: 0.99
+    use_gae: True
+    gae_tau: 0.95
+    value_weight: 0.5
+    entropy_weight: 0.01
+    gradient_clip: 0.5
+    optimization_epochs: 4 #3
+    mini_batch_size: 256
+    ppo_ratio_clip: 0.1
+    horizon: 128
+        
     # BetaVAE:
     use_vae: False
     vae_weight: 1e0
@@ -72,20 +82,20 @@ extra_hyperparameters: &extra_hyperparameters
     PER_compute_initial_priority: False
     #####################################
     
+    burn_in: False
+    sequence_replay_PER_eta: 0.9
     sequence_replay_use_online_states: True
     sequence_replay_use_zero_initial_states: False
-    sequence_replay_store_on_terminal: True
+    sequence_replay_store_on_terminal: False
+    
+    sequence_replay_unroll_length: 20
+    sequence_replay_overlap_length: 10
+    sequence_replay_burn_in_length: 0
     
     r2d2_loss_masking: True
     r2d2_loss_masking_n_step_regularisation: True
     r2d2_bellman_target_SAD: False
 
-    burn_in: True
-    sequence_replay_unroll_length: 80
-    sequence_replay_overlap_length: 40
-    sequence_replay_burn_in_length: 20
-
-    sequence_replay_PER_eta: 0.9
     ####################################
     vdn: False 
     vdn_nbr_players: 2
@@ -262,27 +272,26 @@ Predictor: &Predictor
 
 
 ETHER_LargeCNN_Predictor: &ETHER_LargeCNN_Predictor
-    double: True #False
-    dueling: True #False
-    noisy: False 
-    n_step: 3 #1
+    #double: True #False
+    #dueling: True #False
+    #noisy: False 
+    #n_step: 3 #1
 
     use_PER: True #False
     PER_alpha: 0.9 #0.6
     PER_beta: 0.6 #1.0
 
-    replay_capacity: 5242880 #50000
-    min_capacity: 4.0e5 #128 #1e4
-    replay_period: 1 #240 #240
+    #replay_capacity: 5242880 #50000
+    #replay_period: 1 #240 #240
 
     observation_resize_dim: None
-    goal_resize_dim: None
+    #goal_resize_dim: None
     
-    discount: 0.98 #0.99
+    #discount: 0.98 #0.99
     use_cuda: True
-    gradient_clip: 0.5 #1.0
+    #gradient_clip: 0.5 #1.0
     batch_size: 128 #32
-    tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
+    #tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
     learning_rate: 6.25e-5 #1.0e-3 #1.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
     adam_eps: 1.5e-5 #1.0e-8
     adam_weight_decay: 0.0 #1.0e-8
@@ -293,23 +302,10 @@ ETHER_LargeCNN_Predictor: &ETHER_LargeCNN_Predictor
     epsstart: 1.0
     epsend: 0.1 #0.05
     epsdecay: 10000 #500000 
-    #epsdecay_strategy:   'None'
 
     eps_greedy_alpha: 7.0
 
-    sequence_replay_use_online_states: True
-    sequence_replay_use_zero_initial_states: False
-    sequence_replay_store_on_terminal: False
-    
-    r2d2_loss_masking: True
-    r2d2_loss_masking_n_step_regularisation: True
-    
     burn_in: False
-    sequence_replay_unroll_length: 40
-    sequence_replay_overlap_length: 10
-    sequence_replay_burn_in_length: 0
-
-    sequence_replay_PER_eta: 0.9
 
     <<: *LargeCNN
     <<: *Predictor
@@ -399,7 +395,6 @@ agents:
         #DEBUG:
         saving_interval: 1e10 #5e5
         THER_min_capacity: 12 #1e4
-        min_capacity: 1e3
 
         weights_entropy_lambda: 0.0 
         vdn: False
@@ -422,16 +417,6 @@ agents:
 
         batch_size: 128
         nbr_minibatches: 10 
-        burn_in: False
-
-        sequence_replay_use_online_states: True
-        sequence_replay_use_zero_initial_states: False
-        sequence_replay_store_on_terminal: False
-    
-        sequence_replay_unroll_length: 20
-        sequence_replay_overlap_length: 10
-        sequence_replay_burn_in_length: 0
-        
         epsend: 0.4
         eps_greedy_alpha: 2.0
         
@@ -655,15 +640,16 @@ agents:
 
             
             output_mappings:
-                "a" : "modules:RLHead:a"
-                "greedy_action" : "modules:RLHead:greedy_action"
-                "ent" : "modules:RLHead:ent"
-                #"legal_ent" : "modules:RLHead:legal_ent"
-                "v" : "modules:RLHead:v"
-                #"qa" : "modules:RLHead:qa"
-                "log_pi_a" : "modules:RLHead:log_pi_a"
-                #"log_a" : "modules:RLHead:log_a"
-                #"unlegal_log_a" : "modules:RLHead:unlegal_log_a"
+                head:
+                    "a" : "modules:RLHead:a"
+                    "greedy_action" : "modules:RLHead:greedy_action"
+                    "ent" : "modules:RLHead:ent"
+                    #"legal_ent" : "modules:RLHead:legal_ent"
+                    "v" : "modules:RLHead:v"
+                    #"qa" : "modules:RLHead:qa"
+                    "log_pi_a" : "modules:RLHead:log_pi_a"
+                    #"log_a" : "modules:RLHead:log_a"
+                    #"unlegal_log_a" : "modules:RLHead:unlegal_log_a"
             
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
