@@ -20,6 +20,7 @@ from regym.rl_algorithms.replay_buffers import PrioritizedReplayStorage, SplitRe
 from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_batch_indices, _concatenate_hdict, _concatenate_list_hdict, copy_hdict
 
 import wandb 
+import pandas as pd
 
 
 def predictor_based_goal_predicated_reward_fn2(
@@ -182,6 +183,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.test_acc = 0.0
 
         self.predictor = predictor 
+        
         self.use_oracle = self.predictor.use_oracle
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
@@ -325,6 +327,13 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
     def store(self, exp_dict, actor_index=0):
         #################
         #################
+        # Vocabulary logging:
+        if not hasattr(self, "w2idx"):
+            self.w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
+            vocab_data = {"token_idx": list(self.w2idx.values()), "token": list(self.w2idx.keys())}
+            vocab_df = pd.DataFrame(vocab_data)
+            wandb.log({"VocabularyTable":wandb.Table(data=vocab_df),}, commit=True)
+         
         # Semantic Co-Occurrence Data logging :
         if self.semantic_cooccurrence_test:
             COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
@@ -493,7 +502,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 target_pred_goal = self.predictor(x=target_state).cpu()
                                 self.predictor.train(training)
                             w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
-                            self.contrastive_goal_value = w2idx["PAD"]+0*target_pred_goal
+                            # PADDING with EoS:
+                            self.contrastive_goal_value = w2idx["EoS"]+0*target_pred_goal
                             self.contrastive_goal_value[..., 0] = w2idx["EoS"]
                         
                         for ctr_example_idx in range(self.contrastive_training_nbr_neg_examples):
@@ -531,41 +541,42 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
                     idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
                     
-                    if not hasattr(self, "sample_table"):
-                        columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
-                        columns += ["stimulus_(t)", "stimulus_(t-1)"]
-                        columns += [f"a_(t-{v})" for v in range(4)]
-                        self.sample_table = wandb.Table(columns=columns) 
+                    if self.kwargs.get('THER_log_samples', False):
+                        if not hasattr(self, "sample_table"):
+                            columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
+                            columns += ["stimulus_(t)", "stimulus_(t-1)"]
+                            columns += [f"a_(t-{v})" for v in range(4)]
+                            self.sample_table = wandb.Table(columns=columns) 
                     
-                    for bidx in range(1):
-                        if self.nbr_handled_predictor_experience % 16 != 0: continue
-                        gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
-                        nbr_frames = self.kwargs['task_config']['nbr_frame_stacking'] #succ_s[bidx].shape[0]//4
-                        frame_depth = self.kwargs['task_config']['frame_depth']
-                        stimulus_t = succ_s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
-                        stimulus_t = stimulus_t.astype(np.uint8)
-                        stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
-                        stimulus_tm = s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
-                        stimulus_tm = stimulus_tm.astype(np.uint8)
-                        stimulus_tm = wandb.Video(stimulus_tm, fps=1, format="gif")
-                        previous_action_int = [
-                            self.episode_buffer[actor_index][aidx]["rnn_states"]['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item()
-                            for aidx in [idx, idx-1, idx-2, idx-3]
-                        ]
-                        self.sample_table.add_data(*[
-                            *gt_word_sentence,
-                            stimulus_t,
-                            stimulus_tm,
-                            *previous_action_int
+                        for bidx in range(1):
+                            if self.nbr_handled_predictor_experience % 16 != 0: continue
+                            gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
+                            nbr_frames = self.kwargs['task_config']['nbr_frame_stacking'] #succ_s[bidx].shape[0]//4
+                            frame_depth = self.kwargs['task_config']['frame_depth']
+                            stimulus_t = succ_s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
+                            stimulus_t = stimulus_t.astype(np.uint8)
+                            stimulus_t = wandb.Video(stimulus_t, fps=1, format="gif")
+                            stimulus_tm = s[bidx].cpu().reshape(nbr_frames,frame_depth,56,56).numpy()[:,:3]*255
+                            stimulus_tm = stimulus_tm.astype(np.uint8)
+                            stimulus_tm = wandb.Video(stimulus_tm, fps=1, format="gif")
+                            previous_action_int = [
+                                self.episode_buffer[actor_index][aidx]["rnn_states"]['critic_body']['extra_inputs']['previous_action_int'][0][bidx].cpu().item()
+                                for aidx in [idx, idx-1, idx-2, idx-3]
                             ]
-                        )
-
-                    if self.nbr_handled_predictor_experience % 128 == 0:
-                        wandb.log({f"PerEpisode/SampleTable":self.sample_table}, commit=False)
-                        columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
-                        columns += ["stimulus_(t)", "stimulus_(t-1)"]
-                        columns += [f"a_(t-{v})" for v in range(4)]
-                        self.sample_table = wandb.Table(columns=columns) 
+                            self.sample_table.add_data(*[
+                                *gt_word_sentence,
+                                stimulus_t,
+                                stimulus_tm,
+                                *previous_action_int
+                                ]
+                            )
+    
+                        if self.nbr_handled_predictor_experience % 128 == 0:
+                            wandb.log({f"PerEpisode/SampleTable":self.sample_table}, commit=False)
+                            columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
+                            columns += ["stimulus_(t)", "stimulus_(t-1)"]
+                            columns += [f"a_(t-{v})" for v in range(4)]
+                            self.sample_table = wandb.Table(columns=columns) 
 
                     wandb.log({'Training/THER_Predictor/DatasetSize': self.nbr_handled_predictor_experience}, commit=False) # self.param_predictor_update_counter)
                     if self.algorithm.summary_writer is not None:

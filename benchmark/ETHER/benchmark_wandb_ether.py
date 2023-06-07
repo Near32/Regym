@@ -786,6 +786,7 @@ def main():
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ETHER_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
     parser.add_argument("--ETHER_grounding_signal_key", type=str, default="info:desired_goal",)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
@@ -820,6 +821,7 @@ def main():
     parser.add_argument("--ETHER_rg_symbol_embedding_size", type=int, default=64)
     parser.add_argument("--ETHER_rg_arch", type=str, default='BN+7x4x3xCNN')
     parser.add_argument("--ETHER_rg_shared_architecture", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
@@ -840,6 +842,7 @@ def main():
     parser.add_argument("--ETHER_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
     parser.add_argument("--ETHER_rg_obverter_nbr_games_per_round", type=int, default=20)
     parser.add_argument("--ETHER_rg_use_obverter_sampling", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
     
     parser.add_argument("--ETHER_rg_batch_size", type=int, default=32)
     parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
@@ -904,6 +907,12 @@ def main():
         print("WARNING :: sanity check in progress for compactness ambiguity metric.")
         print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
     
+    if dargs["ETHER_listener_based_predicated_reward_fn"]:
+        print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
+    
+    if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
+        dargs["ETHER_rg_use_obverter_sampling"] = True
+
     print(dargs)
 
     #from gpuutils import GpuUtils

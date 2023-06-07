@@ -4,8 +4,10 @@ import os
 import time
 import copy
 import wandb 
+from functools import partial
 
 import torch
+import torch.nn as nn
 import torchvision
 import torchvision.transforms as T 
 import numpy as np
@@ -19,7 +21,7 @@ from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_
 
 import ReferentialGym
 from ReferentialGym.datasets import DemonstrationDataset
-from ReferentialGym.agents import LSTMCNNListener
+from ReferentialGym.agents import DiscriminativeListener, LSTMCNNListener
 
 ###########################################################
 ###########################################################
@@ -82,6 +84,116 @@ class SplitImg:
         xis = torch.cat(xis, dim=self.output_channel_dim)
         return xis
 
+
+class ListenerWrapper(nn.Module):
+    def __init__(
+        self,
+        listener_agent:DiscriminativeListener,
+        predicate_threshold:float=0.5,
+    ):
+        super(ListenerWrapper, self).__init__()
+        self.listener_agent = listener_agent
+        self.predicate_threshold = getattr(listener_agent, "predicate_threshold", predicate_threshold)
+    
+    def get_final_decision(
+        self,
+        sentences_token_idx,
+        decision_probs,
+    ) -> torch.Tensor :
+        batch_size = sentences_token_idx.shape[0]
+        #(batch_size, max_sentence_length)
+        eos_mask = (sentences_token_idx==self.listener_agent.vocab_stop_idx)
+        padding_with_eos = (eos_mask.cumsum(-1).sum()>batch_size)
+        # Include first EoS Symbol:
+        if padding_with_eos:
+            token_mask = ((eos_mask.cumsum(-1)>1)<=0)
+            lengths = token_mask.sum(-1)
+            #(batch_size, )
+        else:
+            token_mask = ((eos_mask.cumsum(-1)>0)<=0)
+            lengths = token_mask.sum(-1)
+        
+        if not(padding_with_eos):
+            # If excluding first EoS:
+            lengths = lengths.add(1)
+        sentences_lengths = lengths.clamp(max=self.listener_agent.max_sentence_length)
+        #(batch_size, )
+    
+        sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
+            decision_probs.shape[0],
+            1,
+            decision_probs.shape[2]
+        )
+    
+        final_decision_probs = decision_probs.gather(
+            dim=1, 
+            index=(sentences_lengths-1),
+        ).squeeze(1)
+        
+        return final_decision_probs
+
+    def forward(
+        self,
+        x:torch.Tensor,
+        rnn_states:Dict[str,object],
+        goal:torch.Tensor,
+    ) -> torch.Tensor :
+        
+        self.listener_agent._tidyup()
+        
+        batch_size = x.shape[0]
+        obs_shape = x.shape[1:]
+        experiences = x.reshape((batch_size, 1, *obs_shape))
+        
+        max_sentence_length = self.listener_agent.max_sentence_length
+        vocab_size = self.listener_agent.vocab_size
+
+        if goal.shape[0] == 1:
+            goal = goal.repeat(batch_size, *[1 for _ in goal.shape[1:]])
+        sentences_widx = goal.reshape((batch_size, max_sentence_length))
+        sentences_one_hots = nn.functional.one_hot(
+            sentences_widx, 
+            num_classes=vocab_size,
+        ).float()
+        
+        if self.listener_agent.kwargs['use_cuda']:
+            sentences_widx = sentences_widx.cuda()
+            sentences_one_hots = sentences_one_hots.cuda()
+            experiences = experiences.cuda()
+
+        output_dict = self.listener_agent.forward(
+            sentences=sentences_one_hots, 
+            experiences=experiences, 
+        )
+        
+        decision_probs = output_dict['decision']
+        if self.listener_agent.kwargs['descriptive']:
+            decision_probs = decision_probs.softmax(dim=-1)
+        # (batch_size x max_sentence_length x nbr_distractors+1)
+        
+        final_decision_probs = self.get_final_decision(
+            sentences_token_idx=sentences_widx,
+            decision_probs=decision_probs,
+        )
+       
+        decision = final_decision_probs[:, 0]
+        
+        #################################
+        try:
+            wandb.log({f"ListenerWrapper/PredicateThresholdDecisionProbs": self.predicate_threshold}, commit=False)
+            wandb.log({f"ListenerWrapper/MeanDecisionProbsPerBatch":decision.sum().item()/batch_size}, commit=False)
+            wandb.log({f"ListenerWrapper/StdDecisionProbsPerBatch":decision.std().item()}, commit=False)
+            wandb.log({f"ListenerWrapper/MinDecisionProbsPerBatch":decision.min().item()}, commit=False)
+            wandb.log({f"ListenerWrapper/MaxDecisionProbsPerBatch":decision.max().item()}, commit=False)
+        except Exception as e:
+            print(f"WARNING: ListenerWrapper :: W&B Logging: {e}")
+        #################################
+        
+        self.listener_agent._tidyup()
+
+        return decision
+
+
 def batched_listener_based_goal_predicated_reward_fn(
     predictor, 
     achieved_exp:List[Dict[str,object]], 
@@ -137,21 +249,32 @@ def batched_listener_based_goal_predicated_reward_fn(
         listener_training = listener.training
         listener.train(False)
 
-        target_pred_goal = predictor(x=target_state, rnn_states=target_rnn_states).cpu()
+        target_pred_goal = predictor(
+            x=target_state, 
+            rnn_states=target_rnn_states,
+        )
+        target_descriptive_probs = listener(
+            x=target_state, 
+            rnn_states=target_rnn_states, 
+            goal=target_pred_goal,
+        ).cpu()
         
         #achieved_pred_goal = predictor(x=state, rnn_states=rnn_states).cpu()
-        # TODO: feed listener with proper input kwargs
-        listener_output = listener()
+        descriptive_probs = listener(x=state, rnn_states=rnn_states, goal=target_pred_goal).cpu()
         
         predictor.train(training)
         listener.train(listener_training)
+    
+    target_pred_goal = target_pred_goal.cpu()
+    listener.predicate_threshold = target_descriptive_probs.item()-1.0e-4
+    wandb.log({f"ListenerWrapper/TargerPredicateDecisionProbs": target_descriptive_probs.item()}, commit=False)
 
     if kwargs.get("use_continuous_feedback", False):
         reward_range = feedbacks['success']-feedbacks['failure']
-        reward = listener_output*reward_range + feedbacks['failure']
+        reward = descriptive_probs*reward_range + feedbacks['failure']
         reward = reward.reshape((reward_shape))
     else:
-        reward_mask = listener_output >= listener.predicate_threshold
+        reward_mask = descriptive_probs > listener.predicate_threshold
         reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
         reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
     
@@ -228,13 +351,17 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         self.init_referential_game()
         self.goal_predicated_reward_fn_kwargs = {
-            'listener': self.listener,
+            'listener': ListenerWrapper(self.listener),
             'use_continuous_feedback': self.kwargs.get('ETHER_use_continuous_feedback', False),
         }
         
         if self.kwargs.get("ETHER_listener_based_predicated_reward_fn", False):
-            import ipdb; ipdb.set_trace()
-            self.goal_predicated_reward_fn = batched_listener_based_predicated_reward_fn
+            self.goal_predicated_reward_fn = partial(
+                    #batched_predictor_based_goal_predicated_reward_fn2, 
+                    batched_listener_based_goal_predicated_reward_fn,
+                    predictor=self.predictor,
+                )
+
 
     def _reset_rg_storages(self):
         if self.rg_storages is not None:
@@ -284,12 +411,25 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 )
 
     def referential_game_store(self, exp_dict, actor_index=0, negative=False):
+        # TODO: implement multi storage approach
+        # No, it is not necessary, because the function is called on consecutive states,
+        # all coming from the actor, until end is reached, and then one episode at a time
+        actor_index = 0
+        
         if not hasattr(self, "nbr_handled_rg_experience"):
             self.nbr_handled_rg_experience = 0
         self.nbr_handled_rg_experience += 1
         
+        '''
+        No longer putting any data into the split test set as it is
+        messing about with the compactness-ambiguity metric visualisation.
+        '''
+        '''
         test_set = None
         if negative:    test_set = False
+        '''
+        test_set = False 
+
         '''
         if self.kwargs['ETHER_use_PER']:
             init_sampling_priority = None 
@@ -315,10 +455,6 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             and not unique:  
                 return
 
-        # TODO: implement multi storage approach
-        # No, it is not necessary, because the function is called on consecutive states,
-        # all coming from the actor, until end is reached, and then one episode at a time
-        actor_index = 0
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
 
     def init_referential_game(self):
@@ -450,7 +586,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "symbol_embedding_size":    self.kwargs["ETHER_rg_symbol_embedding_size"], #64
             
             "agent_architecture":       self.kwargs["ETHER_rg_arch"], #'CoordResNet18AvgPooled-2', #'BetaVAE', #'ParallelMONet', #'BetaVAE', #'CNN[-MHDPA]'/'[pretrained-]ResNet18[-MHDPA]-2'
-            "shared_architecture": self.kwargs["ETHER_rg_shared_architecture"],
+            "shared_architecture":      self.kwargs["ETHER_rg_shared_architecture"],
+            "normalize_features":       self.kwargs["ETHER_rg_normalize_features"],
             "agent_learning":           "learning",  #"transfer_learning" : CNN"s outputs are detached from the graph...
             "agent_loss_type":          self.kwargs["ETHER_rg_agent_loss_type"], #"NLL"
             
@@ -528,10 +665,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         agent_config = copy.deepcopy(rg_config)
         agent_config["nbr_distractors"] = rg_config["nbr_distractors"]["train"] if rg_config["observability"] == "full" else 0
 
-        '''
         # Obverter:
-        agent_config["use_obverter_threshold_to_stop_message_generation"] = self.kwargs["ETHER_rg_obverter_threshold_to_stop_message_generation"]
-        '''
+        if 'obverter' in self.kwargs["ETHER_rg_graphtype"]:
+            agent_config["use_obverter_threshold_to_stop_message_generation"] = self.kwargs["ETHER_rg_obverter_threshold_to_stop_message_generation"]
 
         # Recurrent Convolutional Architecture:
         agent_config["architecture"] = rg_config["agent_architecture"]
@@ -604,14 +740,25 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             listener_config['cnn_encoder'] = speaker.cnn_encoder 
         listener_config['nbr_distractors'] = rg_config['nbr_distractors']['train']
         
-        listener = LSTMCNNListener(
-            kwargs=listener_config, 
-            obs_shape=obs_shape, 
-            vocab_size=vocab_size, 
-            max_sentence_length=max_sentence_length,
-            agent_id='l0',
-            logger=None
-        )
+        if 'obverter' in self.kwargs["ETHER_rg_graphtype"]:
+            listener = copy.deepcopy(self.predictor)
+            listener.listener_init(
+                kwargs=listener_config,
+                obs_shape=obs_shape,
+                vocab_size=vocab_size,
+                max_sentence_length=max_sentence_length,
+                agent_id='l0',
+                logger=None,
+            )
+        else:
+            listener = LSTMCNNListener(
+                kwargs=listener_config, 
+                obs_shape=obs_shape, 
+                vocab_size=vocab_size, 
+                max_sentence_length=max_sentence_length,
+                agent_id='l0',
+                logger=None
+            )
         print("Listener:", listener)
         self.listener = listener
 
@@ -627,7 +774,21 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         modules[listener.id] = listener 
         
         from ReferentialGym import modules as rg_modules
-
+        
+        if self.kwargs["ETHER_rg_use_obverter_sampling"]:
+            obverter_sampling_id = "obverter_sampling_0"
+            obverter_sampling_config = {
+                "batch_size": rg_config["batch_size"],
+                "round_alternation_only": self.kwargs["ETHER_rg_obverter_sampling_round_alternation_only"],
+                "obverter_nbr_games_per_round": self.kwargs["ETHER_rg_obverter_nbr_games_per_round"],
+                "repeat_experiences": self.kwargs["ETHER_rg_obverter_sampling_repeat_experiences"],
+            }
+            
+            modules[obverter_sampling_id] = rg_modules.ObverterDatasamplingModule(
+                id=obverter_sampling_id,
+                config=obverter_sampling_config,
+            )
+  
         # Population:
         population_handler_id = "population_handler_0"
         population_handler_config = copy.deepcopy(rg_config)
@@ -668,6 +829,16 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 config=sem_cooc_grounding_config,
             )
 
+        if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
+            sem_grounding_id = "sem_grounding_metric_0"
+            sem_grounding_config = {
+                'idx2w':self.idx2w,
+            }
+            modules[sem_grounding_id] = rg_modules.build_SemanticGroundingMetricModule(
+                id=sem_grounding_id,
+                config=sem_grounding_config,
+            )
+
         ## Pipelines:
         pipelines = {}
         
@@ -687,6 +858,14 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             config=optim_config,
         )
         modules[optim_id] = optim_module
+        
+        if self.kwargs["ETHER_rg_homoscedastic_multitasks_loss"]:
+            homo_id = "homo0"
+            homo_config = {"use_cuda":self.kwargs["ETHER_rg_use_cuda"]}
+            modules[homo_id] = rg_modules.build_HomoscedasticMultiTasksLossModule(
+                id=homo_id,
+                config=homo_config,
+            )
         
         grad_recorder_id = "grad_recorder"
         grad_recorder_module = rg_modules.build_GradRecorderModule(id=grad_recorder_id)
@@ -985,14 +1164,16 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         if self.kwargs.get("ETHER_rg_sanity_check_compactness_ambiguity_metric", False):
             compactness_ambiguity_metric_input_stream_ids["representations"] = \
                 "current_dataloader:sample:speaker_grounding_signal"
-
+            compactness_ambiguity_metric_input_stream_ids["top_view"] = "current_dataloader:sample:speaker_top_view" 
+            compactness_ambiguity_metric_input_stream_ids["agent_pos_in_top_view"] = "current_dataloader:sample:speaker_agent_pos_in_top_view" 
+            
         compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
                 "epoch_period":1,#self.kwargs["ETHER_rg_metric_epoch_period"],
                 "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
@@ -1023,7 +1204,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
             config = {
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if args.use_cuda else x),
+                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
                 "epoch_period":self.kwargs["ETHER_rg_metric_epoch_period"],
                 "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
@@ -1059,6 +1240,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         pipelines[optim_id] = []
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             pipelines[optim_id].append(sem_cooc_grounding_id)
+        if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
+            pipelines[optim_id].append(sem_grounding_id)
         if self.kwargs["ETHER_rg_homoscedastic_multitasks_loss"]:
             pipelines[optim_id].append(homo_id)
         pipelines[optim_id].append(optim_id)
@@ -1116,6 +1299,19 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         if 'similarity' in self.rg_config['distractor_sampling']:
             kwargs['same_episode_target'] = True 
 
+        extra_keys_dict = {
+            "grounding_signal":self.kwargs.get("ETHER_grounding_signal_key", None),
+        }
+        if self.kwargs.get("ETHER_rg_sanity_check_compactness_ambiguity_metric", False):
+            extra_keys_dict.update({
+                "top_view":"info:top_view",
+                "agent_pos_in_top_view":"info:agent_pos_in_top_view",
+            })
+        if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
+            extra_keys_dict.update({
+                "semantic_signal":"info:symbolic_image",
+            })
+         
         self.rg_train_dataset = DemonstrationDataset(
             replay_storage=self.rg_storages[0],
             train=True,
@@ -1123,7 +1319,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_train_dataset_length,
             exp_key=self.rg_exp_key,
-            grounding_signal_key=self.kwargs.get("ETHER_grounding_signal_key", None),
+            extra_keys_dict=extra_keys_dict,
             kwargs=kwargs,
         )
         
@@ -1135,7 +1331,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             split_strategy=self.rg_split_strategy,
             dataset_length=self.rg_test_dataset_length,
             exp_key=self.rg_exp_key,
-            grounding_signal_key=self.kwargs.get("ETHER_grounding_signal_key", None),
+            extra_keys_dict=extra_keys_dict,
             kwargs=kwargs,
         )
         

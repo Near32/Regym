@@ -7,7 +7,7 @@ import torch.nn as nn
 from .archi_predictor import ArchiPredictor
 
 from ReferentialGym.agents import DiscriminativeListener
-from ReferentialGym.networks import layer_init
+from ReferentialGym.networks import layer_init, BetaVAE
 from ReferentialGym.utils import gumbel_softmax
 
 
@@ -39,6 +39,9 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         self.reset()
         return DiscriminativeListener.clone(self)
 
+    def speaker_init(self, **kwargs):
+        return self.listener_init(**kwargs)
+    
     def listener_init(
         self,
         obs_shape,
@@ -86,6 +89,17 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             self.tau = None
         self._reset_rnn_states()
   
+    def _tidyup(self):
+        """
+        Called at the agent level at the end of the `compute` function.
+        """
+        self.embedding_tf_final_outputs = None
+
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = list()
+            self.compactness_losses.clear()
+            self.buffer_cnn_output_dict = dict()
+
     def parameters(self):
         params = []
         for km, module in self.model.modules.items():
@@ -194,7 +208,9 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             return self.listener_forward(**kwargs)
         
         # TODO : add condition for predicate forward by checking the ins and out of batched )listener-based) predicate fn :
-        if False:
+        if 'goal' in kwargs:
+            # tHIS SHOULD NEVER OCCUR THANKS TO THE LISTENER WRAPPER.
+            import ipdb; ipdb.set_trace()
             return self.predicate_forward(**kwargs)
 
         return self.predictor_forward(**kwargs)
@@ -237,7 +253,8 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
     ):
         """
         TODO : figure out the inputs necessary 
-
+         ACTUALLY : this function might not be necessary as the listener forward can be used for 
+         predicate computation when using the listener wrapper.
         """
         batch_size = x.shape[0]
 
@@ -318,6 +335,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         tau0=0.2,
     ):
         """
+
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
                             `experiences[:,0]` is assumed as the target experience, while the others are distractors, if any. 
@@ -329,6 +347,10 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
                     - `'obverter'`: obverter training scheme...
         :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
         """
+        
+        import ipdb; ipdb.set_trace()
+        #THIS FUNCTION IS PROBABLY WORTH DEPR in favor of listener_forward alone
+        
         batch_size = experiences.size(0)
         #features = self._sense(experiences=experiences, sentences=sentences)
         features = experiences.view(-1, *(experiences.size()[2:]))

@@ -7,7 +7,7 @@ import torch.nn as nn
 from .archi_predictor import ArchiPredictor
 
 from ReferentialGym.agents import Speaker
-from ReferentialGym.networks import layer_init
+from ReferentialGym.networks import layer_init, BetaVAE
 from ReferentialGym.utils import gumbel_softmax
 
 
@@ -75,6 +75,17 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         )
         
         self.reset()
+
+    def _tidyup(self):
+        """
+        Called at the agent level at the end of the `compute` function.
+        """
+        self.embedding_tf_final_outputs = None
+
+        if isinstance(self.cnn_encoder, BetaVAE):
+            self.VAE_losses = list()
+            self.compactness_losses.clear()
+            self.buffer_cnn_output_dict = dict()
 
     def reset(self, reset_language_model=False):
         # TODO: implement language model reset if
