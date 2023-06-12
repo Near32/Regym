@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 verbose = False
 
+import wandb
 
 
 def is_leaf(node: Dict):
@@ -2396,6 +2397,7 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         observation['behaviour_description'] = achieved_goal
         return observation
 
+
 class BabyAIMissionWrapper(gym.Wrapper):
     """
     Integrates the BabyAI mission into the info dictionnary for multi-agent environments.
@@ -3208,6 +3210,118 @@ class Gymnasium2GymWrapper(gym.Wrapper):
             next_observations, reward, done, truncated, next_infos = step_output
         return next_observations, reward, done, next_infos
 
+
+class LanguageGuidedCuriosityWrapper(gym.Wrapper):
+    """
+    Add an intrinsic reward to the extrinsic reward based on the 
+    novelty of the language description provided by the environment.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+    def __init__(
+        self, 
+        env, 
+        weight=0.5, #1.0, #0.01,
+        coverage_precision=0.5,
+        coverage_epsilon=0.25,
+    ):
+        super(LanguageGuidedCuriosityWrapper, self).__init__(env)
+        self.visited_state_descriptions = []
+        self.weight = weight
+        self.intrinsic_return = 0
+        self.extrinsic_return = 0
+        self.episode_idx = 0 
+
+        self.coverage_precision= coverage_precision
+        self.coverage_epsilon = coverage_epsilon
+        
+        self.coverage_count = 0
+        self.coverage_points = []
+        x = self.min_x = self.env.unwrapped.min_x
+        z = self.min_z = self.env.unwrapped.min_z
+        self.max_x = self.env.unwrapped.max_x
+        self.max_z = self.env.unwrapped.max_z
+        while x < self.max_x:
+            z = self.min_z
+            while z < self.max_z:
+                self.coverage_points.append(np.array([x, 0.0, z]))
+                z += self.coverage_precision
+            x += self.coverage_precision
+        self.nbr_coverage_points = len(self.coverage_points)
+
+    def compute_coverage(self, agent_poses):
+        coverage_count = 0
+        for cov_point in self.coverage_points:
+            distances = [
+                np.linalg.norm(cov_point-pose, 2)
+                for pose in agent_poses
+            ]
+            min_dist = min(distances)
+            if min_dist < self.coverage_epsilon:
+                coverage_count += 1
+
+        return coverage_count
+
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
+        self.visited_state_descriptions = []
+            
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        if len(infos):
+            for info_idx in range(len(infos)):
+                infos[info_idx]['language_guided_reward'] = 0.0
+                infos[info_idx]['extrinsic_reward'] = 0.0
+        else:
+            infos['language_guided_reward'] = 0.0
+            infos['extrinsic_reward'] = 0.0
+        
+        wandb.log({
+            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":float(self.coverage_count)/self.nbr_coverage_points,
+            f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
+            f"Wrappers/LanguageGuidedCuriosity/IntrinsicReturn":self.intrinsic_return,
+            f"Wrappers/LanguageGuidedCuriosity/ExtrinsicReturn":self.extrinsic_return,
+            },
+            #step=self.episode_idx,
+            commit=False,
+        )
+        self.intrinsic_return = 0
+        self.extrinsic_return = 0
+        self.episode_idx += 1
+
+        self.agent_poses = [self.env.unwrapped.agent.pos]
+
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        next_state_description = next_observation['visible_entities']
+        
+        self.intrinsic_reward = 0.0
+        if next_state_description not in self.visited_state_descriptions:
+            self.visited_state_descriptions += [next_state_description]
+            self.intrinsic_reward = 1.0
+        
+        self.intrinsic_return += self.intrinsic_reward
+        self.extrinsic_return += reward 
+
+        next_infos['language_guided_reward'] = self.intrinsic_reward
+        next_infos['extrinsic_reward'] = reward
+        reward += self.intrinsic_reward*self.weight
+        
+        self.agent_poses.append(self.env.unwrapped.agent.pos)
+        if done:
+            self.coverage_count = self.compute_coverage(self.agent_poses)
+            next_infos['coverage_count'] = self.coverage_count
+            next_infos['coverage'] = float(self.coverage_count)/self.nbr_coverage_points
+
+        return next_observation, reward, done, next_infos
+
+
 def baseline_ther_wrapper(
     env, 
     size=None, 
@@ -3229,6 +3343,7 @@ def baseline_ther_wrapper(
     observe_achieved_goal=False,
     babyai_mission=False,
     miniworld_entity_visibility_oracle=False,
+    language_guided_curiosity=False,
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3242,7 +3357,7 @@ def baseline_ther_wrapper(
             with_top_view=True,
             verbose=False,
         )
-
+    
     env = Gymnasium2GymWrapper(env=env)
     env = TimeLimit(env, max_episode_steps=time_limit)
 
@@ -3282,6 +3397,9 @@ def baseline_ther_wrapper(
             concatenate_keys_with_obs=concatenate_keys_with_obs,
         )
     
+    if language_guided_curiosity:
+        env = LanguageGuidedCuriosityWrapper(env=env)
+
     if clip_reward:
         env = ClipRewardEnv(env)
     
