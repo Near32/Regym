@@ -1,4 +1,4 @@
-WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
+CUDA_LAUNCH_BLOCKING=1 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
 --config=miniworld_wandb_benchmark_ETHER_config.yaml \
 --n_step=3 --nbr_actor=2 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
@@ -11,6 +11,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=True \
+--MiniWorld_entity_visibility_oracle_include_depth=True \
+--MiniWorld_entity_visibility_oracle_include_depth_precision=1 \
+--ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric=False \
 --MiniWorld_entity_visibility_oracle=True \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
@@ -26,7 +29,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_egocentric=False \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_vocab_size=128 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=1 --ETHER_rg_accuracy_threshold=99 \
 --ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=7 \

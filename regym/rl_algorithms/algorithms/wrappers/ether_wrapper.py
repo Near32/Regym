@@ -1171,6 +1171,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
+                "sanity_check_shuffling": self.kwargs.get("ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric", False),
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),

@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, List, Callable, Union
 import os
 import copy
+import re
 from functools import partial 
 from collections.abc import Iterable
 from collections import deque, OrderedDict
@@ -2340,7 +2341,8 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         """
         for obs_key, map_key in self.observation_keys_mapping.items():
             #t_goal = [w.lower() for w in observation[obs_key].split(' ')]
-            t_goal = [w for w in observation[obs_key].split(' ')]
+            #t_goal = [w for w in observation[obs_key].split(' ')]
+            t_goal = [w for w in re.findall(r'\d|\w+|\.', observation[obs_key])]
             for w in t_goal:
                 if w not in self.vocabulary:
                     import ipdb; ipdb.set_trace()
@@ -3229,6 +3231,8 @@ def baseline_ther_wrapper(
     observe_achieved_goal=False,
     babyai_mission=False,
     miniworld_entity_visibility_oracle=False,
+    miniworld_entity_visibility_oracle_include_depth=False,
+    miniworld_entity_visibility_oracle_include_depth_precision=0,
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3239,6 +3243,8 @@ def baseline_ther_wrapper(
             qualifying_area_ratio=0.15,
             qualifying_screen_ratio=0.025,
             as_obs=True,
+            include_depth=miniworld_entity_visibility_oracle_include_depth,
+            include_depth_precision=miniworld_entity_visibility_oracle_include_depth_precision,
             with_top_view=True,
             verbose=False,
         )
