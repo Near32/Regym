@@ -1,9 +1,11 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
 --config=miniworld_wandb_benchmark_ETHER+RPPO_config.yaml \
---nbr_actor=32 --eps_greedy_alpha=2.0 \
+--nbr_actor=64 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=1e3 --replay_capacity=6e3 --learning_rate=6.25e-5 \
---sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
+--sequence_replay_burn_in_ratio=0.0 --entropy_weight=0.0 \
+--sequence_replay_unroll_length=32 --horizon=128 \
+--gradient_clip=5.0 --optimization_epochs=16 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \

@@ -631,6 +631,15 @@ class EpisodicLifeEnv(gym.Wrapper):
     def __init__(self, env):
         """Make end-of-life == end-of-episode, but only reset on true game over.
         Done by DeepMind for the DQN and co. since it helps value estimation.
+        WARNING: As the ale no longer provides the same behaviour
+        around lives and scores.
+        For instance, the lives/score paradigm can no longer be used 
+        in Pong to account for the lives...
+
+        N.B.: It has now been updated to account for non-positive rewards
+        as the loss of a life.
+        It is now suitable for Pong, at least.
+
         """
         gym.Wrapper.__init__(self, env)
         self.lives = 0
@@ -646,6 +655,8 @@ class EpisodicLifeEnv(gym.Wrapper):
             # for Qbert sometimes we stay in lives == 0 condition for a few frames
             # so it's important to keep lives > 0, so that we only reset once
             # the environment advertises done.
+            done = True
+        elif reward < 0:
             done = True
         self.lives = lives
         return obs, reward, done, info
@@ -835,7 +846,7 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(
+def depr_baseline_atari_pixelwrap(
     env, 
     size=None, 
     skip=4, 
@@ -879,6 +890,59 @@ def baseline_atari_pixelwrap(
     if clip_reward:
         env = ClipRewardEnv(env)
 
+    if previous_reward_action:
+        env = PreviousRewardActionInfoWrapper(env=env)
+    
+    return env
+
+
+def baseline_atari_pixelwrap(
+    env, 
+    size=None, 
+    skip=4, 
+    stack=4, 
+    grayscale=True,  
+    single_life_episode=True, 
+    nbr_max_random_steps=30, 
+    clip_reward=True,
+    time_limit=18000,
+    previous_reward_action=False,
+):
+    env = gym.wrappers.RecordEpisodeStatistics(env)
+    
+    if 'timelimit' in type(env).__name__.lower():
+        env._max_episode_steps = time_limit
+    else:
+        env = TimeLimit(env, max_episode_steps=time_limit)
+    env = Gymnasium2GymWrapper(env=env)
+    
+    if nbr_max_random_steps > 0:
+        env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
+    
+    if skip > 0:
+        env = MaxAndSkipEnv(env, skip=skip)
+    
+    if single_life_episode:
+        env = EpisodicLifeEnv(env)
+    
+    if clip_reward:
+        env = ClipRewardEnv(env)
+
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    if size is not None and isinstance(size, int):
+        env = gym.wrappers.ResizeObservation(env, (size, size))
+    if grayscale:
+        env = gym.wrappers.GrayScaleObservation(env,keep_dim=True)
+        #env = GrayScaleObservationCV(env=env) 
+    
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    
+    if stack > 1:
+        env = FrameStack(env, stack=stack)
+        #env = gym.wrappers.FrameStack(env, stack)
+    
     if previous_reward_action:
         env = PreviousRewardActionInfoWrapper(env=env)
     

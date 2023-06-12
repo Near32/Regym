@@ -14,6 +14,7 @@ import torch.nn as nn
 import matplotlib.pyplot as plt 
 
 import regym
+from regym.rl_algorithms.networks import random_sample
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.algorithms.RecurrentPPO import recurrent_ppo_loss
@@ -28,6 +29,7 @@ from regym.rl_algorithms.utils import (
     _concatenate_hdict, 
     _concatenate_list_hdict, 
     _extract_rnn_states_from_seq_indices,
+    _extract_rnn_states_from_batch_indices, 
 )
 
 from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
@@ -140,13 +142,6 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         print(kwargs)
 
-        #self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
-        #self.sequence_replay_overlap_length = kwargs['sequence_replay_overlap_length']
-        self.sequence_replay_burn_in_length = kwargs['sequence_replay_burn_in_length']
-        
-        #self.sequence_replay_store_on_terminal = kwargs["sequence_replay_store_on_terminal"]
-        
-        #self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
         
         self.train_request_count = 0 
 
@@ -188,7 +183,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             self.optimizer = optim.Adam(
                 parameters, 
                 lr=lr, 
-                betas=(0.9,0.999), 
+                #betas=(0.9,0.999), 
                 eps=float(kwargs['adam_eps']),
                 weight_decay=float(kwargs.get("adam_weight_decay", 0.0)),
             )
@@ -245,15 +240,33 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         self.storages = None
         self.use_mp = False 
-        self.replay_buffer_capacity = self.nbr_actor
-        self.sequence_replay_unroll_length = self.horizon
         self.sequence_replay_overlap_length = 0
+        self.kwargs['sequence_replay_overlap_length'] = 0
+        
+        # PREVIOUSLY : when forcing the unroll lenght:
+        #self.sequence_replay_unroll_length = self.horizon
+        #self.kwargs['sequence_replay_unroll_length'] = self.horizon
+        # NOW: letting it be set by user:
+        self.sequence_replay_unroll_length = self.kwargs['sequence_replay_unroll_length']
+
         self.sequence_replay_store_on_terminal = False
-        if self.kwargs['use_PER']:
+        self.sequence_replay_burn_in_ratio = self.kwargs['sequence_replay_burn_in_ratio']
+        self.sequence_replay_burn_in_length = int(self.sequence_replay_unroll_length*self.sequence_replay_burn_in_ratio)
+        self.kwargs['sequence_replay_burn_in_length'] = self.sequence_replay_burn_in_length
+        #self.sequence_replay_store_on_terminal = kwargs["sequence_replay_store_on_terminal"]
+        #self.replay_buffer_capacity = kwargs['replay_capacity'] // (self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
+        
+        #PREVIOUSLY: only as many as there were actors, and so there would be only one element per storage of length horizon:
+        #self.replay_buffer_capacity = self.nbr_actor * (self.horizon // self.sequence_replay_unroll_length)
+        # NOW: we still want to separate over the different actors,
+        # and also we want the horizon to be separate over the different unroll length : 
+        self.replay_buffer_capacity = self.nbr_actor * (self.horizon // self.sequence_replay_unroll_length)
+        
+        if self.kwargs.get('use_PER', False):
             print("WARNING: RPPO cannot use PER.")
             print("WARNING: Falling back onto normal ReplayStorage.")
-            self.kwargs['use_PER'] = False 
-        self.use_PER = self.kwargs['use_PER'] 
+        self.kwargs['use_PER'] = False 
+        self.use_PER = False
         self.reset_storages()
         
         global summary_writer
@@ -296,12 +309,30 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         non_episodic=False,
         normalizer=None,
     ):
-        r = self.storages[storage_idx].r[0][0][0]
-        v = self.storages[storage_idx].v[0][0][0]
-        v_key = 'v'
-        non_terminal = self.storages[storage_idx].non_terminal[0][0][0].squeeze().tolist()
-        succ_s = self.storages[storage_idx].succ_s[0][0][0]
-        rnn_states = self.storages[storage_idx].rnn_states[0][0]
+        rs = []
+        vs = []
+        non_terminals = []
+
+        for sidx in range(len(self.storages[storage_idx])):
+            r = self.storages[storage_idx].r[0][sidx][0]
+            v = self.storages[storage_idx].v[0][sidx][0]
+            # (temporal_dim=unroll_length x 1)
+            v_key = 'v'
+            non_terminal = self.storages[storage_idx].non_terminal[0][sidx][0]#.squeeze().tolist()
+            
+            rs.append(r)
+            vs.append(v)
+            non_terminals.append(non_terminal)
+        
+        # (temporal_dim=unroll_length x 1)
+        r = torch.cat(rs, dim=0)
+        v = torch.cat(vs, dim=0)
+        non_terminal = torch.cat(non_terminals, dim=0).squeeze().tolist()
+        # (temporal_dim = nbr entries in storage * unroll_length x 1)
+        
+        # sidx contains the last segment of temporally-ordered data
+        succ_s = self.storages[storage_idx].succ_s[0][sidx][0]
+        rnn_states = self.storages[storage_idx].rnn_states[0][sidx]
 
         out_d = self._compute_advantages_and_returns(
             r=r,
@@ -315,14 +346,30 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             non_episodic=non_episodic,
             normalizer=normalizer,
         )
-
-        self.storages[storage_idx].add(
-            data={
-                'adv':out_d['advantages'].unsqueeze(0), 
-                'std_adv':standardize(out_d['advantages'].unsqueeze(0)), 
-                'ret':out_d['returns'].unsqueeze(0),
-            },
+        
+        advs = torch.split(
+            out_d['advantages'], 
+            self.sequence_replay_unroll_length,
         )
+        
+        std_advs = torch.split(
+            standardize(out_d['advantages']),
+            self.sequence_replay_unroll_length,
+        )
+
+        rets = torch.split(
+            out_d['returns'], 
+            self.sequence_replay_unroll_length,
+        )
+        
+        for adv, std_adv, ret in zip(advs, std_advs, rets):
+            self.storages[storage_idx].add(
+                data={
+                    'adv':adv.unsqueeze(0), 
+                    'std_adv':std_adv.unsqueeze(0), 
+                    'ret':ret.unsqueeze(0),
+                },
+            )
         
         return 
 
@@ -366,7 +413,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             )
             returns = final_prediction[v_key].cpu().detach()
         else:
-            returns = torch.zeros(1,1)
+            returns = r[-1].reshape((1,1)) #torch.zeros(1,1)
         
         # Adding next state return/value and dummy advantages to the storage on the N+1 spots: 
         # not used during optimization, but necessary to compute the returns and advantages of previous states.
@@ -433,7 +480,12 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         start = time.time()
         #samples = self.retrieve_values_from_storages()
-        samples = self.retrieve_values_from_storages(minibatch_size=1)
+        # PREVIOUSLY:
+        #samples = self.retrieve_values_from_storages(minibatch_size=1)
+        # NOW: 
+        # in order to make sure to sample the whole dataset we put
+        # minibatch_size to the size of the dataset:
+        samples = self.retrieve_values_from_storages(minibatch_size=len(self.storages[0]))
         end = time.time()
 
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
@@ -444,7 +496,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         #self.optimize_model(minibatch_size, samples)
         for it in range(self.kwargs['optimization_epochs']):
             self.optimize_model(
-                minibatch_size=self.nbr_actor,
+                nbr_minibatches=4, #TODO: bring it up
+                #minibatch_size=self.nbr_actor,
                 samples=samples,
             )
         end = time.time()
@@ -455,6 +508,141 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         return
     
+    def optimize_model(
+        self, 
+        samples: Dict, 
+        minibatch_size:int=None, 
+        nbr_minibatches:int=None,
+    ):
+        '''
+        WARNING: Overriden from DQN :
+        PPO requires an optimization step for each minibatch rather than accumulate gradients at each minibatch and only then update...
+        '''
+        global summary_writer
+        if self.summary_writer is None:
+            self.summary_writer = summary_writer
+        
+        if minibatch_size is None:
+            assert nbr_minibatches is not None
+            minibatch_size = samples['s'].shape[0] // nbr_minibatches
+        
+        start = time.time()
+        torch.set_grad_enabled(True)
+        self.model.train(True)
+        
+        beta = 1.0
+        if self.use_PER:
+            if hasattr(self.storages[0].get_beta, "remote"):
+                beta_id = self.storages[0].get_beta.remote()
+                beta = ray.get(beta_id)
+            else:
+                beta = self.storages[0].get_beta()
+
+        # For each actor, there is one mini_batch update:
+        #sampler = list(random_sample(np.arange(states.size(0)), minibatch_size))
+        sampler = list(random_sample(np.arange(samples['s'].size(0)), minibatch_size))
+        nbr_minibatches = len(sampler)
+        nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size 
+        list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
+                                for storage_idx, _ in enumerate(self.storages)]
+        array_batch_indices = np.concatenate(list_batch_indices, axis=0)
+        sampled_batch_indices = []
+        sampled_losses_per_item = []
+        
+        #self.optimizer.zero_grad()
+        for batch_indices in sampler:
+            batch_indices = torch.from_numpy(batch_indices).long()
+            sampled_batch_indices.append(batch_indices)
+
+            sampled_samples = {}
+            for k in samples:
+                out_k = k
+                if k in self.kremap:
+                    out_k = self.kremap[k]
+                
+                v = samples[k]
+                if v is None:   
+                    sampled_samples[out_k] = None
+                    continue
+                if 'rnn' in k:
+                    v = _extract_rnn_states_from_batch_indices(
+                        v, 
+                        batch_indices, 
+                        use_cuda=self.kwargs['use_cuda'],
+                    )
+                elif self.kwargs['use_cuda']:
+                    v = v[batch_indices].cuda() 
+                else: 
+                    v = v[batch_indices]
+                
+                sampled_samples[out_k] = v
+                # (batch_size, unroll_dim, ...)
+
+            self.optimizer.zero_grad()
+            
+            if self.use_HER and 'HER_target_clamping' not in self.kwargs:
+                raise NotImplementedError
+	
+            self.kwargs["logging"] = False # (self.param_update_counter % 32) == 0
+            loss, loss_per_item = self.loss_fn(
+                samples=sampled_samples,
+                models=self.get_models(),
+                summary_writer=self.summary_writer,
+                iteration_count=self.param_update_counter,
+                
+                gamma=self.GAMMA,
+                PER_running_beta=beta,
+                **self.kwargs,
+            )
+            
+            '''
+            (loss/nbr_minibatches).backward(retain_graph=False)
+            '''
+            loss.backward(retain_graph=False)
+            if self.kwargs['gradient_clip'] > 1e-3:
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+            self.optimizer.step()
+
+            if self.use_PER:
+                sampled_losses_per_item.append(loss_per_item)
+                #wandb_data = copy.deepcopy(wandb.run.history._data)
+                #wandb.run.history._data = {}
+                wandb.log({
+                    'PerUpdate/ImportanceSamplingMean':  sampled_samples['importanceSamplingWeights'].cpu().mean().item(),
+                    'PerUpdate/ImportanceSamplingStd':  sampled_samples['importanceSamplingWeights'].cpu().std().item(),
+                    'PerUpdate/PER_Beta':  beta
+                    },
+                    commit=False,
+                ) # self.param_update_counter)
+                #wandb.run.history._data = wandb_data
+
+            self.param_update_counter += 1 
+
+        '''
+        if self.kwargs['gradient_clip'] > 1e-3:
+            nn.utils.clip_grad_norm_(self.model.parameters(), self.kwargs['gradient_clip'])
+        self.optimizer.step()
+        '''
+
+        self.model.train(False)
+        torch.set_grad_enabled(False)
+
+        if self.use_PER :
+            sampled_batch_indices = np.concatenate(sampled_batch_indices, axis=0)
+            # let us align the batch indices with the losses:
+            array_batch_indices = array_batch_indices[sampled_batch_indices]
+            # Now we can iterate through the losses and retrieve what 
+            # storage and what batch index they were associated with:
+            self._update_replay_buffer_priorities(
+                sampled_losses_per_item=sampled_losses_per_item, 
+                array_batch_indices=array_batch_indices,
+                minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
+            )
+
+        end = time.time()
+        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
+
+
     def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
         if self.storages is None:
             self.reset_storages()

@@ -166,6 +166,7 @@ class MARLEnvironmentModule(Module):
         self.update_count = self.agents[0].get_update_count()
         self.episode_count = 0
         self.episode_count_record = 0
+        self.episode_counts = {}
         self.sample_episode_count = 0
 
         self.epoch = 0 
@@ -318,7 +319,18 @@ class MARLEnvironmentModule(Module):
                     """
                     pa_info = info[player_index][actor_index]
                     pa_succ_info = succ_info[player_index][actor_index]
-
+                    
+                    if 'episode' in pa_succ_info:
+                        if actor_index not in self.episode_counts:
+                            self.episode_counts[actor_index] = 0
+                        self.episode_counts[actor_index] += 1
+                        wandb.log({
+                            f"PerEpisodeStats/Actor{actor_index}/Return":pa_succ_info['episode']['r'],
+                            f"PerEpisodeStats/Actor{actor_index}/Length":pa_succ_info['episode']['l'],
+                            },
+                            #step=self.episode_counts[actor_index],
+                            commit=False,
+                        )
                     """
                     if getattr(agent.algorithm, "use_rnd", False):
                         get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)

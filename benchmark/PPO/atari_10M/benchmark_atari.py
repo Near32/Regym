@@ -579,10 +579,7 @@ def main():
     parser.add_argument("--intrinsic_discount", type=float, default=0.99)
     parser.add_argument("--value_weight", type=float, default=0.5)
     parser.add_argument("--entropy_weight", type=float, default=0.01)
-    parser.add_argument("--adam_eps", 
-        type=float, 
-        default=1.0e-5,
-    )
+    parser.add_argument("--adam_eps", type=float, default=1.0e-5)
     parser.add_argument("--adam_weight_decay", 
         type=float, 
         default=0.0,
