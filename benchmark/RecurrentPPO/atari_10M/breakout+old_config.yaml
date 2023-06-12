@@ -217,7 +217,8 @@ experiment:
             # 'observation_resize_dim': 84
             # },
 
-            {'env-id': 'PongNoFrameskip-v4',
+            #{'env-id': 'PongNoFrameskip-v4',
+            {'env-id': 'BreakoutNoFrameskip-v4',
              'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'archi_recurrent_ppo',
              
@@ -275,7 +276,7 @@ agents:
                 feature_dim: &feature_dim 512
                 lstm_input_dim: &lstm_input_dim 512 #128
                 hidden_dim: &hidden_dim 512
-                action_dim: &action_dim 5 
+                action_dim: &action_dim 4 #5 
                 rlhead_state_dim: &rlhead_state_dim 512
                 
             input_stream_ids:

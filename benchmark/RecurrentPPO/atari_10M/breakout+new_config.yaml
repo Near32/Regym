@@ -217,7 +217,8 @@ experiment:
             # 'observation_resize_dim': 84
             # },
 
-            {'env-id': 'PongNoFrameskip-v4',
+            #{'env-id': 'PongNoFrameskip-v4',
+            {'env-id': 'BreakoutNoFrameskip-v4',
              'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
              'agent-id': 'archi_recurrent_ppo',
              
@@ -275,7 +276,7 @@ agents:
                 feature_dim: &feature_dim 512
                 lstm_input_dim: &lstm_input_dim 512 #128
                 hidden_dim: &hidden_dim 512
-                action_dim: &action_dim 5 
+                action_dim: &action_dim 4 #5 
                 rlhead_state_dim: &rlhead_state_dim 512
                 
             input_stream_ids:
@@ -305,10 +306,10 @@ agents:
                     feature_dim: *feature_dim
                     channels: [32, 64, 64]
                     kernel_sizes: [8, 4, 3]
-                    strides: [4, 2, 2]
+                    strides: [4, 2, 1] #[4,2,2]
                     paddings: [0, 1, 1]
-                    fc_hidden_units: [BN512, BN512]
-                    non_linearities: ['ReLU', 'ReLU']
+                    fc_hidden_units: [] #[BN512, BN512]
+                    non_linearities: ['ReLU',] #'ReLU', 'ReLU']
                     dropout: 0.0
                     use_coordconv: False #True
                     config: None
@@ -318,31 +319,31 @@ agents:
                         input: "inputs:ObsEncoder:processed_input"
                     use_cuda: True
     
-                'MLP':
-                    type: FullyConnectedNetworkModule
-                    state_dim: *feature_dim #3136
-                    hidden_units: ['BN512', 'BN256', 'BN256']
-                    non_linearities: ['ReLU', 'ReLU', 'ReLU']
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "inputs:ObsEncoder:processed_input"
-                    output_stream_ids:
-                        input: "inputs:MLP:processed_input"
-                    use_cuda: True
+                #'MLP':
+                #    type: FullyConnectedNetworkModule
+                #    state_dim: *feature_dim #3136
+                #    hidden_units: ['BN512', 'BN256', 'BN256']
+                #    non_linearities: ['ReLU', 'ReLU', 'ReLU']
+                #    dropout: 0.0
+                #    config: None
+                #    input_stream_ids:
+                #        input: "inputs:ObsEncoder:processed_input"
+                #    output_stream_ids:
+                #        input: "inputs:MLP:processed_input"
+                #    use_cuda: True
                     
                 'RLHead':
                     type: RLCategoricalActorCriticHeadModule
                     #state_dim: *rlhead_state_dim 
                     #state_dim: *hidden_dim 
-                    state_dim: 256 #*hidden_dim 
+                    state_dim: 512 #256 #*hidden_dim 
                     action_dim: *action_dim
                     use_intrinsic_critic: False
                     config: None
                     input_stream_ids: 
-                        #input0: "inputs:ObsEncoder:processed_input"
+                        input0: "inputs:ObsEncoder:processed_input"
                         #input0: "inputs:CoreLSTM:output"
-                        input0: "inputs:MLP:processed_input"
+                        #input0: "inputs:MLP:processed_input"
                         action: "inputs:action"
                         #legal_actions: "inputs:legal_actions"
                     use_cuda: True
@@ -370,7 +371,7 @@ agents:
             pipelines:
                 torso: ['ObsEncoder']
                 #head: ['CoreLSTM', 'RLHead']
-                head: ['MLP', 'RLHead']
+                head: ['RLHead',] #['MLP', 'RLHead']
         
         extra_inputs_infos: {
             #'previous_reward':{
@@ -422,4 +423,4 @@ agents:
                
         }
    
- 
+
