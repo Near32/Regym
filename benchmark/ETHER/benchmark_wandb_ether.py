@@ -408,6 +408,7 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      language_guided_curiosity=task_config['language_guided_curiosity'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -431,6 +432,7 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      language_guided_curiosity=task_config['language_guided_curiosity'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -752,6 +754,10 @@ def main():
         type=int,
         default=10,#3 #10 #5
     )
+
+    parser.add_argument("--goal_oriented", type=str2bool, default="True",)
+    parser.add_argument("--use_HER", type=str2bool, default="True",)
+    parser.add_argument("--use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
@@ -769,6 +775,7 @@ def main():
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -776,6 +783,7 @@ def main():
     #    default=32,
     #)
     
+    parser.add_argument("--use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
@@ -874,6 +882,7 @@ def main():
     parser.add_argument("--ETHER_rg_seed", type=int, default=1)
     parser.add_argument("--ETHER_rg_metric_active_factors_only", type=str2bool, default=True)
     
+    parser.add_argument("--time_limit", type=int, default=400,) 
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=2e6,
@@ -913,6 +922,9 @@ def main():
     if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
         dargs["ETHER_rg_use_obverter_sampling"] = True
 
+    if dargs['language_guided_curiosity']:
+        dargs["MiniWorld_entity_visibility_oracle"] = True
+    
     print(dargs)
 
     #from gpuutils import GpuUtils
