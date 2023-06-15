@@ -3,10 +3,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --nbr_actor=64 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=1e3 --replay_capacity=6e3 --learning_rate=6.25e-5 \
---sequence_replay_burn_in_ratio=0.0 --entropy_weight=0.0 \
---sequence_replay_unroll_length=32 --horizon=128 \
---gradient_clip=5.0 --optimization_epochs=16 \
---sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
+--sequence_replay_burn_in_ratio=0.0 --entropy_weight=0.001 \
+--sequence_replay_unroll_length=8 --sequence_replay_overlap_length=1 \
+--horizon=128 --gradient_clip=5.0 --optimization_epochs=16 \
+--sequence_replay_use_online_states=False --sequence_replay_use_zero_initial_states=False \
 --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \

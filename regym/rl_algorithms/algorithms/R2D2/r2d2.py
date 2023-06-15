@@ -221,7 +221,8 @@ class R2D2Algorithm(DQNAlgorithm):
         # Can we add the current sequence buffer to the replay storage?
         if not override and len(self.sequence_replay_buffers[actor_index]) < self.sequence_replay_unroll_length:
             return
-        if override or self.sequence_replay_overlap_length == 0 or self.sequence_replay_buffers_count[actor_index] % self.sequence_replay_overlap_length == 0:
+        if override \
+        or self.sequence_replay_buffers_count[actor_index] % (self.sequence_replay_unroll_length - self.sequence_replay_overlap_length) == 0:
             # Verify the length of the sequence:
             while len(self.sequence_replay_buffers[actor_index]) != self.sequence_replay_unroll_length:
                 # This can only happen when overriding, i.e. end of episode is reached and we store on end of episode:

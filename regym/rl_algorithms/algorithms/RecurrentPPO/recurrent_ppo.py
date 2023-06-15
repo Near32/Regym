@@ -491,7 +491,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
 
         #if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
-
+        
         start = time.time()
         #self.optimize_model(minibatch_size, samples)
         for it in range(self.kwargs['optimization_epochs']):
