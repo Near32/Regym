@@ -245,7 +245,7 @@ def train_and_evaluate(
     }
 
     config['training'] = True
-    config['publish_trajectories'] = True
+    config['publish_trajectories'] = False 
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
     
