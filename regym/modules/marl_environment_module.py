@@ -52,7 +52,8 @@ def build_MARLEnvironmentModule(
 
 
 class MARLEnvironmentModule(Module):
-    def __init__(self,
+    def __init__(
+        self,
                  id:str,
                  config:Dict[str,object],
                  input_stream_ids:Dict[str,str]=None):
@@ -144,6 +145,12 @@ class MARLEnvironmentModule(Module):
         self.nbr_actors = self.env.get_nbr_envs()
         self.nbr_players = self.config['nbr_players']
 
+        initial_env_config = self.config.get('env_configs', {})
+        self.env_configs = [copy.deepcopy(initial_env_config) for _ in range(self.nbr_actors)]
+        for actor_idx in range(self.nbr_actors):
+            self.env_configs[actor_idx]['seed'] = self.config.get('seed', 0)
+            self.env_configs[actor_idx]['seed'] += actor_idx
+        
         self.done = [False]*self.nbr_actors
         
         for agent in self.agents:
@@ -191,7 +198,9 @@ class MARLEnvironmentModule(Module):
             self.initialisation(input_streams_dict)
 
         if self.observations is None:
-            env_reset_output_dict = self.env.reset(env_configs=self.config.get('env_configs', None))
+            env_reset_output_dict = self.env.reset(
+                env_configs=self.env_configs,
+            )
             self.observations = env_reset_output_dict[self.obs_key]
             self.info = env_reset_output_dict[self.info_key]
             if self.vdn:

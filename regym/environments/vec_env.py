@@ -1,3 +1,4 @@
+from typing import List, Dict, Any, Tuple, Union
 import gym
 import numpy as np 
 import copy
@@ -113,7 +114,25 @@ class VecEnv():
     def clean(self, idx):
         self.env_processes[idx].close()
 
-    def check_update_reset_env_process(self, idx, env_configs=None, reset=False):
+    def check_update_reset_env_process(
+        self, 
+        idx:int, 
+        env_configs:Dict[str,Any]=None, 
+        reset:bool=False,
+    ):
+        """
+        If :param reset: is True, then a seed is fetched from the env_config
+        related to the :param idx:-th env.
+        If no seed is found then it is initialised to :param idx:.
+        This value matters for the following:
+        As it is then updated at each call of this method by increasing 
+        it of the number of parallel_env, it ensures that the seeds will
+        never overlap from one env to another.
+        
+        #WARNING: the seed update is propagated up to the original dict,
+        that was given as an argument to this module.
+
+        """
         p = self.env_processes[idx]
         if p is None:
             self.launch_env_process(idx)
@@ -128,6 +147,9 @@ class VecEnv():
                     self.env_configs[idx] = env_configs
                 else:
                     raise NotImplementedError
+            ### SEED UPDATE ###
+            self.env_configs[idx]['seed'] = self.nbr_parallel_env + self.env_configs[idx].get('seed', idx)
+            ###################
             env_config = copy.deepcopy(self.env_configs[idx]) 
             if env_config is not None and 'worker_id' in env_config: 
                 env_config.pop('worker_id')
@@ -235,12 +257,20 @@ class VecEnv():
                 ]
         return per_env_obs, per_env_infos, per_env_reward
 
-    def reset(self, env_configs=None, env_indices=None) :
-        if env_indices is None: env_indices = range(self.nbr_parallel_env)
+    def reset(
+        self, 
+        env_configs:List[Dict[str,Any]]=None, 
+        env_indices:List[int]=None,
+    ):
+        if env_indices is None: 
+            env_indices = range(self.nbr_parallel_env)
         
         if env_configs is not None:
             if isinstance(env_configs, list): 
-                self.worker_ids = [ env_config.pop('worker_id', None) for env_config in env_configs]
+                self.worker_ids = [ 
+                    env_config.pop('worker_id', None) 
+                    for env_config in env_configs
+                ]
             elif isinstance(env_configs, dict):
                 self.worker_ids = [None]*self.nbr_parallel_env
                 self.worker_ids[0] = env_configs.pop('worker_id', None)
@@ -248,7 +278,11 @@ class VecEnv():
                 raise NotImplementedError
         # Reset environments: 
         for idx in env_indices:
-            self.check_update_reset_env_process(idx, env_configs=env_configs, reset=True)
+            self.check_update_reset_env_process(
+                idx, 
+                env_configs=env_configs, 
+                reset=True,
+            )
 
         observations = []
         infos = []

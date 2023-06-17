@@ -79,23 +79,23 @@ parameters:
         MiniWorld_entity_visibility_oracle_include_depth:
                 values: [False]
         MiniWorld_entity_visibility_oracle_include_depth_precision:
-                values: [0,1,2]
+                values: ['-1']
         ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric:
                 values: [True, False]
         MiniWorld_entity_visibility_oracle_language_specs:
-                values: ['NONE', 'blue', 'color', 'shape']
+                values: ['NONE', 'blue', 'green', 'color', 'shape', 'box', 'ball']
         
         ETHER_rg_shared_architecture:
                 values: [True]
 
         ETHER_rg_with_logits_mdl_principle:
-                values: [True]
+                values: [False]
         ETHER_rg_logits_mdl_principle_factor:
                 values: [1.0e-3]
         ETHER_rg_logits_mdl_principle_accuracy_threshold:
                 values: [10.0]
         ETHER_rg_agent_loss_type:
-                values: [Impatient+Hinge]
+                values: [Hinge]
 
         ETHER_use_supervised_training:
                 values: [False]
@@ -113,11 +113,11 @@ parameters:
                 values: [False]
 
         ETHER_rg_with_color_jitter_augmentation:
-                values: [True, False]
+                values: [False]
         ETHER_rg_with_gaussian_blur_augmentation:
-                values: [True, False]
+                values: [False]
         ETHER_rg_egocentric:
-                values: [True, False]
+                values: [False]
 
         ETHER_rg_object_centric_version:
                 values: [2]
@@ -130,7 +130,7 @@ parameters:
                 values: [0.0]
 
         ETHER_rg_vocab_size:
-                values: [64]
+                values: [128]
         ETHER_rg_training_period:
                 values: [4096]
 
@@ -140,14 +140,14 @@ parameters:
                 values: [False]
 
         ETHER_rg_nbr_epoch_per_update:
-                values: [256]
+                values: [1]
         ETHER_rg_accuracy_threshold:
                 values: [99]
 
         ETHER_rg_nbr_train_distractors:
-                values: [7]
+                values: [1]
         ETHER_rg_nbr_test_distractors:
-                values: [7]
+                values: [1]
 
         ETHER_replay_capacity:
                 values: [1024]
@@ -155,7 +155,7 @@ parameters:
                 values: [512]
 
         ETHER_rg_distractor_sampling:
-                values: [uniform, similarity-90]
+                values: [uniform]
 
         THER_use_PER:
                 values: [True]
@@ -176,7 +176,7 @@ parameters:
         THER_replay_capacity:
                 values: [1e2]
         THER_min_capacity:
-                values: [12]
+                values: [4]
 
         THER_predictor_nbr_minibatches:
                 values: [1]
@@ -221,8 +221,9 @@ parameters:
         single_pick_episode:
                 values: [False]
         THER_timing_out_episode_length_threshold:
-                values: [400]
-
+                values: [100]
+        time_limit:
+                values: [100]
         BabyAI_Bot_action_override:
                 values: [False]
         train_observation_budget:

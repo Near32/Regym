@@ -243,7 +243,8 @@ def train_and_evaluate(
       "modules": {},
       "pipelines": {},
     }
-
+    
+    config['seed'] = task_config['seed']
     config['training'] = True
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
@@ -408,6 +409,7 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
     )
@@ -433,6 +435,7 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
     )
@@ -773,8 +776,9 @@ def main():
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_language_specs", type=str, default="NONE",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth", type=str2bool, default=False)
-    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default=0)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -881,6 +885,7 @@ def main():
     parser.add_argument("--ETHER_rg_seed", type=int, default=1)
     parser.add_argument("--ETHER_rg_metric_active_factors_only", type=str2bool, default=True)
     
+    parser.add_argument("--time_limit", type=int, default=4000)
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=2e6,
@@ -907,7 +912,9 @@ def main():
         dargs['THER_train_contrastively'] = True
 
     if dargs["ETHER_rg_sanity_check_compactness_ambiguity_metric"]:
-        import ipdb; ipdb.set_trace()
+        if dargs["MiniWorld_entity_visibility_oracle_include_depth_precision"] >= 0 :
+            dargs["MiniWorld_entity_visibility_oracle_include_depth"] = True
+
         dargs["ETHER_grounding_signal_key"] = "info:visible_entities_widx"
         dargs["MiniWorld_entity_visibility_oracle"] = True
         dargs["ETHER_rg_use_semantic_cooccurrence_grounding"] = False

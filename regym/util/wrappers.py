@@ -3231,6 +3231,7 @@ def baseline_ther_wrapper(
     observe_achieved_goal=False,
     babyai_mission=False,
     miniworld_entity_visibility_oracle=False,
+    miniworld_entity_visibility_oracle_language_specs=False,
     miniworld_entity_visibility_oracle_include_depth=False,
     miniworld_entity_visibility_oracle_include_depth_precision=0,
     ):
@@ -3243,6 +3244,7 @@ def baseline_ther_wrapper(
             qualifying_area_ratio=0.15,
             qualifying_screen_ratio=0.025,
             as_obs=True,
+            language_specs=miniworld_entity_visibility_oracle_language_specs,
             include_depth=miniworld_entity_visibility_oracle_include_depth,
             include_depth_precision=miniworld_entity_visibility_oracle_include_depth_precision,
             with_top_view=True,
