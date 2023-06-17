@@ -1,7 +1,7 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
 --config=miniworld_wandb_benchmark_ETHER_config.yaml \
 --time_limit=100 \
---n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
+--n_step=3 --nbr_actor=2 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=1e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
@@ -10,13 +10,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
---use_ETHER=False --use_THER=False \
---use_HER=False --goal_oriented=False \
---ETHER_use_ETHER=False --THER_use_THER=False \
+--use_HER=True --goal_oriented=False \
+--use_ETHER=True --use_THER=True \
+--ETHER_use_ETHER=True --THER_use_THER=False \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --language_guided_curiosity=True \
 --MiniWorld_entity_visibility_oracle=True \
---ETHER_rg_shared_architecture=False \
+--ETHER_rg_shared_architecture=True \
 --ETHER_rg_with_logits_mdl_principle=True \
 --ETHER_rg_logits_mdl_principle_factor=1.0e-3 \
 --ETHER_rg_logits_mdl_principle_accuracy_threshold=10.0 \
@@ -33,7 +33,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=1 --ETHER_rg_accuracy_threshold=99 \
---ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=7 \
+--ETHER_rg_nbr_train_distractors=31 --ETHER_rg_nbr_test_distractors=31 \
 --ETHER_replay_capacity=2048 --ETHER_test_replay_capacity=512 \
 --ETHER_rg_distractor_sampling=similarity-90 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
@@ -49,9 +49,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.2 --THER_filter_predicate_fn=True \
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=True \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
---single_pick_episode=False --THER_timing_out_episode_length_threshold=400 \
+--single_pick_episode=False --THER_timing_out_episode_length_threshold=100 \
 --BabyAI_Bot_action_override=False \
---train_observation_budget=100000000
+--train_observation_budget=10000000
 
 #--ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \
 #3072

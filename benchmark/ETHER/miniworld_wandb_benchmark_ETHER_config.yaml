@@ -396,6 +396,8 @@ agents:
         epsend: 0.4
         eps_greedy_alpha: 2.0
         
+        semantic_embeddings_prior: &semantic_embeddings_prior True
+        
         ArchiModel:
             model_id: 'RL_FiLMedETHERModel'
             hyperparameters:
@@ -593,6 +595,9 @@ agents:
                     config:
                         predict_PADs: False
                         diversity_loss_weighting: False #True
+                        rectify_contrastive_imbalance: False
+                        semantic_embeddings_prior: *semantic_embeddings_prior
+                        semantic_prior_mixing: "multiplicative"
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorMLP:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"
