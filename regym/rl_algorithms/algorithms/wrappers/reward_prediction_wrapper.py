@@ -268,7 +268,7 @@ class RewardPredictionAlgorithmWrapper(AlgorithmWrapper):
         
         wandb.log({'PerRPPredictorUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
-        full_train size = 0
+        full_train_size = 0
         full_test_size = 0
         test_storage_size = self.predictor_storages[0].get_size(test=True) #.test_storage.current_size['s']  
         train_storage_size = self.predictor_storages[0].get_size(test=False) #test_storage.current_size['s']  
