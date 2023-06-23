@@ -409,6 +409,7 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
     )
 
@@ -433,6 +434,7 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
     )
     
@@ -724,6 +726,52 @@ def main():
         type=str2bool, 
         default="False", 
     )
+    parser.add_argument("--RP_replay_period", # in episodes
+        type=int, 
+        default=40, #10 #1
+    )
+    parser.add_argument("--RP_nbr_training_iteration_per_update", 
+        type=int, 
+        default=2, 
+    )
+    parser.add_argument("--RP_replay_capacity", 
+        type=float, 
+        default=500, #250 #5000
+    )
+    parser.add_argument("--RP_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--RP_test_replay_capacity", 
+        type=float, 
+        default=50, #25 #1000
+    )
+    parser.add_argument("--RP_min_capacity", 
+        type=float, 
+        default=32, #1e4
+    )
+    parser.add_argument("--RP_test_min_capacity", 
+        type=float, 
+        default=12, #1e4
+    )
+    parser.add_argument("--RP_predictor_nbr_minibatches", 
+        type=int, 
+        default=8,
+    )
+    parser.add_argument("--RP_predictor_batch_size", 
+        type=int, 
+        default=256,
+    )
+    parser.add_argument("--RP_predictor_accuracy_threshold", 
+        type=float, 
+        default=0.75,
+    )
+    parser.add_argument("--RP_predictor_test_train_split_interval",
+        type=int,
+        default=10,#3 #10 #5
+    )
+
+    parser.add_argument("--use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_PER", type=str2bool, default="False",)
+    
     parser.add_argument("--THER_replay_period", # in episodes
         type=int, 
         default=40, #10 #1
@@ -791,6 +839,7 @@ def main():
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
@@ -928,6 +977,7 @@ def main():
         import ipdb; ipdb.set_trace()
         dargs["ETHER_grounding_signal_key"] = "info:visible_entities_widx"
         dargs["MiniWorld_entity_visibility_oracle"] = True
+        dargs["MiniWorld_entity_visibility_oracle_top_view"] = True
         dargs["ETHER_rg_use_semantic_cooccurrence_grounding"] = False
         print("WARNING :: sanity check in progress for compactness ambiguity metric.")
         print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")

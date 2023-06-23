@@ -13,8 +13,15 @@ from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
 from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
-from regym.rl_algorithms.algorithms.wrappers import ETHERAlgorithmWrapper
-from regym.rl_algorithms.networks import ArchiPredictor, ArchiPredictorSpeaker
+from regym.rl_algorithms.algorithms.wrappers import (
+    ETHERAlgorithmWrapper,
+    RewardPredictionAlgorithmWrapper,
+)
+from regym.rl_algorithms.networks import (
+    ArchiPredictor, 
+    ArchiPredictorSpeaker,
+    ArchiRewardPredictor,
+)
 
 
 class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
@@ -281,6 +288,16 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
         algorithm = wrapper(**wrapper_kwargs)
     
+    if kwargs.get('use_RP', False):
+        reward_predictor = ArchiRewardPredictor(
+            model=model,
+            **kwargs['ArchiModel'],
+        )
+        algorithm = RewardPredictionAlgorithmWrapper(
+            algorithm=algorithm,
+            predictor=reward_predictor,
+        )
+
     agent = R2D2Agent(
         name=agent_name,
         algorithm=algorithm,

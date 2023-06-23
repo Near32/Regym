@@ -12,8 +12,15 @@ from regym.rl_algorithms.algorithms.RecurrentPPO import RecurrentPPOAlgorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
 from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
-from regym.rl_algorithms.algorithms.wrappers import ETHERAlgorithmWrapper
-from regym.rl_algorithms.networks import ArchiPredictor, ArchiPredictorSpeaker
+from regym.rl_algorithms.algorithms.wrappers import (
+    ETHERAlgorithmWrapper,
+    RewardPredictionAlgorithmWrapper,
+)
+from regym.rl_algorithms.networks import (
+    ArchiPredictor, 
+    ArchiPredictorSpeaker,
+    ArchiRewardPredictor,
+)
 
 import wandb
 
@@ -380,6 +387,16 @@ def build_RecurrentPPO_Agent(
 
         algorithm = wrapper(**wrapper_kwargs)
     
+    if kwargs.get('use_RP', False):
+        reward_predictor = ArchiRewardPredictor(
+            model=model,
+            **kwargs['ArchiModel'],
+        )
+        algorithm = RewardPredictionAlgorithmWrapper(
+            algorithm=algorithm,
+            predictor=reward_predictor,
+        )
+
     agent = RecurrentPPOAgent(
         name=agent_name,
         algorithm=algorithm,

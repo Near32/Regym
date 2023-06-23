@@ -3407,6 +3407,7 @@ def baseline_ther_wrapper(
     observe_achieved_goal=False,
     babyai_mission=False,
     miniworld_entity_visibility_oracle=False,
+    miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
     ):
     
@@ -3418,7 +3419,7 @@ def baseline_ther_wrapper(
             qualifying_area_ratio=0.15,
             qualifying_screen_ratio=0.025,
             as_obs=True,
-            with_top_view=True,
+            with_top_view=miniworld_entity_visibility_oracle_top_view,
             verbose=False,
         )
     

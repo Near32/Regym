@@ -709,6 +709,52 @@ def main():
         type=str2bool, 
         default="False", 
     )
+    parser.add_argument("--RP_replay_period", # in episodes
+        type=int, 
+        default=40, #10 #1
+    )
+    parser.add_argument("--RP_nbr_training_iteration_per_update", 
+        type=int, 
+        default=2, 
+    )
+    parser.add_argument("--RP_replay_capacity", 
+        type=float, 
+        default=500, #250 #5000
+    )
+    parser.add_argument("--RP_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--RP_test_replay_capacity", 
+        type=float, 
+        default=50, #25 #1000
+    )
+    parser.add_argument("--RP_min_capacity", 
+        type=float, 
+        default=32, #1e4
+    )
+    parser.add_argument("--RP_test_min_capacity", 
+        type=float, 
+        default=12, #1e4
+    )
+    parser.add_argument("--RP_predictor_nbr_minibatches", 
+        type=int, 
+        default=8,
+    )
+    parser.add_argument("--RP_predictor_batch_size", 
+        type=int, 
+        default=256,
+    )
+    parser.add_argument("--RP_predictor_accuracy_threshold", 
+        type=float, 
+        default=0.75,
+    )
+    parser.add_argument("--RP_predictor_test_train_split_interval",
+        type=int,
+        default=10,#3 #10 #5
+    )
+
+    parser.add_argument("--use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_PER", type=str2bool, default="False",)
+    
     parser.add_argument("--THER_replay_period", # in episodes
         type=int, 
         default=40, #10 #1

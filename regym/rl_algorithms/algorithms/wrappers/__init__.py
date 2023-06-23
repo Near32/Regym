@@ -8,4 +8,4 @@ from .ther_wrapper2 import batched_predictor_based_goal_predicated_reward_fn2
 
 from .ether_wrapper import ETHERAlgorithmWrapper
 
-
+from .reward_prediction_wrapper import RewardPredictionAlgorithmWrapper

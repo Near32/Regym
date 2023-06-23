@@ -159,7 +159,7 @@ class ReplayStorage():
     def __len__(self):
         return self.current_size['s']
 
-    def sample(self, batch_size, keys=None):
+    def sample(self, batch_size, keys=None, replace=False):
         if keys is None:    keys = self.keys + self.circular_keys.keys()
         min_current_size = self.capacity
         for idx_key in reversed(range(len(keys))):
@@ -174,7 +174,7 @@ class ReplayStorage():
             indices = np.random.choice(
                 np.arange(min_current_size), 
                 batch_size,
-                replace=False,
+                replace=replace,
             )
         else:
             indices = None #[0]*batch_size
