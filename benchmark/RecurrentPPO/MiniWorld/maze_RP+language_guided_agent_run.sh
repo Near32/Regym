@@ -31,10 +31,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
 --RP_replay_capacity=2048 --RP_min_capacity=32 \
---RP_predictor_nbr_minibatches=8 --RP_predictor_batch_size=256 \
+--RP_predictor_nbr_minibatches=4 --RP_predictor_batch_size=256 \
 --RP_predictor_test_train_split_interval=3 --RP_test_replay_capacity=512 \
 --RP_test_min_capacity=32 --RP_replay_period=4096 \
---RP_nbr_training_iteration_per_update=8 \
+--RP_nbr_training_iteration_per_update=4 \
 --RP_predictor_accuracy_threshold=90 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
 --THER_lock_test_storage=True \
@@ -49,13 +49,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.2 --THER_filter_predicate_fn=True \
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=True \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
---single_pick_episode=False --THER_timing_out_episode_length_threshold=400 \
+--single_pick_episode=True --THER_timing_out_episode_length_threshold=400 \
 --BabyAI_Bot_action_override=False \
---adam_eps=1.0e-12 --optimization_epochs=4 \
+--adam_eps=1.0e-12 --optimization_epochs=8 \
 --standardized_adv=True \
 --discount=0.999 --ppo_ratio_clip=0.1 \
 --nbr_actor=32 --mini_batch_size=256 --batch_size=256 \
---learning_rate=2.5e-4 --gradient_clip=0.5 \
+--learning_rate=2.5e-4 --gradient_clip=5.0 \
 --entropy_weight=0.01 \
 --sequence_replay_store_on_terminal=False \
 --sequence_replay_burn_in_ratio=0.0 \

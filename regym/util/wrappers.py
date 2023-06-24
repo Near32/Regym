@@ -678,15 +678,20 @@ class EpisodicLifeEnv(gym.Wrapper):
 class EpisodicPickEnv(gym.Wrapper):
     def __init__(self, env, pick_idx=0):
         """
-        Make pick = end-of-episode for BabyAI benchmark.
+        Make pick = end-of-episode for BabyAI benchmark or MiniWorld.
         """
         gym.Wrapper.__init__(self, env)
         self.pick_idx = pick_idx
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
+        
+        carrying = getattr(self.unwrapped, 'carrying', None)
+        if carrying is None \
+        and hasattr(self.unwrapped, 'agent'):
+            carrying = getattr(self.unwrapped.agent, 'carrying', None)
         if action == self.pick_idx \
-        and self.env.carrying is not None:
+        and carrying is not None:
             done = True
         return obs, reward, done, info
 
@@ -3285,13 +3290,15 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
     def __init__(
         self, 
         env, 
-        weight=0.5, #1.0, #0.01,
+        intrinsic_weight=0.5, #1.0, #0.01,
+        extrinsic_weight=10.0, #1.0, #0.01,
         coverage_precision=0.5,
         coverage_epsilon=0.25,
     ):
         super(LanguageGuidedCuriosityWrapper, self).__init__(env)
         self.visited_state_descriptions = []
-        self.weight = weight
+        self.intrinsic_weight = intrinsic_weight
+        self.extrinsic_weight = extrinsic_weight
         self.intrinsic_return = 0
         self.extrinsic_return = 0
         self.episode_idx = 0 
@@ -3375,7 +3382,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
 
         next_infos['language_guided_reward'] = self.intrinsic_reward
         next_infos['extrinsic_reward'] = reward
-        reward += self.intrinsic_reward*self.weight
+        reward = self.extrinsic_weight*reward+self.intrinsic_reward*self.intrinsic_weight
         
         self.agent_poses.append(self.env.unwrapped.agent.pos)
         if done:
