@@ -15,11 +15,15 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
     def __init__(
         self,
         model,
+        pipeline_name="instruction_generator",
+        generator_name="InstructionGenerator",
         **kwargs,
     ):
         ArchiPredictor.__init__(
             self,
             model=model,
+            pipeline_name=pipeline_name,
+            generator_name=generator_name,
             **kwargs,
         )
         self.logger = None
@@ -64,6 +68,8 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         ArchiPredictor.__init__(
             self,
             model=model,
+            pipeline_name=self.pipeline_name,
+            generator_name=self.generator_name,
             **pkwargs,
         )
         
@@ -100,7 +106,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
     def parameters(self):
         params = []
         for km, module in self.model.modules.items():
-            if km in self.model.pipelines["instruction_generator"]:
+            if km in self.model.pipelines[self.pipeline_name]: #["instruction_generator"]:
                 params += module.parameters()
         if hasattr(self, 'tau_fc'):
             #print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
@@ -135,16 +141,17 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
+                #"instruction_generator":
+                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name], #"instruction_generator"]
             },
             return_feature_only=return_feature_only,
         )
         
         self.features = output['next_rnn_states']['SharedObsEncoder']['processed_input'][0]
 
-        sentences_widx = output["next_rnn_states"]["InstructionGenerator"]["processed_input0"][0].unsqueeze(-1)
-        sentences_logits = output["next_rnn_states"]["InstructionGenerator"]["input0_prediction_logits"][0]
-        sentences_hidden_states = output["next_rnn_states"]["InstructionGenerator"]["input0_hidden_states"][0]
+        sentences_widx = output["next_rnn_states"][self.generator_name]["processed_input0"][0].unsqueeze(-1)
+        sentences_logits = output["next_rnn_states"][self.generator_name]["input0_prediction_logits"][0]
+        sentences_hidden_states = output["next_rnn_states"][self.generator_name]["input0_hidden_states"][0]
         sentences_one_hots = nn.functional.one_hot(
                 sentences_widx.long(), 
                 num_classes=self.vocab_size,
@@ -176,7 +183,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         }
          
         if gt_sentences is None:
-            return_feature_only=self.archi_kwargs["features_id"]["instruction_generator"]
+            return_feature_only=self.archi_kwargs["features_id"][self.pipeline_name]
         else:
             return_feature_only = None 
             input_dict['rnn_states']['gt_sentences'] = gt_sentences
@@ -184,7 +191,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
+                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
             },
             return_feature_only=return_feature_only,
         )

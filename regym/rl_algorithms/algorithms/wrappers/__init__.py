@@ -7,5 +7,6 @@ from .ther_wrapper2 import THERAlgorithmWrapper2, predictor_based_goal_predicate
 from .ther_wrapper2 import batched_predictor_based_goal_predicated_reward_fn2
 
 from .ether_wrapper import ETHERAlgorithmWrapper
+from .ela_wrapper import ELAAlgorithmWrapper
 
 from .reward_prediction_wrapper import RewardPredictionAlgorithmWrapper

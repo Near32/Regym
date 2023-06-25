@@ -3280,29 +3280,22 @@ class Gymnasium2GymWrapper(gym.Wrapper):
         return next_observations, reward, done, next_infos
 
 
-class LanguageGuidedCuriosityWrapper(gym.Wrapper):
+class CoverageMetricWrapper(gym.Wrapper):
     """
-    Add an intrinsic reward to the extrinsic reward based on the 
-    novelty of the language description provided by the environment.
-    Args:
-        env (gym.Env): Env to wrap.
+    Compute coverage ratio of the agent over a given environment.
+    :param env: (gym.Env): Env to wrap.
+    :param coverage_precision: float, precision of the grid in meters.
+    :param coverage_epsilon: float, threshold distance between grid 
+        center and agent pose below which the grid point is considered
+        visited.
     """
     def __init__(
         self, 
         env, 
-        intrinsic_weight=0.5, #1.0, #0.01,
-        extrinsic_weight=10.0, #1.0, #0.01,
         coverage_precision=0.5,
         coverage_epsilon=0.25,
     ):
-        super(LanguageGuidedCuriosityWrapper, self).__init__(env)
-        self.visited_state_descriptions = []
-        self.intrinsic_weight = intrinsic_weight
-        self.extrinsic_weight = extrinsic_weight
-        self.intrinsic_return = 0
-        self.extrinsic_return = 0
-        self.episode_idx = 0 
-
+        super(CoverageMetricWrapper, self).__init__(env)
         self.coverage_precision= coverage_precision
         self.coverage_epsilon = coverage_epsilon
         
@@ -3335,6 +3328,59 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
 
     def reset(self, **kwargs):
         reset_output = self.env.reset(**kwargs)
+            
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        wandb.log({
+            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":float(self.coverage_count)/self.nbr_coverage_points,
+            f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
+            },
+            commit=False,
+        )
+
+        self.agent_poses = [self.env.unwrapped.agent.pos]
+
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        
+        self.agent_poses.append(self.env.unwrapped.agent.pos)
+        if done:
+            self.coverage_count = self.compute_coverage(self.agent_poses)
+            next_infos['coverage_count'] = self.coverage_count
+            next_infos['coverage'] = float(self.coverage_count)/self.nbr_coverage_points
+
+        return next_observation, reward, done, next_infos
+
+
+class LanguageGuidedCuriosityWrapper(gym.Wrapper):
+    """
+    Add an intrinsic reward to the extrinsic reward based on the 
+    novelty of the language description provided by the environment.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+    def __init__(
+        self, 
+        env, 
+        intrinsic_weight=0.5, #1.0, #0.01,
+        extrinsic_weight=10.0, #1.0, #0.01,
+    ):
+        super(LanguageGuidedCuriosityWrapper, self).__init__(env)
+        self.visited_state_descriptions = []
+        self.intrinsic_weight = intrinsic_weight
+        self.extrinsic_weight = extrinsic_weight
+        self.intrinsic_return = 0
+        self.extrinsic_return = 0
+        self.episode_idx = 0 
+
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
         self.visited_state_descriptions = []
             
         if isinstance(reset_output, tuple):
@@ -3352,8 +3398,6 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
             infos['extrinsic_reward'] = 0.0
         
         wandb.log({
-            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":float(self.coverage_count)/self.nbr_coverage_points,
-            f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
             f"Wrappers/LanguageGuidedCuriosity/IntrinsicReturn":self.intrinsic_return,
             f"Wrappers/LanguageGuidedCuriosity/ExtrinsicReturn":self.extrinsic_return,
             },
@@ -3363,8 +3407,6 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         self.intrinsic_return = 0
         self.extrinsic_return = 0
         self.episode_idx += 1
-
-        self.agent_poses = [self.env.unwrapped.agent.pos]
 
         return obs, infos 
     
@@ -3384,12 +3426,6 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         next_infos['extrinsic_reward'] = reward
         reward = self.extrinsic_weight*reward+self.intrinsic_reward*self.intrinsic_weight
         
-        self.agent_poses.append(self.env.unwrapped.agent.pos)
-        if done:
-            self.coverage_count = self.compute_coverage(self.agent_poses)
-            next_infos['coverage_count'] = self.coverage_count
-            next_infos['coverage'] = float(self.coverage_count)/self.nbr_coverage_points
-
         return next_observation, reward, done, next_infos
 
 
@@ -3416,6 +3452,7 @@ def baseline_ther_wrapper(
     miniworld_entity_visibility_oracle=False,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
+    coverage_metric=False,
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3471,6 +3508,8 @@ def baseline_ther_wrapper(
     
     if language_guided_curiosity:
         env = LanguageGuidedCuriosityWrapper(env=env)
+    if coverage_metric:
+        env = CoverageMetricWrapper(env=env)
 
     if clip_reward:
         env = ClipRewardEnv(env)
