@@ -950,8 +950,8 @@ def main():
     parser.add_argument("--ETHER_rg_seed", type=int, default=1)
     parser.add_argument("--ETHER_rg_metric_active_factors_only", type=str2bool, default=True)
     
-    parser.add_argument("--use_ELA", type=str2bool, default="True",)
-    parser.add_argument("--ELA_use_ELA", type=str2bool, default="True",)
+    parser.add_argument("--use_ELA", type=str2bool, default="False",)
+    parser.add_argument("--ELA_use_ELA", type=str2bool, default="False",)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=int, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=int, default=1,)
     parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
