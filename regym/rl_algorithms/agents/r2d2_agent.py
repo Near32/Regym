@@ -15,6 +15,7 @@ from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocess
 from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
 from regym.rl_algorithms.algorithms.wrappers import (
     ETHERAlgorithmWrapper,
+    ELAAlgorithmWrapper,
     RewardPredictionAlgorithmWrapper,
 )
 from regym.rl_algorithms.networks import (
@@ -22,6 +23,8 @@ from regym.rl_algorithms.networks import (
     ArchiPredictorSpeaker,
     ArchiRewardPredictor,
 )
+
+import wandb 
 
 
 class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
@@ -296,6 +299,26 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         algorithm = RewardPredictionAlgorithmWrapper(
             algorithm=algorithm,
             predictor=reward_predictor,
+        )
+
+    if kwargs.get('use_ELA', False):
+        # The predictor corresponds to the caption generator pipeline:
+        assert "caption_generator" in kwargs['ArchiModel']['pipelines']
+        caption_predictor = ArchiPredictorSpeaker(
+            model=model, 
+            **kwargs["ArchiModel"],
+            pipeline_name="caption_generator",
+            generator_name="CaptionGenerator",
+        )
+        algorithm = ELAAlgorithmWrapper(
+            algorithm=algorithm,
+            predictor=caption_predictor,
+            extrinsic_weight=kwargs['ELA_reward_extrinsic_weight'], 
+            intrinsic_weight=kwargs['ELA_reward_intrinsic_weight'], 
+            feedbacks={
+                "failure":kwargs['ELA_feedbacks_failure_reward'], 
+                "success":kwargs['ELA_feedbacks_success_reward'],
+            },
         )
 
     agent = R2D2Agent(

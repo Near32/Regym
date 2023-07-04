@@ -952,8 +952,10 @@ def main():
     
     parser.add_argument("--use_ELA", type=str2bool, default="False",)
     parser.add_argument("--ELA_use_ELA", type=str2bool, default="False",)
-    parser.add_argument("--ELA_feedbacks_failure_reward", type=int, default=0,)
-    parser.add_argument("--ELA_feedbacks_success_reward", type=int, default=1,)
+    parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
+    parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
+    parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
+    parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
     parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
     parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)

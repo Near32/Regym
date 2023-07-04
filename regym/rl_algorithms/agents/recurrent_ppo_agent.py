@@ -410,6 +410,8 @@ def build_RecurrentPPO_Agent(
         algorithm = ELAAlgorithmWrapper(
             algorithm=algorithm,
             predictor=caption_predictor,
+            extrinsic_weight=kwargs['ELA_reward_extrinsic_weight'], 
+            intrinsic_weight=kwargs['ELA_reward_intrinsic_weight'], 
             feedbacks={
                 "failure":kwargs['ELA_feedbacks_failure_reward'], 
                 "success":kwargs['ELA_feedbacks_success_reward'],

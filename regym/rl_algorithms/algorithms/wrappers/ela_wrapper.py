@@ -30,6 +30,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self, 
         algorithm, 
         predictor, 
+        extrinsic_weight=10.0,
+        intrinsic_weight=0.5,
         feedbacks={"failure":0, "success":1},
     ):
         """
@@ -43,8 +45,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.nbr_episode_success_range = 256
         self.feedbacks = feedbacks 
         
-        self.extrinsic_weight = 10.0
-        self.intrinsic_weight = 0.5
+        self.extrinsic_weight = extrinsic_weight
+        self.intrinsic_weight = intrinsic_weight
 
         self.test_acc = 0.0
         self.predictor = predictor 
@@ -234,7 +236,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 )
             else:
                 batched_new_r = None
-                
+            
+            new_rs = []
             for idx in range(episode_length):
                 s = self.episode_buffer[actor_index][idx]['s']
                 a = self.episode_buffer[actor_index][idx]['a']
@@ -243,6 +246,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 new_r = self.extrinsic_weight*r
                 if batched_new_r is not None:
                     new_r += self.intrinsic_weight*batched_new_r[idx:idx+1]
+                new_rs.append(new_r)
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
                 non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
@@ -280,10 +284,13 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 self.algorithm.store(d2store_ela, actor_index=actor_index)
                 
                 if idx==(episode_length-1):
+                    wandb.log({'PerEpisode/ExtrinsicWeight': self.extrinsic_weight}, commit=False)
+                    wandb.log({'PerEpisode/IntrinsicWeight': self.intrinsic_weight}, commit=False)
                     wandb.log({'PerEpisode/EpisodeLength': episode_length}, commit=False)
                     
+                    wandb.log({'PerEpisode/ELA_Return': sum(new_rs).item(),}, commit=False) 
                     wandb.log({
-                        'PerEpisode/ELA_Success': float(new_r.item()>0), #1+her_r.mean().item(),
+                        'PerEpisode/ELA_Success': float(new_r.item()>0.5), #1+her_r.mean().item(),
                     }, commit=False) 
                     wandb.log({'PerEpisode/OriginalFinalReward': r.mean().item()}, commit=False)
                     wandb.log({'PerEpisode/OriginalReturn': sum(episode_rewards)}, commit=False)

@@ -1,6 +1,6 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether_rppo.py --seed=10 \
 --project=EReLELA \
---config=maze_miniworld_wandb_benchmark_ETHER+RPPO+RP+ELA_config.yaml \
+--config=maze2x2_miniworld_wandb_benchmark_ETHER+RPPO+RP+ELA_config.yaml \
 --language_guided_curiosity=False \
 --coverage_metric=True \
 --MiniWorld_entity_visibility_oracle=False \
@@ -33,10 +33,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_distractor_sampling=similarity-90 \
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
---RP_replay_capacity=4096 --RP_min_capacity=32 \
+--RP_replay_capacity=2048 --RP_min_capacity=32 \
 --RP_predictor_nbr_minibatches=4 --RP_predictor_batch_size=256 \
---RP_predictor_test_train_split_interval=3 --RP_test_replay_capacity=1024 \
---RP_test_min_capacity=32 --RP_replay_period=2048 \
+--RP_predictor_test_train_split_interval=3 --RP_test_replay_capacity=512 \
+--RP_test_min_capacity=32 --RP_replay_period=1024 \
 --RP_nbr_training_iteration_per_update=4 \
 --RP_predictor_accuracy_threshold=90 \
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
@@ -81,8 +81,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --standardized_adv=True \
 --discount=0.999 --ppo_ratio_clip=0.1 \
 --nbr_actor=32 --mini_batch_size=256 --batch_size=256 \
---learning_rate=2.5e-4 --gradient_clip=5.0 \
---entropy_weight=0.1 \
+--learning_rate=6.25e-5 --gradient_clip=5.0 \
+--entropy_weight=0.01 \
 --sequence_replay_store_on_terminal=False \
 --sequence_replay_burn_in_ratio=0.0 \
 --sequence_replay_unroll_length=8 \
