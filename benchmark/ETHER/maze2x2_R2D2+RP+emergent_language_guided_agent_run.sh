@@ -33,7 +33,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_distractor_sampling=similarity-90 \
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
---RP_replay_capacity=2048 --RP_min_capacity=32 \
+--RP_replay_capacity=4096 --RP_min_capacity=32 \
 --RP_predictor_nbr_minibatches=4 --RP_predictor_batch_size=256 \
 --RP_predictor_test_train_split_interval=3 --RP_test_replay_capacity=512 \
 --RP_test_min_capacity=32 --RP_replay_period=1024 \
@@ -54,9 +54,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_egocentric=False \
 --ELA_rg_object_centric_version=2 --ELA_rg_descriptive_version=1 \
 --ELA_rg_learning_rate=6.25e-5 --ELA_rg_weight_decay=0.0 \
---ELA_rg_vocab_size=64 --ELA_rg_training_period=32768 \
+--ELA_rg_vocab_size=64 --ELA_rg_training_period=4096 \
 --ELA_rg_descriptive=False --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=4 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=2 --ELA_rg_accuracy_threshold=90 \
 --ELA_rg_nbr_train_distractors=31 --ELA_rg_nbr_test_distractors=31 \
 --ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
 --ELA_rg_distractor_sampling=uniform \

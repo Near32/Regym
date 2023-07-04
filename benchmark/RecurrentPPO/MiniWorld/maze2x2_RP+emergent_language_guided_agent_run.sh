@@ -60,7 +60,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_nbr_train_distractors=31 --ELA_rg_nbr_test_distractors=31 \
 --ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
 --ELA_rg_distractor_sampling=uniform \
---ELA_reward_extrinsic_weight=0.0 --ELA_reward_intrinsic_weight=1.0 \
+--ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=1.0 \
 --ELA_feedbacks_failure_reward=-0.1 --ELA_feedbacks_success_reward=1 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
 --THER_lock_test_storage=True \
