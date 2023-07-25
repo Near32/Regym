@@ -1233,7 +1233,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         if len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
             can_rg_train = True
         quotient = period_count_check // period_check
-        previous_quotient = getattr(self, 'previous_ELA_quotient', 0)
+        previous_quotient = getattr(self, 'previous_ELA_quotient', -1)
         if can_rg_train \
         and quotient != previous_quotient:
         #and (period_count_check % period_check == 0):

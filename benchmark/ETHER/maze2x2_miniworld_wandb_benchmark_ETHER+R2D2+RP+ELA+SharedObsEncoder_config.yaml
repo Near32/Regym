@@ -324,26 +324,26 @@ Predictor: &Predictor
 
 
 ELA_LargeCNN_Predictor: &ELA_LargeCNN_Predictor
-    #double: True #False
-    #dueling: True #False
-    #noisy: False 
-    #n_step: 3 #1
+    double: True #False
+    dueling: True #False
+    noisy: False 
+    n_step: 3 #1
 
     use_PER: True #False
     PER_alpha: 0.9 #0.6
     PER_beta: 0.6 #1.0
 
-    #replay_capacity: 5242880 #50000
-    #replay_period: 1 #240 #240
+    replay_capacity: 5242880 #50000
+    replay_period: 1 #240 #240
 
     observation_resize_dim: None
     #goal_resize_dim: None
     
-    #discount: 0.98 #0.99
+    discount: 0.98 #0.99
     use_cuda: True
-    #gradient_clip: 0.5 #1.0
+    gradient_clip: 0.5 #1.0
     batch_size: 128 #32
-    #tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
+    tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
     learning_rate: 6.25e-5 #1.0e-3 #1.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
     adam_eps: 1.5e-5 #1.0e-8
     adam_weight_decay: 0.0 #1.0e-8
@@ -362,7 +362,7 @@ ELA_LargeCNN_Predictor: &ELA_LargeCNN_Predictor
     <<: *LargeCNN
     <<: *Predictor
     <<: *extra_hyperparameters
-    <<: *ppo_extra_hyperparameters
+    #<<: *ppo_extra_hyperparameters
     <<: *THER_extra_hyperparameters
     <<: *ETHER_extra_hyperparameters
     <<: *RP_extra_hyperparameters
@@ -383,9 +383,7 @@ experiment:
 
         'run-id': 'final-1/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
          
-        'agent-id': 'archi_recurrent_ppo_ELA',
-        #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining',
-        #'agent-id': '1step_double_THER_LargeCNN_HER40TrainPerCycle_16EpPerCycle_PredPiSharedPhi',
+        'agent-id': 'archi_r2d2_ELA_shared',
         
         'nbr_actor': 32,
         'sad': False,
@@ -415,7 +413,7 @@ experiment:
     experiment_id: 'EReLELA_MiniWorld_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 5.0e4
-    benchmarking_record_episode_interval: 10 #None #1.0e8
+    benchmarking_record_episode_interval: 40 #None #1.0e8
     train_observation_budget: 1.0e7
     seed: 1
 
@@ -447,12 +445,13 @@ agents:
         #nbr_training_iteration_per_cycle: 10 # HER: 40
         #nbr_episode_per_cycle:  16  # HER: 16
     
-    archi_recurrent_ppo_ELA:
+    archi_r2d2_ELA_shared:
         <<: *1step_prioritized_double_ELA_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
         
         #DEBUG:
         saving_interval: 1e10 #5e5
         #THER_min_capacity: 12 #1e4
+        min_capacity: 1e3
 
         weights_entropy_lambda: 0.0 
         vdn: False
@@ -543,6 +542,33 @@ agents:
                         input: "inputs:SharedObsEncoder:processed_input"
                     use_cuda: True
     
+                #'RGObsEncoder':
+                #    type: ConvolutionalNetworkModule
+                #    #input_shape: [16, 56, 56]
+                #    #input_shape: [12, 56, 56]
+                #    #input_shape: [3, 56, 56]
+                #    input_shape: [3, 84, 84]
+                #    feature_dim: -1 #*feature_dim #"{{value_dim}}"
+                #    #feature_dim: *feature_dim #"{{value_dim}}"
+                #    #channels: ['BN32', 'BN32', 'BN64']
+                #    channels: [32, 64, 64]
+                #    #kernel_sizes: [3, 3, 3]
+                #    kernel_sizes: [8, 4, 3]
+                #    #strides: [2, 2, 2]
+                #    strides: [4, 2, 1]
+                #    #paddings: [1, 1, 1]
+                #    paddings: [0, 1, 1]
+                #    fc_hidden_units: [] #[128] #[256, 128]
+                #    non_linearities: ['ReLU']
+                #    dropout: 0.0
+                #    use_coordconv: False #True
+                #    config: None
+                #    input_stream_ids:
+                #        input: "inputs:obs"
+                #    output_stream_ids:
+                #        input: "inputs:RGObsEncoder:processed_input"
+                #    use_cuda: True
+    
                 'CommEncoder':
                     type: EmbeddingRNNModule 
                     vocab_size: *THER_vocab_size
@@ -607,6 +633,7 @@ agents:
                     config: None
                     input_stream_ids:
                         input: "inputs:SharedObsEncoder:processed_input"
+                        #input: "inputs:RGObsEncoder:processed_input"
                     output_stream_ids:
                         input: "inputs:CaptionGeneratorMLP:processed_input"
                     use_cuda: True
@@ -652,13 +679,13 @@ agents:
                         #input3: "inputs:critic_body:extra_inputs:previous_reward"
 
                 'RLHead':
-                    type: RLCategoricalActorCriticHeadModule
-                    #type: RLCategoricalHeadModule
+                    #type: RLCategoricalActorCriticHeadModule
+                    type: RLCategoricalHeadModule
                     state_dim: *rlhead_state_dim 
                     action_dim: *action_dim
-                    use_intrinsic_critic: False
-                    #noisy: False
-                    #dueling: True
+                    #use_intrinsic_critic: False
+                    noisy: False
+                    dueling: True
                     config: None
                     input_stream_ids: 
                         #input0: "inputs:CoreLSTM:lstm_output"
@@ -723,14 +750,14 @@ agents:
             output_mappings:
                 head:
                     "a" : "modules:RLHead:a"
-                    "greedy_action" : "modules:RLHead:greedy_action"
+                    #"greedy_action" : "modules:RLHead:greedy_action"
                     "ent" : "modules:RLHead:ent"
-                    #"legal_ent" : "modules:RLHead:legal_ent"
-                    "v" : "modules:RLHead:v"
-                    #"qa" : "modules:RLHead:qa"
-                    "log_pi_a" : "modules:RLHead:log_pi_a"
-                    #"log_a" : "modules:RLHead:log_a"
-                    #"unlegal_log_a" : "modules:RLHead:unlegal_log_a"
+                    "legal_ent" : "modules:RLHead:legal_ent"
+                    #"v" : "modules:RLHead:v"
+                    "qa" : "modules:RLHead:qa"
+                    #"log_pi_a" : "modules:RLHead:log_pi_a"
+                    "log_a" : "modules:RLHead:log_a"
+                    "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
             
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
@@ -746,6 +773,7 @@ agents:
                 head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
                 caption_generator: ['SharedObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
+                #caption_generator: ['RGObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
                 reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
         
         extra_inputs_infos: {

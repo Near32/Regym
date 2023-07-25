@@ -137,6 +137,7 @@ def make_rl_pubsubmanager(
           input_stream_ids=rlam_input_stream_ids,
       )
 
+    config['success_threshold'] = task_config['success_threshold'] # 0.0
     modules[envm_id] = MARLEnvironmentModule(
         id=envm_id,
         config=config,
@@ -612,6 +613,11 @@ def main():
         default=10,
     )
  
+    parser.add_argument("--success_threshold", 
+        type=float, 
+        default=0.0,
+    )
+ 
     parser.add_argument("--project", 
         type=str, 
         default="ETHER",
@@ -757,10 +763,9 @@ def main():
         type=int, 
         default=8,
     )
-    parser.add_argument("--RP_predictor_batch_size", 
-        type=int, 
-        default=256,
-    )
+    parser.add_argument("--RP_predictor_batch_size", type=int, default=256)
+    parser.add_argument("--RP_predictor_learning_rate", type=float, default=6.25e-5)
+    parser.add_argument("--RP_gradient_clip", type=float, default=10.0)
     parser.add_argument("--RP_predictor_accuracy_threshold", 
         type=float, 
         default=0.75,

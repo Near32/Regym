@@ -415,7 +415,7 @@ experiment:
     experiment_id: 'EReLELA_MiniWorld_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 5.0e4
-    benchmarking_record_episode_interval: None #1.0e8
+    benchmarking_record_episode_interval: 40 #None #1.0e8
     train_observation_budget: 1.0e7
     seed: 1
 
@@ -544,6 +544,33 @@ agents:
                         input: "inputs:SharedObsEncoder:processed_input"
                     use_cuda: True
     
+                'RGObsEncoder':
+                    type: ConvolutionalNetworkModule
+                    #input_shape: [16, 56, 56]
+                    #input_shape: [12, 56, 56]
+                    #input_shape: [3, 56, 56]
+                    input_shape: [3, 84, 84]
+                    feature_dim: -1 #*feature_dim #"{{value_dim}}"
+                    #feature_dim: *feature_dim #"{{value_dim}}"
+                    #channels: ['BN32', 'BN32', 'BN64']
+                    channels: [32, 64, 64]
+                    #kernel_sizes: [3, 3, 3]
+                    kernel_sizes: [8, 4, 3]
+                    #strides: [2, 2, 2]
+                    strides: [4, 2, 1]
+                    #paddings: [1, 1, 1]
+                    paddings: [0, 1, 1]
+                    fc_hidden_units: [] #[128] #[256, 128]
+                    non_linearities: ['ReLU']
+                    dropout: 0.0
+                    use_coordconv: False #True
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:obs"
+                    output_stream_ids:
+                        input: "inputs:RGObsEncoder:processed_input"
+                    use_cuda: True
+    
                 'CommEncoder':
                     type: EmbeddingRNNModule 
                     vocab_size: *THER_vocab_size
@@ -607,7 +634,8 @@ agents:
                     dropout: 0.25
                     config: None
                     input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
+                        #input: "inputs:SharedObsEncoder:processed_input"
+                        input: "inputs:RGObsEncoder:processed_input"
                     output_stream_ids:
                         input: "inputs:CaptionGeneratorMLP:processed_input"
                     use_cuda: True
@@ -746,7 +774,8 @@ agents:
                 torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
-                caption_generator: ['SharedObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
+                #caption_generator: ['SharedObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
+                caption_generator: ['RGObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
                 reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
         
         extra_inputs_infos: {

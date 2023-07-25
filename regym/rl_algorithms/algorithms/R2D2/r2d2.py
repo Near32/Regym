@@ -90,7 +90,13 @@ class R2D2Algorithm(DQNAlgorithm):
             'non_terminal':'non_terminals',
             'succ_s':'next_states',
         }
-        self.keys_to_retrieve = ['s', 'a', 'succ_s', 'r', 'non_terminal']
+        self.keys_to_retrieve = [
+            's', 
+            'a', 
+            'succ_s', 
+            'r', 
+            'non_terminal',
+        ]
         if self.recurrent:  
             self.keys_to_retrieve += ['rnn_states', 'next_rnn_states']
         
@@ -98,6 +104,21 @@ class R2D2Algorithm(DQNAlgorithm):
         self.storage_buffers = [list() for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers = [deque(maxlen=self.sequence_replay_unroll_length) for _ in range(self.nbr_actor)]
         self.sequence_replay_buffers_count = [0 for _ in range(self.nbr_actor)]
+    
+    # NOTE: overriding from DQNAlgorithm
+    #def _generate_gammas(self):
+    #    gamma_max = float(self.kwargs.get('max_discount', 0.997))
+    #    gamma_min = float(self.kwargs.get('min_discount', 0.99))
+    #    gammas = {}
+    #    for idx in range(self.nbr_actor):
+    #        if idx == 0 :
+    #            gammas[0] = gamma_max
+    #        else:
+    #            fracup = (self.nbr_actor-1-idx)*torch.log(1-gamma_max)
+    #            fracup += idx*torch.log(1-gamma_min)
+    #            exponent = fracup / (self.nbr_actor-1)
+    #            gammas[idx] = 1-torch.exp(exponent)
+    #    return gammas
 
     # NOTE: overridding from DQNAlgorithm
     def reset_storages(self, nbr_actor: int=None):

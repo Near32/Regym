@@ -2774,7 +2774,14 @@ class ConfigVideoRecorder(VideoRecorder):
 
 
 class PeriodicVideoRecorderWrapper(gym.Wrapper):
-    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array', record_obs=False):
+    def __init__(
+        self, 
+        env, 
+        base_dirpath, 
+        video_recording_episode_period=1, 
+        render_mode='rgb_array', 
+        record_obs=True,
+    ):
         try:
             env.metadata['render.modes'].append('rgb_array')
         except Exception as e:
@@ -2783,27 +2790,26 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
 
         gym.Wrapper.__init__(self, env)
          
-        self.render_mode = render_mode
+        self.rendering_mode = render_mode
         self.record_obs = record_obs
         self.episode_idx = 0
         self.base_dirpath = base_dirpath
         os.makedirs(self.base_dirpath, exist_ok=True)
         self.video_recording_episode_period = video_recording_episode_period
         
-        self.is_video_enabled = True
-        self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
+        self.is_video_enabled = False
+        #self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
 
     def _init_video_recorder(self, env, path):
         #self.video_recorder = gym.wrappers.monitoring.video_recorder.VideoRecorder(env=env, path=path, enabled=True)
-        self.video_recorder = ConfigVideoRecorder(env=env, render_mode=self.render_mode, path=path, enabled=True)
+        #self.video_recorder = ConfigVideoRecorder(env=env, render_mode=self.rendering_mode, path=path, enabled=True)
+        self.frames = []
 
-    def reset(self, **args):
-        self.episode_idx += 1
-
-        env_output = super(PeriodicVideoRecorderWrapper, self).reset()
+    def reset(self, **kwargs):
+        env_output = super(PeriodicVideoRecorderWrapper, self).reset(**kwargs)
 
         if self.episode_idx % self.video_recording_episode_period == 0:
-            path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
+            self.current_video_path = path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
             self._init_video_recorder(env=self.env, path=path) 
             self.is_video_enabled = True
         else:
@@ -2813,11 +2819,30 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
                     frame = env_output
                     while isinstance(frame, list) or isinstance(frame, tuple):
                         frame = frame[0]
-                self.video_recorder.capture_frame(frame=frame)
-                self.video_recorder.close()
-                del self.video_recorder
+                    #if frame.shape[-1] != 3:
+                    #    frame = frame.transpose(2,1,0)
+                    frame = frame.transpose(0,2,1)
+                #self.video_recorder.capture_frame(frame=frame)
+                self.frames.append(frame)
+                #self.video_recorder.close()
+                #del self.video_recorder
+                self.frames = np.stack(self.frames,0)
+                wandb_video = wandb.Video(
+                    #data_or_path=self.current_video_path,
+                    data_or_path=self.frames,
+                    fps=2,
+                    format='mp4',
+                )
+                wandb.log({
+                    "Video":wandb_video,
+                    },
+                    commit=False,
+                )
+                del wandb_video
+                del self.frames
                 self.is_video_enabled = False
 
+        self.episode_idx += 1
         return env_output
 
     def step(self, action):
@@ -2826,9 +2851,13 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
             frame = None
             if self.record_obs:
                 frame = obs
-                if isinstance(frame, list):
+                while isinstance(frame, list):
                     frame = frame[0]
-            self.video_recorder.capture_frame(frame=frame)
+                #if frame.shape[-1] != 3:
+                #    frame = frame.transpose(2,1,0)
+                frame = frame.transpose(0,2,1)
+            #self.video_recorder.capture_frame(frame=frame)
+            self.frames.append(frame)
 
         return obs, reward, done, info
 

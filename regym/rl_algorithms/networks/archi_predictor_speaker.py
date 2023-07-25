@@ -72,8 +72,9 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             generator_name=self.generator_name,
             **pkwargs,
         )
-        
-        self.cnn_encoder = self.model.modules['SharedObsEncoder']
+
+        feature_module = self.model.pipelines[self.pipeline_name][0]
+        self.cnn_encoder = self.model.modules[feature_module]
 
         self.tau_fc = nn.Sequential(
             nn.Linear(self.archi_kwargs['hyperparameters']['hidden_dim'], 1,bias=False),
@@ -147,7 +148,8 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             return_feature_only=return_feature_only,
         )
         
-        self.features = output['next_rnn_states']['SharedObsEncoder']['processed_input'][0]
+        feature_module = self.model.pipelines[self.pipeline_name][0]
+        self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
 
         sentences_widx = output["next_rnn_states"][self.generator_name]["processed_input0"][0].unsqueeze(-1)
         sentences_logits = output["next_rnn_states"][self.generator_name]["input0_prediction_logits"][0]

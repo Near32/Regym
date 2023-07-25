@@ -1,5 +1,7 @@
-WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
+WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py \
+--seed=10 \
 --project=EReLELA \
+--success_threshold=0.5 \
 --config=maze2x2_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA_config.yaml \
 --language_guided_curiosity=False \
 --coverage_metric=True \
@@ -33,16 +35,18 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_distractor_sampling=similarity-90 \
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
---RP_replay_capacity=4096 --RP_min_capacity=32 \
+--RP_predictor_learning_rate=6.25e-5 \
+--RP_gradient_clip=5.0 \
+--RP_replay_capacity=16384 --RP_min_capacity=32 \
 --RP_predictor_nbr_minibatches=4 --RP_predictor_batch_size=256 \
---RP_predictor_test_train_split_interval=3 --RP_test_replay_capacity=512 \
+--RP_predictor_test_train_split_interval=3 --RP_test_replay_capacity=1024 \
 --RP_test_min_capacity=32 --RP_replay_period=1024 \
---RP_nbr_training_iteration_per_update=4 \
+--RP_nbr_training_iteration_per_update=8 \
 --RP_predictor_accuracy_threshold=90 \
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
---ELA_rg_shared_architecture=True \
+--ELA_rg_shared_architecture=False \
 --ELA_rg_with_logits_mdl_principle=True \
---ELA_rg_logits_mdl_principle_factor=1.0e-4 \
+--ELA_rg_logits_mdl_principle_factor=1.0e-3 \
 --ELA_rg_logits_mdl_principle_accuracy_threshold=10.0 \
 --ELA_rg_agent_loss_type=Impatient+Hinge \
 --ELA_rg_use_semantic_cooccurrence_grounding=False \
@@ -57,7 +61,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_vocab_size=64 --ELA_rg_training_period=4096 \
 --ELA_rg_descriptive=False --ELA_rg_use_curriculum_nbr_distractors=False \
 --ELA_rg_nbr_epoch_per_update=2 --ELA_rg_accuracy_threshold=90 \
---ELA_rg_nbr_train_distractors=31 --ELA_rg_nbr_test_distractors=31 \
+--ELA_rg_nbr_train_distractors=7 --ELA_rg_nbr_test_distractors=7 \
 --ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
 --ELA_rg_distractor_sampling=uniform \
 --ELA_reward_extrinsic_weight=0.0 --ELA_reward_intrinsic_weight=1.0 \
@@ -86,8 +90,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
---single_pick_episode=True \
+--single_pick_episode=False \
 --time_limit=100 \
 --train_observation_budget=1.0e7
+
+#--train_observation_budget=300000 
 
 

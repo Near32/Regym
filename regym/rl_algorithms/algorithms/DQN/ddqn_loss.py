@@ -11,7 +11,7 @@ def compute_loss(states: torch.Tensor,
                  goals: torch.Tensor,
                  model: torch.nn.Module,
                  target_model: torch.nn.Module,
-                 gamma: float = 0.99,
+                 gamma: torch.Tensor, #float = 0.99,
                  weights_decay_lambda: float = 1.0,
                  weights_entropy_lambda: float = 0.1,
                  use_PER: bool = False,
@@ -35,7 +35,7 @@ def compute_loss(states: torch.Tensor,
     :param goals: Dimension: batch_size x goal shape: Goal of the agent.
     :param model: torch.nn.Module used to compute the loss.
     :param target_model: torch.nn.Module used to compute the loss.
-    :param gamma: float discount factor.
+    :param gamma: Previously a float for the discount factor, but now a torch.Tensor matching the :param rewards: in a shape batch_size x 1.
     :param weights_decay_lambda: Coefficient to be used for the weight decay loss.
     :param rnn_states: The :param model: can be made up of different submodules.
                        Some of these submodules will feature an LSTM architecture.
@@ -90,10 +90,14 @@ def compute_loss(states: torch.Tensor,
         targetQ_nextS_argmaxA_Q_value = targetQ_nextS_A_values.gather(1, argmaxA_Q_nextS_A_values).reshape(batch_size, -1)
 
         # Compute the expected Q values:
+        import ipdb; ipdb.set_trace()
+        # TODO: check dimension changes due to gamma :
         expected_state_action_values = rewards + (gamma**kwargs['n_step']) * targetQ_nextS_argmaxA_Q_value * non_terminals
 
         if HER_target_clamping:
             # clip the target to [-50,0]
+            import ipdb; ipdb.set_trace()
+            # TODO: check dimension changes due to gamma:
             expected_state_action_values = torch.clamp(expected_state_action_values, -1. / (1 - gamma), 0)
     ############################
 
