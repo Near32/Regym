@@ -136,7 +136,8 @@ def make_rl_pubsubmanager(
           config=rlam_config,
           input_stream_ids=rlam_input_stream_ids,
       )
-
+    
+    config['success_threshold'] = task_config['success_threshold'] # 0.0
     modules[envm_id] = MARLEnvironmentModule(
         id=envm_id,
         config=config,
@@ -244,6 +245,7 @@ def train_and_evaluate(
       "pipelines": {},
     }
 
+    config['publish_trajectories'] = False 
     config['training'] = True
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
@@ -408,6 +410,9 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
+      language_guided_curiosity=task_config['language_guided_curiosity'],
+      coverage_metric=task_config['coverage_metric'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -431,6 +436,9 @@ def training_process(
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
+      language_guided_curiosity=task_config['language_guided_curiosity'],
+      coverage_metric=task_config['coverage_metric'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -605,6 +613,11 @@ def main():
         default=10,
     )
  
+    parser.add_argument("--success_threshold", 
+        type=float, 
+        default=0.0,
+    )
+ 
     parser.add_argument("--project", 
         type=str, 
         default="ETHER",
@@ -707,6 +720,51 @@ def main():
         type=str2bool, 
         default="False", 
     )
+    parser.add_argument("--RP_replay_period", # in episodes
+        type=int, 
+        default=40, #10 #1
+    )
+    parser.add_argument("--RP_nbr_training_iteration_per_update", 
+        type=int, 
+        default=2, 
+    )
+    parser.add_argument("--RP_replay_capacity", 
+        type=float, 
+        default=500, #250 #5000
+    )
+    parser.add_argument("--RP_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--RP_test_replay_capacity", 
+        type=float, 
+        default=50, #25 #1000
+    )
+    parser.add_argument("--RP_min_capacity", 
+        type=float, 
+        default=32, #1e4
+    )
+    parser.add_argument("--RP_test_min_capacity", 
+        type=float, 
+        default=12, #1e4
+    )
+    parser.add_argument("--RP_predictor_nbr_minibatches", 
+        type=int, 
+        default=8,
+    )
+    parser.add_argument("--RP_predictor_batch_size", type=int, default=256)
+    parser.add_argument("--RP_predictor_learning_rate", type=float, default=6.25e-5)
+    parser.add_argument("--RP_gradient_clip", type=float, default=10.0)
+    parser.add_argument("--RP_predictor_accuracy_threshold", 
+        type=float, 
+        default=0.75,
+    )
+    parser.add_argument("--RP_predictor_test_train_split_interval",
+        type=int,
+        default=10,#3 #10 #5
+    )
+
+    parser.add_argument("--use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_PER", type=str2bool, default="False",)
+    
     parser.add_argument("--THER_replay_period", # in episodes
         type=int, 
         default=40, #10 #1
@@ -752,6 +810,10 @@ def main():
         type=int,
         default=10,#3 #10 #5
     )
+
+    parser.add_argument("--goal_oriented", type=str2bool, default="True",)
+    parser.add_argument("--use_HER", type=str2bool, default="True",)
+    parser.add_argument("--use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
@@ -769,6 +831,9 @@ def main():
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
+    parser.add_argument("--coverage_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -776,6 +841,7 @@ def main():
     #    default=32,
     #)
     
+    parser.add_argument("--use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
@@ -874,6 +940,106 @@ def main():
     parser.add_argument("--ETHER_rg_seed", type=int, default=1)
     parser.add_argument("--ETHER_rg_metric_active_factors_only", type=str2bool, default=True)
     
+    parser.add_argument("--use_ELA", type=str2bool, default="False",)
+    parser.add_argument("--ELA_use_ELA", type=str2bool, default="False",)
+    parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
+    parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
+    parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
+    parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
+    parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
+    parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
+    parser.add_argument("--ELA_rg_verbose", type=str2bool, default="True",)
+    parser.add_argument("--ELA_rg_use_cuda", type=str2bool, default="True",)
+    parser.add_argument("--ELA_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ELA_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
+    parser.add_argument("--ELA_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
+    parser.add_argument("--ELA_grounding_signal_key", type=str, default="info:desired_goal",)
+    parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
+    parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
+    parser.add_argument("--ELA_split_strategy", type=str, default="divider-1-offset-0",)
+    parser.add_argument("--ELA_replay_capacity", type=int, default=1024)
+    parser.add_argument("--ELA_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--ELA_test_replay_capacity", type=int, default=512)
+    parser.add_argument("--ELA_test_train_split_interval",type=int, default=5)
+    parser.add_argument("--ELA_train_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ELA_test_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ELA_rg_object_centric_version", type=int, default=1)
+    parser.add_argument("--ELA_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ELA_rg_with_color_jitter_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_egocentric_tr_degrees", type=float, default=15)
+    parser.add_argument("--ELA_rg_egocentric_tr_xy", type=float, default=10)
+    parser.add_argument("--ELA_rg_egocentric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_nbr_train_distractors", type=int, default=7)
+    parser.add_argument("--ELA_rg_nbr_test_distractors", type=int, default=7)
+    parser.add_argument("--ELA_rg_descriptive", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_descriptive_ratio", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_observability", type=str, default='partial')
+    parser.add_argument("--ELA_rg_max_sentence_length", type=int, default=10)
+    parser.add_argument("--ELA_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ELA_rg_object_centric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
+    parser.add_argument("--ELA_rg_vocab_size", type=int, default=32)
+    # TODO : integrate this feature in ArchiPredictorSpeaker ...
+    parser.add_argument("--ELA_rg_force_eos", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_symbol_embedding_size", type=int, default=64)
+    parser.add_argument("--ELA_rg_arch", type=str, default='BN+7x4x3xCNN')
+    parser.add_argument("--ELA_rg_shared_architecture", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_normalize_features", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_agent_loss_type", type=str, default='Hinge')
+
+    parser.add_argument("--ELA_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
+    
+    parser.add_argument("--ELA_rg_cultural_pressure_it_period", type=int, default=0)
+    parser.add_argument("--ELA_rg_cultural_speaker_substrate_size", type=int, default=1)
+    parser.add_argument("--ELA_rg_cultural_listener_substrate_size", type=int, default=1)
+    parser.add_argument("--ELA_rg_cultural_reset_strategy", type=str, default='uniformSL')
+    #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
+    parser.add_argument("--ELA_rg_cultural_pressure_meta_learning_rate", type=float, default=1.0e-3)
+    parser.add_argument("--ELA_rg_iterated_learning_scheme", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_iterated_learning_period", type=int, default=5)
+    parser.add_argument("--ELA_rg_iterated_learning_rehearse_MDL", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
+    
+    parser.add_argument("--ELA_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
+    parser.add_argument("--ELA_rg_obverter_nbr_games_per_round", type=int, default=20)
+    parser.add_argument("--ELA_rg_use_obverter_sampling", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
+    
+    parser.add_argument("--ELA_rg_batch_size", type=int, default=32)
+    parser.add_argument("--ELA_rg_dataloader_num_worker", type=int, default=8)
+    parser.add_argument("--ELA_rg_learning_rate", type=float, default=3.0e-4)
+    parser.add_argument("--ELA_rg_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_emb_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_use_feat_converter", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_init_curriculum_nbr_distractors", type=int, default=1)
+    parser.add_argument("--ELA_rg_nbr_experience_repetition", type=int, default=1)
+    parser.add_argument("--ELA_rg_agent_nbr_latent_dim", type=int, default=32)
+    parser.add_argument("--ELA_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
+    
+    parser.add_argument("--ELA_rg_mini_batch_size", type=int, default=32)
+    parser.add_argument("--ELA_rg_optimizer_type", type=str, default='adam')
+    parser.add_argument("--ELA_rg_nbr_epoch_per_update", type=int, default=3)
+
+    parser.add_argument("--ELA_rg_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ELA_rg_dis_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ELA_rg_metric_batch_size", type=int, default=16)
+    parser.add_argument("--ELA_rg_metric_fast", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_parallel_TS_worker", type=int, default=8)
+    parser.add_argument("--ELA_rg_nbr_train_points", type=int, default=1024)
+    parser.add_argument("--ELA_rg_nbr_eval_points", type=int, default=512)
+    parser.add_argument("--ELA_rg_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_dis_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_seed", type=int, default=1)
+    parser.add_argument("--ELA_rg_metric_active_factors_only", type=str2bool, default=True)
+    
+    parser.add_argument("--time_limit", type=int, default=400,) 
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=2e6,
@@ -913,6 +1079,10 @@ def main():
     if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
         dargs["ETHER_rg_use_obverter_sampling"] = True
 
+    if dargs['language_guided_curiosity']:
+        dargs['coverage_metric'] = True
+        dargs["MiniWorld_entity_visibility_oracle"] = True
+    
     print(dargs)
 
     #from gpuutils import GpuUtils

@@ -738,7 +738,10 @@ class PrioritizedReplayStorage(ReplayStorage):
          else :
             return self._retrieve(rightidx, s-self.tree[leftidx])
 
-    def sample(self, batch_size, keys=None):
+    def sample(self, batch_size, keys=None, replace=False):
+        '''
+        Not sampling randomly so replace is not used...
+        '''
         if keys is None:    keys = self.keys + self.circular_keys.keys()
 
         # Random Experience Sampling with priority
@@ -875,11 +878,11 @@ class SplitPrioritizedReplayStorage(PrioritizedReplayStorage):
         else:
             super(SplitPrioritizedReplayStorage, self).add(exp=data, priority=priority)
         
-    def sample(self, batch_size, keys=None, test=False):
+    def sample(self, batch_size, keys=None, test=False, replace=False):
         if test:
-            return self.test_storage.sample(batch_size=batch_size, keys=keys)
+            return self.test_storage.sample(batch_size=batch_size, keys=keys, replace=replace)
         else:
-            return super(SplitPrioritizedReplayStorage, self).sample(batch_size=batch_size, keys=keys)
+            return super(SplitPrioritizedReplayStorage, self).sample(batch_size=batch_size, keys=keys, replace=replace)
         '''
         if keys is None:    keys = self.keys + self.circular_keys.keys()
 

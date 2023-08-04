@@ -1,3 +1,51 @@
+PPO_extra_hyperparameters: &ppo_extra_hyperparameters
+    standardized_adv: True
+    lr_account_for_nbr_actor: False 
+    discount: 0.99
+    use_gae: True
+    gae_tau: 0.95
+    value_weight: 0.5
+    entropy_weight: 0.01
+    gradient_clip: 0.5
+    optimization_epochs: 4 #3
+    mini_batch_size: 256
+    ppo_ratio_clip: 0.1
+    horizon: 128
+        
+    # BetaVAE:
+    use_vae: False
+    vae_weight: 1e0
+    vae_nbr_latent_dim: 128
+    vae_decoder_nbr_layer: 3#4
+    vae_decoder_conv_dim: 128
+    
+    cnn_encoder_feature_dim: 128 #vae_nbr_latent_dim
+    
+    vae_beta: 1e2
+    vae_max_capacity: 1e2
+    vae_nbr_epoch_till_max_capacity: 20
+    vae_constrainedEncoding: False
+    vae_tc_discriminator_hidden_units: [256,256,256,256,2] #tuple([2*cnn_encoder_feature_dim']]*4+[2])
+    
+    # Random Network Distillation:
+    use_random_network_distillation: False
+    intrinsic_discount: 0.99
+    rnd_loss_int_ratio: 0.5
+    rnd_obs_clip: 5
+    rnd_non_episodic_int_r: True
+    rnd_update_period_running_meanstd_int_reward: 1.e5
+    rnd_update_period_running_meanstd_obs: 1.e5 #rnd_update_period_running_meanstd_int_reward
+    # RND Convolutional Architecture:
+    rnd_arch: 'CNN'
+    rnd_arch_channels: [32, 64, 64]
+    rnd_arch_kernels: [8, 4, 3]
+    rnd_arch_strides: [4, 2, 1]
+    rnd_arch_paddings: [0, 1, 1]
+    rnd_arch_feature_dim: 512
+    # RND Fully-Connected Architecture:
+    #rnd_feature_net_fc_arch_hidden_units: (128, 64)
+
+
 extra_hyperparameters: &extra_hyperparameters
     lr_account_for_nbr_actor: False 
     weights_decay_lambda: 0.0 # 0.0
@@ -34,20 +82,20 @@ extra_hyperparameters: &extra_hyperparameters
     PER_compute_initial_priority: False
     #####################################
     
+    burn_in: False
+    sequence_replay_PER_eta: 0.9
     sequence_replay_use_online_states: True
     sequence_replay_use_zero_initial_states: False
-    sequence_replay_store_on_terminal: True
+    sequence_replay_store_on_terminal: False
+    
+    sequence_replay_unroll_length: 20
+    sequence_replay_overlap_length: 10
+    sequence_replay_burn_in_length: 0
     
     r2d2_loss_masking: True
     r2d2_loss_masking_n_step_regularisation: True
     r2d2_bellman_target_SAD: False
 
-    burn_in: True
-    sequence_replay_unroll_length: 80
-    sequence_replay_overlap_length: 40
-    sequence_replay_burn_in_length: 20
-
-    sequence_replay_PER_eta: 0.9
     ####################################
     vdn: False 
     vdn_nbr_players: 2
@@ -224,27 +272,26 @@ Predictor: &Predictor
 
 
 ETHER_LargeCNN_Predictor: &ETHER_LargeCNN_Predictor
-    double: True #False
-    dueling: True #False
-    noisy: False 
-    n_step: 3 #1
+    #double: True #False
+    #dueling: True #False
+    #noisy: False 
+    #n_step: 3 #1
 
     use_PER: True #False
     PER_alpha: 0.9 #0.6
     PER_beta: 0.6 #1.0
 
-    replay_capacity: 5242880 #50000
-    min_capacity: 4.0e5 #128 #1e4
-    replay_period: 1 #240 #240
+    #replay_capacity: 5242880 #50000
+    #replay_period: 1 #240 #240
 
     observation_resize_dim: None
-    goal_resize_dim: None
+    #goal_resize_dim: None
     
-    discount: 0.98 #0.99
+    #discount: 0.98 #0.99
     use_cuda: True
-    gradient_clip: 0.5 #1.0
+    #gradient_clip: 0.5 #1.0
     batch_size: 128 #32
-    tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
+    #tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
     learning_rate: 6.25e-5 #1.0e-3 #1.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
     adam_eps: 1.5e-5 #1.0e-8
     adam_weight_decay: 0.0 #1.0e-8
@@ -255,27 +302,15 @@ ETHER_LargeCNN_Predictor: &ETHER_LargeCNN_Predictor
     epsstart: 1.0
     epsend: 0.1 #0.05
     epsdecay: 10000 #500000 
-    #epsdecay_strategy:   'None'
 
     eps_greedy_alpha: 7.0
 
-    sequence_replay_use_online_states: True
-    sequence_replay_use_zero_initial_states: False
-    sequence_replay_store_on_terminal: False
-    
-    r2d2_loss_masking: True
-    r2d2_loss_masking_n_step_regularisation: True
-    
     burn_in: False
-    sequence_replay_unroll_length: 40
-    sequence_replay_overlap_length: 10
-    sequence_replay_burn_in_length: 0
-
-    sequence_replay_PER_eta: 0.9
 
     <<: *LargeCNN
     <<: *Predictor
     <<: *extra_hyperparameters
+    <<: *ppo_extra_hyperparameters
     <<: *THER_extra_hyperparameters
     <<: *ETHER_extra_hyperparameters
 
@@ -283,14 +318,17 @@ experiment:
     tasks: [{
         #'env-id': 'BabyAI-PickupDistDebug-v0',
         #'env-id': 'BabyAI-PickupDist-v0',
-        'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        #'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        'env-id': 'MiniWorld-MazeConditionalPickUpObjectFast-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-config': {},
+        'env-config': {
+                'num_objs':10,
+        },
 
         'run-id': 'final-1/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
          
-        'agent-id': 'archi_r2d2_ETH3R',
+        'agent-id': 'archi_recurrent_ppo_ETH3R',
         #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining',
         #'agent-id': '1step_double_THER_LargeCNN_HER40TrainPerCycle_16EpPerCycle_PredPiSharedPhi',
         
@@ -354,13 +392,12 @@ agents:
         #nbr_training_iteration_per_cycle: 10 # HER: 40
         #nbr_episode_per_cycle:  16  # HER: 16
     
-    archi_r2d2_ETH3R:
+    archi_recurrent_ppo_ETH3R:
         <<: *1step_prioritized_double_ETHER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
         
         #DEBUG:
         saving_interval: 1e10 #5e5
         THER_min_capacity: 12 #1e4
-        min_capacity: 1e3
 
         weights_entropy_lambda: 0.0 
         vdn: False
@@ -383,20 +420,8 @@ agents:
 
         batch_size: 128
         nbr_minibatches: 10 
-        burn_in: False
-
-        sequence_replay_use_online_states: True
-        sequence_replay_use_zero_initial_states: False
-        sequence_replay_store_on_terminal: False
-    
-        sequence_replay_unroll_length: 20
-        sequence_replay_overlap_length: 10
-        sequence_replay_burn_in_length: 0
-        
         epsend: 0.4
         eps_greedy_alpha: 2.0
-        
-        semantic_embeddings_prior: &semantic_embeddings_prior True
         
         ArchiModel:
             model_id: 'RL_FiLMedETHERModel'
@@ -410,7 +435,6 @@ agents:
                 action_dim: &action_dim 6 #7
                 rlhead_state_dim: &rlhead_state_dim 1031 #1032 #520
                 temporal_dim: &temporal_dim 4
-                cnn_output_dim: &cnn_output_dim 4096 #12544
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
             input_stream_ids:
@@ -441,9 +465,9 @@ agents:
                     #input_shape: [12, 56, 56]
                     input_shape: [3, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
-                    channels: ['BN32', 'BN64', 'BN64']
-                    kernel_sizes: [8, 4, 3]
-                    strides: [3,2,1] #[2, 2, 2]
+                    channels: ['BN32', 'BN32', 'BN64']
+                    kernel_sizes: [3, 3, 3]
+                    strides: [2, 2, 2]
                     paddings: [1, 1, 1]
                     fc_hidden_units: [] #[128] #[256, 128]
                     non_linearities: ['ReLU']
@@ -513,7 +537,7 @@ agents:
                     
                 'InstructionGeneratorMLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: *cnn_output_dim #3136
+                    state_dim: 3136
                     hidden_units: ['BN1024', 'BN512', 'BN256']
                     non_linearities: ['ReLU']
                     dropout: 0.25
@@ -526,7 +550,7 @@ agents:
                 
                 'MLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: *cnn_output_dim #3136
+                    state_dim: 3136
                     hidden_units: ['BN256', 'BN128', 'BN64']
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -564,11 +588,13 @@ agents:
                         input3: "inputs:critic_body:extra_inputs:previous_reward"
 
                 'RLHead':
-                    type: RLCategoricalHeadModule
+                    type: RLCategoricalActorCriticHeadModule
+                    #type: RLCategoricalHeadModule
                     state_dim: *rlhead_state_dim 
                     action_dim: *action_dim
-                    noisy: False
-                    dueling: True
+                    use_intrinsic_critic: False
+                    #noisy: False
+                    #dueling: True
                     config: None
                     input_stream_ids: 
                         #input0: "inputs:CoreLSTM:lstm_output"
@@ -595,9 +621,6 @@ agents:
                     config:
                         predict_PADs: False
                         diversity_loss_weighting: False #True
-                        rectify_contrastive_imbalance: False
-                        semantic_embeddings_prior: *semantic_embeddings_prior
-                        semantic_prior_mixing: "multiplicative"
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorMLP:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"
@@ -622,11 +645,14 @@ agents:
             output_mappings:
                 head:
                     "a" : "modules:RLHead:a"
+                    "greedy_action" : "modules:RLHead:greedy_action"
                     "ent" : "modules:RLHead:ent"
-                    "legal_ent" : "modules:RLHead:legal_ent"
-                    "qa" : "modules:RLHead:qa"
-                    "log_a" : "modules:RLHead:log_a"
-                    "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
+                    #"legal_ent" : "modules:RLHead:legal_ent"
+                    "v" : "modules:RLHead:v"
+                    #"qa" : "modules:RLHead:qa"
+                    "log_pi_a" : "modules:RLHead:log_pi_a"
+                    #"log_a" : "modules:RLHead:log_a"
+                    #"unlegal_log_a" : "modules:RLHead:unlegal_log_a"
             
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
@@ -659,7 +685,7 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [*THER_max_sentence_length ], #[10], #20], 
+                shape: [10], #20], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             

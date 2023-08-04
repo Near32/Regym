@@ -6,12 +6,20 @@ import torch.nn as nn
 
 
 class ArchiPredictor(nn.Module):
-    def __init__(self, model, **kwargs):
+    def __init__(
+        self, 
+        model, 
+        pipeline_name="instruction_generator",
+        generator_name="InstructionGenerator",
+        **kwargs,
+    ):
         nn.Module.__init__(self)
+        self.pipeline_name = pipeline_name
+        self.generator_name = generator_name
         self.model = model
         self.archi_kwargs = kwargs
         self.use_oracle = len([
-            m_id for m_id in self.model.pipelines["instruction_generator"]
+            m_id for m_id in self.model.pipelines[self.pipeline_name]
             if 'oracle' in m_id.lower()
         ]) > 0
         if self.use_oracle:
@@ -23,7 +31,7 @@ class ArchiPredictor(nn.Module):
     def parameters(self):
         params = []
         for km, module in self.model.modules.items():
-            if km in self.model.pipelines["instruction_generator"]:
+            if km in self.model.pipelines[self.pipeline_name]:
                 params += module.parameters()
         return params
 
@@ -42,7 +50,7 @@ class ArchiPredictor(nn.Module):
         }
          
         if gt_sentences is None:
-            return_feature_only=self.archi_kwargs["features_id"]["instruction_generator"]
+            return_feature_only=self.archi_kwargs["features_id"][self.pipeline_name]
         else:
             return_feature_only = None 
             input_dict['rnn_states']['gt_sentences'] = gt_sentences
@@ -50,7 +58,7 @@ class ArchiPredictor(nn.Module):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
+                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
             },
             return_feature_only=return_feature_only,
         )
@@ -77,12 +85,12 @@ class ArchiPredictor(nn.Module):
             }
         else:
             rdict = {
-                'prediction': output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_prediction"][0], 
-                'loss_per_item':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_loss_per_item"][0], 
-                'accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_accuracies"][0], 
-                'sentence_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_sentence_accuracies"][0],
-                'bos_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_bos_accuracies"][0], 
-                'bos_sentence_accuracies':output_stream_dict['next_rnn_states']['InstructionGenerator']["input0_bos_sentence_accuracies"][0],
+                'prediction': output_stream_dict['next_rnn_states'][self.generator_name]["input0_prediction"][0], 
+                'loss_per_item':output_stream_dict['next_rnn_states'][self.generator_name]["input0_loss_per_item"][0], 
+                'accuracies':output_stream_dict['next_rnn_states'][self.generator_name]["input0_accuracies"][0], 
+                'sentence_accuracies':output_stream_dict['next_rnn_states'][self.generator_name]["input0_sentence_accuracies"][0],
+                'bos_accuracies':output_stream_dict['next_rnn_states'][self.generator_name]["input0_bos_accuracies"][0], 
+                'bos_sentence_accuracies':output_stream_dict['next_rnn_states'][self.generator_name]["input0_bos_sentence_accuracies"][0],
             }
  
 

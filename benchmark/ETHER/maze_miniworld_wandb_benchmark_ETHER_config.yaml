@@ -283,10 +283,13 @@ experiment:
     tasks: [{
         #'env-id': 'BabyAI-PickupDistDebug-v0',
         #'env-id': 'BabyAI-PickupDist-v0',
-        'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        #'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        'env-id': 'MiniWorld-MazeConditionalPickUpObjectFast-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-config': {},
+        'env-config': {
+                'num_objs':10,
+        },
 
         'run-id': 'final-1/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
          

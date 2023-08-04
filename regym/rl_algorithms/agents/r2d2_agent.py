@@ -13,8 +13,18 @@ from regym.rl_algorithms.algorithms.R2D2 import R2D2Algorithm
 from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
 
 from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
-from regym.rl_algorithms.algorithms.wrappers import ETHERAlgorithmWrapper
-from regym.rl_algorithms.networks import ArchiPredictor, ArchiPredictorSpeaker
+from regym.rl_algorithms.algorithms.wrappers import (
+    ETHERAlgorithmWrapper,
+    ELAAlgorithmWrapper,
+    RewardPredictionAlgorithmWrapper,
+)
+from regym.rl_algorithms.networks import (
+    ArchiPredictor, 
+    ArchiPredictorSpeaker,
+    ArchiRewardPredictor,
+)
+
+import wandb 
 
 
 class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
@@ -281,6 +291,36 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
 
         algorithm = wrapper(**wrapper_kwargs)
     
+    if kwargs.get('use_RP', False):
+        reward_predictor = ArchiRewardPredictor(
+            model=model,
+            **kwargs['ArchiModel'],
+        )
+        algorithm = RewardPredictionAlgorithmWrapper(
+            algorithm=algorithm,
+            predictor=reward_predictor,
+        )
+
+    if kwargs.get('use_ELA', False):
+        # The predictor corresponds to the caption generator pipeline:
+        assert "caption_generator" in kwargs['ArchiModel']['pipelines']
+        caption_predictor = ArchiPredictorSpeaker(
+            model=model, 
+            **kwargs["ArchiModel"],
+            pipeline_name="caption_generator",
+            generator_name="CaptionGenerator",
+        )
+        algorithm = ELAAlgorithmWrapper(
+            algorithm=algorithm,
+            predictor=caption_predictor,
+            extrinsic_weight=kwargs['ELA_reward_extrinsic_weight'], 
+            intrinsic_weight=kwargs['ELA_reward_intrinsic_weight'], 
+            feedbacks={
+                "failure":kwargs['ELA_feedbacks_failure_reward'], 
+                "success":kwargs['ELA_feedbacks_success_reward'],
+            },
+        )
+
     agent = R2D2Agent(
         name=agent_name,
         algorithm=algorithm,

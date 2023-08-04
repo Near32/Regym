@@ -54,6 +54,32 @@ extra_hyperparameters: &extra_hyperparameters
     ####################################
     ####################################
 
+RP_extra_hyperparameters: &RP_extra_hyperparameters
+    use_RP:  True
+    RP_use_RP:  True
+
+    RP_use_PER: True 
+    RP_PER_alpha: 0.6
+    RP_PER_beta: 1.0
+
+    RP_replay_capacity: 500 #250 #5000
+    RP_test_replay_capacity: 50 #25 #1000
+    RP_min_capacity: 32 #1e4
+    RP_test_min_capacity: 32 #1e4
+    # Training every episode: 40 (baseline)...  instead of every successfull episode... 
+    #OVERRIDEN by next parameter...
+    RP_replay_period: 40 #10 #1 #40 
+
+    RP_nbr_training_iteration_per_update: 2 #10 #40
+    RP_predictor_accuracy_threshold: 0.75
+    RP_predictor_test_train_split_interval: 3 #10 #5
+
+    RP_predictor_learning_rate: 3.0e-4 #1e-3
+    RP_predictor_batch_size: 128 #128 #32
+    RP_predictor_nbr_minibatches: 10 #128 #32
+    RP_gradient_clip: 10.0
+    RP_weights_decay_lambda: 0.0 #1.0 # 1e-6
+
 
 THER_extra_hyperparameters: &THER_extra_hyperparameters
     use_THER:  True
@@ -278,15 +304,19 @@ ETHER_LargeCNN_Predictor: &ETHER_LargeCNN_Predictor
     <<: *extra_hyperparameters
     <<: *THER_extra_hyperparameters
     <<: *ETHER_extra_hyperparameters
+    <<: *RP_extra_hyperparameters
 
 experiment:
     tasks: [{
         #'env-id': 'BabyAI-PickupDistDebug-v0',
         #'env-id': 'BabyAI-PickupDist-v0',
-        'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        #'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        'env-id': 'MiniWorld-MazeConditionalPickUpObjectFast-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-config': {},
+        'env-config': {
+                'num_objs':10,
+        },
 
         'run-id': 'final-1/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
          
@@ -605,6 +635,19 @@ agents:
                         input0: "inputs:InstructionGenerator:processed_input0"
                     use_cuda: True 
 
+                'RewardPredictionMLP':
+                    type: FullyConnectedNetworkModule
+                    state_dim: *hidden_dim 
+                    hidden_units: [256, 3]
+                    non_linearities: ['ReLU', 'None']
+                    dropout: 0.0
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:CoreLSTM:output"
+                    output_stream_ids:
+                        input: "inputs:RewardPredictionMLP:processed_input"
+                    use_cuda: True
+
                 'OracleTHER':
                     type: OracleTHERModule
                     vocabulary: *THER_vocabulary 
@@ -635,12 +678,14 @@ agents:
             features_id: 
                 instruction_generator: "inputs:InstructionGenerator:processed_input0"
                 torso: "inputs:ConcatenationOperation:output"
+                reward_prediction: "inputs:RewardPredictionMLP:processed_input"
             
             pipelines:
                 torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
                 instruction_generator: ['SharedObsEncoder', 'InstructionGeneratorMLP', 'InstructionGenerator']
+                reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
         
         extra_inputs_infos: {
             'previous_reward':{

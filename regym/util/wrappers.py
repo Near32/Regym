@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 verbose = False
 
+import wandb
 
 
 def is_leaf(node: Dict):
@@ -631,6 +632,15 @@ class EpisodicLifeEnv(gym.Wrapper):
     def __init__(self, env):
         """Make end-of-life == end-of-episode, but only reset on true game over.
         Done by DeepMind for the DQN and co. since it helps value estimation.
+        WARNING: As the ale no longer provides the same behaviour
+        around lives and scores.
+        For instance, the lives/score paradigm can no longer be used 
+        in Pong to account for the lives...
+
+        N.B.: It has now been updated to account for non-positive rewards
+        as the loss of a life.
+        It is now suitable for Pong, at least.
+
         """
         gym.Wrapper.__init__(self, env)
         self.lives = 0
@@ -646,6 +656,8 @@ class EpisodicLifeEnv(gym.Wrapper):
             # for Qbert sometimes we stay in lives == 0 condition for a few frames
             # so it's important to keep lives > 0, so that we only reset once
             # the environment advertises done.
+            done = True
+        elif reward < 0:
             done = True
         self.lives = lives
         return obs, reward, done, info
@@ -666,15 +678,20 @@ class EpisodicLifeEnv(gym.Wrapper):
 class EpisodicPickEnv(gym.Wrapper):
     def __init__(self, env, pick_idx=0):
         """
-        Make pick = end-of-episode for BabyAI benchmark.
+        Make pick = end-of-episode for BabyAI benchmark or MiniWorld.
         """
         gym.Wrapper.__init__(self, env)
         self.pick_idx = pick_idx
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
+        
+        carrying = getattr(self.unwrapped, 'carrying', None)
+        if carrying is None \
+        and hasattr(self.unwrapped, 'agent'):
+            carrying = getattr(self.unwrapped.agent, 'carrying', None)
         if action == self.pick_idx \
-        and self.env.carrying is not None:
+        and carrying is not None:
             done = True
         return obs, reward, done, info
 
@@ -835,7 +852,7 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(
+def depr_baseline_atari_pixelwrap(
     env, 
     size=None, 
     skip=4, 
@@ -879,6 +896,59 @@ def baseline_atari_pixelwrap(
     if clip_reward:
         env = ClipRewardEnv(env)
 
+    if previous_reward_action:
+        env = PreviousRewardActionInfoWrapper(env=env)
+    
+    return env
+
+
+def baseline_atari_pixelwrap(
+    env, 
+    size=None, 
+    skip=4, 
+    stack=4, 
+    grayscale=True,  
+    single_life_episode=True, 
+    nbr_max_random_steps=30, 
+    clip_reward=True,
+    time_limit=18000,
+    previous_reward_action=False,
+):
+    env = gym.wrappers.RecordEpisodeStatistics(env)
+    
+    if 'timelimit' in type(env).__name__.lower():
+        env._max_episode_steps = time_limit
+    else:
+        env = TimeLimit(env, max_episode_steps=time_limit)
+    env = Gymnasium2GymWrapper(env=env)
+    
+    if nbr_max_random_steps > 0:
+        env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
+    
+    if skip > 0:
+        env = MaxAndSkipEnv(env, skip=skip)
+    
+    if single_life_episode:
+        env = EpisodicLifeEnv(env)
+    
+    if clip_reward:
+        env = ClipRewardEnv(env)
+
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    if size is not None and isinstance(size, int):
+        env = gym.wrappers.ResizeObservation(env, (size, size))
+    if grayscale:
+        env = gym.wrappers.GrayScaleObservation(env,keep_dim=True)
+        #env = GrayScaleObservationCV(env=env) 
+    
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    
+    if stack > 1:
+        env = FrameStack(env, stack=stack)
+        #env = gym.wrappers.FrameStack(env, stack)
+    
     if previous_reward_action:
         env = PreviousRewardActionInfoWrapper(env=env)
     
@@ -2396,6 +2466,7 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         observation['behaviour_description'] = achieved_goal
         return observation
 
+
 class BabyAIMissionWrapper(gym.Wrapper):
     """
     Integrates the BabyAI mission into the info dictionnary for multi-agent environments.
@@ -2703,7 +2774,14 @@ class ConfigVideoRecorder(VideoRecorder):
 
 
 class PeriodicVideoRecorderWrapper(gym.Wrapper):
-    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array', record_obs=False):
+    def __init__(
+        self, 
+        env, 
+        base_dirpath, 
+        video_recording_episode_period=1, 
+        render_mode='rgb_array', 
+        record_obs=True,
+    ):
         try:
             env.metadata['render.modes'].append('rgb_array')
         except Exception as e:
@@ -2712,27 +2790,26 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
 
         gym.Wrapper.__init__(self, env)
          
-        self.render_mode = render_mode
+        self.rendering_mode = render_mode
         self.record_obs = record_obs
         self.episode_idx = 0
         self.base_dirpath = base_dirpath
         os.makedirs(self.base_dirpath, exist_ok=True)
         self.video_recording_episode_period = video_recording_episode_period
         
-        self.is_video_enabled = True
-        self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
+        self.is_video_enabled = False
+        #self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
 
     def _init_video_recorder(self, env, path):
         #self.video_recorder = gym.wrappers.monitoring.video_recorder.VideoRecorder(env=env, path=path, enabled=True)
-        self.video_recorder = ConfigVideoRecorder(env=env, render_mode=self.render_mode, path=path, enabled=True)
+        #self.video_recorder = ConfigVideoRecorder(env=env, render_mode=self.rendering_mode, path=path, enabled=True)
+        self.frames = []
 
-    def reset(self, **args):
-        self.episode_idx += 1
-
-        env_output = super(PeriodicVideoRecorderWrapper, self).reset()
+    def reset(self, **kwargs):
+        env_output = super(PeriodicVideoRecorderWrapper, self).reset(**kwargs)
 
         if self.episode_idx % self.video_recording_episode_period == 0:
-            path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
+            self.current_video_path = path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
             self._init_video_recorder(env=self.env, path=path) 
             self.is_video_enabled = True
         else:
@@ -2742,11 +2819,30 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
                     frame = env_output
                     while isinstance(frame, list) or isinstance(frame, tuple):
                         frame = frame[0]
-                self.video_recorder.capture_frame(frame=frame)
-                self.video_recorder.close()
-                del self.video_recorder
+                    #if frame.shape[-1] != 3:
+                    #    frame = frame.transpose(2,1,0)
+                    frame = frame.transpose(0,2,1)
+                #self.video_recorder.capture_frame(frame=frame)
+                self.frames.append(frame)
+                #self.video_recorder.close()
+                #del self.video_recorder
+                self.frames = np.stack(self.frames,0)
+                wandb_video = wandb.Video(
+                    #data_or_path=self.current_video_path,
+                    data_or_path=self.frames,
+                    fps=2,
+                    format='mp4',
+                )
+                wandb.log({
+                    "Video":wandb_video,
+                    },
+                    commit=False,
+                )
+                del wandb_video
+                del self.frames
                 self.is_video_enabled = False
 
+        self.episode_idx += 1
         return env_output
 
     def step(self, action):
@@ -2755,9 +2851,13 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
             frame = None
             if self.record_obs:
                 frame = obs
-                if isinstance(frame, list):
+                while isinstance(frame, list):
                     frame = frame[0]
-            self.video_recorder.capture_frame(frame=frame)
+                #if frame.shape[-1] != 3:
+                #    frame = frame.transpose(2,1,0)
+                frame = frame.transpose(0,2,1)
+            #self.video_recorder.capture_frame(frame=frame)
+            self.frames.append(frame)
 
         return obs, reward, done, info
 
@@ -3208,6 +3308,156 @@ class Gymnasium2GymWrapper(gym.Wrapper):
             next_observations, reward, done, truncated, next_infos = step_output
         return next_observations, reward, done, next_infos
 
+
+class CoverageMetricWrapper(gym.Wrapper):
+    """
+    Compute coverage ratio of the agent over a given environment.
+    :param env: (gym.Env): Env to wrap.
+    :param coverage_precision: float, precision of the grid in meters.
+    :param coverage_epsilon: float, threshold distance between grid 
+        center and agent pose below which the grid point is considered
+        visited.
+    """
+    def __init__(
+        self, 
+        env, 
+        coverage_precision=0.5,
+        coverage_epsilon=0.25,
+    ):
+        super(CoverageMetricWrapper, self).__init__(env)
+        self.coverage_precision= coverage_precision
+        self.coverage_epsilon = coverage_epsilon
+        
+        self.coverage_count = 0
+        self.coverage_points = []
+        x = self.min_x = self.env.unwrapped.min_x
+        z = self.min_z = self.env.unwrapped.min_z
+        self.max_x = self.env.unwrapped.max_x
+        self.max_z = self.env.unwrapped.max_z
+        while x < self.max_x:
+            z = self.min_z
+            while z < self.max_z:
+                self.coverage_points.append(np.array([x, 0.0, z]))
+                z += self.coverage_precision
+            x += self.coverage_precision
+        self.nbr_coverage_points = len(self.coverage_points)
+
+    def compute_coverage(self, agent_poses):
+        coverage_count = 0
+        for cov_point in self.coverage_points:
+            distances = [
+                np.linalg.norm(cov_point-pose, 2)
+                for pose in agent_poses
+            ]
+            min_dist = min(distances)
+            if min_dist < self.coverage_epsilon:
+                coverage_count += 1
+
+        return coverage_count
+
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
+            
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        wandb.log({
+            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":float(self.coverage_count)/self.nbr_coverage_points,
+            f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
+            },
+            commit=False,
+        )
+
+        self.agent_poses = [self.env.unwrapped.agent.pos]
+
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        
+        self.agent_poses.append(self.env.unwrapped.agent.pos)
+        if done:
+            self.coverage_count = self.compute_coverage(self.agent_poses)
+            next_infos['coverage_count'] = self.coverage_count
+            next_infos['coverage'] = float(self.coverage_count)/self.nbr_coverage_points
+
+        return next_observation, reward, done, next_infos
+
+
+class LanguageGuidedCuriosityWrapper(gym.Wrapper):
+    """
+    Add an intrinsic reward to the extrinsic reward based on the 
+    novelty of the language description provided by the environment.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+    def __init__(
+        self, 
+        env, 
+        intrinsic_weight=0.5, #1.0, #0.01,
+        extrinsic_weight=10.0, #1.0, #0.01,
+    ):
+        super(LanguageGuidedCuriosityWrapper, self).__init__(env)
+        self.visited_state_descriptions = []
+        self.intrinsic_weight = intrinsic_weight
+        self.extrinsic_weight = extrinsic_weight
+        self.intrinsic_return = 0
+        self.extrinsic_return = 0
+        self.episode_idx = 0 
+
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
+        self.visited_state_descriptions = []
+            
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        if len(infos):
+            for info_idx in range(len(infos)):
+                infos[info_idx]['language_guided_reward'] = 0.0
+                infos[info_idx]['extrinsic_reward'] = 0.0
+        else:
+            infos['language_guided_reward'] = 0.0
+            infos['extrinsic_reward'] = 0.0
+        
+        wandb.log({
+            f"Wrappers/LanguageGuidedCuriosity/IntrinsicReturn":self.intrinsic_return,
+            f"Wrappers/LanguageGuidedCuriosity/ExtrinsicReturn":self.extrinsic_return,
+            },
+            #step=self.episode_idx,
+            commit=False,
+        )
+        self.intrinsic_return = 0
+        self.extrinsic_return = 0
+        self.episode_idx += 1
+
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        next_state_description = next_observation['visible_entities']
+        
+        self.intrinsic_reward = 0.0
+        if next_state_description not in self.visited_state_descriptions:
+            self.visited_state_descriptions += [next_state_description]
+            self.intrinsic_reward = 1.0
+        
+        self.intrinsic_return += self.intrinsic_reward
+        self.extrinsic_return += reward 
+
+        next_infos['language_guided_reward'] = self.intrinsic_reward
+        next_infos['extrinsic_reward'] = reward
+        reward = self.extrinsic_weight*reward+self.intrinsic_reward*self.intrinsic_weight
+        
+        return next_observation, reward, done, next_infos
+
+
 def baseline_ther_wrapper(
     env, 
     size=None, 
@@ -3229,6 +3479,9 @@ def baseline_ther_wrapper(
     observe_achieved_goal=False,
     babyai_mission=False,
     miniworld_entity_visibility_oracle=False,
+    miniworld_entity_visibility_oracle_top_view=False,
+    language_guided_curiosity=False,
+    coverage_metric=False,
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3239,10 +3492,10 @@ def baseline_ther_wrapper(
             qualifying_area_ratio=0.15,
             qualifying_screen_ratio=0.025,
             as_obs=True,
-            with_top_view=True,
+            with_top_view=miniworld_entity_visibility_oracle_top_view,
             verbose=False,
         )
-
+    
     env = Gymnasium2GymWrapper(env=env)
     env = TimeLimit(env, max_episode_steps=time_limit)
 
@@ -3282,6 +3535,11 @@ def baseline_ther_wrapper(
             concatenate_keys_with_obs=concatenate_keys_with_obs,
         )
     
+    if language_guided_curiosity:
+        env = LanguageGuidedCuriosityWrapper(env=env)
+    if coverage_metric:
+        env = CoverageMetricWrapper(env=env)
+
     if clip_reward:
         env = ClipRewardEnv(env)
     

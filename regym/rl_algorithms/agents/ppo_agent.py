@@ -210,7 +210,14 @@ class PPOAgent(ExtraInputsHandlingAgent, Agent):
 
         # We assume that this function has been called directly after take_action:
         # therefore the current prediction correspond to this experience.
+        if self.use_rnd:
+            with torch.no_grad():
+                import ipdb; ipdb.set_trace()
+                int_reward, target_int_f = self.algorithm.compute_intrinsic_reward(succ_s)
+            rnd_dict = {'int_r':int_reward, 'target_int_f':target_int_f}
+            info.update(rnd_dict)
 
+            
         # Update the next_rnn_states with relevant infos, before extraction:
         if succ_infos is not None \
         and hasattr(self, '_build_dict_from'):
@@ -248,10 +255,12 @@ class PPOAgent(ExtraInputsHandlingAgent, Agent):
             #########################################################################
             
             if self.use_rnd:
-                with torch.no_grad():
-                    int_reward, target_int_f = self.algorithm.compute_intrinsic_reward(exp_dict['succ_s'])
-                rnd_dict = {'int_r':int_reward, 'target_int_f':target_int_f}
-                exp_dict.update(rnd_dict)
+                #with torch.no_grad():
+                #    int_reward, target_int_f = self.algorithm.compute_intrinsic_reward(exp_dict['succ_s'])
+                #rnd_dict = {'int_r':int_reward, 'target_int_f':target_int_f}
+                import ipdb; ipdb.set_trace()
+                actor_rnd_dict = {k:v[actor_index,...].unsqueeze(0) for k,v in rnd_dict.items()}
+                exp_dict.update(actor_rnd_dict)
 
             # Extracts remaining info:
             if self.recurrent:

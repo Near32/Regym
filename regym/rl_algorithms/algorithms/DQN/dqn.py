@@ -200,7 +200,7 @@ class DQNAlgorithm(Algorithm):
             self.target_update_interval = int(self.inverted_TAU)
             self.target_update_count = 0
         
-        self.GAMMA = float(kwargs["discount"])
+        self.GAMMA = self._generate_gammas(float(kwargs["discount"]))
         
         """
         self.epsend = float(kwargs['epsend'])
@@ -232,7 +232,11 @@ class DQNAlgorithm(Algorithm):
             self._param_update_counter = SharedVariable(0)
             self._param_obs_counter = SharedVariable(0)
         
-           
+    
+    def _generate_gammas(self, gamma):
+        # TODO
+        #return {0:gamma}
+        return gamma
 
     def parameters(self):
         return self.model.parameters()
@@ -416,11 +420,14 @@ class DQNAlgorithm(Algorithm):
         '''
         Compute n-step return for the first element of `self.n_step_buffer` deque.
         '''
+        if actor_index not in self.GAMMA:
+            self.GAMMA[actor_index] = self.GAMMA[0]
+
         torch.set_grad_enabled(False)
 
         truncated_n_step_return = self.n_step_buffers[actor_index][-1]['r']
         for exp_dict in reversed(list(self.n_step_buffers[actor_index])[:-1]):
-            truncated_n_step_return = exp_dict['r'] + self.GAMMA * truncated_n_step_return * exp_dict['non_terminal']
+            truncated_n_step_return = exp_dict['r'] + self.GAMMA[actor_index] * truncated_n_step_return * exp_dict['non_terminal']
         return truncated_n_step_return
 
     def store(self, exp_dict, actor_index=0):
