@@ -822,6 +822,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         period_count_check = self.nbr_buffered_predictor_experience
         
         # Update predictor:
+        if not self.kwargs.get('THER_use_THER', False):
+            return
         if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
             return
         

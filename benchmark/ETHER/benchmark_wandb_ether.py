@@ -1056,6 +1056,9 @@ def main():
     #args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
     dargs = vars(args)
     
+    if args.use_THER or args.use_ETHER:
+        dargs['use_HER'] = True
+ 
     if args.sequence_replay_burn_in_ratio != 0.0:
         dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
         dargs['burn_in'] = True 
