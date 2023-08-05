@@ -909,7 +909,12 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
             else:
-                sample = storage.sample(batch_size=batch_size, keys=keys, test=test)
+                sample = storage.sample(
+                    batch_size=batch_size, 
+                    keys=keys, 
+                    test=test,
+                    replace=test,
+                )
             
             values = {}
             for key, value in zip(keys, sample):

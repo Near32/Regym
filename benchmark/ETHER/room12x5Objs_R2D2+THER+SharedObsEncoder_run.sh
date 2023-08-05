@@ -70,10 +70,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_lock_test_storage=True \
 --THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=True \
---THER_replay_capacity=1e2 --THER_min_capacity=4 \
+--THER_replay_capacity=1024 --THER_min_capacity=8 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
---THER_predictor_test_train_split_interval=5 --THER_test_replay_capacity=1e2 \
---THER_test_min_capacity=4 --THER_replay_period=1028 \
+--THER_predictor_test_train_split_interval=5 --THER_test_replay_capacity=256 \
+--THER_test_min_capacity=4 --THER_replay_period=4096 \
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.2 --THER_filter_predicate_fn=True \
