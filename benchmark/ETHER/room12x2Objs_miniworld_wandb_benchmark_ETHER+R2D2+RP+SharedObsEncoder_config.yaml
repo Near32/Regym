@@ -476,6 +476,8 @@ agents:
         nbr_minibatches: 10 
         epsend: 0.4
         eps_greedy_alpha: 2.0
+                        
+        semantic_embeddings_prior: &semantic_embeddings_prior True
         
         ArchiModel:
             model_id: 'RL_FiLMedELAModel'
@@ -716,6 +718,10 @@ agents:
                     config:
                         predict_PADs: False
                         diversity_loss_weighting: False #True
+                        rectify_contrastive_imbalance: False
+                        semantic_embeddings_prior: *semantic_embeddings_prior
+                        semantic_prior_mixing: "multiplicative"
+                        semantic_prior_mixing_with_detach: True
                     input_stream_ids:
                         #input0: "inputs:CaptionGeneratorMLP:processed_input"
                         input0: "inputs:InstructionGeneratorMLP:processed_input"
