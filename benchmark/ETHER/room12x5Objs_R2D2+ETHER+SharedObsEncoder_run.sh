@@ -80,7 +80,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_test_min_capacity=4 --THER_replay_period=4096 \
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
---THER_predictor_accuracy_safe_to_relabel_threshold=0.2 --THER_filter_predicate_fn=True \
+--THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=True \
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=True \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=2 \
 --THER_timing_out_episode_length_threshold=40 \
