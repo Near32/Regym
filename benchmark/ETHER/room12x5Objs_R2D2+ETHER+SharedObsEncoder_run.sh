@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py \
---seed=10 \
+--seed=20 \
 --project=ETHER \
 --success_threshold=0.5 \
 --config=room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+SharedObsEncoder_config.yaml \
@@ -16,18 +16,22 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
 --ETHER_rg_logits_mdl_principle_factor=1.0e-3 \
---ETHER_rg_logits_mdl_principle_accuracy_threshold=10.0 \
+--ETHER_rg_logits_mdl_principle_accuracy_threshold=70.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_supervised_training=False \
+--ETHER_use_continuous_feedback=False \
+--ETHER_listener_based_predicated_reward_fn=True \
+--ETHER_rg_with_semantic_grounding_metric=True --MiniWorld_symbolic_image=True \
+--ETHER_rg_homoscedastic_multitasks_loss=False \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
---ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0 \
+--ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0e2 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_with_color_jitter_augmentation=False --ETHER_rg_with_gaussian_blur_augmentation=True \
 --ETHER_rg_egocentric=False \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=8192 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=2 --ETHER_rg_accuracy_threshold=99 \
 --ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=7 \
@@ -92,7 +96,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
 --single_pick_episode=True \
 --time_limit=40 \
---train_observation_budget=1.0e7
+--train_observation_budget=1.0e6
 
 #--train_observation_budget=300000 
 

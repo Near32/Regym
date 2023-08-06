@@ -3478,6 +3478,7 @@ def baseline_ther_wrapper(
     single_pick_episode=False,
     observe_achieved_goal=False,
     babyai_mission=False,
+    miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
@@ -3495,7 +3496,14 @@ def baseline_ther_wrapper(
             with_top_view=miniworld_entity_visibility_oracle_top_view,
             verbose=False,
         )
-    
+    if miniworld_symbolic_image:
+        from miniworld.wrappers import SymbolicImageEntityVisibilityOracleWrapper
+        env = SymbolicImageEntityVisibilityOracleWrapper(
+            env=env,
+            relevant_entity_types=["Box", "Key", "Ball"],
+            as_obs=True,
+        )
+
     env = Gymnasium2GymWrapper(env=env)
     env = TimeLimit(env, max_episode_steps=time_limit)
 
