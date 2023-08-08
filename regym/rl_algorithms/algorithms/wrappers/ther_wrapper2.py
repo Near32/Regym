@@ -492,7 +492,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     )
 
                 # Store data in predictor storages if successfull:
-                if self.kwargs['THER_use_THER'] and r.item()>0:
+                if self.kwargs['THER_use_THER_predictor_supervised_training'] and r.item()>0:
                     if self.train_contrastively:
                         if self.contrastive_goal_value is None:
                             target_state = succ_s
@@ -822,7 +822,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         period_count_check = self.nbr_buffered_predictor_experience
         
         # Update predictor:
-        if not self.kwargs.get('THER_use_THER', False):
+        if not self.kwargs.get('THER_use_THER_predictor_supervised_training', False):
             return
         if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
             return

@@ -817,6 +817,7 @@ def main():
     parser.add_argument("--use_HER", type=str2bool, default="True",)
     parser.add_argument("--use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
+    parser.add_argument("--THER_use_THER_predictor_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
     parser.add_argument("--THER_observe_achieved_goal", type=str2bool, default="False",)

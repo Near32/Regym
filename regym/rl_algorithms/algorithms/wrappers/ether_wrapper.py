@@ -1377,7 +1377,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         # Update predictor:
         can_update_predictor = False
-        if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
+        if self.kwargs.get('THER_use_THER_predictor_supervised_training', False) \
+        and self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
             can_update_predictor = True
         if can_update_predictor \
         and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
