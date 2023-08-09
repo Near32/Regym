@@ -12,7 +12,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_ELA=False --ELA_use_ELA=True \
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=False \
---THER_use_THER=True --THER_use_THER_predictor_supervised_training=False \
+--THER_use_THER=True --THER_use_THER_predictor_supervised_training=True \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
@@ -79,7 +79,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.2 --THER_filter_predicate_fn=True \
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=True \
---THER_train_contrastively=True --THER_contrastive_training_nbr_neg_examples=2 \
+--THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --THER_timing_out_episode_length_threshold=40 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
