@@ -1377,9 +1377,10 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         # Update predictor:
         can_update_predictor = False
-        if self.kwargs.get('THER_use_THER_predictor_supervised_training', False) \
-        and self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
-            can_update_predictor = True
+        if self.kwargs.get('THER_use_THER_predictor_supervised_training', False):
+            assert self.kwargs['THER_use_THER_predictor_supervised_training_data_collection']
+            if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
+                can_update_predictor = True
         if can_update_predictor \
         and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
             self._update_predictor()
@@ -1416,6 +1417,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         for it in range(self.kwargs['ETHER_rg_nbr_epoch_per_update']):
             #self.test_acc = self.train_predictor()
             if self.kwargs['ETHER_use_supervised_training']:
+                assert self.kwargs['THER_use_THER_predictor_supervised_training_data_collection']
                 self._update_predictor()
             self.ether_test_acc = self.finetune_predictor(update=(it==0))
             if self.ether_test_acc >= self.kwargs['ETHER_rg_accuracy_threshold']:
