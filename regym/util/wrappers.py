@@ -2427,7 +2427,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             for idx in range(final_idx):
                 idx_goal[...,idx] = self.w2idx[t_goal[idx]]
             # Add 'EoS' token:
-            idx_goal[...,final_idx-1] = self.w2idx['EoS']
+            idx_goal[...,final_idx] = self.w2idx['EoS']
             #padded_idx_goal = nn.utils.rnn.pad_sequence(idx_goal, padding_value=self.w2idx["PAD"])
             #observation[map_key] = padded_idx_goal
             
