@@ -848,6 +848,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "modules":modules,
             "learning_rate":self.kwargs["ETHER_rg_learning_rate"],
             "weight_decay":self.kwargs["ETHER_rg_weight_decay"],
+            "l1_reg_lambda":self.kwargs["ETHER_rg_l1_weight_decay"],
+            "l2_reg_lambda":self.kwargs["ETHER_rg_l2_weight_decay"],
             "optimizer_type":self.kwargs["ETHER_rg_optimizer_type"],
             "with_gradient_clip":rg_config["with_gradient_clip"],
             "adam_eps":rg_config["adam_eps"],

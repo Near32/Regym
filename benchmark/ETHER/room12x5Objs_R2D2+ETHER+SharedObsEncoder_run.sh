@@ -13,9 +13,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
---THER_use_THER_predictor_supervised_training=True \
+--THER_use_THER_predictor_supervised_training=False \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
---ETHER_use_supervised_training=True \
+--ETHER_use_supervised_training=False \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=True \
 --ETHER_rg_with_logits_mdl_principle=True \
@@ -27,18 +27,19 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_with_semantic_grounding_metric=True --MiniWorld_symbolic_image=True \
 --ETHER_rg_homoscedastic_multitasks_loss=False \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
---ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0e2 \
+--ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0e3 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_with_color_jitter_augmentation=False --ETHER_rg_with_gaussian_blur_augmentation=True \
 --ETHER_rg_egocentric=False \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=1e-3 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=16384 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=8 --ETHER_rg_accuracy_threshold=70 \
 --ETHER_rg_nbr_train_distractors=31 --ETHER_rg_nbr_test_distractors=7 \
---ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
+--ETHER_replay_capacity=8192 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling=uniform \
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
@@ -83,7 +84,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_test_min_capacity=4 --THER_replay_period=4096 \
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
---THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=True \
+--THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=False \
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=True \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --THER_timing_out_episode_length_threshold=40 \
@@ -96,7 +97,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
+--nbr_training_iteration_per_cycle=128 --nbr_episode_per_cycle=16 \
 --single_pick_episode=True \
 --time_limit=40 \
 --train_observation_budget=1.0e6

@@ -919,6 +919,8 @@ def main():
     parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
     parser.add_argument("--ETHER_rg_learning_rate", type=float, default=3.0e-4)
     parser.add_argument("--ETHER_rg_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_l1_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_l2_weight_decay", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_emb_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
