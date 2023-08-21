@@ -268,11 +268,12 @@ def batched_listener_based_goal_predicated_reward_fn(
     target_pred_goal = target_pred_goal.cpu()
     listener.predicate_threshold = target_descriptive_probs.item()-1.0e-4
     wandb.log({f"ListenerWrapper/TargerPredicateDecisionProbs": target_descriptive_probs.item()}, commit=False)
-
+    
     if kwargs.get("use_continuous_feedback", False):
         reward_range = feedbacks['success']-feedbacks['failure']
-        reward = descriptive_probs*reward_range + feedbacks['failure']
-        reward = reward.reshape((reward_shape))
+        # (batch_size, )
+        reward = descriptive_probs.unsqueeze(-1)*reward_range + feedbacks['failure']
+        # (batch_size, 1)
     else:
         reward_mask = descriptive_probs > listener.predicate_threshold
         reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
