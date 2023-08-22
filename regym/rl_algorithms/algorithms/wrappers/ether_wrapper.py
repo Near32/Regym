@@ -511,7 +511,10 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         if self.kwargs["ETHER_rg_with_gaussian_blur_augmentation"]:
             transformations = [T.RandomApply([
                 SplitImg(
-                    GaussianBlur([0.1,2.0]),
+                    GaussianBlur(
+                        sigma=[0.1,0.5],
+                        #sigma=(0.1, 0.5),
+                    ),
                     input_channel_dim=0,
                     transform_channel_dim=-1,
                     output_channel_dim=0,
@@ -525,13 +528,14 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         transform_translate = (transform_translate, transform_translate)
         
         if self.kwargs["ETHER_rg_egocentric"]:
-            transformations = [
+            transformations = [T.RandomApply([
                 SplitImg(
                     ego_inv_transform,
                     input_channel_dim=0,
                     transform_channel_dim=-1,
                     output_channel_dim=0,
-                ),
+                )],p=0.5,),
+                T.RandomApply([
                 SplitImg(
                     T.RandomAffine(
                     degrees=transform_degrees, 
@@ -544,7 +548,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                     input_channel_dim=0,
                     transform_channel_dim=0,
                     output_channel_dim=0,
-                ),
+                )], p=0.5),
                 *transformations,
             ]
         

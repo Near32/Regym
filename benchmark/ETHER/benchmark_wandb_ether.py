@@ -874,7 +874,7 @@ def main():
     parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_egocentric_tr_degrees", type=float, default=15)
+    parser.add_argument("--ETHER_rg_egocentric_tr_degrees", type=float, default=30)
     parser.add_argument("--ETHER_rg_egocentric_tr_xy", type=float, default=10)
     parser.add_argument("--ETHER_rg_egocentric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_nbr_train_distractors", type=int, default=7)

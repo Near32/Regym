@@ -117,7 +117,7 @@ parameters:
         ETHER_rg_with_color_jitter_augmentation:
                 values: [False]
         ETHER_rg_with_gaussian_blur_augmentation:
-                values: [True]
+                values: [False, True]
 
         ETHER_rg_egocentric:
                 values: [False, True]
@@ -135,12 +135,12 @@ parameters:
         ETHER_rg_l2_weight_decay:
                 values: [0.0]
         ETHER_rg_l1_weight_decay:
-                values: [0.0, 0.1, 0.01, 0.001, 0.0001]
+                values: [0.0, 0.01, 0.001, 0.0001]
 
         ETHER_rg_vocab_size:
                 values: [64]
         ETHER_rg_training_period:
-                values: [2048, 4096, 8192, 16384]
+                values: [8192, 16384]
 
         ETHER_rg_descriptive:
                 values: [False, True]

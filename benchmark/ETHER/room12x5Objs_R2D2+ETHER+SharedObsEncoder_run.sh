@@ -31,15 +31,16 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_with_color_jitter_augmentation=False --ETHER_rg_with_gaussian_blur_augmentation=True \
---ETHER_rg_egocentric=False \
+--ETHER_rg_egocentric=True \
+--ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=20 \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=16384 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=2048 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=8 --ETHER_rg_accuracy_threshold=70 \
 --ETHER_rg_nbr_train_distractors=31 --ETHER_rg_nbr_test_distractors=7 \
---ETHER_replay_capacity=8192 --ETHER_test_replay_capacity=1024 \
+--ETHER_replay_capacity=2048 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling=uniform \
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
