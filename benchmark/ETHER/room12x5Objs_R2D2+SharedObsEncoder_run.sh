@@ -13,6 +13,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=False \
 --THER_use_THER=False --THER_use_THER_predictor_supervised_training=False \
+--THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
