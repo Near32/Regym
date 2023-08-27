@@ -344,7 +344,7 @@ parameters:
         THER_relabel_terminal:
                 values: [False]
         THER_filter_out_timed_out_episode:
-                values: [True]
+                values: [False, True]
 
         THER_train_contrastively:
                 values: [False]

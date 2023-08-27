@@ -892,7 +892,9 @@ def main():
     parser.add_argument("--ETHER_rg_symbol_embedding_size", type=int, default=64)
     parser.add_argument("--ETHER_rg_arch", type=str, default='BN+7x4x3xCNN')
     parser.add_argument("--ETHER_rg_shared_architecture", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False, 
+        help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
+    )
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
@@ -1085,7 +1087,10 @@ def main():
     
     if dargs["ETHER_listener_based_predicated_reward_fn"]:
         print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
-    
+        if dargs["ETHER_use_continuous_feedback"] \
+        and dargs["ETHER_rg_descriptive"]:
+            dargs["ETHER_rg_normalize_features"] = True
+
     if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
         dargs["ETHER_rg_use_obverter_sampling"] = True
 
