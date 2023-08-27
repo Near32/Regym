@@ -23,7 +23,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_logits_mdl_principle_accuracy_threshold=40.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_continuous_feedback=True \
---ETHER_rg_normalize_features=True \
+--ETHER_rg_normalize_features=False \
 --ETHER_listener_based_predicated_reward_fn=True \
 --ETHER_rg_with_semantic_grounding_metric=True --MiniWorld_symbolic_image=True \
 --ETHER_rg_homoscedastic_multitasks_loss=False \
@@ -38,7 +38,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=2048 \
---ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
+--ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=32 --ETHER_rg_accuracy_threshold=90 \
 --ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
 --ETHER_replay_capacity=8192 --ETHER_test_replay_capacity=1024 \

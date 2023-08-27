@@ -170,10 +170,14 @@ class ListenerWrapper(nn.Module):
         if self.listener_agent.kwargs['descriptive']:
             decision_probs = decision_probs.softmax(dim=-1)
         # (batch_size x max_sentence_length x nbr_distractors+2)
-        else:
+        elif self.listener_agent.kwargs['normalize_features']:
             # if not descriptive then we need to assert that we have normalized the features
             # and therefore the probs are between -1 and 1 and we can format them between 0 and 1:
-            assert self.listener_agent.kwargs['normalize_features']
+            decision_probs = (decision_probs+1)/2
+        # (batch_size x max_sentence_length x nbr_distractors+1)
+        else:
+            # since we do not know what are the possible values, we propose to apply tanh to squash the values:
+            # it is applied inside the listener : decision_probs = torch.Tanh(decision_probs)
             decision_probs = (decision_probs+1)/2
         # (batch_size x max_sentence_length x nbr_distractors+1)
         
