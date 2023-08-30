@@ -19,7 +19,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
---ETHER_rg_logits_mdl_principle_factor=1.0e-3 \
+--ETHER_rg_logits_mdl_principle_factor=1.0e-4 \
 --ETHER_rg_logits_mdl_principle_accuracy_threshold=40.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_continuous_feedback=True \
@@ -31,15 +31,16 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_semantic_cooccurrence_grounding_lambda=100 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.1 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
---ETHER_rg_with_color_jitter_augmentation=False --ETHER_rg_with_gaussian_blur_augmentation=False \
---ETHER_rg_egocentric=True \
+--ETHER_rg_color_jitter_prob=0.0 \
+--ETHER_rg_gaussian_blur_prob=0.5 \
+--ETHER_rg_egocentric_prob=0.5 \
 --ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=20 \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=2048 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=16384 \
 --ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=32 --ETHER_rg_accuracy_threshold=90 \
+--ETHER_rg_nbr_epoch_per_update=64 --ETHER_rg_accuracy_threshold=90 \
 --ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
 --ETHER_replay_capacity=8192 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling=similarity-90 \
@@ -93,7 +94,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \

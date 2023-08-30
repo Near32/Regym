@@ -42,15 +42,33 @@ class GaussianBlur:
     def __call__(self, x):
         sigma = random.uniform(self.sigma[0], self.sigma[1])
         if isinstance(x, torch.Tensor):
-            x = T.functional.gaussian_blur(img=x, kernel_size=self.kernel_size, sigma=(sigma, sigma))     
+            y = T.functional.gaussian_blur(img=x, kernel_size=self.kernel_size, sigma=(sigma, sigma))     
         else:
             #raise NotImplementedError("This fn is expecting PIL images, not torch.Tensor")
-            x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
-        return x
+            y = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        return y
 
 ###########################################################
 ###########################################################
 ###########################################################
+
+class RandomApply:
+    def __init__(
+        self,
+        transforms,
+        p=0.5,
+    ):
+        self.transforms = transforms
+        self.p = p
+
+    def __call__(self, x):
+        rand = torch.rand(1).item()
+        wandb.log({'RandomApply/RandomValue':rand}, commit=True)
+        y = x
+        if self.p > rand:
+            for transform in self.transforms:
+                y = transform(y)
+        return y
 
 class SplitImg:
     def __init__(
@@ -515,8 +533,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                     transform_channel_dim=0,
                     output_channel_dim=0,
                 )], 
-                p=0.8,
-            )]+transformations
+                p=self.kwargs['ETHER_rg_color_jitter_prob'])]+transformations
         
         if self.kwargs["ETHER_rg_with_gaussian_blur_augmentation"]:
             transformations = [T.RandomApply([
@@ -528,7 +545,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                     input_channel_dim=0,
                     transform_channel_dim=-1,
                     output_channel_dim=0,
-                )], p=0.5)]+transformations
+                )], 
+                p=self.kwargs['ETHER_rg_gaussian_blur_prob'])]+transformations
         
         from ReferentialGym.datasets.utils import AddEgocentricInvariance
         ego_inv_transform = AddEgocentricInvariance()
@@ -538,27 +556,47 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         transform_translate = (transform_translate, transform_translate)
         
         if self.kwargs["ETHER_rg_egocentric"]:
-            transformations = [T.RandomApply([
-                SplitImg(
-                    ego_inv_transform,
-                    input_channel_dim=0,
-                    transform_channel_dim=-1,
-                    output_channel_dim=0,
-                )],p=0.5,),
-                T.RandomApply([
-                SplitImg(
-                    T.RandomAffine(
-                    degrees=transform_degrees, 
-                    translate=transform_translate, 
-                    scale=None, 
-                    shear=None, 
-                    interpolation=T.InterpolationMode.BILINEAR, 
-                    fill=0,
-                    ),
-                    input_channel_dim=0,
-                    transform_channel_dim=0,
-                    output_channel_dim=0,
-                )], p=0.5),
+            split_img_ego_tr = SplitImg(
+                ego_inv_transform,
+                input_channel_dim=0,
+                transform_channel_dim=-1,
+                output_channel_dim=0,
+            )
+            '''
+            rand_split_img_ego_tr = RandomApply( #T.RandomApply(
+                [split_img_ego_tr],
+                p=0.5,
+            )
+            '''
+            affine_tr = T.RandomAffine(
+                degrees=transform_degrees, 
+                translate=transform_translate, 
+                scale=None, 
+                shear=None, 
+                interpolation=T.InterpolationMode.BILINEAR, 
+                fill=0,
+            )
+            split_img_affine_tr = SplitImg(
+                affine_tr,
+                input_channel_dim=0,
+                transform_channel_dim=0,
+                output_channel_dim=0,
+            )
+            '''
+            rand_split_img_affine_tr = T.RandomApply(
+                [split_img_affine_tr],
+                p=0.5,
+            ),
+            '''
+            #rand_split_img_ego_affine_tr = RandomApply(
+            rand_split_img_ego_affine_tr = T.RandomApply(
+                [split_img_ego_tr, split_img_affine_tr],
+                p=self.kwargs['ETHER_rg_egocentric_prob'],
+            )
+            transformations = [
+                #rand_split_img_ego_tr,
+                #rand_split_img_affine_tr,
+                rand_split_img_ego_affine_tr,
                 *transformations,
             ]
         

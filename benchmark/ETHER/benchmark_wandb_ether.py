@@ -714,6 +714,10 @@ def main():
         type=float, 
         default=1e3,
     )
+    parser.add_argument("--min_handled_experiences", 
+        type=float, 
+        default=1,
+    )
     parser.add_argument("--replay_capacity", 
         type=float, 
         default=2e4,
@@ -873,10 +877,13 @@ def main():
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_color_jitter_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_gaussian_blur_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_egocentric_tr_degrees", type=float, default=30)
     parser.add_argument("--ETHER_rg_egocentric_tr_xy", type=float, default=10)
     parser.add_argument("--ETHER_rg_egocentric", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_egocentric_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_nbr_train_distractors", type=int, default=7)
     parser.add_argument("--ETHER_rg_nbr_test_distractors", type=int, default=7)
     parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=False)
@@ -1074,6 +1081,15 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :
+        dargs['ETHER_rg_with_gaussian_blur_augmentation'] = True
+
+    if dargs['ETHER_rg_color_jitter_prob'] > 0.0 :
+        dargs['ETHER_rg_with_color_jitter_augmentation'] = True
+
+    if dargs['ETHER_rg_egocentric_prob'] > 0.0 :
+        dargs['ETHER_rg_egocentric'] = True
+
     if dargs['THER_contrastive_training_nbr_neg_examples'] != 0:
         dargs['THER_train_contrastively'] = True
 
