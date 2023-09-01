@@ -2,7 +2,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --seed=20 \
 --project=ETHER \
 --success_threshold=0.5 \
---config=room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+SharedObsEncoder_config.yaml \
+--config=room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+BN+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=False \
 --coverage_metric=True \
 --MiniWorld_entity_visibility_oracle=False \
@@ -27,11 +27,12 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_listener_based_predicated_reward_fn=True \
 --ETHER_rg_with_semantic_grounding_metric=True --MiniWorld_symbolic_image=True \
 --ETHER_rg_homoscedastic_multitasks_loss=False \
+--semantic_embedding_init='eye' \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
 --ETHER_rg_semantic_cooccurrence_grounding_lambda=100 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.1 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
---ETHER_rg_color_jitter_prob=0.0 \
+--ETHER_rg_color_jitter_prob=0 \
 --ETHER_rg_gaussian_blur_prob=0.5 \
 --ETHER_rg_egocentric_prob=0.5 \
 --ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=20 \

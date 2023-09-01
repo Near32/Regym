@@ -19,7 +19,7 @@ parameters:
                 values: [0.5]
 
         config:
-                values: [room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+SharedObsEncoder_config.yaml]
+                values: [room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+SharedObsEncoder_config.yaml, room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+BN+SharedObsEncoder_config.yaml]
 
         language_guided_curiosity:
                 values: [False]
@@ -81,7 +81,7 @@ parameters:
                 values: [1.0e-3, 1.0e-4]
 
         ETHER_rg_logits_mdl_principle_accuracy_threshold:
-                values: [20.0, 40.0]
+                values: [10.0, 20.0, 40.0, 60.0]
 
         ETHER_rg_agent_loss_type:
                 values: [Impatient+Hinge, Hinge]
@@ -114,13 +114,13 @@ parameters:
         ETHER_rg_filter_out_non_unique:
                 values: [False]
 
-        ETHER_rg_with_color_jitter_augmentation:
-                values: [False]
-        ETHER_rg_with_gaussian_blur_augmentation:
-                values: [False, True]
+        ETHER_rg_color_jitter_prob:
+                values: [0.0]
+        ETHER_rg_gaussian_blur_prob:
+                values: [0.0, 0.1, 0.25, 0.5, 0.75, 0.9]
 
-        ETHER_rg_egocentric:
-                values: [False, True]
+        ETHER_rg_egocentric_prob:
+                values: [0.0, 0.1, 0.25, 0.5, 0.75, 0.9]
 
         ETHER_rg_object_centric_version:
                 values: [2]
@@ -135,20 +135,22 @@ parameters:
         ETHER_rg_l2_weight_decay:
                 values: [0.0]
         ETHER_rg_l1_weight_decay:
-                values: [0.0, 0.01, 0.001, 0.0001]
+                values: [0.0, 0.00001, 0.001, 0.0001]
 
         ETHER_rg_vocab_size:
                 values: [64]
         ETHER_rg_training_period:
                 values: [8192, 16384]
 
+        ETHER_rg_object_centric:
+                values: [False]
         ETHER_rg_descriptive:
                 values: [False, True]
         ETHER_rg_use_curriculum_nbr_distractors:
                 values: [False]
 
         ETHER_rg_nbr_epoch_per_update:
-                values: [8, 16, 32]
+                values: [8, 16, 32, 64]
         ETHER_rg_accuracy_threshold:
                 values: [70, 90, 95]
 

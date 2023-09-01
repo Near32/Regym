@@ -861,6 +861,7 @@ def main():
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--semantic_embedding_init", type=str, default="none",)
     parser.add_argument("--ETHER_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
     parser.add_argument("--ETHER_grounding_signal_key", type=str, default="info:desired_goal",)
@@ -1153,7 +1154,22 @@ def main():
             
             if k in task_config.get('env-config', {}):
                 task_config['env-config'][k] = v
- 
+ 	
+        ac_pointer = None
+        ac_queue = [agent_config]
+        while len(ac_queue):
+            ac_pointer = ac_queue.pop(0)
+            if isinstance(ac_pointer, dict):
+                for k in ac_pointer.keys():
+                    if isinstance(ac_pointer[k], dict):
+                        ac_queue.append(ac_pointer[k])
+                    else:
+                        for karg in dargs.keys():
+                            #if k in karg:
+                            if k == karg:
+                                print(f"WARNING: overriding {k} \n = {ac_pointer[k]} \n --> {dargs[karg]}")
+                                ac_pointer[k] = dargs[karg]
+                
         print("Task config:")
         print(task_config)
 

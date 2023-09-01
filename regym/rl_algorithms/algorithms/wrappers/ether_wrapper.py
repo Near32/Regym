@@ -871,6 +871,26 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         modules[current_speaker_id] = rg_modules.CurrentAgentModule(id=current_speaker_id,role="speaker")
         modules[current_listener_id] = rg_modules.CurrentAgentModule(id=current_listener_id,role="listener")
         
+        ortho_id = "ortho_0"
+        ortho_config = {}
+        ortho_input_stream_ids = {
+            "logger":"modules:logger:ref",
+            "logs_dict":"logs_dict",
+            "epoch":"signals:epoch",
+            "it_rep":"signals:it_sample",
+            "it_comm_round":"signals:it_step",
+            "mode":"signals:mode",
+
+            "agent":"modules:current_speaker:ref:ref_agent",
+            "representations":"modules:current_speaker:ref:ref_agent:model:modules:InstructionGenerator:semantic_embedding:weight",
+        }
+        
+        modules[ortho_id] = rg_modules.build_OrthogonalityMetricModule(
+            id=ortho_id,
+            config=ortho_config,
+            input_stream_ids=ortho_input_stream_ids,
+        )
+
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             sem_cooc_grounding_id = "sem_cooccurrence_grounding_0"
             sem_cooc_grounding_config = {
@@ -1294,6 +1314,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             ]
         
         pipelines[optim_id] = []
+        pipelines[optim_id].append(ortho_id)
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             pipelines[optim_id].append(sem_cooc_grounding_id)
         if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
