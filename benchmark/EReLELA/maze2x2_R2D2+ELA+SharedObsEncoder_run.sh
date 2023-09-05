@@ -1,18 +1,18 @@
-WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py \
+WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
 --seed=20 \
---project=ETHER \
+--project=EReLELA \
 --success_threshold=0.5 \
---config=room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+BN+SharedObsEncoder_config.yaml \
+--config=maze2x2_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=False \
 --coverage_metric=True \
 --MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_top_view=False \
---use_ETHER=True --use_THER=True \
---use_RP=True --RP_use_RP=True \
---use_ELA=False --ELA_use_ELA=True \
+--use_ETHER=False --use_THER=False \
+--use_RP=False --RP_use_RP=True \
+--use_ELA=True --ELA_use_ELA=True \
 --use_HER=False --goal_oriented=False \
---ETHER_use_ETHER=True \
---THER_use_THER=True \
+--ETHER_use_ETHER=False \
+--THER_use_THER=False \
 --THER_use_THER_predictor_supervised_training=False \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_use_supervised_training=False \
@@ -27,11 +27,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_listener_based_predicated_reward_fn=True \
 --ETHER_rg_with_semantic_grounding_metric=True --MiniWorld_symbolic_image=True \
 --ETHER_rg_homoscedastic_multitasks_loss=False \
---semantic_embedding_init='none' \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
 --ETHER_rg_semantic_cooccurrence_grounding_lambda=100 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.1 \
---ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
+--ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False \
 --ETHER_rg_color_jitter_prob=0 \
 --ETHER_rg_gaussian_blur_prob=0.5 \
 --ETHER_rg_egocentric_prob=0.5 \
@@ -53,8 +52,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --RP_predictor_nbr_minibatches=4 --RP_predictor_batch_size=256 \
 --RP_predictor_test_train_split_interval=3 --RP_test_replay_capacity=1024 \
 --RP_test_min_capacity=32 --RP_replay_period=1024 \
---RP_nbr_training_iteration_per_update=128 \
+--RP_nbr_training_iteration_per_update=8 \
 --RP_predictor_accuracy_threshold=90 \
+--semantic_embedding_init='none' \
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=False \
 --ELA_rg_with_logits_mdl_principle=True \
@@ -64,7 +64,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_use_semantic_cooccurrence_grounding=False \
 --ELA_rg_semantic_cooccurrence_grounding_lambda=1.0 \
 --ELA_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
---ELA_lock_test_storage=True \
+--ELA_lock_test_storage=True --ELA_rg_filter_out_non_unique=False \
 --ELA_rg_with_color_jitter_augmentation=False \
 --ELA_rg_with_gaussian_blur_augmentation=True \
 --ELA_rg_egocentric=False \
@@ -101,9 +101,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=128 --nbr_episode_per_cycle=16 \
---single_pick_episode=True \
---time_limit=40 \
+--nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
+--single_pick_episode=False \
+--time_limit=100 \
 --train_observation_budget=1.0e6
 
 #--train_observation_budget=300000 

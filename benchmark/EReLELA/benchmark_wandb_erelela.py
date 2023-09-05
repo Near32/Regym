@@ -413,7 +413,7 @@ def training_process(
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
-      coverage_metric=task_config['coverage_metric'],
+      coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -440,7 +440,7 @@ def training_process(
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
-      coverage_metric=task_config['coverage_metric'],
+      coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -614,7 +614,7 @@ def main():
         type=int, 
         default=10,
     )
- 
+    parser.add_argument("--use_cuda", type=str2bool, default=False) 
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
@@ -842,7 +842,7 @@ def main():
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
-    parser.add_argument("--coverage_metric", type=str2bool, default="False",)
+    parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -859,7 +859,7 @@ def main():
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
-    parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="False",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
     parser.add_argument("--semantic_embedding_init", type=str, default="none",)
     parser.add_argument("--ETHER_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
@@ -967,7 +967,7 @@ def main():
     parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
     parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ELA_rg_verbose", type=str2bool, default="True",)
-    parser.add_argument("--ELA_rg_use_cuda", type=str2bool, default="True",)
+    parser.add_argument("--ELA_rg_use_cuda", type=str2bool, default="False",)
     parser.add_argument("--ELA_exp_key", type=str, default="succ_s",)
     parser.add_argument("--ELA_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
     parser.add_argument("--ELA_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
@@ -975,6 +975,7 @@ def main():
     parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
     parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
     parser.add_argument("--ELA_split_strategy", type=str, default="divider-1-offset-0",)
+    parser.add_argument("--ELA_rg_filter_out_non_unique", type=str2bool, default=False)
     parser.add_argument("--ELA_replay_capacity", type=int, default=1024)
     parser.add_argument("--ELA_lock_test_storage", type=str2bool, default=False)
     parser.add_argument("--ELA_test_replay_capacity", type=int, default=512)
@@ -984,10 +985,13 @@ def main():
     parser.add_argument("--ELA_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ELA_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ELA_rg_with_color_jitter_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_color_jitter_prob", type=float, default=0.0)
     parser.add_argument("--ELA_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_gaussian_blur_prob", type=float, default=0.0)
     parser.add_argument("--ELA_rg_egocentric_tr_degrees", type=float, default=15)
     parser.add_argument("--ELA_rg_egocentric_tr_xy", type=float, default=10)
     parser.add_argument("--ELA_rg_egocentric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_egocentric_prob", type=float, default=0.0)
     parser.add_argument("--ELA_rg_nbr_train_distractors", type=int, default=7)
     parser.add_argument("--ELA_rg_nbr_test_distractors", type=int, default=7)
     parser.add_argument("--ELA_rg_descriptive", type=str2bool, default=False)
@@ -1030,6 +1034,8 @@ def main():
     parser.add_argument("--ELA_rg_dataloader_num_worker", type=int, default=8)
     parser.add_argument("--ELA_rg_learning_rate", type=float, default=3.0e-4)
     parser.add_argument("--ELA_rg_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_l1_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_l2_weight_decay", type=float, default=0.0)
     parser.add_argument("--ELA_rg_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ELA_rg_emb_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ELA_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
@@ -1091,6 +1097,15 @@ def main():
     if dargs['ETHER_rg_egocentric_prob'] > 0.0 :
         dargs['ETHER_rg_egocentric'] = True
 
+    if dargs['ELA_rg_gaussian_blur_prob'] > 0.0 :
+        dargs['ELA_rg_with_gaussian_blur_augmentation'] = True
+
+    if dargs['ELA_rg_color_jitter_prob'] > 0.0 :
+        dargs['ELA_rg_with_color_jitter_augmentation'] = True
+
+    if dargs['ELA_rg_egocentric_prob'] > 0.0 :
+        dargs['ELA_rg_egocentric'] = True
+
     if dargs['THER_contrastive_training_nbr_neg_examples'] != 0:
         dargs['THER_train_contrastively'] = True
 
@@ -1112,7 +1127,7 @@ def main():
         dargs["ETHER_rg_use_obverter_sampling"] = True
 
     if dargs['language_guided_curiosity']:
-        dargs['coverage_metric'] = True
+        dargs['coverage_manipulation_metric'] = True
         dargs["MiniWorld_entity_visibility_oracle"] = True
     
     print(dargs)
@@ -1140,6 +1155,14 @@ def main():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
+        if args.ELA_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
+            dargs['ELA_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
+            print(f"WARNING: ELA rg max sentence length is different ({args.ELA_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ELA_rg_max_sentence_length']}")
+            import ipdb; ipdb.set_trace()
+        if args.ELA_rg_vocab_size < agent_config['THER_vocab_size']:
+            dargs['ELA_rg_vocab_size'] = agent_config['THER_vocab_size']
+            print(f"WARNING: ELA rg vocab size is lower ({args.ELA_rg_vocab_size}) than necessary, updating to: {dargs['ELA_rg_vocab_size']}")
+            import ipdb; ipdb.set_trace()
         if args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
             dargs['ETHER_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
             print(f"WARNING: ETHER rg max sentence length is different ({args.ETHER_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ETHER_rg_max_sentence_length']}")

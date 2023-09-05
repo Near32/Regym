@@ -418,7 +418,7 @@ class RewardPredictionAlgorithmWrapper(AlgorithmWrapper):
         batch_idx2el_in_batch_idx = {}
         offset = 0
         for storage_idx, storage in enumerate(self.predictor_storages):
-            if len(storage)==0:
+            if len(storage)==0 or not(hasattr(storage, 'tree_indices')):
                 continue
             nbr_sampled_element = len(storage.tree_indices)
             for el_in_batch_idx in range(nbr_sampled_element):

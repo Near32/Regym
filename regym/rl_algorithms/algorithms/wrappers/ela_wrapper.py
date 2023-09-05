@@ -72,6 +72,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.hook_fns.append(
             ELAAlgorithmWrapper.referential_game_store,
         )
+        self.non_unique_data = 0
         self.nbr_data = 0 
 
         self.rg_iteration = 0
@@ -141,8 +142,25 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         '''
         self.nbr_data += 1 
         wandb.log({f"Training/ELA/NbrData":self.nbr_data}, commit=False)
-        self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
+         
+        if "symbolic_image" in exp_dict['info']:
+            unique = True
+            for idx in range(len(self.rg_storages[actor_index])):
+                if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == exp_dict['info']['symbolic_image']).reshape(-1)):
+                    self.non_unique_data += 1
+                    #self.nbr_data = self.rg_storages[actor_index].get_size()+self.rg_storages[actor_index].get_size(test=True)
+                    unique = False
+                    break
+        
+            wandb.log({f"Training/ELA/NonUniqueDataRatio":float(self.non_unique_data)/(self.nbr_data+1)}, commit=False)
+            wandb.log({f"Training/ELA/NonUniqueDataNbr": self.non_unique_data}, commit=False)
+        
+            if self.kwargs['ELA_rg_filter_out_non_unique'] \
+            and not unique:  
+                return
 
+        self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
+    
     def compute_captions(
         self,
         exp:List[Dict[str,object]], 
@@ -246,6 +264,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 new_r = self.extrinsic_weight*r
                 if batched_new_r is not None:
                     new_r += self.intrinsic_weight*batched_new_r[idx:idx+1]
+                else:
+                    assert self.extrinsic_weight > 0
                 new_rs.append(new_r)
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
@@ -359,17 +379,20 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                     transform_channel_dim=0,
                     output_channel_dim=0,
                 )], 
-                p=0.8,
-            )]+transformations
+                p=self.kwargs['ELA_rg_color_jitter_prob'])]+transformations
         
         if self.kwargs["ELA_rg_with_gaussian_blur_augmentation"]:
             transformations = [T.RandomApply([
                 SplitImg(
-                    GaussianBlur([0.1,2.0]),
+                    GaussianBlur(
+                        sigma=[0.1,0.5],
+                        #sigma=(0.1, 0.5),
+                    ),
                     input_channel_dim=0,
                     transform_channel_dim=-1,
                     output_channel_dim=0,
-                )], p=0.5)]+transformations
+                )], 
+                p=self.kwargs['ELA_rg_gaussian_blur_prob'])]+transformations
         
         from ReferentialGym.datasets.utils import AddEgocentricInvariance
         ego_inv_transform = AddEgocentricInvariance()
@@ -379,26 +402,47 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         transform_translate = (transform_translate, transform_translate)
         
         if self.kwargs["ELA_rg_egocentric"]:
+            split_img_ego_tr = SplitImg(
+                ego_inv_transform,
+                input_channel_dim=0,
+                transform_channel_dim=-1,
+                output_channel_dim=0,
+            )
+            '''
+            rand_split_img_ego_tr = RandomApply( #T.RandomApply(
+                [split_img_ego_tr],
+                p=0.5,
+            )
+            '''
+            affine_tr = T.RandomAffine(
+                degrees=transform_degrees, 
+                translate=transform_translate, 
+                scale=None, 
+                shear=None, 
+                interpolation=T.InterpolationMode.BILINEAR, 
+                fill=0,
+            )
+            split_img_affine_tr = SplitImg(
+                affine_tr,
+                input_channel_dim=0,
+                transform_channel_dim=0,
+                output_channel_dim=0,
+            )
+            '''
+            rand_split_img_affine_tr = T.RandomApply(
+                [split_img_affine_tr],
+                p=0.5,
+            ),
+            '''
+            #rand_split_img_ego_affine_tr = RandomApply(
+            rand_split_img_ego_affine_tr = T.RandomApply(
+                [split_img_ego_tr, split_img_affine_tr],
+                p=self.kwargs['ELA_rg_egocentric_prob'],
+            )
             transformations = [
-                SplitImg(
-                    ego_inv_transform,
-                    input_channel_dim=0,
-                    transform_channel_dim=-1,
-                    output_channel_dim=0,
-                ),
-                SplitImg(
-                    T.RandomAffine(
-                    degrees=transform_degrees, 
-                    translate=transform_translate, 
-                    scale=None, 
-                    shear=None, 
-                    interpolation=T.InterpolationMode.BILINEAR, 
-                    fill=0,
-                    ),
-                    input_channel_dim=0,
-                    transform_channel_dim=0,
-                    output_channel_dim=0,
-                ),
+                #rand_split_img_ego_tr,
+                #rand_split_img_affine_tr,
+                rand_split_img_ego_affine_tr,
                 *transformations,
             ]
         
@@ -703,6 +747,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "modules":modules,
             "learning_rate":self.kwargs["ELA_rg_learning_rate"],
             "weight_decay":self.kwargs["ELA_rg_weight_decay"],
+            "l1_reg_lambda":self.kwargs["ELA_rg_l1_weight_decay"],
+            "l2_reg_lambda":self.kwargs["ELA_rg_l2_weight_decay"],
             "optimizer_type":self.kwargs["ELA_rg_optimizer_type"],
             "with_gradient_clip":rg_config["with_gradient_clip"],
             "adam_eps":rg_config["adam_eps"],

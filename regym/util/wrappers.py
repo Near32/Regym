@@ -3309,9 +3309,11 @@ class Gymnasium2GymWrapper(gym.Wrapper):
         return next_observations, reward, done, next_infos
 
 
-class CoverageMetricWrapper(gym.Wrapper):
+class CoverageManipulationMetricWrapper(gym.Wrapper):
     """
     Compute coverage ratio of the agent over a given environment.
+    It has been also extended towards computing manipulation ratio, 
+    i.e. whether an object is being carried.
     :param env: (gym.Env): Env to wrap.
     :param coverage_precision: float, precision of the grid in meters.
     :param coverage_epsilon: float, threshold distance between grid 
@@ -3324,7 +3326,7 @@ class CoverageMetricWrapper(gym.Wrapper):
         coverage_precision=0.5,
         coverage_epsilon=0.25,
     ):
-        super(CoverageMetricWrapper, self).__init__(env)
+        super(CoverageManipulationMetricWrapper, self).__init__(env)
         self.coverage_precision= coverage_precision
         self.coverage_epsilon = coverage_epsilon
         
@@ -3341,7 +3343,11 @@ class CoverageMetricWrapper(gym.Wrapper):
                 z += self.coverage_precision
             x += self.coverage_precision
         self.nbr_coverage_points = len(self.coverage_points)
-
+        
+        self.manipulation_count = 0
+        self.episode_length = 1000
+        self.manipulation_hist = []
+        self.episode_idx = 0
     def compute_coverage(self, agent_poses):
         coverage_count = 0
         for cov_point in self.coverage_points:
@@ -3364,12 +3370,26 @@ class CoverageMetricWrapper(gym.Wrapper):
             obs = reset_output
             infos = [{}]
 
+        manipulation_hist = wandb.Histogram(self.manipulation_hist)
+        CoverageRatio = float(self.coverage_count)/self.nbr_coverage_points
+        ManipulationRatio = float(self.manipulation_count)/self.episode_length
         wandb.log({
-            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":float(self.coverage_count)/self.nbr_coverage_points,
+            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":CoverageRatio,
             f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
+            f"Wrappers/LanguageGuidedCuriosity/ManipulationCount":self.manipulation_count,
+            f"Wrappers/LanguageGuidedCuriosity/ManipulationRatio":ManipulationRatio,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/EpisodeLength": self.episode_length,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogramIndex": self.episode_idx,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogram": manipulation_hist,
+            f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": float(self.coverage_count+self.manipulation_count)/(self.nbr_coverage_points+self.episode_length),
             },
             commit=False,
         )
+
+        self.manipulation_count = 0
+        self.episode_length = 1
+        self.manipulation_hist = []
+        self.episode_idx += 1
 
         self.agent_poses = [self.env.unwrapped.agent.pos]
 
@@ -3379,10 +3399,25 @@ class CoverageMetricWrapper(gym.Wrapper):
         next_observation, reward, done, next_infos = self.env.step(action)
         
         self.agent_poses.append(self.env.unwrapped.agent.pos)
+
+        self.episode_length += 1
+        carrying = getattr(self.unwrapped, 'carrying', None)
+        if carrying is None \
+        and hasattr(self.unwrapped, 'agent'):
+            carrying = getattr(self.unwrapped.agent, 'carrying', None)
+        if carrying is not None:
+            self.manipulation_count += 1
+            self.manipulation_hist.append(1)
+        else:
+            self.manipulation_hist.append(0)
+        
         if done:
             self.coverage_count = self.compute_coverage(self.agent_poses)
             next_infos['coverage_count'] = self.coverage_count
             next_infos['coverage'] = float(self.coverage_count)/self.nbr_coverage_points
+            
+            next_infos['manipulation_count'] = self.manipulation_count
+            next_infos['manipulation_ratio'] = float(self.manipulation_count)/self.episode_length
 
         return next_observation, reward, done, next_infos
 
