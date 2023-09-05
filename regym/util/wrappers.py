@@ -3381,7 +3381,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/EpisodeLength": self.episode_length,
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogramIndex": self.episode_idx,
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogram": manipulation_hist,
-            f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": float(self.coverage_count+self.manipulation_count)/(self.nbr_coverage_points+self.episode_length),
+            f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
             },
             commit=False,
         )
@@ -3517,7 +3517,7 @@ def baseline_ther_wrapper(
     miniworld_entity_visibility_oracle=False,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
-    coverage_metric=False,
+    coverage_manipulation_metric=False,
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3580,8 +3580,8 @@ def baseline_ther_wrapper(
     
     if language_guided_curiosity:
         env = LanguageGuidedCuriosityWrapper(env=env)
-    if coverage_metric:
-        env = CoverageMetricWrapper(env=env)
+    if coverage_manipulation_metric:
+        env = CoverageManipulationMetricWrapper(env=env)
 
     if clip_reward:
         env = ClipRewardEnv(env)

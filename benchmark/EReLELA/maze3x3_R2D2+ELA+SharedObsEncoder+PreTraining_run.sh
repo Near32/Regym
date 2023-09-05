@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
---seed=10 \
+--seed=20 \
 --use_cuda=True \
 --project=EReLELA \
 --success_threshold=0.5 \
@@ -49,7 +49,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=False \
 --ELA_rg_with_logits_mdl_principle=True \
---ELA_rg_logits_mdl_principle_factor=1.0e-3 \
+--ELA_rg_logits_mdl_principle_factor=1.0e-4 \
 --ELA_rg_logits_mdl_principle_accuracy_threshold=10.0 \
 --ELA_rg_agent_loss_type=Impatient+Hinge \
 --ELA_rg_use_semantic_cooccurrence_grounding=False \
@@ -63,7 +63,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_learning_rate=6.25e-5 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_training_period=4096 \
 --ELA_rg_descriptive=False --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=80 \
 --ELA_rg_nbr_train_distractors=15 --ELA_rg_nbr_test_distractors=7 \
 --ELA_replay_capacity=2048 --ELA_test_replay_capacity=512 \
 --ELA_rg_distractor_sampling=uniform \
