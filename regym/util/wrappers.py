@@ -3325,6 +3325,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         env, 
         coverage_precision=0.5,
         coverage_epsilon=0.25,
+        pick_idx=0,
     ):
         super(CoverageManipulationMetricWrapper, self).__init__(env)
         self.coverage_precision= coverage_precision
@@ -3348,6 +3349,9 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         self.episode_length = 1000
         self.manipulation_hist = []
         self.episode_idx = 0
+        self.pick_idx = pick_idx
+        self.pickup_count = 0
+
     def compute_coverage(self, agent_poses):
         coverage_count = 0
         for cov_point in self.coverage_points:
@@ -3373,6 +3377,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         manipulation_hist = wandb.Histogram(self.manipulation_hist)
         CoverageRatio = float(self.coverage_count)/self.nbr_coverage_points
         ManipulationRatio = float(self.manipulation_count)/self.episode_length
+        PickupRatio = float(self.pickup_count)/self.episode_length
         wandb.log({
             f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":CoverageRatio,
             f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
@@ -3382,6 +3387,8 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogramIndex": self.episode_idx,
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogram": manipulation_hist,
             f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
+            f"Wrappers/LanguageGuidedCuriosity/PickupCount": self.pickup_count,
+            f"Wrappers/LanguageGuidedCuriosity/PickupRatio": PickupRatio,
             },
             commit=False,
         )
@@ -3390,6 +3397,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         self.episode_length = 1
         self.manipulation_hist = []
         self.episode_idx += 1
+        self.pickup_count = 0
 
         self.agent_poses = [self.env.unwrapped.agent.pos]
 
@@ -3411,6 +3419,11 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         else:
             self.manipulation_hist.append(0)
         
+        if action == self.pick_idx \
+        and carrying is not None:
+            # successful pick up move :
+            self.pickup_count += 1
+         
         if done:
             self.coverage_count = self.compute_coverage(self.agent_poses)
             next_infos['coverage_count'] = self.coverage_count
@@ -3418,6 +3431,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             
             next_infos['manipulation_count'] = self.manipulation_count
             next_infos['manipulation_ratio'] = float(self.manipulation_count)/self.episode_length
+            next_infos['pickup_count'] = self.pickup_count
 
         return next_observation, reward, done, next_infos
 
@@ -3581,7 +3595,10 @@ def baseline_ther_wrapper(
     if language_guided_curiosity:
         env = LanguageGuidedCuriosityWrapper(env=env)
     if coverage_manipulation_metric:
-        env = CoverageManipulationMetricWrapper(env=env)
+        env = CoverageManipulationMetricWrapper(
+            env=env,
+            pick_idx=env.actions.pickup,
+        )
 
     if clip_reward:
         env = ClipRewardEnv(env)
