@@ -3415,9 +3415,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             carrying = getattr(self.unwrapped.agent, 'carrying', None)
         if carrying is not None:
             self.manipulation_count += 1
-            self.manipulation_hist.append(1)
-        else:
-            self.manipulation_hist.append(0)
+            self.manipulation_hist.append(self.episode_length)
         
         if action == self.pick_idx \
         and carrying is not None:
