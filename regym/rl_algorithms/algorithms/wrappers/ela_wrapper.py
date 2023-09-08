@@ -201,6 +201,54 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
         return reward, captions
     
+    def record_metrics(self, exp_dict, actor_index=0):
+        if not hasattr(self, 'per_actor_metrics'):
+            self.per_actor_metrics = {} 
+
+        last_info = exp_dict['succ_info']
+        metrics = last_info.get('metrics', None)
+        if metrics is None:
+            return
+        if actor_index not in self.per_actor_metrics:
+            self.per_actor_metrics[actor_index] = []
+        self.per_actor_metrics[actor_index].append(metrics)
+        
+        # Logging new values over actor list :
+        wandb_dict = {}
+        for k in metrics.keys():
+            hist = [self.per_actor_metrics[actor_index][i][k] 
+                    for i in range(len(self.per_actor_metrics[actor_index]))]
+            wandb_hist = wandb.Histogram(hist)
+            mean = np.mean(hist)
+            std = np.std(hist)
+            minv = min(hist)
+            maxv = max(hist)
+            wandb_dict[f"PerActor/Metrics/{actor_index}_{k}_Max"] = max
+            wandb_dict[f"PerActor/Metrics/{actor_index}_{k}_Min"] = min
+            wandb_dict[f"PerActor/Metrics/{actor_index}_{k}_Mean"] = mean
+            wandb_dict[f"PerActor/Metrics/{actor_index}_{k}_Std"] = std
+        wandb.log(
+            wandb_dict,
+            commit=False,
+        )
+        if len(self.per_actor_metrics[actor_index]) >= 32:
+            self.per_actor_metrics[actor_index].pop(0)
+        
+        # Logging new values, independantly of actor:
+        if not hasattr(self, 'metrics_counter'):
+            self.metrics_counter = -1
+        self.metrics_counter += 1
+        wandb_dict = {}
+        wandb_dict['PerEpisode/Metrics/MetricsIndex'] = self.metrics_counter
+        for k,v in metrics.items():
+            wandb_dict[f"PerEpisode/Metrics/{k}"] = v
+        
+        wandb.log(
+            wandb_dict,
+            commit=True,
+        )
+        return 
+    
     def store(self, exp_dict, actor_index=0):
         #################
         #################
@@ -217,6 +265,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         successful_traj = False
 
         if not(exp_dict['non_terminal']):
+            self.record_metrics(exp_dict, actor_index=actor_index)
+
             self.episode_count += 1
             episode_length = len(self.episode_buffer[actor_index])
             self.reward_shape = exp_dict['r'].shape

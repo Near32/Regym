@@ -3424,12 +3424,20 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
          
         if done:
             self.coverage_count = self.compute_coverage(self.agent_poses)
-            next_infos['coverage_count'] = self.coverage_count
-            next_infos['coverage'] = float(self.coverage_count)/self.nbr_coverage_points
+            if 'metrics' not in next_infos:
+                next_infos['metrics'] = {}
+            CoverageRatio = float(self.coverage_count)/self.nbr_coverage_points
+            ManipulationRatio = float(self.manipulation_count)/self.episode_length
+            CoverageAndManipulationRatio = (CoverageRatio+ManipulationRatio)/2
+            next_infos['metrics']["CoverageAndManipulationRatio"] = CoverageAndManipulationRatio
+            next_infos['metrics']['coverage_count'] = self.coverage_count
+            next_infos['metrics']['coverage_ratio'] = float(self.coverage_count)/self.nbr_coverage_points
             
-            next_infos['manipulation_count'] = self.manipulation_count
-            next_infos['manipulation_ratio'] = float(self.manipulation_count)/self.episode_length
-            next_infos['pickup_count'] = self.pickup_count
+            next_infos['metrics']['manipulation_count'] = self.manipulation_count
+            next_infos['metrics']['manipulation_ratio'] = float(self.manipulation_count)/self.episode_length
+            next_infos['metrics']['pickup_count'] = self.pickup_count
+            PickupRatio = float(self.pickup_count)/self.episode_length
+            next_infos['metrics']['pickup_ratio'] = PickupRatio
 
         return next_observation, reward, done, next_infos
 
