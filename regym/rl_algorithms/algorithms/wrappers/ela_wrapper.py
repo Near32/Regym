@@ -218,7 +218,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         for k in metrics.keys():
             hist = [self.per_actor_metrics[actor_index][i][k] 
                     for i in range(len(self.per_actor_metrics[actor_index]))]
-            wandb_hist = wandb.Histogram(hist)
+            #wandb_hist = wandb.Histogram(hist)
             mean = np.mean(hist)
             std = np.std(hist)
             minv = min(hist)
@@ -1369,12 +1369,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             
         if update:
             self.update_datasets()
-        
-            self.referential_game = ReferentialGym.make(
-                config=self.rg_config, 
-                dataset_args=self.dataset_args,
-                save_path=self.save_path,
-            )
+            if self.rg_iteration==0:
+                self.referential_game = ReferentialGym.make(
+                    config=self.rg_config, 
+                    dataset_args=self.dataset_args,
+                    save_path=self.save_path,
+                )
+            else:
+                self.referential_game.update_datasets(dataset_args=self.dataset_args)
          
         start = time.time()
         #self.launch_referential_game(nbr_epoch=self.kwargs["ELA_rg_nbr_epoch_per_update"])

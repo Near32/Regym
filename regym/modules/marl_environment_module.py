@@ -170,7 +170,7 @@ class MARLEnvironmentModule(Module):
         self.episode_counts = {}
         self.sample_episode_count = 0
 
-        self.epoch = 0 
+        self.marl_epoch = 0 
 
         self.pbar = tqdm(
             total=self.config['max_obs_count'], 
@@ -231,7 +231,7 @@ class MARLEnvironmentModule(Module):
                 pidx_d['dones'] = None
             
             outputs_stream_dict["signals:mode"] = 'train'
-            outputs_stream_dict["signals:epoch"] = self.epoch
+            outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch
             outputs_stream_dict["signals:done_training"] = False
             
             self.outputs_stream_dict = outputs_stream_dict
@@ -441,7 +441,7 @@ class MARLEnvironmentModule(Module):
                     outputs_stream_dict["PerEpisodeBatch/MeanEpisodeLength"] = mean_episode_length
                     outputs_stream_dict["PerEpisodeBatch/MeanEpisodeSuccess"] = mean_episode_successes
                     outputs_stream_dict["new_trajectories_published"] = True
-                    self.epoch += 1
+                    self.marl_epoch += 1
                     
                     # reset :
                     self.trajectories = list()
@@ -637,7 +637,7 @@ class MARLEnvironmentModule(Module):
             self.nonvdn_info = copy.deepcopy(nonvdn_succ_info)
 
         outputs_stream_dict["signals:mode"] = 'train'
-        outputs_stream_dict["signals:epoch"] = self.epoch
+        outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch
 
         if self.obs_count >= self.config["max_obs_count"]:
             outputs_stream_dict["signals:done_training"] = True 
