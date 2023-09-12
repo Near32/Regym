@@ -895,7 +895,12 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             sem_cooc_grounding_id = "sem_cooccurrence_grounding_0"
             sem_cooc_grounding_config = {
                 "lambda_factor": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_lambda", 1.0),
+                "sentence_level_lambda_factor": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda", 1.0),
                 "noise_magnitude": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", 0.0),
+                "semantic_level_grounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level", False),
+                "semantic_level_ungrounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding", False),
+                "sentence_level_grounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level", False),
+                "sentence_level_ungrounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", False),
             }
             modules[sem_cooc_grounding_id] = rg_modules.build_CoOccurrenceSemanticGroundingLossModule(
                 id=sem_cooc_grounding_id,
@@ -906,6 +911,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             sem_grounding_id = "sem_grounding_metric_0"
             sem_grounding_config = {
                 'idx2w':self.idx2w,
+                'semantic_percentiles': [50,75,90,95],
             }
             modules[sem_grounding_id] = rg_modules.build_SemanticGroundingMetricModule(
                 id=sem_grounding_id,

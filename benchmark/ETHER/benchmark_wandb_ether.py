@@ -413,7 +413,7 @@ def training_process(
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
-      coverage_metric=task_config['coverage_metric'],
+      coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -440,7 +440,7 @@ def training_process(
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
-      coverage_metric=task_config['coverage_metric'],
+      coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -614,7 +614,7 @@ def main():
         type=int, 
         default=10,
     )
- 
+    parser.add_argument("--use_cuda", type=str2bool, default=False) 
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
@@ -842,7 +842,7 @@ def main():
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
-    parser.add_argument("--coverage_metric", type=str2bool, default="False",)
+    parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -862,11 +862,18 @@ def main():
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
     parser.add_argument("--semantic_embedding_init", type=str, default="none",)
+    parser.add_argument("--semantic_prior_mixing", type=str, default="multiplicative",)
+    parser.add_argument("--semantic_prior_mixing_with_detach", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
     parser.add_argument("--ETHER_grounding_signal_key", type=str, default="info:desired_goal",)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_semantic_level", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
     parser.add_argument("--ETHER_rg_filter_out_non_unique", type=str2bool, default=False)
@@ -1112,7 +1119,7 @@ def main():
         dargs["ETHER_rg_use_obverter_sampling"] = True
 
     if dargs['language_guided_curiosity']:
-        dargs['coverage_metric'] = True
+        dargs['coverage_manipulation_metric'] = True
         dargs["MiniWorld_entity_visibility_oracle"] = True
     
     print(dargs)
