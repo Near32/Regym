@@ -36,8 +36,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding=False \
 --ETHER_rg_semantic_cooccurrence_grounding_sentence_level=True \
 --ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding=False \
---ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda=1.0 \
---ETHER_rg_semantic_cooccurrence_grounding_lambda=10000 \
+--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda=100.0 \
+--ETHER_rg_semantic_cooccurrence_grounding_lambda=1.0 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_color_jitter_prob=0 \
@@ -49,10 +49,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=8 --ETHER_rg_accuracy_threshold=95 \
+--ETHER_rg_nbr_epoch_per_update=32 --ETHER_rg_accuracy_threshold=80 \
 --ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
 --ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
---ETHER_rg_distractor_sampling=similarity-90 \
+--ETHER_rg_distractor_sampling=uniform \
 --ETHER_rg_use_cuda=True \
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
@@ -98,7 +98,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=False \
---THER_relabel_terminal=False --THER_filter_out_timed_out_episode=True \
+--THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --THER_timing_out_episode_length_threshold=40 \
 --BabyAI_Bot_action_override=False \
