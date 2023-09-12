@@ -1,10 +1,11 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
 --seed=10 \
+--use_cuda=True \
 --project=EReLELA \
 --success_threshold=0.5 \
 --config=maze3x3_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=False \
---coverage_metric=True \
+--coverage_manipulation_metric=True \
 --MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_top_view=False \
 --use_ETHER=False --use_THER=False \
@@ -58,7 +59,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_egocentric_prob=0.0 \
 --ELA_rg_object_centric_version=2 --ELA_rg_descriptive_version=1 \
 --ELA_rg_learning_rate=6.25e-5 --ELA_rg_weight_decay=0.0 \
---ELA_rg_vocab_size=32 --ELA_rg_training_period=16384 \
+--ELA_rg_vocab_size=32 --ELA_rg_max_sentence_length=20 \
+--ELA_rg_training_period=16384 \
 --ELA_rg_descriptive=False --ELA_rg_use_curriculum_nbr_distractors=False \
 --ELA_rg_nbr_epoch_per_update=64 --ELA_rg_accuracy_threshold=90 \
 --ELA_rg_nbr_train_distractors=15 --ELA_rg_nbr_test_distractors=7 \

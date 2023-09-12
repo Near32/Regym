@@ -398,7 +398,7 @@ def training_process(
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=task_config['clip_reward'],
       time_limit=task_config['time_limit'],
-      max_sentence_length=agent_config['THER_max_sentence_length'],
+      max_sentence_length=agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
@@ -413,6 +413,8 @@ def training_process(
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
+      language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
+      ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
 
@@ -425,7 +427,7 @@ def training_process(
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=False,
       time_limit=task_config['time_limit'],
-      max_sentence_length=agent_config['THER_max_sentence_length'],
+      max_sentence_length=agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
@@ -440,6 +442,8 @@ def training_process(
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
+      language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
+      ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
     
@@ -842,6 +846,8 @@ def main():
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_densify", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_non_episodic_dampening_rate", type=float, default=0.0,)
     parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
@@ -1155,6 +1161,7 @@ def main():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
+        '''
         if args.ELA_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
             dargs['ELA_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
             print(f"WARNING: ELA rg max sentence length is different ({args.ELA_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ELA_rg_max_sentence_length']}")
@@ -1163,6 +1170,7 @@ def main():
             dargs['ELA_rg_vocab_size'] = agent_config['THER_vocab_size']
             print(f"WARNING: ELA rg vocab size is lower ({args.ELA_rg_vocab_size}) than necessary, updating to: {dargs['ELA_rg_vocab_size']}")
             import ipdb; ipdb.set_trace()
+        '''
         if args.use_ETHER and args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
             dargs['ETHER_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
             print(f"WARNING: ETHER rg max sentence length is different ({args.ETHER_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ETHER_rg_max_sentence_length']}")

@@ -427,7 +427,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             episode_length = len(self.episode_buffer[actor_index])
 
             # Assumes non-successful rewards are non-positive:
-            successful_traj = all(self.episode_buffer[actor_index][-1]['r']>0)
+            successful_traj = all(self.episode_buffer[actor_index][-1]['r']>self.kwargs['success_threshold'])
             if successful_traj: self.nbr_successfull_traj += 1
 
             # Relabelling if unsuccessfull trajectory:
