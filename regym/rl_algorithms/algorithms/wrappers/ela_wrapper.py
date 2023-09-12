@@ -218,7 +218,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         for k in metrics.keys():
             hist = [self.per_actor_metrics[actor_index][i][k] 
                     for i in range(len(self.per_actor_metrics[actor_index]))]
-            wandb_hist = wandb.Histogram(hist)
+            #wandb_hist = wandb.Histogram(hist)
             mean = np.mean(hist)
             std = np.std(hist)
             minv = min(hist)
@@ -272,38 +272,44 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.reward_shape = exp_dict['r'].shape
 
             # Assumes non-successful rewards are non-positive:
-            successful_traj = all(self.episode_buffer[actor_index][-1]['r']>0.5)
+            successful_traj = all(self.episode_buffer[actor_index][-1]['r']>self.kwargs['success_threshold'])
             if successful_traj: self.nbr_successfull_traj += 1
 
             episode_rewards = []
             per_episode_d2store = {}
             previous_d2stores = [] 
 
+            self.nbr_relabelled_traj += 1
             if self.kwargs['ELA_use_ELA']:
-                self.nbr_relabelled_traj += 1
                 batched_exp = self.episode_buffer[actor_index]
                 batched_new_r, batched_captions = self.compute_captions(
                     exp=batched_exp, 
                     feedbacks=self.feedbacks,
                     reward_shape=self.reward_shape,
                 )
-                
                 positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
-                positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
-                positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
-                
-                hist_index = self.nbr_relabelled_traj
-                wandb.log({
-                    "PerEpisode/ELA_Predicate/StepHistogram": positive_new_r_step_histogram,
-                    "PerEpisode/ELA_Predicate/RelabelledEpisodeGoalSimilarityRatioOverEpisode": positive_new_r_mask.float().sum()/episode_length,
-                    "PerEpisode/ELA_Predicate/RelabelledEpisodeGoalSimilarityCount": positive_new_r_mask.float().sum(),
-                    "PerEpisode/ELA_Predicate/RelabelledEpisodeLength": episode_length,
-                    "PerEpisode/ELA_Predicate/StepHistogramIndex": hist_index,
-                    }, 
-                    commit=False,
-                )
             else:
                 batched_new_r = None
+                batched_r = torch.cat([
+                    self.episode_buffer[actor_index][idx]['r']
+                    for idx in range(episode_length)],
+                    dim=-1,
+                )
+                positive_new_r_mask = (batched_r > 0.0).reshape(-1)
+                
+            positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
+            positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
+            
+            hist_index = self.nbr_relabelled_traj
+            wandb.log({
+                "PerEpisode/ELA_Predicate/StepHistogram": positive_new_r_step_histogram,
+                "PerEpisode/ELA_Predicate/RelabelledEpisodeGoalSimilarityRatioOverEpisode": positive_new_r_mask.float().sum()/episode_length,
+                "PerEpisode/ELA_Predicate/RelabelledEpisodeGoalSimilarityCount": positive_new_r_mask.float().sum(),
+                "PerEpisode/ELA_Predicate/RelabelledEpisodeLength": episode_length,
+                "PerEpisode/ELA_Predicate/StepHistogramIndex": hist_index,
+                }, 
+                commit=False,
+            )
             
             new_rs = []
             for idx in range(episode_length):
@@ -312,7 +318,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 r = self.episode_buffer[actor_index][idx]['r']
                 
                 new_r = self.extrinsic_weight*r
-                if batched_new_r is not None:
+                if self.kwargs['ELA_use_ELA']:
                     new_r += self.intrinsic_weight*batched_new_r[idx:idx+1]
                 else:
                     assert self.extrinsic_weight > 0
@@ -1369,12 +1375,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             
         if update:
             self.update_datasets()
-        
-            self.referential_game = ReferentialGym.make(
-                config=self.rg_config, 
-                dataset_args=self.dataset_args,
-                save_path=self.save_path,
-            )
+            if self.rg_iteration==0:
+                self.referential_game = ReferentialGym.make(
+                    config=self.rg_config, 
+                    dataset_args=self.dataset_args,
+                    save_path=self.save_path,
+                )
+            else:
+                self.referential_game.update_datasets(dataset_args=self.dataset_args)
          
         start = time.time()
         #self.launch_referential_game(nbr_epoch=self.kwargs["ELA_rg_nbr_epoch_per_update"])

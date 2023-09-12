@@ -3345,6 +3345,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             x += self.coverage_precision
         self.nbr_coverage_points = len(self.coverage_points)
         
+        self.reward_hist = []
         self.manipulation_count = 0
         self.episode_length = 1000
         self.manipulation_hist = []
@@ -3374,6 +3375,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             obs = reset_output
             infos = [{}]
 
+        reward_hist = wandb.Histogram(self.reward_hist)
         manipulation_hist = wandb.Histogram(self.manipulation_hist)
         CoverageRatio = float(self.coverage_count)/self.nbr_coverage_points
         ManipulationRatio = float(self.manipulation_count)/self.episode_length
@@ -3385,6 +3387,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             f"Wrappers/LanguageGuidedCuriosity/ManipulationRatio":ManipulationRatio,
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/EpisodeLength": self.episode_length,
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogramIndex": self.episode_idx,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/RewardHistogram": reward_hist,
             f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogram": manipulation_hist,
             f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
             f"Wrappers/LanguageGuidedCuriosity/PickupCount": self.pickup_count,
@@ -3393,6 +3396,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             commit=False,
         )
 
+        self.reward_hist = []
         self.manipulation_count = 0
         self.episode_length = 1
         self.manipulation_hist = []
@@ -3409,6 +3413,9 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         self.agent_poses.append(self.env.unwrapped.agent.pos)
 
         self.episode_length += 1
+        if reward > 0 :
+            self.reward_hist.append(self.episode_length)
+
         carrying = getattr(self.unwrapped, 'carrying', None)
         if carrying is None \
         and hasattr(self.unwrapped, 'agent'):
@@ -3452,8 +3459,11 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
     def __init__(
         self, 
         env, 
-        intrinsic_weight=0.5, #1.0, #0.01,
-        extrinsic_weight=10.0, #1.0, #0.01,
+        intrinsic_weight=1.0, #1.0, #0.01,
+        extrinsic_weight=1.0, #1.0, #0.01,
+        ne_dampening_rate=0.1,
+        ne_damp_min=1e-4,
+        densify=True,
     ):
         super(LanguageGuidedCuriosityWrapper, self).__init__(env)
         self.visited_state_descriptions = []
@@ -3462,6 +3472,15 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         self.intrinsic_return = 0
         self.extrinsic_return = 0
         self.episode_idx = 0 
+        self.ne_dampening_rate = ne_dampening_rate
+        if self.ne_dampening_rate > 0.0:
+            self.non_episodic_dampening = True
+        else:
+            self.non_episodic_dampening = False
+        self.ne_descriptions_count = {}
+        self.ne_damps = []
+        self.ne_damp_min = ne_damp_min
+        self.densify = densify 
 
     def reset(self, **kwargs):
         reset_output = self.env.reset(**kwargs)
@@ -3481,9 +3500,14 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
             infos['language_guided_reward'] = 0.0
             infos['extrinsic_reward'] = 0.0
         
+        ne_damps_hist = wandb.Histogram(self.ne_damps)
+        visitation_count_hist = wandb.Histogram(list(self.ne_descriptions_count.values()))
         wandb.log({
             f"Wrappers/LanguageGuidedCuriosity/IntrinsicReturn":self.intrinsic_return,
             f"Wrappers/LanguageGuidedCuriosity/ExtrinsicReturn":self.extrinsic_return,
+            f"Wrappers/LanguageGuidedCuriosity/NonEpisodicDampeningHistogram":ne_damps_hist,
+            f"Wrappers/LanguageGuidedCuriosity/NonEpisodicDampeningRate":self.ne_dampening_rate,
+            f"Wrappers/LanguageGuidedCuriosity/VisitationCountHistogram":visitation_count_hist,
             },
             #step=self.episode_idx,
             commit=False,
@@ -3491,6 +3515,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         self.intrinsic_return = 0
         self.extrinsic_return = 0
         self.episode_idx += 1
+        self.ne_damps = []
 
         return obs, infos 
     
@@ -3498,11 +3523,30 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         next_observation, reward, done, next_infos = self.env.step(action)
         next_state_description = next_observation['visible_entities']
         
-        self.intrinsic_reward = 0.0
+        if not self.densify:
+            self.intrinsic_reward = 0.0
+        new_description = False
         if next_state_description not in self.visited_state_descriptions:
+            new_description = True
             self.visited_state_descriptions += [next_state_description]
             self.intrinsic_reward = 1.0
         
+        if self.non_episodic_dampening:
+            if next_state_description in self.ne_descriptions_count:
+                self.ne_descriptions_count[next_state_description] += 1
+            else:
+                self.ne_descriptions_count[next_state_description] = 1
+            
+            if new_description :
+                rate = self.ne_dampening_rate #0.01
+                ne_damp = np.power(
+                    1-rate, 
+                    -1+self.ne_descriptions_count[next_state_description],
+                ) 
+                ne_damp = max(ne_damp, self.ne_damp_min)
+                self.ne_damps.append(ne_damp)
+                self.intrinsic_reward *= ne_damp
+
         self.intrinsic_return += self.intrinsic_reward
         self.extrinsic_return += reward 
 
@@ -3537,6 +3581,8 @@ def baseline_ther_wrapper(
     miniworld_entity_visibility_oracle=False,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
+    ne_dampening_rate=0.0,
+    language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
     ):
     
@@ -3599,7 +3645,11 @@ def baseline_ther_wrapper(
         )
     
     if language_guided_curiosity:
-        env = LanguageGuidedCuriosityWrapper(env=env)
+        env = LanguageGuidedCuriosityWrapper(
+            env=env,
+            ne_dampening_rate=ne_dampening_rate,
+            densify=language_guided_curiosity_densify,
+        )
     if coverage_manipulation_metric:
         env = CoverageManipulationMetricWrapper(
             env=env,

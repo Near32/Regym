@@ -212,7 +212,7 @@ ELA_extra_hyperparameters: &ELA_extra_hyperparameters
     ELA_split_strategy: None 
 
     ELA_vocab_size: &ELA_vocab_size 64 #1024 
-    ELA_max_sentence_length: &ELA_max_sentence_length 10 # 20 
+    ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 32 #10 
     ELA_vocabulary: &ELA_vocabulary [
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
@@ -482,7 +482,7 @@ agents:
             model_id: 'RL_FiLMedELAModel'
             hyperparameters:
                 vocab_size: *ELA_vocab_size
-                max_sentence_length: *ELA_max_sentence_length
+                max_sentence_length: *ELA_rg_max_sentence_length
                 caption_feature_dim: &caption_feature_dim 256 #256 #64
                 feature_dim: &feature_dim 512 #256 #64
                 lstm_input_dim: &lstm_input_dim 576 #577 #321 #769 #512 #128
@@ -703,7 +703,7 @@ agents:
                     type: CaptionRNNModule
                     vocabulary: *ELA_vocabulary 
                     vocab_size: *ELA_vocab_size 
-                    max_sentence_length: *ELA_max_sentence_length 
+                    max_sentence_length: *ELA_rg_max_sentence_length 
                     input_dim: *caption_feature_dim #*instruction_generator_input_dim
                     embedding_size: *caption_feature_dim
                     hidden_units: *hidden_dim 
@@ -795,7 +795,7 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [*ELA_rg_max_sentence_length], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             

@@ -1528,12 +1528,14 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             
         if update:
             self.update_datasets()
-        
-            self.referential_game = ReferentialGym.make(
-                config=self.rg_config, 
-                dataset_args=self.dataset_args,
-                save_path=self.save_path,
-            )
+            if self.rg_iteration==0:
+                self.referential_game = ReferentialGym.make(
+                    config=self.rg_config, 
+                    dataset_args=self.dataset_args,
+                    save_path=self.save_path,
+                )
+            else:
+                self.referential_game.update_datasets(dataset_args=self.dataset_args)
          
         start = time.time()
         #self.launch_referential_game(nbr_epoch=self.kwargs["ETHER_rg_nbr_epoch_per_update"])
