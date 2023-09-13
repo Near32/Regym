@@ -14,7 +14,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
---THER_use_THER_predictor_supervised_training=False \
+--THER_use_THER_predictor_supervised_training=True \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_use_supervised_training=False \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
@@ -43,17 +43,23 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_color_jitter_prob=0 \
 --ETHER_rg_gaussian_blur_prob=0.5 \
 --ETHER_rg_egocentric_prob=0.5 \
---ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=20 \
+--ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=10 \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=16384 \
 --ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=32 --ETHER_rg_accuracy_threshold=80 \
+--ETHER_rg_nbr_epoch_per_update=64 --ETHER_rg_accuracy_threshold=80 \
 --ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
 --ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling=uniform \
 --ETHER_rg_use_cuda=True \
+--ETHER_rg_metric_fast=True --ETHER_rg_parallel_TS_worker=8 \
+--ETHER_rg_metric_epoch_period=8 --ETHER_rg_dis_metric_epoch_period=8 \
+--ETHER_rg_metric_batch_size=32 \
+--ETHER_rg_nbr_train_points=1024 --ETHER_rg_nbr_eval_points=256 \
+--ETHER_rg_metric_resampling=False --ETHER_rg_dis_metric_resampling=False \
+--ETHER_rg_metric_active_factors_only=True \
 --RP_use_PER=True \
 --RP_lock_test_storage=False \
 --RP_predictor_learning_rate=6.25e-5 \
@@ -94,7 +100,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_replay_capacity=1024 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
 --THER_predictor_test_train_split_interval=5 --THER_test_replay_capacity=256 \
---THER_test_min_capacity=4 --THER_replay_period=4096 \
+--THER_test_min_capacity=4 --THER_replay_period=16384 \
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=False \
@@ -113,7 +119,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --nbr_training_iteration_per_cycle=128 --nbr_episode_per_cycle=16 \
 --single_pick_episode=True \
 --time_limit=40 \
---train_observation_budget=1.0e6
+--train_observation_budget=5.0e5
 
 #--train_observation_budget=300000 
 # WARNING: if THER_contrastive_training_nbr_neg_examples != 0 then THER_train_contrastively is toggled to True. 

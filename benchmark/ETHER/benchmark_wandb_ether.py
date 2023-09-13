@@ -66,6 +66,103 @@ def check_wandb_path_for_agent(file_path, run_path):
     return agent, offset_episode_count
 
 
+def get_extra_key_value(storage, indices, key='s'):
+    if isinstance(indices, int):    indices = [indices]
+    
+    splitted_keys = key.split(':')
+    data = getattr(storage, splitted_keys.pop(0))[0][indices]
+
+    while len(splitted_keys):
+        ddata = []
+        for idx in range(data.shape[0]):
+            ddata.append(
+                data[idx][splitted_keys.pop(0)]
+            )
+        data = ddata
+
+    data = [torch.from_numpy(d[0] if isinstance(d,list) else d) for d in data]
+    data = torch.cat(data, dim=0)
+
+    return data
+
+def MiniWorld_latents_build_fn(
+    storage,
+    exp_key,
+    extra_keys_dict,
+):
+    action_set = set([a.item() for a in getattr(storage, 'a')[0] if isinstance(a, torch.Tensor)])
+    COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
+    IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
+
+    OBJECT_TO_IDX = {
+        "unseen": 0,
+        "empty": 1,
+        "wall": 2,
+        "floor": 3,
+        "door": 4,
+        "key": 5,
+        "ball": 6,
+        "box": 7,
+        "goal": 8,
+        "lava": 9,
+        "agent": 10,
+    }
+    IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
+    latents_w2idx = {
+        'key': 0,
+        'ball': 1,
+        'box': 2,
+        **COLOR_TO_IDX,
+    }
+    
+    offset = 3 
+    nbr_colors = 6
+    nbr_shapes = 3
+    latents_classes = np.zeros((len(storage), offset+3*6))
+    latents_values = np.zeros((len(storage), offset+3*6))
+    for bidx in range(len(storage)):
+        symb_image = getattr(storage, 'info')[0][bidx]['symbolic_image']
+        visible_objects = []
+        for i in range(symb_image.shape[1]):
+            for j in range(symb_image.shape[2]):
+                if symb_image[i,j,0] <= 3 : continue
+                color_idx = symb_image[i,j,1].item()
+                shape_idx = symb_image[i,j,0].item()
+                color = IDX_TO_COLOR[color_idx]
+                shape = IDX_TO_OBJECT[shape_idx]
+            
+                visible_objects.append((color,shape))
+        
+        action_idx = getattr(storage, 'a')[0][bidx].item()
+        non_terminal_bool = getattr(storage, 'non_terminal')[0][bidx].item()
+        
+        reward_sign = 0
+        reward = getattr(storage, 'r')[0][bidx].item() 
+        if reward > 0:
+            reward_sign = 2
+        elif reward < 0:
+            reward_sign = 1
+        latents_classes[bidx][0] = action_idx
+        latents_classes[bidx][1] = reward_sign
+        latents_classes[bidx][2] = non_terminal_bool
+        
+        latents_values[bidx][0] = action_idx
+        latents_values[bidx][1] = reward
+        latents_classes[bidx][2] = non_terminal_bool
+        
+        for color,shape in visible_objects:
+            cidx = latents_w2idx[color]
+            sidx = latents_w2idx[shape]
+            eidx = offset+nbr_colors*sidx+cidx
+            latents_classes[bidx][eidx] = 1
+            latents_values[bidx][eidx] = 1
+    
+    nbr_classes_per_latent = [len(action_set), 3, 2, 
+        *[2 for _ in range(nbr_colors*nbr_shapes)]
+    ]
+    return latents_classes, latents_values, nbr_classes_per_latent
+
+
 def make_rl_pubsubmanager(
     agents,
     config, 
@@ -482,6 +579,8 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
+    
+    agent_config['ETHER_rg_latents_build_fn'] = MiniWorld_latents_build_fn
 
     agent_config['task_config'] = task_config
     agent_config['nbr_actor'] = task_config['nbr_actor']

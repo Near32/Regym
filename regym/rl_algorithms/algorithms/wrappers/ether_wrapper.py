@@ -376,6 +376,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.ether_test_acc = 0.0
         
         self.rg_iteration = 0
+        self.vocabulary = self.predictor.model.modules['InstructionGenerator'].vocabulary
         self.idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
         
         self.init_referential_game()
@@ -785,6 +786,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             agent_id='s0',
             logger=None
         )
+        speaker.set_vocabulary(self.vocabulary)
         print("Speaker:", speaker)
         self.speaker = speaker
 
@@ -812,6 +814,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 agent_id='l0',
                 logger=None
             )
+        listener.set_vocabulary(self.vocabulary)
         print("Listener:", listener)
         self.listener = listener
 
@@ -1270,8 +1273,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         )
         modules[compactness_ambiguity_metric_id] = compactness_ambiguity_metric_module
 
-        posbosdis_disentanglement_metric_id = "posbosdis_disentanglement_metric"
-        posbosdis_disentanglement_metric_input_stream_ids = {
+        speaker_posbosdis_metric_id = "speaker_posbosdis_metric"
+        speaker_posbosdis_metric_input_stream_ids = {
             #"model":"modules:current_speaker:ref:ref_agent",
             "model":"modules:current_speaker:ref:ref_agent:_utter",
             "representations":"modules:current_speaker:sentences_widx",
@@ -1281,9 +1284,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "indices":"current_dataloader:sample:speaker_indices", 
         }
 
-        posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
-            id=posbosdis_disentanglement_metric_id,
-            input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
+        speaker_posbosdis_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+            id=speaker_posbosdis_metric_id,
+            input_stream_ids=speaker_posbosdis_metric_input_stream_ids,
             config = {
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
@@ -1298,7 +1301,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "active_factors_only":self.kwargs["ETHER_rg_metric_active_factors_only"],
             }
         )
-        modules[posbosdis_disentanglement_metric_id] = posbosdis_disentanglement_metric_module
+        modules[speaker_posbosdis_metric_id] = speaker_posbosdis_metric_module
 
         logger_id = "per_epoch_logger"
         logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
@@ -1336,20 +1339,16 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
             pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
             pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
-        #pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
-        #pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
-        #pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
+        pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
+        pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
+        pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     
-        #pipelines[optim_id].append(topo_sim_metric_id)
         pipelines[optim_id].append(speaker_topo_sim_metric_id)
-        #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
         pipelines[optim_id].append(compactness_ambiguity_metric_id)
-        #pipelines[optim_id].append(speaker_posbosdis_metric_id)
-        '''
+        pipelines[optim_id].append(speaker_posbosdis_metric_id)
         if "obverter" in self.kwargs["ETHER_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
-        '''
         pipelines[optim_id].append(inst_coord_metric_id)
         
         pipelines[optim_id].append(logger_id)
@@ -1403,6 +1402,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             dataset_length=self.rg_train_dataset_length,
             exp_key=self.rg_exp_key,
             extra_keys_dict=extra_keys_dict,
+            latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
             kwargs=kwargs,
         )
         
@@ -1415,6 +1415,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             dataset_length=self.rg_test_dataset_length,
             exp_key=self.rg_exp_key,
             extra_keys_dict=extra_keys_dict,
+            latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
             kwargs=kwargs,
         )
         
