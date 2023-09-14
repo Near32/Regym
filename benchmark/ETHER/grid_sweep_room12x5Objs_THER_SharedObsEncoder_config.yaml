@@ -39,7 +39,7 @@ parameters:
         values: [False]
 
     use_ETHER:
-        values: [True]
+        values: [False]
     use_THER:
         values: [True]
 
@@ -71,7 +71,7 @@ parameters:
         values: [True]
 
     ETHER_use_supervised_training:
-        values: [False, True]
+        values: [False]
 
     ETHER_rg_sanity_check_compactness_ambiguity_metric:
         values: [False]
@@ -92,7 +92,7 @@ parameters:
         values: [Impatient+Hinge]
 
     ETHER_use_continuous_feedback:
-        values: [True, False]
+        values: [True]
 
     ETHER_rg_normalize_features:
         values: [False]
@@ -391,7 +391,7 @@ parameters:
     THER_test_min_capacity:
         values: [4]
     THER_replay_period:
-        values: [16384]
+        values: [4096]
 
     THER_train_on_success:
         values: [False]
@@ -404,19 +404,19 @@ parameters:
         values: [0.95]
 
     THER_predictor_accuracy_safe_to_relabel_threshold:
-        values: [0.0]
+        values: [0.2]
     THER_filter_predicate_fn:
-        values: [False]
+        values: [True, False]
 
     THER_relabel_terminal:
         values: [True]
     THER_filter_out_timed_out_episode:
-        values: [False]
+        values: [True, False]
 
     THER_train_contrastively:
         values: [False]
     THER_contrastive_training_nbr_neg_examples:
-        values: [0]
+        values: [0, 1, 2]
 
     THER_timing_out_episode_length_threshold:
         values: [40]

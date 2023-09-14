@@ -1246,11 +1246,13 @@ def main():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
-        if args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
+        if args.use_ETHER \
+	and args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
             dargs['ETHER_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
             print(f"WARNING: ETHER rg max sentence length is different ({args.ETHER_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ETHER_rg_max_sentence_length']}")
             import ipdb; ipdb.set_trace()
-        if args.ETHER_rg_vocab_size < agent_config['THER_vocab_size']:
+        if args.use_ETHER \
+	and args.ETHER_rg_vocab_size < agent_config['THER_vocab_size']:
             dargs['ETHER_rg_vocab_size'] = agent_config['THER_vocab_size']
             print(f"WARNING: ETHER rg vocab size is lower ({args.ETHER_rg_vocab_size}) than necessary, updating to: {dargs['ETHER_rg_vocab_size']}")
             import ipdb; ipdb.set_trace()

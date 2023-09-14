@@ -2451,13 +2451,12 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         achieved_goal = "EoS"
         color = None
         shape = None
-        if hasattr(self.env, "carrying"):
-            if self.env.carrying is not None:
-                color = self.env.carrying.color
-                shape = self.env.carrying.type
+        if hasattr(self.unwrapped, "carrying"):
+            if self.unwrapped.carrying is not None:
+                color = self.unwrapped.carrying.color
+                shape = self.unwrapped.carrying.type
         else:
-            import ipdb; ipdb.set_trace()
-            carrying = self.env.agent.carrying
+            carrying = self.unwrapped.agent.carrying
             if carrying is not None:
                 shape = type(carrying).__name__.lower()
                 color = getattr(carrying, "color", None)

@@ -1,0 +1,854 @@
+PPO_extra_hyperparameters: &ppo_extra_hyperparameters
+    standardized_adv: True
+    lr_account_for_nbr_actor: False 
+    discount: 0.99
+    use_gae: True
+    gae_tau: 0.95
+    value_weight: 0.5
+    entropy_weight: 0.01
+    gradient_clip: 0.5
+    optimization_epochs: 4 #3
+    mini_batch_size: 256
+    ppo_ratio_clip: 0.1
+    horizon: 128
+        
+    # BetaVAE:
+    use_vae: False
+    vae_weight: 1e0
+    vae_nbr_latent_dim: 128
+    vae_decoder_nbr_layer: 3#4
+    vae_decoder_conv_dim: 128
+    
+    cnn_encoder_feature_dim: 128 #vae_nbr_latent_dim
+    
+    vae_beta: 1e2
+    vae_max_capacity: 1e2
+    vae_nbr_epoch_till_max_capacity: 20
+    vae_constrainedEncoding: False
+    vae_tc_discriminator_hidden_units: [256,256,256,256,2] #tuple([2*cnn_encoder_feature_dim']]*4+[2])
+    
+    # Random Network Distillation:
+    use_random_network_distillation: False
+    intrinsic_discount: 0.99
+    rnd_loss_int_ratio: 0.5
+    rnd_obs_clip: 5
+    rnd_non_episodic_int_r: True
+    rnd_update_period_running_meanstd_int_reward: 1.e5
+    rnd_update_period_running_meanstd_obs: 1.e5 #rnd_update_period_running_meanstd_int_reward
+    # RND Convolutional Architecture:
+    rnd_arch: 'CNN'
+    rnd_arch_channels: [32, 64, 64]
+    rnd_arch_kernels: [8, 4, 3]
+    rnd_arch_strides: [4, 2, 1]
+    rnd_arch_paddings: [0, 1, 1]
+    rnd_arch_feature_dim: 512
+    # RND Fully-Connected Architecture:
+    #rnd_feature_net_fc_arch_hidden_units: (128, 64)
+
+
+extra_hyperparameters: &extra_hyperparameters
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda: 0.0 # 0.0
+    weights_entropy_lambda: 0.0
+    use_target_to_gather_data:    False
+    
+    goal_oriented: True 
+    goal_state_shared_arch:  False
+    goal_state_flattening: False    #True
+    
+    #####################################
+    #####################################
+    # HER Hyperparameters:
+    #####################################
+    nbr_training_iteration_per_cycle: 10 # HER: 40
+    nbr_episode_per_cycle:  16  # HER: 16 DQN needs removal.
+    HER_use_latent: False   #True
+    HER_target_clamping: True 
+    use_HER:    True 
+    HER_strategy:   'final-1' #'future-4' #
+    # set to None if left unspecified:
+    # HER_extract_goal_from_info_fn: "None"
+    # specific to IGLU : HER_achieved_goal_key_from_info: "grid"
+    HER_target_goal_key_from_info: "desired_goal" # specific to MiniGrid, whereas IGLU:"target_grid"
+    HER_filtering_fn: "None"
+    
+#####################################
+    #####################################
+
+    ####################################
+    ####################################
+    # R2D2 Hyperparameters:
+    ####################################
+    PER_compute_initial_priority: False
+    #####################################
+    
+    burn_in: False
+    sequence_replay_PER_eta: 0.9
+    sequence_replay_use_online_states: True
+    sequence_replay_use_zero_initial_states: False
+    sequence_replay_store_on_terminal: False
+    
+    sequence_replay_unroll_length: 20
+    sequence_replay_overlap_length: 10
+    sequence_replay_burn_in_length: 0
+    
+    r2d2_loss_masking: True
+    r2d2_loss_masking_n_step_regularisation: True
+    r2d2_bellman_target_SAD: False
+
+    ####################################
+    vdn: False 
+    vdn_nbr_players: 2
+    ####################################
+    ####################################
+
+
+RP_extra_hyperparameters: &RP_extra_hyperparameters
+    use_RP:  True
+    RP_use_RP:  True
+
+    RP_use_PER: True 
+    RP_PER_alpha: 0.6
+    RP_PER_beta: 1.0
+
+    RP_replay_capacity: 500 #250 #5000
+    RP_test_replay_capacity: 50 #25 #1000
+    RP_min_capacity: 32 #1e4
+    RP_test_min_capacity: 32 #1e4
+    # Training every episode: 40 (baseline)...  instead of every successfull episode... 
+    #OVERRIDEN by next parameter...
+    RP_replay_period: 40 #10 #1 #40 
+
+    RP_nbr_training_iteration_per_update: 2 #10 #40
+    RP_predictor_accuracy_threshold: 0.75
+    RP_predictor_test_train_split_interval: 3 #10 #5
+
+    RP_predictor_learning_rate: 3.0e-4 #1e-3
+    RP_predictor_batch_size: 128 #128 #32
+    RP_predictor_nbr_minibatches: 10 #128 #32
+    RP_gradient_clip: 10.0
+    RP_weights_decay_lambda: 0.0 #1.0 # 1e-6
+
+THER_extra_hyperparameters: &THER_extra_hyperparameters
+    use_THER:  True
+    THER_use_THER:  True
+    THER_use_predictor:  True
+    THER_predictor_policy_shared_phi: False
+
+    THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
+    THER_vocabulary: &THER_vocabulary [
+        'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
+        'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
+        'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
+        'yellow', 'grey', 'the', 'a', 'object',
+        'key', 'ball', 'red', 'green', 'blue', 'purple', 
+        'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
+        'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
+        'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box'
+    ]
+    
+    THER_use_PER: True 
+    THER_PER_alpha: 0.6
+    THER_PER_beta: 1.0
+
+    THER_replay_capacity: 500 #250 #5000
+    THER_test_replay_capacity: 50 #25 #1000
+    THER_min_capacity: 32 #1e4
+    THER_test_min_capacity: 32 #1e4
+    # Training every episode: 40 (baseline)...  instead of every successfull episode... 
+    #OVERRIDEN by next parameter...
+    THER_replay_period: 40 #10 #1 #40 
+    THER_train_on_success:  True
+    THER_relabel_terminal: True
+
+    THER_nbr_training_iteration_per_update: 2 #10 #40
+    THER_predictor_accuracy_threshold: 0.75
+    THER_predictor_accuracy_safe_to_relabel_threshold: 0.5
+    THER_predictor_test_train_split_interval: 3 #10 #5
+
+    THER_predict_PADs: False
+    THER_filter_predicate_fn: False
+    THER_filter_out_timed_out_episode: False
+    THER_timing_out_episode_length_threshold: 40
+    THER_vocab_size: &THER_vocab_size 64 #1024 
+    THER_episode_length_reward_shaping: False 
+    THER_train_contrastively: False
+    THER_observe_achieved_goal: False
+
+    THER_predictor_learning_rate: 3.0e-4 #1e-3
+    THER_predictor_batch_size: 128 #128 #32
+    THER_predictor_nbr_minibatches: 10 #128 #32
+    THER_gradient_clip: 10.0
+    THER_weights_decay_lambda: 0.0 #1.0 # 1e-6
+    
+ETHER_extra_hyperparameters: &ETHER_extra_hyperparameters
+    use_ETHER:  True
+    ETHER_use_ETHER:  True
+    
+    ETHER_exp_key: "succ_s" 
+    ETHER_train_dataset_length: 1024
+    ETHER_test_dataset_length: 1024
+
+    ETHER_rg_nbr_epoch_per_update: 8
+    ETHER_rg_accuracy_threshold: 75
+    ETHER_split_strategy: None 
+
+    THER_predictor_learning_rate: 3.0e-4 #1e-3
+    THER_predictor_batch_size: 128 #128 #32
+    THER_predictor_nbr_minibatches: 10 #128 #32
+    THER_gradient_clip: 10.0
+    THER_weights_decay_lambda: 0.0 #1.0 # 1e-6
+
+ELA_extra_hyperparameters: &ELA_extra_hyperparameters
+    use_ELA:  True
+    ELA_use_ELA:  True
+    
+    ELA_exp_key: "succ_s" 
+    ELA_train_dataset_length: 1024
+    ELA_test_dataset_length: 1024
+
+    ELA_rg_nbr_epoch_per_update: 8
+    ELA_rg_accuracy_threshold: 75
+    ELA_split_strategy: None 
+
+    ELA_vocab_size: &ELA_vocab_size 64 #1024 
+    ELA_max_sentence_length: &ELA_max_sentence_length 10 # 20 
+    ELA_vocabulary: &ELA_vocabulary [
+        'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
+        'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
+        'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
+        'yellow', 'grey', 'the', 'a', 'object',
+        'key', 'ball', 'red', 'green', 'blue', 'purple', 
+        'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
+        'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
+        'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box'
+    ]
+    
+    
+LargeCNN: &LargeCNN
+    sad: False 
+
+    phi_arch: 'CNN-LSTM-RNN'
+    goal_phi_arch: 'EmbedGRU'
+    critic_arch: 'None'
+    
+    
+    # Phi Body:
+    phi_arch_channels: [16, M, 32, 64]
+    phi_arch_kernels: [2, 2, 2, 2]
+    phi_arch_strides: [1, 1, 1, 1]
+    phi_arch_paddings: [1, 1, 1, 1]
+    
+    phi_arch_feature_dim: 64        # LSTM inputs / CNN output dim: 64
+    phi_arch_hidden_units: [64,]    # LSTM hidden units: 64
+
+    #phi_arch_feature_dim: 256 #Matching Predictor Decoder hidden size in shared arch        # LSTM inputs / CNN output dim: 64
+    #phi_arch_hidden_units: [256,] #[64,]    # LSTM hidden units: 64
+
+    # Actor architecture:
+    actor_arch_hidden_units: []
+    # Critic architecture:
+    critic_arch_hidden_units: []
+
+    # Goal Phi Body:
+    goal_phi_arch_channels: None
+    goal_phi_arch_kernels: None
+    goal_phi_arch_strides: None
+    goal_phi_arch_paddings: None
+    goal_phi_arch_feature_dim: None
+    goal_phi_arch_hidden_units: [128,]
+
+    goal_phi_arch_embedding_size: 32
+
+    # Critic architecture:
+    goal_critic_arch_hidden_units: []
+
+    extra_inputs_infos: {
+        #'previous_reward':{
+        #    shape: [1,], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+        #'previous_action':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+
+        #'action_mask':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+        #'legal_actions':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['head', 'extra_inputs']
+        #},
+
+        ########################
+        # WITH SAD:
+        ########################
+        #'greedy_action':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+        ########################
+        ########################
+           
+    }
+    
+    # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+    # Value is a tuple where the first element is the expected shape of the extra input,
+    # and the second item is the location where the input should be stored in the framestate.
+    # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+
+Predictor: &Predictor 
+    predictor_encoder_arch: 'CNN'
+    predictor_decoder_arch: 'CaptionGRU'
+    
+    # Encoder:
+    predictor_encoder_arch_channels: [16, M, 32, 256]
+    predictor_encoder_arch_kernels: [2, 2, 2, 2]
+    predictor_encoder_arch_strides: [1, 1, 1, 1]
+    predictor_encoder_arch_paddings: [1, 1, 1, 1]
+    predictor_encoder_arch_feature_dim: 256        # GRU inputs / CNN output dim
+    predictor_encoder_arch_hidden_units: [256,]    # GRU hidden units
+
+    # Decoder:
+    predictor_decoder_arch_channels: None
+    predictor_decoder_arch_kernels: None
+    predictor_decoder_arch_strides: None
+    predictor_decoder_arch_paddings: None
+    predictor_decoder_arch_feature_dim: None
+    predictor_decoder_arch_hidden_units: [256,]
+
+    predictor_decoder_embedding_size: 128
+
+
+ELA_LargeCNN_Predictor: &ELA_LargeCNN_Predictor
+    double: True #False
+    dueling: True #False
+    noisy: False 
+    n_step: 3 #1
+
+    use_PER: True #False
+    PER_alpha: 0.9 #0.6
+    PER_beta: 0.6 #1.0
+
+    replay_capacity: 5242880 #50000
+    replay_period: 1 #240 #240
+
+    observation_resize_dim: None
+    #goal_resize_dim: None
+    
+    discount: 0.98 #0.99
+    use_cuda: True
+    gradient_clip: 0.5 #1.0
+    batch_size: 128 #32
+    tau: 4.0e-4 #1.0e-2 #THER paper:1.0e-3
+    learning_rate: 6.25e-5 #1.0e-3 #1.0e-4 #1.0e-5   # 1e-4 predictor while 1e-5 network...
+    adam_eps: 1.5e-5 #1.0e-8
+    adam_weight_decay: 0.0 #1.0e-8
+    ther_adam_eps: 1.0e-12
+    ther_adam_weight_decay: 0.0 #1.0e-8
+    # NEED RMSProp optimizer...
+
+    epsstart: 1.0
+    epsend: 0.1 #0.05
+    epsdecay: 10000 #500000 
+
+    eps_greedy_alpha: 7.0
+
+    burn_in: False
+
+    <<: *LargeCNN
+    <<: *Predictor
+    <<: *extra_hyperparameters
+    #<<: *ppo_extra_hyperparameters
+    <<: *THER_extra_hyperparameters
+    <<: *ETHER_extra_hyperparameters
+    <<: *RP_extra_hyperparameters
+    <<: *ELA_extra_hyperparameters
+
+experiment:
+    tasks: [{
+        #'env-id': 'BabyAI-PickupDistDebug-v0',
+        #'env-id': 'BabyAI-PickupDist-v0',
+        #'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        #'env-id': 'MiniWorld-MazeConditionalPickUpObjectFast-v0',
+        'env-id': 'MiniWorld-ConditionalPickUpObjectFast2x2-v0',
+        #'env-id': 'BabyAI-PickupLoc-v0',
+        #'env-id': 'BabyAI-PutNextLocal-v0',
+        'env-config': {
+                'num_objs':5,
+        },
+
+        'run-id': 'final-1/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
+         
+        'agent-id': 'archi_r2d2_ELA_shared',
+        
+        'nbr_actor': 32,
+        'sad': False,
+        'vdn': False,
+        'otherplay': False,
+        'single_life_episode': False,
+        'single_pick_episode': False,
+        'nbr_max_random_steps': 0,
+        'clip_reward': False,
+        'time_limit': 400,
+        'observation_resize_dim': 84, #56, #None,
+        'goal_resize_dim': None,
+        'previous_reward_action': True,
+        'observation_key': 'image',
+        'nbr_frame_skipping': 0,
+        'nbr_frame_stacking': 1, #4,
+        'frame_depth': 3,
+        # The following requires a wrapper that provides direction,
+        # as it is no always available...
+        #'concatenate_keys_with_obs': ['direction', 'action'],
+        'concatenate_keys_with_obs': [], #'action'],
+        'add_rgb_wrapper': False,
+        'full_obs': False,
+        'reload': 'None',
+    },]
+    
+    experiment_id: 'EReLELA_MiniWorld_Benchmark'
+    benchmarking_episodes: 10
+    benchmarking_interval: 5.0e4
+    benchmarking_record_episode_interval: 40 #None #1.0e8
+    train_observation_budget: 1.0e7
+    seed: 1
+
+agents:    
+    1step_prioritized_double_ELA_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining: &1step_prioritized_double_ELA_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
+        <<: *ELA_LargeCNN_Predictor
+        #double: True
+        #dueling: True 
+        #noisy: True 
+        
+        #n_step: 1
+        #use_PER: True
+        #PER_alpha: 0.7
+        #PER_beta: 0.4
+        
+        #replay_period: 2    
+        #batch_size: 16
+        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+        # but bottleneck on GPU batchsize gives a better trade-off 
+        # batch-regularization-effect / speed with a batch_size=16 
+        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+        # and ~84 it/sec with updates...
+        # Whereas 32 / 4 yielded ~25 it/sec....
+        
+        THER_use_PER: False #
+        THER_PER_alpha: 0.7
+        THER_PER_beta: 0.4
+        
+        #nbr_training_iteration_per_cycle: 10 # HER: 40
+        #nbr_episode_per_cycle:  16  # HER: 16
+    
+    archi_r2d2_ELA_shared:
+        <<: *1step_prioritized_double_ELA_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining
+        
+        #DEBUG:
+        saving_interval: 1e10 #5e5
+        #THER_min_capacity: 12 #1e4
+        min_capacity: 1e3
+
+        weights_entropy_lambda: 0.0 
+        vdn: False
+        vdn_nbr_players: 2
+        sad: False 
+
+        
+        learning_rate: 6.25e-5
+        adam_eps: 1.0e-12
+        adam_weight_decay: 0.0 #1.0e-8
+        
+        #ther_adam_eps: 1.0e-12
+        #ther_adam_weight_decay: 0.0 #1.0e-8
+
+
+        replay_capacity: 2e4 #5e4 #5e5
+        
+        n_step: 3
+        #n_step: 7
+
+        batch_size: 128
+        nbr_minibatches: 10 
+        epsend: 0.4
+        eps_greedy_alpha: 2.0
+                        
+        semantic_embeddings_prior: &semantic_embeddings_prior True
+        
+        ArchiModel:
+            model_id: 'RL_FiLMedELAModel'
+            hyperparameters:
+                vocab_size: *ELA_vocab_size
+                max_sentence_length: *ELA_max_sentence_length
+                encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
+                #caption_feature_dim: &caption_feature_dim 256 #256 #64
+                caption_feature_dim: &caption_feature_dim 256 #64
+                feature_dim: &feature_dim 512 #256 #64
+                lstm_input_dim: &lstm_input_dim 576 #577 #321 #769 #512 #128
+                comm_state_dim: &comm_state_dim 256
+                hidden_dim: &hidden_dim 1024 #512
+                action_dim: &action_dim 6 #7
+                rlhead_state_dim: &rlhead_state_dim 1030 #1031 #1032 #520
+                temporal_dim: &temporal_dim 4
+                mlp_input_dim: &mlp_input_dim 6400 #3136
+                #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
+                
+            input_stream_ids:
+                "inputs:obs" : "observations:obs"
+                "inputs:legal_actions" : "frame_states:legal_actions"
+                
+            modules:
+                'CoreLSTM':
+                    type: LSTMModule
+                    state_dim: *lstm_input_dim #"{{key_dim}+1}"
+                    hidden_units: 
+                        - *hidden_dim 
+                    non_linearities: [None]
+                    config: None
+                    input_stream_ids:
+                        lstm_input: "inputs:ConcatenationOperation:output"
+                        #lstm_input: "inputs:Encoder:processed_input"
+                        lstm_hidden: "inputs:CoreLSTM:hidden"
+                        lstm_cell: "inputs:CoreLSTM:cell"
+                        iteration: "inputs:CoreLSTM:iteration"
+                    #output_stream_ids:
+                    #    output: "inputs:CoreLSTM:lstm_output"
+                    use_cuda: True
+
+                'SharedObsEncoder':
+                    type: ConvolutionalNetworkModule
+                    #input_shape: [16, 56, 56]
+                    #input_shape: [12, 56, 56]
+                    #input_shape: [3, 56, 56]
+                    input_shape: [3, 84, 84]
+                    feature_dim: -1 #*feature_dim #"{{value_dim}}"
+                    #feature_dim: *feature_dim #"{{value_dim}}"
+                    #channels: ['BN32', 'BN32', 'BN64']
+                    #channels: ['BN32', 'BN64', 'BN64']
+                    #channels: [32, 64, *encoder_final_depth_dim]
+                    channels: [32, 64, 128, *encoder_final_depth_dim]
+                    #kernel_sizes: [3, 3, 3]
+                    #kernel_sizes: [8, 4, 3]
+                    kernel_sizes: [8, 4, 3, 3]
+                    #strides: [2, 2, 2]
+                    #strides: [4, 2, 1]
+                    strides: [4, 2, 2, 1]
+                    #paddings: [1, 1, 1]
+                    #paddings: [0, 1, 1]
+                    paddings: [0, 1, 1, 1]
+                    fc_hidden_units: [] #[128] #[256, 128]
+                    non_linearities: ['ReLU']
+                    dropout: 0.0
+                    use_coordconv: False #True
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:obs"
+                    output_stream_ids:
+                        input: "inputs:SharedObsEncoder:processed_input"
+                    use_cuda: True
+    
+                #'RGObsEncoder':
+                #    type: ConvolutionalNetworkModule
+                #    #input_shape: [16, 56, 56]
+                #    #input_shape: [12, 56, 56]
+                #    #input_shape: [3, 56, 56]
+                #    input_shape: [3, 84, 84]
+                #    feature_dim: -1 #*feature_dim #"{{value_dim}}"
+                #    #feature_dim: *feature_dim #"{{value_dim}}"
+                #    #channels: ['BN32', 'BN32', 'BN64']
+                #    channels: [32, 64, 64]
+                #    #kernel_sizes: [3, 3, 3]
+                #    kernel_sizes: [8, 4, 3]
+                #    #strides: [2, 2, 2]
+                #    strides: [4, 2, 1]
+                #    #paddings: [1, 1, 1]
+                #    paddings: [0, 1, 1]
+                #    fc_hidden_units: [] #[128] #[256, 128]
+                #    non_linearities: ['ReLU']
+                #    dropout: 0.0
+                #    use_coordconv: False #True
+                #    config: None
+                #    input_stream_ids:
+                #        input: "inputs:obs"
+                #    output_stream_ids:
+                #        input: "inputs:RGObsEncoder:processed_input"
+                #    use_cuda: True
+    
+                'CommEncoder':
+                    type: EmbeddingRNNModule 
+                    vocab_size: *THER_vocab_size
+                    feature_dim: *feature_dim 
+                    embedding_size: *feature_dim 
+                    hidden_units: *hidden_dim
+                    num_layers: 1
+                    gate: None #F.relu, 
+                    dropout: 0.0 
+                    rnn_fn: "GRU"
+                    padding_idx: 0
+                    config: None
+                    input_stream_ids:
+                        #input: "inputs:phi_body:extra_inputs:dialog"
+                        input: "inputs:phi_body:extra_inputs:desired_goal"
+                    output_stream_ids:
+                        input: "inputs:CommEncoder:processed_input"
+                    use_cuda: True
+
+                'FiLMedBlock1':
+                    type: FiLMedModule
+                    config:
+                        nbr_input_channels: *encoder_final_depth_dim
+                        nbr_input_features: *feature_dim
+                        nbr_output_channels: *encoder_final_depth_dim
+                        kernel_sizes: [1, 3]
+                        strides: [1, 1]
+                        paddings: [0, 1]
+                        use_coordconv: True
+                        use_residual_connection: True
+                    input_stream_ids:
+                        input: "inputs:SharedObsEncoder:processed_input"
+                        modulation_input: "inputs:CommEncoder:processed_input"
+                    output_stream_ids:
+                        input: "inputs:FiLMedBlock1:processed_input"
+                    use_cuda: True
+                    
+                'FiLMedBlock2':
+                    type: FiLMedModule
+                    config:
+                        nbr_input_channels: *encoder_final_depth_dim
+                        nbr_input_features: *feature_dim
+                        nbr_output_channels: *encoder_final_depth_dim
+                        kernel_sizes: [1, 3]
+                        strides: [1, 1]
+                        paddings: [0, 1]
+                        use_coordconv: True
+                        use_residual_connection: True
+                    input_stream_ids:
+                        input: "inputs:FiLMedBlock1:processed_input"
+                        modulation_input: "inputs:CommEncoder:processed_input"
+                    output_stream_ids:
+                        input: "inputs:FiLMedBlock2:processed_input"
+                    use_cuda: True
+                    
+                #'CaptionGeneratorMLP':
+                'InstructionGeneratorMLP':
+                    type: FullyConnectedNetworkModule
+                    state_dim: *mlp_input_dim #3136
+                    hidden_units: ['BN1024', 'BN512', 'BN256']
+                    non_linearities: ['ReLU']
+                    dropout: 0.25
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:SharedObsEncoder:processed_input"
+                        #input: "inputs:RGObsEncoder:processed_input"
+                    output_stream_ids:
+                        #input: "inputs:CaptionGeneratorMLP:processed_input"
+                        input: "inputs:InstructionGeneratorMLP:processed_input"
+                    use_cuda: True
+                
+                'MLP':
+                    type: FullyConnectedNetworkModule
+                    state_dim: *mlp_input_dim #3136
+                    hidden_units: ['BN256', 'BN128', 'BN64']
+                    non_linearities: ['ReLU']
+                    dropout: 0.0
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:FiLMedBlock2:processed_input"
+                    output_stream_ids:
+                        input: "inputs:MLP:processed_input"
+                    use_cuda: True
+                    
+                'ActionEmbeddor':
+                    type: EmbeddingModule 
+                    num_embeddings: *action_dim
+                    embedding_dim: *feature_dim 
+                    #padding_idx: None
+                    #max_norm: None
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:critic_body:extra_inputs:previous_action_int"
+                    output_stream_ids:
+                        input: "inputs:ActionEmbeddor:processed_input"
+                    use_cuda: True
+    
+                'ConcatenationOperation':
+                    type: ConcatenationOperationModule
+                    config:
+                        'dim': -1
+                        'use_cuda': True
+                        'output_dim': *lstm_input_dim #321
+                    input_stream_ids:
+                        #input0: "inputs:ObsEncoder:processed_input"
+                        #input1: "inputs:CommEncoder:processed_input"
+                        input1: "inputs:MLP:processed_input"
+                        input2: "inputs:ActionEmbeddor:processed_input"
+                        # WARNING: no longer giving the previous reward because it is different and modified by the algorithm wrapper ELA...
+                        #input3: "inputs:critic_body:extra_inputs:previous_reward"
+
+                'RLHead':
+                    #type: RLCategoricalActorCriticHeadModule
+                    type: RLCategoricalHeadModule
+                    state_dim: *rlhead_state_dim 
+                    action_dim: *action_dim
+                    #use_intrinsic_critic: False
+                    noisy: False
+                    dueling: True
+                    config: None
+                    input_stream_ids: 
+                        #input0: "inputs:CoreLSTM:lstm_output"
+                        input0: "inputs:CoreLSTM:output"
+                        # WARNING: no longer giving previous reward as it is going to be modified by algo wrapper ELA...
+                        #input1: "inputs:critic_body:extra_inputs:previous_reward"
+                        input2: "inputs:critic_body:extra_inputs:previous_action"
+                        #input3: "inputs:critic_body:extra_inputs:action_mask"
+                        action: "inputs:action"
+                        #legal_actions: "inputs:legal_actions"
+                    use_cuda: True
+
+                #'CaptionGenerator':
+                'InstructionGenerator':
+                    type: CaptionRNNModule
+                    vocabulary: *ELA_vocabulary 
+                    vocab_size: *ELA_vocab_size 
+                    max_sentence_length: *ELA_max_sentence_length 
+                    input_dim: *caption_feature_dim #*instruction_generator_input_dim
+                    embedding_size: *caption_feature_dim
+                    hidden_units: *hidden_dim 
+                    num_layers: 1
+                    gate: None #F.relu, 
+                    dropout: 0.25 #0.0  
+                    rnn_fn: "GRU"
+                    config:
+                        predict_PADs: False
+                        diversity_loss_weighting: False #True
+                        rectify_contrastive_imbalance: False
+                        semantic_embeddings_prior: *semantic_embeddings_prior
+                        semantic_prior_mixing: "multiplicative"
+                        semantic_prior_mixing_with_detach: False  
+                        input_mm_projector_BN: False
+                        semantic_embedding_init: 'ortho' 
+                    input_stream_ids:
+                        #input0: "inputs:CaptionGeneratorMLP:processed_input"
+                        #input0: "inputs:InstructionGeneratorMLP:processed_input"
+                        input0: "inputs:SharedObsEncoder:processed_input"
+                        input0_gt_sentences: "inputs:gt_sentences"
+                    output_stream_ids:
+                        #input0: "inputs:CaptionGenerator:processed_input0"
+                        input0: "inputs:InstructionGenerator:processed_input0"
+                    use_cuda: True 
+
+                'RewardPredictionMLP':
+                    type: FullyConnectedNetworkModule
+                    state_dim: *hidden_dim 
+                    hidden_units: [3] #[256, 3]
+                    non_linearities: ['None'] #['ReLU', 'None']
+                    dropout: 0.0
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:CoreLSTM:output"
+                    output_stream_ids:
+                        input: "inputs:RewardPredictionMLP:processed_input"
+                    use_cuda: True
+
+                'OracleTHER':
+                    type: OracleTHERModule
+                    vocabulary: *THER_vocabulary 
+                    vocab_size: *THER_vocab_size 
+                    max_sentence_length: *THER_max_sentence_length 
+                    config: None
+                    input_stream_ids:
+                        input0: "inputs:OracleTHER:achieved_goal"
+                        input0_gt_sentences: "inputs:gt_sentences"
+                    output_stream_ids:
+                        input0: "inputs:InstructionGenerator:processed_input0"
+                    use_cuda: True 
+
+            
+            output_mappings:
+                head:
+                    "a" : "modules:RLHead:a"
+                    #"greedy_action" : "modules:RLHead:greedy_action"
+                    "ent" : "modules:RLHead:ent"
+                    "legal_ent" : "modules:RLHead:legal_ent"
+                    #"v" : "modules:RLHead:v"
+                    "qa" : "modules:RLHead:qa"
+                    #"log_pi_a" : "modules:RLHead:log_pi_a"
+                    "log_a" : "modules:RLHead:log_a"
+                    "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
+            
+            input_mappings:
+                    # Remaps the features to there original stream when using head pipeline only:
+                    head:
+                        "inputs:obs": "inputs:ConcatenationOperation:output"
+            features_id: 
+                #caption_generator: "inputs:CaptionGenerator:processed_input0"
+                instruction_generator: "inputs:InstructionGenerator:processed_input0"
+                torso: "inputs:ConcatenationOperation:output"
+                reward_prediction: "inputs:RewardPredictionMLP:processed_input"
+            
+            pipelines:
+                torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
+                head: ['CoreLSTM', 'RLHead']
+                instruction_generator: ['OracleTHER'] 
+                #instruction_generator: ['SharedObsEncoder', 'InstructionGeneratorMLP', 'InstructionGenerator']
+                #instruction_generator: ['SharedObsEncoder', 'InstructionGenerator']
+                #caption_generator: ['SharedObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
+                #caption_generator: ['RGObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
+                reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
+        
+        extra_inputs_infos: {
+            # WARNING: no longer giving previous reward as it is going to be modified by algo wrapper ELA...
+            #'previous_reward':{
+            #    shape: [1,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action_int':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+
+            #'dialog':{
+            'desired_goal':{
+                #shape: [28], #[63,], 
+                shape: [10], #20], 
+                target_location: ['phi_body', 'extra_inputs']
+            },
+            
+            # Uncomment the following if using THER_observe_achieved_goal
+            'achieved_goal':{
+                #shape: [28], #[63,], 
+                shape: [10], #20], 
+                target_location: ['OracleTHER']
+            },
+            
+ 
+            #'action_mask':{
+            #    shape: ['task.action_dim',], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            #'legal_actions':{
+            #    shape: ['task.action_dim',], 
+            #    target_location: ['head', 'extra_inputs']
+            #},
+
+            ########################
+            # WITH SAD:
+            ########################
+            #'greedy_action':{
+            #    shape: [31,], #[6223,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            ########################
+            ########################
+               
+        }
+    
+ 
