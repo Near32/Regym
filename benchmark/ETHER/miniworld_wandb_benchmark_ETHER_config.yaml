@@ -399,6 +399,8 @@ agents:
         epsend: 0.4
         eps_greedy_alpha: 2.0
         
+        semantic_embeddings_prior: &semantic_embeddings_prior True
+        
         ArchiModel:
             model_id: 'RL_FiLMedETHERModel'
             hyperparameters:
@@ -411,6 +413,7 @@ agents:
                 action_dim: &action_dim 6 #7
                 rlhead_state_dim: &rlhead_state_dim 1031 #1032 #520
                 temporal_dim: &temporal_dim 4
+                cnn_output_dim: &cnn_output_dim 4096 #12544
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
             input_stream_ids:
@@ -441,9 +444,9 @@ agents:
                     #input_shape: [12, 56, 56]
                     input_shape: [3, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
-                    channels: ['BN32', 'BN32', 'BN64']
-                    kernel_sizes: [3, 3, 3]
-                    strides: [2, 2, 2]
+                    channels: ['BN32', 'BN64', 'BN64']
+                    kernel_sizes: [8, 4, 3]
+                    strides: [3,2,1] #[2, 2, 2]
                     paddings: [1, 1, 1]
                     fc_hidden_units: [] #[128] #[256, 128]
                     non_linearities: ['ReLU']
@@ -513,7 +516,7 @@ agents:
                     
                 'InstructionGeneratorMLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: 3136
+                    state_dim: *cnn_output_dim #3136
                     hidden_units: ['BN1024', 'BN512', 'BN256']
                     non_linearities: ['ReLU']
                     dropout: 0.25
@@ -526,7 +529,7 @@ agents:
                 
                 'MLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: 3136
+                    state_dim: *cnn_output_dim #3136
                     hidden_units: ['BN256', 'BN128', 'BN64']
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -595,6 +598,9 @@ agents:
                     config:
                         predict_PADs: False
                         diversity_loss_weighting: False #True
+                        rectify_contrastive_imbalance: False
+                        semantic_embeddings_prior: *semantic_embeddings_prior
+                        semantic_prior_mixing: "multiplicative"
                     input_stream_ids:
                         input0: "inputs:InstructionGeneratorMLP:processed_input"
                         input0_gt_sentences: "inputs:gt_sentences"

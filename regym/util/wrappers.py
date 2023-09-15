@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 verbose = False
 
+import wandb
 
 
 def is_leaf(node: Dict):
@@ -632,6 +633,15 @@ class EpisodicLifeEnv(gym.Wrapper):
     def __init__(self, env):
         """Make end-of-life == end-of-episode, but only reset on true game over.
         Done by DeepMind for the DQN and co. since it helps value estimation.
+        WARNING: As the ale no longer provides the same behaviour
+        around lives and scores.
+        For instance, the lives/score paradigm can no longer be used 
+        in Pong to account for the lives...
+
+        N.B.: It has now been updated to account for non-positive rewards
+        as the loss of a life.
+        It is now suitable for Pong, at least.
+
         """
         gym.Wrapper.__init__(self, env)
         self.lives = 0
@@ -647,6 +657,8 @@ class EpisodicLifeEnv(gym.Wrapper):
             # for Qbert sometimes we stay in lives == 0 condition for a few frames
             # so it's important to keep lives > 0, so that we only reset once
             # the environment advertises done.
+            done = True
+        elif reward < 0:
             done = True
         self.lives = lives
         return obs, reward, done, info
@@ -667,15 +679,20 @@ class EpisodicLifeEnv(gym.Wrapper):
 class EpisodicPickEnv(gym.Wrapper):
     def __init__(self, env, pick_idx=0):
         """
-        Make pick = end-of-episode for BabyAI benchmark.
+        Make pick = end-of-episode for BabyAI benchmark or MiniWorld.
         """
         gym.Wrapper.__init__(self, env)
         self.pick_idx = pick_idx
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
+        
+        carrying = getattr(self.unwrapped, 'carrying', None)
+        if carrying is None \
+        and hasattr(self.unwrapped, 'agent'):
+            carrying = getattr(self.unwrapped.agent, 'carrying', None)
         if action == self.pick_idx \
-        and self.env.carrying is not None:
+        and carrying is not None:
             done = True
         return obs, reward, done, info
 
@@ -836,7 +853,7 @@ class ClipRewardEnv(gym.RewardWrapper):
 
 
 
-def baseline_atari_pixelwrap(
+def depr_baseline_atari_pixelwrap(
     env, 
     size=None, 
     skip=4, 
@@ -880,6 +897,59 @@ def baseline_atari_pixelwrap(
     if clip_reward:
         env = ClipRewardEnv(env)
 
+    if previous_reward_action:
+        env = PreviousRewardActionInfoWrapper(env=env)
+    
+    return env
+
+
+def baseline_atari_pixelwrap(
+    env, 
+    size=None, 
+    skip=4, 
+    stack=4, 
+    grayscale=True,  
+    single_life_episode=True, 
+    nbr_max_random_steps=30, 
+    clip_reward=True,
+    time_limit=18000,
+    previous_reward_action=False,
+):
+    env = gym.wrappers.RecordEpisodeStatistics(env)
+    
+    if 'timelimit' in type(env).__name__.lower():
+        env._max_episode_steps = time_limit
+    else:
+        env = TimeLimit(env, max_episode_steps=time_limit)
+    env = Gymnasium2GymWrapper(env=env)
+    
+    if nbr_max_random_steps > 0:
+        env = NoopResetEnv(env, noop_max=nbr_max_random_steps)
+    
+    if skip > 0:
+        env = MaxAndSkipEnv(env, skip=skip)
+    
+    if single_life_episode:
+        env = EpisodicLifeEnv(env)
+    
+    if clip_reward:
+        env = ClipRewardEnv(env)
+
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    if size is not None and isinstance(size, int):
+        env = gym.wrappers.ResizeObservation(env, (size, size))
+    if grayscale:
+        env = gym.wrappers.GrayScaleObservation(env,keep_dim=True)
+        #env = GrayScaleObservationCV(env=env) 
+    
+    #if size is not None and isinstance(size, int):
+    #    env = FrameResizeWrapper(env, size=size) 
+    
+    if stack > 1:
+        env = FrameStack(env, stack=stack)
+        #env = gym.wrappers.FrameStack(env, stack)
+    
     if previous_reward_action:
         env = PreviousRewardActionInfoWrapper(env=env)
     
@@ -2359,7 +2429,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             for idx in range(final_idx):
                 idx_goal[...,idx] = self.w2idx[t_goal[idx]]
             # Add 'EoS' token:
-            idx_goal[...,final_idx-1] = self.w2idx['EoS']
+            idx_goal[...,final_idx] = self.w2idx['EoS']
             #padded_idx_goal = nn.utils.rnn.pad_sequence(idx_goal, padding_value=self.w2idx["PAD"])
             #observation[map_key] = padded_idx_goal
             
@@ -2371,7 +2441,9 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
     def __init__(self, env, max_sentence_length=10):
         """
         Add an observation string that describe the achieved goal for a PickUp-based env.
-
+        'EoS' most of the time, unless, by order of priority:
+            - the agent is carrying an object --> 'pick up the {color} {shape}'.
+            - 'visible_entities' is among the observations, then we use this description sentence. 
         """
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
@@ -2383,20 +2455,23 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         achieved_goal = "EoS"
         color = None
         shape = None
-        if hasattr(self.env, "carrying"):
-            if self.env.carrying is not None:
-                color = self.env.carrying.color
-                shape = self.env.carrying.type
+        if hasattr(self.unwrapped, "carrying"):
+            if self.unwrapped.carrying is not None:
+                color = self.unwrapped.carrying.color
+                shape = self.unwrapped.carrying.type
         else:
-            import ipdb; ipdb.set_trace()
-            carrying = self.env.agent.carrying
+            carrying = self.unwrapped.agent.carrying
             if carrying is not None:
                 shape = type(carrying).__name__.lower()
                 color = getattr(carrying, "color", None)
+        
         if color is not None and shape is not None:
             achieved_goal = f"pick up the {color} {shape}".lower()
+        elif 'visible_entities' in observation.keys():
+            achieved_goal = copy.deepcopy(observation['visible_entities'])
         observation['behaviour_description'] = achieved_goal
         return observation
+
 
 class BabyAIMissionWrapper(gym.Wrapper):
     """
@@ -2705,7 +2780,14 @@ class ConfigVideoRecorder(VideoRecorder):
 
 
 class PeriodicVideoRecorderWrapper(gym.Wrapper):
-    def __init__(self, env, base_dirpath, video_recording_episode_period=1, render_mode='rgb_array', record_obs=False):
+    def __init__(
+        self, 
+        env, 
+        base_dirpath, 
+        video_recording_episode_period=1, 
+        render_mode='rgb_array', 
+        record_obs=True,
+    ):
         try:
             env.metadata['render.modes'].append('rgb_array')
         except Exception as e:
@@ -2714,27 +2796,26 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
 
         gym.Wrapper.__init__(self, env)
          
-        self.render_mode = render_mode
+        self.rendering_mode = render_mode
         self.record_obs = record_obs
         self.episode_idx = 0
         self.base_dirpath = base_dirpath
         os.makedirs(self.base_dirpath, exist_ok=True)
         self.video_recording_episode_period = video_recording_episode_period
         
-        self.is_video_enabled = True
-        self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
+        self.is_video_enabled = False
+        #self._init_video_recorder(env=env, path=os.path.join(self.base_dirpath, 'video_0.mp4'))
 
     def _init_video_recorder(self, env, path):
         #self.video_recorder = gym.wrappers.monitoring.video_recorder.VideoRecorder(env=env, path=path, enabled=True)
-        self.video_recorder = ConfigVideoRecorder(env=env, render_mode=self.render_mode, path=path, enabled=True)
+        #self.video_recorder = ConfigVideoRecorder(env=env, render_mode=self.rendering_mode, path=path, enabled=True)
+        self.frames = []
 
-    def reset(self, **args):
-        self.episode_idx += 1
-
-        env_output = super(PeriodicVideoRecorderWrapper, self).reset()
+    def reset(self, **kwargs):
+        env_output = super(PeriodicVideoRecorderWrapper, self).reset(**kwargs)
 
         if self.episode_idx % self.video_recording_episode_period == 0:
-            path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
+            self.current_video_path = path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
             self._init_video_recorder(env=self.env, path=path) 
             self.is_video_enabled = True
         else:
@@ -2744,11 +2825,30 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
                     frame = env_output
                     while isinstance(frame, list) or isinstance(frame, tuple):
                         frame = frame[0]
-                self.video_recorder.capture_frame(frame=frame)
-                self.video_recorder.close()
-                del self.video_recorder
+                    #if frame.shape[-1] != 3:
+                    #    frame = frame.transpose(2,1,0)
+                    frame = frame.transpose(0,2,1)
+                #self.video_recorder.capture_frame(frame=frame)
+                self.frames.append(frame)
+                #self.video_recorder.close()
+                #del self.video_recorder
+                self.frames = np.stack(self.frames,0)
+                wandb_video = wandb.Video(
+                    #data_or_path=self.current_video_path,
+                    data_or_path=self.frames,
+                    fps=2,
+                    format='mp4',
+                )
+                wandb.log({
+                    "Video":wandb_video,
+                    },
+                    commit=False,
+                )
+                del wandb_video
+                del self.frames
                 self.is_video_enabled = False
 
+        self.episode_idx += 1
         return env_output
 
     def step(self, action):
@@ -2757,9 +2857,13 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
             frame = None
             if self.record_obs:
                 frame = obs
-                if isinstance(frame, list):
+                while isinstance(frame, list):
                     frame = frame[0]
-            self.video_recorder.capture_frame(frame=frame)
+                #if frame.shape[-1] != 3:
+                #    frame = frame.transpose(2,1,0)
+                frame = frame.transpose(0,2,1)
+            #self.video_recorder.capture_frame(frame=frame)
+            self.frames.append(frame)
 
         return obs, reward, done, info
 
@@ -3210,6 +3314,255 @@ class Gymnasium2GymWrapper(gym.Wrapper):
             next_observations, reward, done, truncated, next_infos = step_output
         return next_observations, reward, done, next_infos
 
+
+class CoverageManipulationMetricWrapper(gym.Wrapper):
+    """
+    Compute coverage ratio of the agent over a given environment.
+    It has been also extended towards computing manipulation ratio, 
+    i.e. whether an object is being carried.
+    :param env: (gym.Env): Env to wrap.
+    :param coverage_precision: float, precision of the grid in meters.
+    :param coverage_epsilon: float, threshold distance between grid 
+        center and agent pose below which the grid point is considered
+        visited.
+    """
+    def __init__(
+        self, 
+        env, 
+        coverage_precision=0.5,
+        coverage_epsilon=0.25,
+        pick_idx=0,
+    ):
+        super(CoverageManipulationMetricWrapper, self).__init__(env)
+        self.coverage_precision= coverage_precision
+        self.coverage_epsilon = coverage_epsilon
+        
+        self.coverage_count = 0
+        self.coverage_points = []
+        x = self.min_x = self.env.unwrapped.min_x
+        z = self.min_z = self.env.unwrapped.min_z
+        self.max_x = self.env.unwrapped.max_x
+        self.max_z = self.env.unwrapped.max_z
+        while x < self.max_x:
+            z = self.min_z
+            while z < self.max_z:
+                self.coverage_points.append(np.array([x, 0.0, z]))
+                z += self.coverage_precision
+            x += self.coverage_precision
+        self.nbr_coverage_points = len(self.coverage_points)
+        
+        self.reward_hist = []
+        self.manipulation_count = 0
+        self.episode_length = 1000
+        self.manipulation_hist = []
+        self.episode_idx = 0
+        self.pick_idx = pick_idx
+        self.pickup_count = 0
+
+    def compute_coverage(self, agent_poses):
+        coverage_count = 0
+        for cov_point in self.coverage_points:
+            distances = [
+                np.linalg.norm(cov_point-pose, 2)
+                for pose in agent_poses
+            ]
+            min_dist = min(distances)
+            if min_dist < self.coverage_epsilon:
+                coverage_count += 1
+
+        return coverage_count
+
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
+            
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        reward_hist = wandb.Histogram(self.reward_hist)
+        manipulation_hist = wandb.Histogram(self.manipulation_hist)
+        CoverageRatio = float(self.coverage_count)/self.nbr_coverage_points
+        ManipulationRatio = float(self.manipulation_count)/self.episode_length
+        PickupRatio = float(self.pickup_count)/self.episode_length
+        wandb.log({
+            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":CoverageRatio,
+            f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
+            f"Wrappers/LanguageGuidedCuriosity/ManipulationCount":self.manipulation_count,
+            f"Wrappers/LanguageGuidedCuriosity/ManipulationRatio":ManipulationRatio,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/EpisodeLength": self.episode_length,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogramIndex": self.episode_idx,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/RewardHistogram": reward_hist,
+            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogram": manipulation_hist,
+            f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
+            f"Wrappers/LanguageGuidedCuriosity/PickupCount": self.pickup_count,
+            f"Wrappers/LanguageGuidedCuriosity/PickupRatio": PickupRatio,
+            },
+            commit=False,
+        )
+
+        self.reward_hist = []
+        self.manipulation_count = 0
+        self.episode_length = 1
+        self.manipulation_hist = []
+        self.episode_idx += 1
+        self.pickup_count = 0
+
+        self.agent_poses = [self.env.unwrapped.agent.pos]
+
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        
+        self.agent_poses.append(self.env.unwrapped.agent.pos)
+
+        self.episode_length += 1
+        if reward > 0 :
+            self.reward_hist.append(self.episode_length)
+
+        carrying = getattr(self.unwrapped, 'carrying', None)
+        if carrying is None \
+        and hasattr(self.unwrapped, 'agent'):
+            carrying = getattr(self.unwrapped.agent, 'carrying', None)
+        if carrying is not None:
+            self.manipulation_count += 1
+            self.manipulation_hist.append(self.episode_length)
+        
+        if action == self.pick_idx \
+        and carrying is not None:
+            # successful pick up move :
+            self.pickup_count += 1
+         
+        if done:
+            self.coverage_count = self.compute_coverage(self.agent_poses)
+            if 'metrics' not in next_infos:
+                next_infos['metrics'] = {}
+            CoverageRatio = float(self.coverage_count)/self.nbr_coverage_points
+            ManipulationRatio = float(self.manipulation_count)/self.episode_length
+            CoverageAndManipulationRatio = (CoverageRatio+ManipulationRatio)/2
+            next_infos['metrics']["CoverageAndManipulationRatio"] = CoverageAndManipulationRatio
+            next_infos['metrics']['coverage_count'] = self.coverage_count
+            next_infos['metrics']['coverage_ratio'] = float(self.coverage_count)/self.nbr_coverage_points
+            
+            next_infos['metrics']['manipulation_count'] = self.manipulation_count
+            next_infos['metrics']['manipulation_ratio'] = float(self.manipulation_count)/self.episode_length
+            next_infos['metrics']['pickup_count'] = self.pickup_count
+            PickupRatio = float(self.pickup_count)/self.episode_length
+            next_infos['metrics']['pickup_ratio'] = PickupRatio
+
+        return next_observation, reward, done, next_infos
+
+
+class LanguageGuidedCuriosityWrapper(gym.Wrapper):
+    """
+    Add an intrinsic reward to the extrinsic reward based on the 
+    novelty of the language description provided by the environment.
+    Args:
+        env (gym.Env): Env to wrap.
+    """
+    def __init__(
+        self, 
+        env, 
+        intrinsic_weight=1.0, #1.0, #0.01,
+        extrinsic_weight=1.0, #1.0, #0.01,
+        ne_dampening_rate=0.1,
+        ne_damp_min=1e-4,
+        densify=True,
+    ):
+        super(LanguageGuidedCuriosityWrapper, self).__init__(env)
+        self.visited_state_descriptions = []
+        self.intrinsic_weight = intrinsic_weight
+        self.extrinsic_weight = extrinsic_weight
+        self.intrinsic_return = 0
+        self.extrinsic_return = 0
+        self.episode_idx = 0 
+        self.ne_dampening_rate = ne_dampening_rate
+        if self.ne_dampening_rate > 0.0:
+            self.non_episodic_dampening = True
+        else:
+            self.non_episodic_dampening = False
+        self.ne_descriptions_count = {}
+        self.ne_damps = []
+        self.ne_damp_min = ne_damp_min
+        self.densify = densify 
+
+    def reset(self, **kwargs):
+        reset_output = self.env.reset(**kwargs)
+        self.visited_state_descriptions = []
+            
+        if isinstance(reset_output, tuple):
+            obs, infos = reset_output
+        else:
+            obs = reset_output
+            infos = [{}]
+
+        if len(infos):
+            for info_idx in range(len(infos)):
+                infos[info_idx]['language_guided_reward'] = 0.0
+                infos[info_idx]['extrinsic_reward'] = 0.0
+        else:
+            infos['language_guided_reward'] = 0.0
+            infos['extrinsic_reward'] = 0.0
+        
+        ne_damps_hist = wandb.Histogram(self.ne_damps)
+        visitation_count_hist = wandb.Histogram(list(self.ne_descriptions_count.values()))
+        wandb.log({
+            f"Wrappers/LanguageGuidedCuriosity/IntrinsicReturn":self.intrinsic_return,
+            f"Wrappers/LanguageGuidedCuriosity/ExtrinsicReturn":self.extrinsic_return,
+            f"Wrappers/LanguageGuidedCuriosity/NonEpisodicDampeningHistogram":ne_damps_hist,
+            f"Wrappers/LanguageGuidedCuriosity/NonEpisodicDampeningRate":self.ne_dampening_rate,
+            f"Wrappers/LanguageGuidedCuriosity/VisitationCountHistogram":visitation_count_hist,
+            },
+            #step=self.episode_idx,
+            commit=False,
+        )
+        self.intrinsic_return = 0
+        self.extrinsic_return = 0
+        self.episode_idx += 1
+        self.ne_damps = []
+
+        return obs, infos 
+    
+    def step(self, action):
+        next_observation, reward, done, next_infos = self.env.step(action)
+        next_state_description = next_observation['visible_entities']
+        
+        if not self.densify:
+            self.intrinsic_reward = 0.0
+        new_description = False
+        if next_state_description not in self.visited_state_descriptions:
+            new_description = True
+            self.visited_state_descriptions += [next_state_description]
+            self.intrinsic_reward = 1.0
+        
+        if self.non_episodic_dampening:
+            if next_state_description in self.ne_descriptions_count:
+                self.ne_descriptions_count[next_state_description] += 1
+            else:
+                self.ne_descriptions_count[next_state_description] = 1
+            
+            if new_description :
+                rate = self.ne_dampening_rate #0.01
+                ne_damp = np.power(
+                    1-rate, 
+                    -1+self.ne_descriptions_count[next_state_description],
+                ) 
+                ne_damp = max(ne_damp, self.ne_damp_min)
+                self.ne_damps.append(ne_damp)
+                self.intrinsic_reward *= ne_damp
+
+        self.intrinsic_return += self.intrinsic_reward
+        self.extrinsic_return += reward 
+
+        next_infos['language_guided_reward'] = self.intrinsic_reward
+        next_infos['extrinsic_reward'] = reward
+        reward = self.extrinsic_weight*reward+self.intrinsic_reward*self.intrinsic_weight
+        
+        return next_observation, reward, done, next_infos
+
+
 def baseline_ther_wrapper(
     env, 
     size=None, 
@@ -3230,10 +3583,16 @@ def baseline_ther_wrapper(
     single_pick_episode=False,
     observe_achieved_goal=False,
     babyai_mission=False,
+    miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
     miniworld_entity_visibility_oracle_language_specs=False,
     miniworld_entity_visibility_oracle_include_depth=False,
     miniworld_entity_visibility_oracle_include_depth_precision=0,
+    miniworld_entity_visibility_oracle_top_view=False,
+    language_guided_curiosity=False,
+    ne_dampening_rate=0.0,
+    language_guided_curiosity_densify=False,
+    coverage_manipulation_metric=False,
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3247,8 +3606,15 @@ def baseline_ther_wrapper(
             language_specs=miniworld_entity_visibility_oracle_language_specs,
             include_depth=miniworld_entity_visibility_oracle_include_depth,
             include_depth_precision=miniworld_entity_visibility_oracle_include_depth_precision,
-            with_top_view=True,
+            with_top_view=miniworld_entity_visibility_oracle_top_view,
             verbose=False,
+        )
+    if miniworld_symbolic_image:
+        from miniworld.wrappers import SymbolicImageEntityVisibilityOracleWrapper
+        env = SymbolicImageEntityVisibilityOracleWrapper(
+            env=env,
+            relevant_entity_types=["Box", "Key", "Ball"],
+            as_obs=True,
         )
 
     env = Gymnasium2GymWrapper(env=env)
@@ -3290,6 +3656,18 @@ def baseline_ther_wrapper(
             concatenate_keys_with_obs=concatenate_keys_with_obs,
         )
     
+    if language_guided_curiosity:
+        env = LanguageGuidedCuriosityWrapper(
+            env=env,
+            ne_dampening_rate=ne_dampening_rate,
+            densify=language_guided_curiosity_densify,
+        )
+    if coverage_manipulation_metric:
+        env = CoverageManipulationMetricWrapper(
+            env=env,
+            pick_idx=env.actions.pickup,
+        )
+
     if clip_reward:
         env = ClipRewardEnv(env)
     

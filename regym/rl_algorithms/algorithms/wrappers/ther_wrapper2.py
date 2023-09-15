@@ -427,7 +427,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             episode_length = len(self.episode_buffer[actor_index])
 
             # Assumes non-successful rewards are non-positive:
-            successful_traj = all(self.episode_buffer[actor_index][-1]['r']>0)
+            successful_traj = all(self.episode_buffer[actor_index][-1]['r']>self.kwargs['success_threshold'])
             if successful_traj: self.nbr_successfull_traj += 1
 
             # Relabelling if unsuccessfull trajectory:
@@ -464,7 +464,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 d2store = {
                     's':s, 
                     'a':a, 
-                    'r':her_r, 
+                    'r':her_r if self.kwargs['THER_use_THER'] else r, 
                     'succ_s':succ_s, 
                     'non_terminal':non_terminal, 
                     'rnn_states':copy_hdict(rnn_states),
@@ -492,7 +492,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     )
 
                 # Store data in predictor storages if successfull:
-                if self.kwargs['THER_use_THER'] and r.item()>0:
+                if self.kwargs['THER_use_THER_predictor_supervised_training_data_collection'] and r.item()>0:
                     if self.train_contrastively:
                         if self.contrastive_goal_value is None:
                             target_state = succ_s
@@ -822,6 +822,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         period_count_check = self.nbr_buffered_predictor_experience
         
         # Update predictor:
+        if not self.kwargs.get('THER_use_THER_predictor_supervised_training', False):
+            return
+        else:
+            assert self.kwargs['THER_use_THER_predictor_supervised_training_data_collection']
+
         if not(self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']):
             return
         
@@ -907,7 +912,12 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
             else:
-                sample = storage.sample(batch_size=batch_size, keys=keys, test=test)
+                sample = storage.sample(
+                    batch_size=batch_size, 
+                    keys=keys, 
+                    test=test,
+                    replace=test,
+                )
             
             values = {}
             for key, value in zip(keys, sample):

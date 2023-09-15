@@ -36,7 +36,7 @@ class CoMazeGoalOrderingPredictionModule(Module):
         default_input_stream_ids = {
             "logs_dict":"logs_dict",
             "losses_dict":"losses_dict",
-            "epoch":"signals:epoch",
+            "epoch":"signals:marl_epoch",
             "mode":"signals:mode",
 
             "vocab_size":"config:vocab_size",

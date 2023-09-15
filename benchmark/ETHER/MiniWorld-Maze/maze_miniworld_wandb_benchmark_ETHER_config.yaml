@@ -112,14 +112,6 @@ ETHER_extra_hyperparameters: &ETHER_extra_hyperparameters
     ETHER_use_ETHER:  True
     
     ETHER_exp_key: "succ_s" 
-    ETHER_rg_use_semantic_cooccurrence_grounding: True
-    ETHER_grounding_signal_key: "info:desired_goal"
-    ETHER_rg_semantic_cooccurrence_grounding_lambda: 1.0
-    ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude: 0.0
-    
-    ETHER_use_continuous_feedback: False
-    ETHER_listener_based_predicated_reward_fn: False 
-
     ETHER_train_dataset_length: 1024
     ETHER_test_dataset_length: 1024
 
@@ -289,15 +281,17 @@ ETHER_LargeCNN_Predictor: &ETHER_LargeCNN_Predictor
 
 experiment:
     tasks: [{
-        #'env-id': 'BabyAI-GoToObj-v0',
-        #'env-id': 'BabyAI-GoToLocal-v0',
         #'env-id': 'BabyAI-PickupDistDebug-v0',
-        'env-id': 'BabyAI-PickupDist-v0',
+        #'env-id': 'BabyAI-PickupDist-v0',
+        #'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
+        'env-id': 'MiniWorld-MazeConditionalPickUpObjectFast-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-config': {},
+        'env-config': {
+                'num_objs':10,
+        },
 
-        'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m3/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
+        'run-id': 'final-1/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
          
         'agent-id': 'archi_r2d2_ETH3R',
         #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining',
@@ -308,29 +302,29 @@ experiment:
         'vdn': False,
         'otherplay': False,
         'single_life_episode': False,
+        'single_pick_episode': False,
         'nbr_max_random_steps': 0,
         'clip_reward': False,
-        'time_limit': 40,
-        'observation_resize_dim': None,
+        'time_limit': 400,
+        'observation_resize_dim': 56, #None,
         'goal_resize_dim': None,
         'previous_reward_action': True,
         'observation_key': 'image',
         'nbr_frame_skipping': 0,
-        'nbr_frame_stacking': 4, #1,
+        'nbr_frame_stacking': 1, #4,
         'frame_depth': 3,
         # The following requires a wrapper that provides direction,
         # as it is no always available...
         #'concatenate_keys_with_obs': ['direction', 'action'],
         'concatenate_keys_with_obs': [], #'action'],
-        'add_rgb_wrapper': True,
+        'add_rgb_wrapper': False,
         'full_obs': False,
-        'single_pick_episode': False,
         'reload': 'None',
     },]
     
-    experiment_id: 'ETHER_BabyAI_Benchmark'
+    experiment_id: 'ETHER_MiniWorld_Benchmark'
     benchmarking_episodes: 10
-    benchmarking_interval: 5.0e3
+    benchmarking_interval: 5.0e4
     benchmarking_record_episode_interval: None #1.0e8
     train_observation_budget: 1.0e7
     seed: 1
@@ -416,9 +410,10 @@ agents:
                 lstm_input_dim: &lstm_input_dim 321 #769 #512 #128
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
-                action_dim: &action_dim 7
-                rlhead_state_dim: &rlhead_state_dim 1032 #520
+                action_dim: &action_dim 6 #7
+                rlhead_state_dim: &rlhead_state_dim 1031 #1032 #520
                 temporal_dim: &temporal_dim 4
+                cnn_output_dim: &cnn_output_dim 4096 #12544
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
             input_stream_ids:
@@ -446,11 +441,12 @@ agents:
                 'SharedObsEncoder':
                     type: ConvolutionalNetworkModule
                     #input_shape: [16, 56, 56]
-                    input_shape: [12, 56, 56]
+                    #input_shape: [12, 56, 56]
+                    input_shape: [3, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
-                    channels: ['BN32', 'BN32', 'BN64']
-                    kernel_sizes: [3, 3, 3]
-                    strides: [2, 2, 2]
+                    channels: ['BN32', 'BN64', 'BN64']
+                    kernel_sizes: [8, 4, 3]
+                    strides: [3,2,1] #[2, 2, 2]
                     paddings: [1, 1, 1]
                     fc_hidden_units: [] #[128] #[256, 128]
                     non_linearities: ['ReLU']
@@ -520,7 +516,7 @@ agents:
                     
                 'InstructionGeneratorMLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: 3136
+                    state_dim: *cnn_output_dim #3136
                     hidden_units: ['BN1024', 'BN512', 'BN256']
                     non_linearities: ['ReLU']
                     dropout: 0.25
@@ -533,7 +529,7 @@ agents:
                 
                 'MLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: 3136
+                    state_dim: *cnn_output_dim #3136
                     hidden_units: ['BN256', 'BN128', 'BN64']
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -666,7 +662,7 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [*THER_max_sentence_length ], #[10], #20], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             

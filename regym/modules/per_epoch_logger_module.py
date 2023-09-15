@@ -30,7 +30,7 @@ class PerEpochLoggerModule(Module):
                 #"logger":"modules:logger:ref",
                 "losses_dict":"losses_dict",
                 "logs_dict":"logs_dict",
-                "epoch":"signals:epoch",
+                "epoch":"signals:marl_epoch",
                 "update_count":"signals:update_count",
                 "agent_update_count":"signals:agent_update_count",
                 "mode":"signals:mode",

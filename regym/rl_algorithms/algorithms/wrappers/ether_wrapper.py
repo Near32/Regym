@@ -42,15 +42,33 @@ class GaussianBlur:
     def __call__(self, x):
         sigma = random.uniform(self.sigma[0], self.sigma[1])
         if isinstance(x, torch.Tensor):
-            x = T.functional.gaussian_blur(img=x, kernel_size=self.kernel_size, sigma=(sigma, sigma))     
+            y = T.functional.gaussian_blur(img=x, kernel_size=self.kernel_size, sigma=(sigma, sigma))     
         else:
             #raise NotImplementedError("This fn is expecting PIL images, not torch.Tensor")
-            x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
-        return x
+            y = x.filter(ImageFilter.GaussianBlur(radius=sigma))
+        return y
 
 ###########################################################
 ###########################################################
 ###########################################################
+
+class RandomApply:
+    def __init__(
+        self,
+        transforms,
+        p=0.5,
+    ):
+        self.transforms = transforms
+        self.p = p
+
+    def __call__(self, x):
+        rand = torch.rand(1).item()
+        wandb.log({'RandomApply/RandomValue':rand}, commit=True)
+        y = x
+        if self.p > rand:
+            for transform in self.transforms:
+                y = transform(y)
+        return y
 
 class SplitImg:
     def __init__(
@@ -150,7 +168,7 @@ class ListenerWrapper(nn.Module):
 
         if goal.shape[0] == 1:
             goal = goal.repeat(batch_size, *[1 for _ in goal.shape[1:]])
-        sentences_widx = goal.reshape((batch_size, max_sentence_length))
+        sentences_widx = goal.long().reshape((batch_size, max_sentence_length))
         sentences_one_hots = nn.functional.one_hot(
             sentences_widx, 
             num_classes=vocab_size,
@@ -169,6 +187,16 @@ class ListenerWrapper(nn.Module):
         decision_probs = output_dict['decision']
         if self.listener_agent.kwargs['descriptive']:
             decision_probs = decision_probs.softmax(dim=-1)
+        # (batch_size x max_sentence_length x nbr_distractors+2)
+        elif self.listener_agent.kwargs['normalize_features']:
+            # if not descriptive then we need to assert that we have normalized the features
+            # and therefore the probs are between -1 and 1 and we can format them between 0 and 1:
+            decision_probs = (decision_probs+1)/2
+        # (batch_size x max_sentence_length x nbr_distractors+1)
+        else:
+            # since we do not know what are the possible values, we propose to apply tanh to squash the values:
+            # it is applied inside the listener : decision_probs = torch.Tanh(decision_probs)
+            decision_probs = (decision_probs+1)/2
         # (batch_size x max_sentence_length x nbr_distractors+1)
         
         final_decision_probs = self.get_final_decision(
@@ -268,11 +296,12 @@ def batched_listener_based_goal_predicated_reward_fn(
     target_pred_goal = target_pred_goal.cpu()
     listener.predicate_threshold = target_descriptive_probs.item()-1.0e-4
     wandb.log({f"ListenerWrapper/TargerPredicateDecisionProbs": target_descriptive_probs.item()}, commit=False)
-
+    
     if kwargs.get("use_continuous_feedback", False):
         reward_range = feedbacks['success']-feedbacks['failure']
-        reward = descriptive_probs*reward_range + feedbacks['failure']
-        reward = reward.reshape((reward_shape))
+        # (batch_size, )
+        reward = descriptive_probs.unsqueeze(-1)*reward_range + feedbacks['failure']
+        # (batch_size, 1)
     else:
         reward_mask = descriptive_probs > listener.predicate_threshold
         reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
@@ -347,6 +376,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.ether_test_acc = 0.0
         
         self.rg_iteration = 0
+        self.vocabulary = self.predictor.model.modules['InstructionGenerator'].vocabulary
         self.idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
         
         self.init_referential_game()
@@ -504,17 +534,20 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                     transform_channel_dim=0,
                     output_channel_dim=0,
                 )], 
-                p=0.8,
-            )]+transformations
+                p=self.kwargs['ETHER_rg_color_jitter_prob'])]+transformations
         
         if self.kwargs["ETHER_rg_with_gaussian_blur_augmentation"]:
             transformations = [T.RandomApply([
                 SplitImg(
-                    GaussianBlur([0.1,2.0]),
+                    GaussianBlur(
+                        sigma=[0.1,0.5],
+                        #sigma=(0.1, 0.5),
+                    ),
                     input_channel_dim=0,
                     transform_channel_dim=-1,
                     output_channel_dim=0,
-                )], p=0.5)]+transformations
+                )], 
+                p=self.kwargs['ETHER_rg_gaussian_blur_prob'])]+transformations
         
         from ReferentialGym.datasets.utils import AddEgocentricInvariance
         ego_inv_transform = AddEgocentricInvariance()
@@ -524,26 +557,47 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         transform_translate = (transform_translate, transform_translate)
         
         if self.kwargs["ETHER_rg_egocentric"]:
+            split_img_ego_tr = SplitImg(
+                ego_inv_transform,
+                input_channel_dim=0,
+                transform_channel_dim=-1,
+                output_channel_dim=0,
+            )
+            '''
+            rand_split_img_ego_tr = RandomApply( #T.RandomApply(
+                [split_img_ego_tr],
+                p=0.5,
+            )
+            '''
+            affine_tr = T.RandomAffine(
+                degrees=transform_degrees, 
+                translate=transform_translate, 
+                scale=None, 
+                shear=None, 
+                interpolation=T.InterpolationMode.BILINEAR, 
+                fill=0,
+            )
+            split_img_affine_tr = SplitImg(
+                affine_tr,
+                input_channel_dim=0,
+                transform_channel_dim=0,
+                output_channel_dim=0,
+            )
+            '''
+            rand_split_img_affine_tr = T.RandomApply(
+                [split_img_affine_tr],
+                p=0.5,
+            ),
+            '''
+            #rand_split_img_ego_affine_tr = RandomApply(
+            rand_split_img_ego_affine_tr = T.RandomApply(
+                [split_img_ego_tr, split_img_affine_tr],
+                p=self.kwargs['ETHER_rg_egocentric_prob'],
+            )
             transformations = [
-                SplitImg(
-                    ego_inv_transform,
-                    input_channel_dim=0,
-                    transform_channel_dim=-1,
-                    output_channel_dim=0,
-                ),
-                SplitImg(
-                    T.RandomAffine(
-                    degrees=transform_degrees, 
-                    translate=transform_translate, 
-                    scale=None, 
-                    shear=None, 
-                    interpolation=T.InterpolationMode.BILINEAR, 
-                    fill=0,
-                    ),
-                    input_channel_dim=0,
-                    transform_channel_dim=0,
-                    output_channel_dim=0,
-                ),
+                #rand_split_img_ego_tr,
+                #rand_split_img_affine_tr,
+                rand_split_img_ego_affine_tr,
                 *transformations,
             ]
         
@@ -732,6 +786,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             agent_id='s0',
             logger=None
         )
+        speaker.set_vocabulary(self.vocabulary)
         print("Speaker:", speaker)
         self.speaker = speaker
 
@@ -759,6 +814,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 agent_id='l0',
                 logger=None
             )
+        listener.set_vocabulary(self.vocabulary)
         print("Listener:", listener)
         self.listener = listener
 
@@ -818,11 +874,37 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         modules[current_speaker_id] = rg_modules.CurrentAgentModule(id=current_speaker_id,role="speaker")
         modules[current_listener_id] = rg_modules.CurrentAgentModule(id=current_listener_id,role="listener")
         
+        ortho_id = "ortho_0"
+        ortho_config = {}
+        ortho_input_stream_ids = {
+            "logger":"modules:logger:ref",
+            "logs_dict":"logs_dict",
+            "epoch":"signals:epoch",
+            "it_rep":"signals:it_sample",
+            "it_comm_round":"signals:it_step",
+            "mode":"signals:mode",
+
+            "agent":"modules:current_speaker:ref:ref_agent",
+            "representations":"modules:current_speaker:ref:ref_agent:model:modules:InstructionGenerator:semantic_embedding:weight",
+        }
+        
+        if self.kwargs.get("ETHER_rg_with_ortho_metric", False):
+            modules[ortho_id] = rg_modules.build_OrthogonalityMetricModule(
+                id=ortho_id,
+                config=ortho_config,
+                input_stream_ids=ortho_input_stream_ids,
+            )
+
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             sem_cooc_grounding_id = "sem_cooccurrence_grounding_0"
             sem_cooc_grounding_config = {
                 "lambda_factor": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_lambda", 1.0),
+                "sentence_level_lambda_factor": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda", 1.0),
                 "noise_magnitude": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", 0.0),
+                "semantic_level_grounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level", False),
+                "semantic_level_ungrounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding", False),
+                "sentence_level_grounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level", False),
+                "sentence_level_ungrounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", False),
             }
             modules[sem_cooc_grounding_id] = rg_modules.build_CoOccurrenceSemanticGroundingLossModule(
                 id=sem_cooc_grounding_id,
@@ -833,6 +915,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             sem_grounding_id = "sem_grounding_metric_0"
             sem_grounding_config = {
                 'idx2w':self.idx2w,
+                'semantic_percentiles': [50,75,90,95],
             }
             modules[sem_grounding_id] = rg_modules.build_SemanticGroundingMetricModule(
                 id=sem_grounding_id,
@@ -848,6 +931,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "modules":modules,
             "learning_rate":self.kwargs["ETHER_rg_learning_rate"],
             "weight_decay":self.kwargs["ETHER_rg_weight_decay"],
+            "l1_reg_lambda":self.kwargs["ETHER_rg_l1_weight_decay"],
+            "l2_reg_lambda":self.kwargs["ETHER_rg_l2_weight_decay"],
             "optimizer_type":self.kwargs["ETHER_rg_optimizer_type"],
             "with_gradient_clip":rg_config["with_gradient_clip"],
             "adam_eps":rg_config["adam_eps"],
@@ -1172,6 +1257,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
                 "sanity_check_shuffling": self.kwargs.get("ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric", False),
+                'sanity_check_shuffling': False,
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
@@ -1189,8 +1275,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         )
         modules[compactness_ambiguity_metric_id] = compactness_ambiguity_metric_module
 
-        posbosdis_disentanglement_metric_id = "posbosdis_disentanglement_metric"
-        posbosdis_disentanglement_metric_input_stream_ids = {
+        speaker_posbosdis_metric_id = "speaker_posbosdis_metric"
+        speaker_posbosdis_metric_input_stream_ids = {
             #"model":"modules:current_speaker:ref:ref_agent",
             "model":"modules:current_speaker:ref:ref_agent:_utter",
             "representations":"modules:current_speaker:sentences_widx",
@@ -1200,9 +1286,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "indices":"current_dataloader:sample:speaker_indices", 
         }
 
-        posbosdis_disentanglement_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
-            id=posbosdis_disentanglement_metric_id,
-            input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
+        speaker_posbosdis_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+            id=speaker_posbosdis_metric_id,
+            input_stream_ids=speaker_posbosdis_metric_input_stream_ids,
             config = {
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
@@ -1217,7 +1303,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "active_factors_only":self.kwargs["ETHER_rg_metric_active_factors_only"],
             }
         )
-        modules[posbosdis_disentanglement_metric_id] = posbosdis_disentanglement_metric_module
+        modules[speaker_posbosdis_metric_id] = speaker_posbosdis_metric_module
 
         logger_id = "per_epoch_logger"
         logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
@@ -1239,6 +1325,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             ]
         
         pipelines[optim_id] = []
+        if self.kwargs.get("ETHER_rg_with_ortho_metric", False):
+            pipelines[optim_id].append(ortho_id)
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             pipelines[optim_id].append(sem_cooc_grounding_id)
         if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
@@ -1250,24 +1338,21 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         # Add gradient recorder module for debugging purposes:
         pipelines[optim_id].append(grad_recorder_id)
         """
-        if not(self.kwargs["ETHER_rg_shared_architecture"]):
-            pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
-            pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
-            pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
-        #pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
-        #pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
-        #pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
+        if self.kwargs["ETHER_rg_dis_metric_epoch_period"] != 0:
+            if not(self.kwargs["ETHER_rg_shared_architecture"]):
+                pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
+                pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
+                pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
+            pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
+            pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
+            pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     
-        #pipelines[optim_id].append(topo_sim_metric_id)
         pipelines[optim_id].append(speaker_topo_sim_metric_id)
-        #pipelines[optim_id].append(posbosdis_disentanglement_metric_id)
         pipelines[optim_id].append(compactness_ambiguity_metric_id)
-        #pipelines[optim_id].append(speaker_posbosdis_metric_id)
-        '''
+        pipelines[optim_id].append(speaker_posbosdis_metric_id)
         if "obverter" in self.kwargs["ETHER_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
-        '''
         pipelines[optim_id].append(inst_coord_metric_id)
         
         pipelines[optim_id].append(logger_id)
@@ -1301,8 +1386,12 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             kwargs['same_episode_target'] = True 
 
         extra_keys_dict = {
+            #"rnn_states":"rnn_states",
             "grounding_signal":self.kwargs.get("ETHER_grounding_signal_key", None),
         }
+        if self.kwargs.get("ETHER_with_Oracle", False):
+            extra_keys_dict["rnn_states"] = "info:achieved_goal"
+
         if self.kwargs.get("ETHER_rg_sanity_check_compactness_ambiguity_metric", False):
             extra_keys_dict.update({
                 "top_view":"info:top_view",
@@ -1321,6 +1410,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             dataset_length=self.rg_train_dataset_length,
             exp_key=self.rg_exp_key,
             extra_keys_dict=extra_keys_dict,
+            latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
             kwargs=kwargs,
         )
         
@@ -1333,6 +1423,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             dataset_length=self.rg_test_dataset_length,
             exp_key=self.rg_exp_key,
             extra_keys_dict=extra_keys_dict,
+            latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
             kwargs=kwargs,
         )
         
@@ -1377,8 +1468,10 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         # Update predictor:
         can_update_predictor = False
-        if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
-            can_update_predictor = True
+        if self.kwargs.get('THER_use_THER_predictor_supervised_training', False):
+            assert self.kwargs['THER_use_THER_predictor_supervised_training_data_collection']
+            if self.nbr_handled_predictor_experience >= self.kwargs['THER_min_capacity']:
+                can_update_predictor = True
         if can_update_predictor \
         and ((period_count_check % period_check == 0) or (self.kwargs['THER_train_on_success'] and successful_traj)):
             self._update_predictor()
@@ -1415,6 +1508,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         for it in range(self.kwargs['ETHER_rg_nbr_epoch_per_update']):
             #self.test_acc = self.train_predictor()
             if self.kwargs['ETHER_use_supervised_training']:
+                assert self.kwargs['THER_use_THER_predictor_supervised_training_data_collection']
                 self._update_predictor()
             self.ether_test_acc = self.finetune_predictor(update=(it==0))
             if self.ether_test_acc >= self.kwargs['ETHER_rg_accuracy_threshold']:
@@ -1440,15 +1534,31 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             self.rg_config['modules'][self.population_handler_id].logger = logger
             self.rg_config['modules'][self.population_handler_id].config['save_path'] = self.save_path
             ###
+            '''
+            wandb.watch(
+                self.speaker, 
+                log='gradients',
+                log_freq=32,
+                log_graph=False,
+            )
+            '''
+            wandb.watch(
+                self.listener, 
+                log='gradients',
+                log_freq=32,
+                log_graph=False,
+            )
             
         if update:
             self.update_datasets()
-        
-            self.referential_game = ReferentialGym.make(
-                config=self.rg_config, 
-                dataset_args=self.dataset_args,
-                save_path=self.save_path,
-            )
+            if self.rg_iteration==0:
+                self.referential_game = ReferentialGym.make(
+                    config=self.rg_config, 
+                    dataset_args=self.dataset_args,
+                    save_path=self.save_path,
+                )
+            else:
+                self.referential_game.update_datasets(dataset_args=self.dataset_args)
          
         start = time.time()
         #self.launch_referential_game(nbr_epoch=self.kwargs["ETHER_rg_nbr_epoch_per_update"])

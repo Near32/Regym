@@ -15,11 +15,15 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
     def __init__(
         self,
         model,
+        pipeline_name="instruction_generator",
+        generator_name="InstructionGenerator",
         **kwargs,
     ):
         ArchiPredictor.__init__(
             self,
             model=model,
+            pipeline_name=pipeline_name,
+            generator_name=generator_name,
             **kwargs,
         )
         self.logger = None
@@ -70,7 +74,8 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             **pkwargs,
         )
         
-        self.cnn_encoder = self.model.modules['SharedObsEncoder']
+        feature_module = self.model.pipelines[self.pipeline_name][0]
+        self.cnn_encoder = self.model.modules[feature_module]
 
         self.tau_fc = nn.Sequential(
             nn.Linear(self.archi_kwargs['hyperparameters']['hidden_dim'], 1,bias=False),
@@ -103,7 +108,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
     def parameters(self):
         params = []
         for km, module in self.model.modules.items():
-            if km in self.model.pipelines["instruction_generator"]:
+            if km in self.model.pipelines[self.pipeline_name]:
                 params += module.parameters()
         if hasattr(self, 'tau_fc'):
             #print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
@@ -144,7 +149,8 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             return_feature_only=return_feature_only,
         )
         
-        self.features = output['next_rnn_states']['SharedObsEncoder']['processed_input'][0]
+        feature_module = self.model.pipelines[self.pipeline_name][0]
+        self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
 
         decision_logits = output["next_rnn_states"]["DecisionGenerator"]["decision"][0]
         import ipdb; ipdb.set_trace()
@@ -183,16 +189,17 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
+                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
             },
             return_feature_only=return_feature_only,
         )
         
-        self.features = output['next_rnn_states']['SharedObsEncoder']['processed_input'][0]
+        feature_module = self.model.pipelines[self.pipeline_name][0]
+        self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
 
-        sentences_widx = output["next_rnn_states"]["InstructionGenerator"]["processed_input0"][0].unsqueeze(-1)
-        sentences_logits = output["next_rnn_states"]["InstructionGenerator"]["input0_prediction_logits"][0]
-        sentences_hidden_states = output["next_rnn_states"]["InstructionGenerator"]["input0_hidden_states"][0]
+        sentences_widx = output["next_rnn_states"][self.generator_name]["processed_input0"][0].unsqueeze(-1)
+        sentences_logits = output["next_rnn_states"][self.generator_name]["input0_prediction_logits"][0]
+        sentences_hidden_states = output["next_rnn_states"][self.generator_name]["input0_hidden_states"][0]
         sentences_one_hots = nn.functional.one_hot(
                 sentences_widx.long(), 
                 num_classes=self.vocab_size,
@@ -230,7 +237,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         }
          
         if gt_sentences is None:
-            return_feature_only=self.archi_kwargs["features_id"]["instruction_generator"]
+            return_feature_only=self.archi_kwargs["features_id"][self.pipeline_name]
         else:
             return_feature_only = None 
             input_dict['rnn_states']['gt_sentences'] = gt_sentences
@@ -238,7 +245,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "instruction_generator":self.archi_kwargs["pipelines"]["instruction_generator"]
+                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
             },
             return_feature_only=return_feature_only,
         )
@@ -335,6 +342,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         tau0=0.2,
     ):
         """
+        Deprecated visibly...
 
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
         :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 

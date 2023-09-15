@@ -106,6 +106,7 @@ class MARLEnvironmentModule(Module):
         for player_idx in range(self.nbr_agents):
             setattr(self, f"player_{player_idx}", dict())
         
+        self.success_threshold = self.config['success_threshold']
         self.run_mean_total_return = None
         self.run_mean_window_size = 100
         self.prev_run_mean_total_return_on_save = None
@@ -173,9 +174,10 @@ class MARLEnvironmentModule(Module):
         self.update_count = self.agents[0].get_update_count()
         self.episode_count = 0
         self.episode_count_record = 0
+        self.episode_counts = {}
         self.sample_episode_count = 0
 
-        self.epoch = 0 
+        self.marl_epoch = 0 
 
         self.pbar = tqdm(
             total=self.config['max_obs_count'], 
@@ -238,7 +240,7 @@ class MARLEnvironmentModule(Module):
                 pidx_d['dones'] = None
             
             outputs_stream_dict["signals:mode"] = 'train'
-            outputs_stream_dict["signals:epoch"] = self.epoch
+            outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch
             outputs_stream_dict["signals:done_training"] = False
             
             self.outputs_stream_dict = outputs_stream_dict
@@ -327,7 +329,18 @@ class MARLEnvironmentModule(Module):
                     """
                     pa_info = info[player_index][actor_index]
                     pa_succ_info = succ_info[player_index][actor_index]
-
+                    
+                    if 'episode' in pa_succ_info:
+                        if actor_index not in self.episode_counts:
+                            self.episode_counts[actor_index] = 0
+                        self.episode_counts[actor_index] += 1
+                        wandb.log({
+                            f"PerEpisodeStats/Actor{actor_index}/Return":pa_succ_info['episode']['r'],
+                            f"PerEpisodeStats/Actor{actor_index}/Length":pa_succ_info['episode']['l'],
+                            },
+                            #step=self.episode_counts[actor_index],
+                            commit=False,
+                        )
                     """
                     if getattr(agent.algorithm, "use_rnd", False):
                         get_intrinsic_reward = getattr(agent, "get_intrinsic_reward", None)
@@ -382,7 +395,7 @@ class MARLEnvironmentModule(Module):
                 player_id = 0 
                 traj = self.per_actor_per_player_trajectories[actor_index][player_id] #self.trajectories[-1][player_id]
                 # assumes HER-typed reward: i.e. 0== success, -1 otherwise:
-                self.total_successes.append(float((traj[-1][2].item() >= 0.0)))
+                self.total_successes.append(float((traj[-1][2].item() > self.success_threshold)))
                 self.total_returns.append(sum([ exp[2] for exp in traj]))
                 self.positive_total_returns.append(sum([ exp[2] if exp[2]>0 else 0.0 for exp in traj]))
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))
@@ -437,7 +450,7 @@ class MARLEnvironmentModule(Module):
                     outputs_stream_dict["PerEpisodeBatch/MeanEpisodeLength"] = mean_episode_length
                     outputs_stream_dict["PerEpisodeBatch/MeanEpisodeSuccess"] = mean_episode_successes
                     outputs_stream_dict["new_trajectories_published"] = True
-                    self.epoch += 1
+                    self.marl_epoch += 1
                     
                     # reset :
                     self.trajectories = list()
@@ -516,8 +529,9 @@ class MARLEnvironmentModule(Module):
             if self.config['test_nbr_episode'] != 0 \
             and self.obs_count % self.config['test_obs_interval'] == 0:
                 save_traj = False
-                if (self.config['benchmarking_record_episode_interval'] is not None \
-                    and self.config['benchmarking_record_episode_interval']>0):
+                if self.config['benchmarking_record_episode_interval'] is not None \
+                and self.config['benchmarking_record_episode_interval']>0 \
+                and self.config.get('publish_trajectories', False):
                     #save_traj = (self.obs_count%benchmarking_record_episode_interval==0)
                     save_traj = (self.episode_count_record // self.nbr_actors > self.config['benchmarking_record_episode_interval'])
                     if save_traj:
@@ -632,7 +646,7 @@ class MARLEnvironmentModule(Module):
             self.nonvdn_info = copy.deepcopy(nonvdn_succ_info)
 
         outputs_stream_dict["signals:mode"] = 'train'
-        outputs_stream_dict["signals:epoch"] = self.epoch
+        outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch
 
         if self.obs_count >= self.config["max_obs_count"]:
             outputs_stream_dict["signals:done_training"] = True 

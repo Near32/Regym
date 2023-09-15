@@ -66,6 +66,103 @@ def check_wandb_path_for_agent(file_path, run_path):
     return agent, offset_episode_count
 
 
+def get_extra_key_value(storage, indices, key='s'):
+    if isinstance(indices, int):    indices = [indices]
+    
+    splitted_keys = key.split(':')
+    data = getattr(storage, splitted_keys.pop(0))[0][indices]
+
+    while len(splitted_keys):
+        ddata = []
+        for idx in range(data.shape[0]):
+            ddata.append(
+                data[idx][splitted_keys.pop(0)]
+            )
+        data = ddata
+
+    data = [torch.from_numpy(d[0] if isinstance(d,list) else d) for d in data]
+    data = torch.cat(data, dim=0)
+
+    return data
+
+def MiniWorld_latents_build_fn(
+    storage,
+    exp_key,
+    extra_keys_dict,
+):
+    action_set = set([a.item() for a in getattr(storage, 'a')[0] if isinstance(a, torch.Tensor)])
+    COLOR_TO_IDX = {"red": 0, "green": 1, "blue": 2, "purple": 3, "yellow": 4, "grey": 5}
+    IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
+
+    OBJECT_TO_IDX = {
+        "unseen": 0,
+        "empty": 1,
+        "wall": 2,
+        "floor": 3,
+        "door": 4,
+        "key": 5,
+        "ball": 6,
+        "box": 7,
+        "goal": 8,
+        "lava": 9,
+        "agent": 10,
+    }
+    IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
+    latents_w2idx = {
+        'key': 0,
+        'ball': 1,
+        'box': 2,
+        **COLOR_TO_IDX,
+    }
+    
+    offset = 3 
+    nbr_colors = 6
+    nbr_shapes = 3
+    latents_classes = np.zeros((len(storage), offset+3*6))
+    latents_values = np.zeros((len(storage), offset+3*6))
+    for bidx in range(len(storage)):
+        symb_image = getattr(storage, 'info')[0][bidx]['symbolic_image']
+        visible_objects = []
+        for i in range(symb_image.shape[1]):
+            for j in range(symb_image.shape[2]):
+                if symb_image[i,j,0] <= 3 : continue
+                color_idx = symb_image[i,j,1].item()
+                shape_idx = symb_image[i,j,0].item()
+                color = IDX_TO_COLOR[color_idx]
+                shape = IDX_TO_OBJECT[shape_idx]
+            
+                visible_objects.append((color,shape))
+        
+        action_idx = getattr(storage, 'a')[0][bidx].item()
+        non_terminal_bool = getattr(storage, 'non_terminal')[0][bidx].item()
+        
+        reward_sign = 0
+        reward = getattr(storage, 'r')[0][bidx].item() 
+        if reward > 0:
+            reward_sign = 2
+        elif reward < 0:
+            reward_sign = 1
+        latents_classes[bidx][0] = action_idx
+        latents_classes[bidx][1] = reward_sign
+        latents_classes[bidx][2] = non_terminal_bool
+        
+        latents_values[bidx][0] = action_idx
+        latents_values[bidx][1] = reward
+        latents_classes[bidx][2] = non_terminal_bool
+        
+        for color,shape in visible_objects:
+            cidx = latents_w2idx[color]
+            sidx = latents_w2idx[shape]
+            eidx = offset+nbr_colors*sidx+cidx
+            latents_classes[bidx][eidx] = 1
+            latents_values[bidx][eidx] = 1
+    
+    nbr_classes_per_latent = [len(action_set), 3, 2, 
+        *[2 for _ in range(nbr_colors*nbr_shapes)]
+    ]
+    return latents_classes, latents_values, nbr_classes_per_latent
+
+
 def make_rl_pubsubmanager(
     agents,
     config, 
@@ -136,7 +233,8 @@ def make_rl_pubsubmanager(
           config=rlam_config,
           input_stream_ids=rlam_input_stream_ids,
       )
-
+    
+    config['success_threshold'] = task_config['success_threshold'] # 0.0
     modules[envm_id] = MARLEnvironmentModule(
         id=envm_id,
         config=config,
@@ -245,6 +343,7 @@ def train_and_evaluate(
     }
     
     config['seed'] = task_config['seed']
+    config['publish_trajectories'] = False 
     config['training'] = True
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
@@ -408,10 +507,14 @@ def training_process(
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
+      miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
+      language_guided_curiosity=task_config['language_guided_curiosity'],
+      coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -434,10 +537,14 @@ def training_process(
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
+      miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
+      language_guided_curiosity=task_config['language_guided_curiosity'],
+      coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -479,6 +586,8 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
+    
+    agent_config['ETHER_rg_latents_build_fn'] = MiniWorld_latents_build_fn
 
     agent_config['task_config'] = task_config
     agent_config['nbr_actor'] = task_config['nbr_actor']
@@ -611,6 +720,11 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--use_cuda", type=str2bool, default=False) 
+    parser.add_argument("--success_threshold", 
+        type=float, 
+        default=0.0,
+    )
  
     parser.add_argument("--project", 
         type=str, 
@@ -706,6 +820,10 @@ def main():
         type=float, 
         default=1e3,
     )
+    parser.add_argument("--min_handled_experiences", 
+        type=float, 
+        default=1,
+    )
     parser.add_argument("--replay_capacity", 
         type=float, 
         default=2e4,
@@ -714,6 +832,51 @@ def main():
         type=str2bool, 
         default="False", 
     )
+    parser.add_argument("--RP_replay_period", # in episodes
+        type=int, 
+        default=40, #10 #1
+    )
+    parser.add_argument("--RP_nbr_training_iteration_per_update", 
+        type=int, 
+        default=2, 
+    )
+    parser.add_argument("--RP_replay_capacity", 
+        type=float, 
+        default=500, #250 #5000
+    )
+    parser.add_argument("--RP_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--RP_test_replay_capacity", 
+        type=float, 
+        default=50, #25 #1000
+    )
+    parser.add_argument("--RP_min_capacity", 
+        type=float, 
+        default=32, #1e4
+    )
+    parser.add_argument("--RP_test_min_capacity", 
+        type=float, 
+        default=12, #1e4
+    )
+    parser.add_argument("--RP_predictor_nbr_minibatches", 
+        type=int, 
+        default=8,
+    )
+    parser.add_argument("--RP_predictor_batch_size", type=int, default=256)
+    parser.add_argument("--RP_predictor_learning_rate", type=float, default=6.25e-5)
+    parser.add_argument("--RP_gradient_clip", type=float, default=10.0)
+    parser.add_argument("--RP_predictor_accuracy_threshold", 
+        type=float, 
+        default=0.75,
+    )
+    parser.add_argument("--RP_predictor_test_train_split_interval",
+        type=int,
+        default=10,#3 #10 #5
+    )
+
+    parser.add_argument("--use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_RP", type=str2bool, default="True",)
+    parser.add_argument("--RP_use_PER", type=str2bool, default="False",)
+    
     parser.add_argument("--THER_replay_period", # in episodes
         type=int, 
         default=40, #10 #1
@@ -759,7 +922,13 @@ def main():
         type=int,
         default=10,#3 #10 #5
     )
+
+    parser.add_argument("--goal_oriented", type=str2bool, default="True",)
+    parser.add_argument("--use_HER", type=str2bool, default="True",)
+    parser.add_argument("--use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
+    parser.add_argument("--THER_use_THER_predictor_supervised_training", type=str2bool, default="True",)
+    parser.add_argument("--THER_use_THER_predictor_supervised_training_data_collection", type=str2bool, default="True",)
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
     parser.add_argument("--THER_observe_achieved_goal", type=str2bool, default="False",)
@@ -775,10 +944,14 @@ def main():
     parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_symbolic_image", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_language_specs", type=str, default="NONE",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth", type=str2bool, default=False)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
+    parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     #parser.add_argument("--critic_arch_feature_dim", 
@@ -786,6 +959,8 @@ def main():
     #    default=32,
     #)
     
+    parser.add_argument("--use_ETHER", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_with_Oracle", type=str2bool, default="False",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
@@ -797,11 +972,19 @@ def main():
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--semantic_embedding_init", type=str, default="none",)
+    parser.add_argument("--semantic_prior_mixing", type=str, default="multiplicative",)
+    parser.add_argument("--semantic_prior_mixing_with_detach", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
     parser.add_argument("--ETHER_grounding_signal_key", type=str, default="info:desired_goal",)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_semantic_level", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
     parser.add_argument("--ETHER_rg_filter_out_non_unique", type=str2bool, default=False)
@@ -813,10 +996,13 @@ def main():
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_color_jitter_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_egocentric_tr_degrees", type=float, default=15)
+    parser.add_argument("--ETHER_rg_gaussian_blur_prob", type=float, default=0)
+    parser.add_argument("--ETHER_rg_egocentric_tr_degrees", type=float, default=30)
     parser.add_argument("--ETHER_rg_egocentric_tr_xy", type=float, default=10)
     parser.add_argument("--ETHER_rg_egocentric", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_egocentric_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_nbr_train_distractors", type=int, default=7)
     parser.add_argument("--ETHER_rg_nbr_test_distractors", type=int, default=7)
     parser.add_argument("--ETHER_rg_descriptive", type=str2bool, default=False)
@@ -832,7 +1018,9 @@ def main():
     parser.add_argument("--ETHER_rg_symbol_embedding_size", type=int, default=64)
     parser.add_argument("--ETHER_rg_arch", type=str, default='BN+7x4x3xCNN')
     parser.add_argument("--ETHER_rg_shared_architecture", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False, 
+        #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
+    )
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
@@ -859,6 +1047,8 @@ def main():
     parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
     parser.add_argument("--ETHER_rg_learning_rate", type=float, default=3.0e-4)
     parser.add_argument("--ETHER_rg_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_l1_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_l2_weight_decay", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_emb_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
@@ -884,8 +1074,108 @@ def main():
     parser.add_argument("--ETHER_rg_dis_metric_resampling", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_seed", type=int, default=1)
     parser.add_argument("--ETHER_rg_metric_active_factors_only", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_with_ortho_metric", type=str2bool, default=False)
     
-    parser.add_argument("--time_limit", type=int, default=4000)
+    parser.add_argument("--use_ELA", type=str2bool, default="False",)
+    parser.add_argument("--ELA_use_ELA", type=str2bool, default="False",)
+    parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
+    parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
+    parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
+    parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
+    parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
+    parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
+    parser.add_argument("--ELA_rg_verbose", type=str2bool, default="True",)
+    parser.add_argument("--ELA_rg_use_cuda", type=str2bool, default="True",)
+    parser.add_argument("--ELA_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ELA_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
+    parser.add_argument("--ELA_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
+    parser.add_argument("--ELA_grounding_signal_key", type=str, default="info:desired_goal",)
+    parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
+    parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
+    parser.add_argument("--ELA_split_strategy", type=str, default="divider-1-offset-0",)
+    parser.add_argument("--ELA_replay_capacity", type=int, default=1024)
+    parser.add_argument("--ELA_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--ELA_test_replay_capacity", type=int, default=512)
+    parser.add_argument("--ELA_test_train_split_interval",type=int, default=5)
+    parser.add_argument("--ELA_train_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ELA_test_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ELA_rg_object_centric_version", type=int, default=1)
+    parser.add_argument("--ELA_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ELA_rg_with_color_jitter_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_egocentric_tr_degrees", type=float, default=15)
+    parser.add_argument("--ELA_rg_egocentric_tr_xy", type=float, default=10)
+    parser.add_argument("--ELA_rg_egocentric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_nbr_train_distractors", type=int, default=7)
+    parser.add_argument("--ELA_rg_nbr_test_distractors", type=int, default=7)
+    parser.add_argument("--ELA_rg_descriptive", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_descriptive_ratio", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_observability", type=str, default='partial')
+    parser.add_argument("--ELA_rg_max_sentence_length", type=int, default=10)
+    parser.add_argument("--ELA_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ELA_rg_object_centric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
+    parser.add_argument("--ELA_rg_vocab_size", type=int, default=32)
+    # TODO : integrate this feature in ArchiPredictorSpeaker ...
+    parser.add_argument("--ELA_rg_force_eos", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_symbol_embedding_size", type=int, default=64)
+    parser.add_argument("--ELA_rg_arch", type=str, default='BN+7x4x3xCNN')
+    parser.add_argument("--ELA_rg_shared_architecture", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_normalize_features", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_agent_loss_type", type=str, default='Hinge')
+
+    parser.add_argument("--ELA_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
+    
+    parser.add_argument("--ELA_rg_cultural_pressure_it_period", type=int, default=0)
+    parser.add_argument("--ELA_rg_cultural_speaker_substrate_size", type=int, default=1)
+    parser.add_argument("--ELA_rg_cultural_listener_substrate_size", type=int, default=1)
+    parser.add_argument("--ELA_rg_cultural_reset_strategy", type=str, default='uniformSL')
+    #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
+    parser.add_argument("--ELA_rg_cultural_pressure_meta_learning_rate", type=float, default=1.0e-3)
+    parser.add_argument("--ELA_rg_iterated_learning_scheme", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_iterated_learning_period", type=int, default=5)
+    parser.add_argument("--ELA_rg_iterated_learning_rehearse_MDL", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
+    
+    parser.add_argument("--ELA_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
+    parser.add_argument("--ELA_rg_obverter_nbr_games_per_round", type=int, default=20)
+    parser.add_argument("--ELA_rg_use_obverter_sampling", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
+    
+    parser.add_argument("--ELA_rg_batch_size", type=int, default=32)
+    parser.add_argument("--ELA_rg_dataloader_num_worker", type=int, default=8)
+    parser.add_argument("--ELA_rg_learning_rate", type=float, default=3.0e-4)
+    parser.add_argument("--ELA_rg_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_emb_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ELA_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_use_feat_converter", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_init_curriculum_nbr_distractors", type=int, default=1)
+    parser.add_argument("--ELA_rg_nbr_experience_repetition", type=int, default=1)
+    parser.add_argument("--ELA_rg_agent_nbr_latent_dim", type=int, default=32)
+    parser.add_argument("--ELA_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
+    
+    parser.add_argument("--ELA_rg_mini_batch_size", type=int, default=32)
+    parser.add_argument("--ELA_rg_optimizer_type", type=str, default='adam')
+    parser.add_argument("--ELA_rg_nbr_epoch_per_update", type=int, default=3)
+
+    parser.add_argument("--ELA_rg_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ELA_rg_dis_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ELA_rg_metric_batch_size", type=int, default=16)
+    parser.add_argument("--ELA_rg_metric_fast", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_parallel_TS_worker", type=int, default=8)
+    parser.add_argument("--ELA_rg_nbr_train_points", type=int, default=1024)
+    parser.add_argument("--ELA_rg_nbr_eval_points", type=int, default=512)
+    parser.add_argument("--ELA_rg_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_dis_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ELA_rg_seed", type=int, default=1)
+    parser.add_argument("--ELA_rg_metric_active_factors_only", type=str2bool, default=True)
+    
+    parser.add_argument("--time_limit", type=int, default=400,) 
     parser.add_argument("--train_observation_budget", 
         type=float, 
         default=2e6,
@@ -902,12 +1192,24 @@ def main():
     #args.simplified_DNC = True if "Tr" in args.simplified_DNC else False
     dargs = vars(args)
     
+    if args.use_THER or args.use_ETHER:
+        dargs['use_HER'] = True
+ 
     if args.sequence_replay_burn_in_ratio != 0.0:
         dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
         dargs['burn_in'] = True 
     
     dargs['seed'] = int(dargs['seed'])
     
+    if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :
+        dargs['ETHER_rg_with_gaussian_blur_augmentation'] = True
+
+    if dargs['ETHER_rg_color_jitter_prob'] > 0.0 :
+        dargs['ETHER_rg_with_color_jitter_augmentation'] = True
+
+    if dargs['ETHER_rg_egocentric_prob'] > 0.0 :
+        dargs['ETHER_rg_egocentric'] = True
+
     if dargs['THER_contrastive_training_nbr_neg_examples'] != 0:
         dargs['THER_train_contrastively'] = True
 
@@ -923,10 +1225,17 @@ def main():
     
     if dargs["ETHER_listener_based_predicated_reward_fn"]:
         print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
-    
+        #if dargs["ETHER_use_continuous_feedback"] \
+        #and dargs["ETHER_rg_descriptive"]:
+        #    dargs["ETHER_rg_normalize_features"] = True
+
     if dargs["ETHER_rg_obverter_sampling_round_alternation_only"]:
         dargs["ETHER_rg_use_obverter_sampling"] = True
 
+    if dargs['language_guided_curiosity']:
+        dargs['coverage_manipulation_metric'] = True
+        dargs["MiniWorld_entity_visibility_oracle"] = True
+    
     print(dargs)
 
     #from gpuutils import GpuUtils
@@ -952,11 +1261,13 @@ def main():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
-        if args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
+        if args.use_ETHER \
+	and args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
             dargs['ETHER_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
             print(f"WARNING: ETHER rg max sentence length is different ({args.ETHER_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ETHER_rg_max_sentence_length']}")
             import ipdb; ipdb.set_trace()
-        if args.ETHER_rg_vocab_size < agent_config['THER_vocab_size']:
+        if args.use_ETHER \
+	and args.ETHER_rg_vocab_size < agent_config['THER_vocab_size']:
             dargs['ETHER_rg_vocab_size'] = agent_config['THER_vocab_size']
             print(f"WARNING: ETHER rg vocab size is lower ({args.ETHER_rg_vocab_size}) than necessary, updating to: {dargs['ETHER_rg_vocab_size']}")
             import ipdb; ipdb.set_trace()
@@ -966,7 +1277,27 @@ def main():
             
             if k in task_config.get('env-config', {}):
                 task_config['env-config'][k] = v
- 
+ 	
+        ac_pointer = None
+        ac_queue = [agent_config]
+        while len(ac_queue):
+            ac_pointer = ac_queue.pop(0)
+            if isinstance(ac_pointer, dict):
+                for k in ac_pointer.keys():
+                    if isinstance(ac_pointer[k], dict):
+                        ac_queue.append(ac_pointer[k])
+                    else:
+                        overriden = False
+                        for karg in dargs.keys():
+                            #if k in karg:
+                            if k == karg:
+                                print(f"WARNING: overriding {k} \n = {ac_pointer[k]} \n --> {dargs[karg]}")
+                                ac_pointer[k] = dargs[karg]
+                                overriden = True 
+                                break
+                        if not overriden:
+                            print(f"WARNING: {k} was NOT OVERRIDEN")
+                
         print("Task config:")
         print(task_config)
 
