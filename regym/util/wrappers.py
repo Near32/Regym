@@ -2439,7 +2439,9 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
     def __init__(self, env, max_sentence_length=10):
         """
         Add an observation string that describe the achieved goal for a PickUp-based env.
-
+        'EoS' most of the time, unless, by order of priority:
+            - the agent is carrying an object --> 'pick up the {color} {shape}'.
+            - 'visible_entities' is among the observations, then we use this description sentence. 
         """
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
@@ -2460,8 +2462,11 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
             if carrying is not None:
                 shape = type(carrying).__name__.lower()
                 color = getattr(carrying, "color", None)
+        
         if color is not None and shape is not None:
             achieved_goal = f"pick up the {color} {shape}".lower()
+        elif 'visible_entities' in observation.keys():
+            achieved_goal = copy.deepcopy(observation['visible_entities'])
         observation['behaviour_description'] = achieved_goal
         return observation
 

@@ -168,7 +168,7 @@ class ListenerWrapper(nn.Module):
 
         if goal.shape[0] == 1:
             goal = goal.repeat(batch_size, *[1 for _ in goal.shape[1:]])
-        sentences_widx = goal.reshape((batch_size, max_sentence_length))
+        sentences_widx = goal.long().reshape((batch_size, max_sentence_length))
         sentences_one_hots = nn.functional.one_hot(
             sentences_widx, 
             num_classes=vocab_size,
@@ -888,11 +888,12 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "representations":"modules:current_speaker:ref:ref_agent:model:modules:InstructionGenerator:semantic_embedding:weight",
         }
         
-        modules[ortho_id] = rg_modules.build_OrthogonalityMetricModule(
-            id=ortho_id,
-            config=ortho_config,
-            input_stream_ids=ortho_input_stream_ids,
-        )
+        if self.kwargs.get("ETHER_rg_with_ortho_metric", False):
+            modules[ortho_id] = rg_modules.build_OrthogonalityMetricModule(
+                id=ortho_id,
+                config=ortho_config,
+                input_stream_ids=ortho_input_stream_ids,
+            )
 
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             sem_cooc_grounding_id = "sem_cooccurrence_grounding_0"
@@ -1323,7 +1324,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             ]
         
         pipelines[optim_id] = []
-        pipelines[optim_id].append(ortho_id)
+        if self.kwargs.get("ETHER_rg_with_ortho_metric", False):
+            pipelines[optim_id].append(ortho_id)
         if self.kwargs.get("ETHER_rg_use_semantic_cooccurrence_grounding", False):
             pipelines[optim_id].append(sem_cooc_grounding_id)
         if self.kwargs.get("ETHER_rg_with_semantic_grounding_metric", False):
@@ -1335,13 +1337,14 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         # Add gradient recorder module for debugging purposes:
         pipelines[optim_id].append(grad_recorder_id)
         """
-        if not(self.kwargs["ETHER_rg_shared_architecture"]):
-            pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
-            pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
-            pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
-        pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
-        pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
-        pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
+        if self.kwargs["ETHER_rg_dis_metric_epoch_period"] != 0:
+            if not(self.kwargs["ETHER_rg_shared_architecture"]):
+                pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
+                pipelines[optim_id].append(listener_modularity_disentanglement_metric_id)
+                pipelines[optim_id].append(listener_mig_disentanglement_metric_id)
+            pipelines[optim_id].append(speaker_factor_vae_disentanglement_metric_id)
+            pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
+            pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     
         pipelines[optim_id].append(speaker_topo_sim_metric_id)
         pipelines[optim_id].append(compactness_ambiguity_metric_id)
@@ -1382,8 +1385,12 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             kwargs['same_episode_target'] = True 
 
         extra_keys_dict = {
+            #"rnn_states":"rnn_states",
             "grounding_signal":self.kwargs.get("ETHER_grounding_signal_key", None),
         }
+        if self.kwargs.get("ETHER_with_Oracle", False):
+            extra_keys_dict["rnn_states"] = "info:achieved_goal"
+
         if self.kwargs.get("ETHER_rg_sanity_check_compactness_ambiguity_metric", False):
             extra_keys_dict.update({
                 "top_view":"info:top_view",
@@ -1526,6 +1533,20 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             self.rg_config['modules'][self.population_handler_id].logger = logger
             self.rg_config['modules'][self.population_handler_id].config['save_path'] = self.save_path
             ###
+            '''
+            wandb.watch(
+                self.speaker, 
+                log='gradients',
+                log_freq=32,
+                log_graph=False,
+            )
+            '''
+            wandb.watch(
+                self.listener, 
+                log='gradients',
+                log_freq=32,
+                log_graph=False,
+            )
             
         if update:
             self.update_datasets()

@@ -1,6 +1,8 @@
 from typing import Dict
 
+from functools import partial
 import copy
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -9,7 +11,7 @@ from .archi_predictor import ArchiPredictor
 from ReferentialGym.agents import Speaker
 from ReferentialGym.networks import layer_init, BetaVAE
 from ReferentialGym.utils import gumbel_softmax
-
+from regym.rl_algorithms.utils import concat_fn, _concatenate_list_hdict
 
 class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
     def __init__(
@@ -118,7 +120,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
         return tau
     
-    def _utter(self, features, sentences=None):
+    def _utter(self, features, sentences=None, rnn_states=None):
         """
         Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
         
@@ -131,7 +133,8 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
-        rnn_states = self.model.get_reset_states()
+        if rnn_states is None:
+            rnn_states = self.model.get_reset_states()
         input_dict = {
             'obs':features,
             'rnn_states': rnn_states,
@@ -148,9 +151,6 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             return_feature_only=return_feature_only,
         )
         
-        feature_module = self.model.pipelines[self.pipeline_name][0]
-        self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
-
         sentences_widx = output["next_rnn_states"][self.generator_name]["processed_input0"][0].unsqueeze(-1)
         sentences_logits = output["next_rnn_states"][self.generator_name]["input0_prediction_logits"][0]
         sentences_hidden_states = output["next_rnn_states"][self.generator_name]["input0_hidden_states"][0]
@@ -159,7 +159,12 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
                 num_classes=self.vocab_size,
         ).float()
         # (batch_size, max_sentence_length, vocab_size)
-        
+        feature_module = self.model.pipelines[self.pipeline_name][0]
+        if 'processed_input' in output['next_rnn_states'][feature_module].keys():
+            self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
+        else:
+            self.features = sentences_hidden_states
+         
         temporal_features = None
 
         return sentences_hidden_states, sentences_widx, sentences_logits, sentences_one_hots, temporal_features
@@ -207,6 +212,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         multi_round=False, 
         graphtype="straight_through_gumbel_softmax", 
         tau0=0.2,
+        sample=None,
     ):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
@@ -223,7 +229,20 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         batch_size = experiences.size(0)
         #features = self._sense(experiences=experiences, sentences=sentences)
         features = experiences.view(-1, *(experiences.size()[2:]))
-        utter_outputs = self._utter(features=features, sentences=None)
+        rnn_states = None
+        if sample is not None \
+        and hasattr(sample, 'speaker_rnn_states'):
+            rnn_states = sample.speaker_rnn_states
+            '''
+            rnn_states = _concatenate_list_hdict(
+                lhds=[rnn_states[idx][0][0] for idx in range(batch_size)],
+                concat_fn=partial(torch.cat, dim=0),
+                #preprocess_fn=(lambda x:
+                #    torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x                   ),
+            )
+            '''
+            rnn_states = {'InstructionGenerator':{'achieved_goal':rnn_states}}
+        utter_outputs = self._utter(features=features, sentences=None, rnn_states=rnn_states)
         if len(utter_outputs) == 5:
             next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
         else:

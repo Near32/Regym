@@ -950,6 +950,7 @@ def main():
     #)
     
     parser.add_argument("--use_ETHER", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_with_Oracle", type=str2bool, default="False",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
@@ -1062,6 +1063,7 @@ def main():
     parser.add_argument("--ETHER_rg_dis_metric_resampling", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_seed", type=int, default=1)
     parser.add_argument("--ETHER_rg_metric_active_factors_only", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_with_ortho_metric", type=str2bool, default=False)
     
     parser.add_argument("--use_ELA", type=str2bool, default="False",)
     parser.add_argument("--ELA_use_ELA", type=str2bool, default="False",)
