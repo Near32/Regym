@@ -131,6 +131,7 @@ def make_rl_pubsubmanager(
             input_stream_ids=rlam_input_stream_ids,
         )
 
+      config['success_threshold'] = task_config['success_threshold'] # 0.0 
       modules[envm_id] = MARLEnvironmentModule(
           id=envm_id,
           config=config,
@@ -546,8 +547,11 @@ def train_and_evaluate(agents: List[object],
         "pipelines": {},
       }
 
+      config['seed'] = task_config['seed']
+      config['publish_trajectories'] = True #False
       config['training'] = True
-      config['env_configs'] = None
+      config['env_configs'] = {'return_info': True} #None
+      #config['env_configs'] = None
       config['task'] = task 
       
       sum_writer_path = os.path.join(sum_writer, 'actor.log')
@@ -1049,6 +1053,11 @@ def main():
         default="META_RG_S2B",
     )
 
+    parser.add_argument("--success_threshold", 
+        type=float, 
+        default=0.0,
+    )
+ 
     parser.add_argument("--test_only", type=str2bool, default="False")
     parser.add_argument("--reload_wandb_run_path", 
         type=str, 
@@ -1123,6 +1132,10 @@ def main():
     parser.add_argument("--min_capacity", 
         type=float, 
         default=1.5e4,
+    )
+    parser.add_argument("--min_handled_experiences", 
+        type=float, 
+        default=1,
     )
     parser.add_argument("--replay_capacity", 
         type=float, 

@@ -139,10 +139,11 @@ def generate_archi_model(
     else:
         input_dim = list(task.observation_shape)
     
-    if isinstance(kwargs['observation_resize_dim'], int):
-        input_height, input_width = kwargs['observation_resize_dim'], kwargs['observation_resize_dim']
+    observation_resize_dim = kwargs.get('observation_resize_dim', 84)
+    if isinstance(observation_resize_dim, int):
+        input_height, input_width = observation_resize_dim, observation_resize_dim
     else:
-        input_height, input_width = kwargs['observation_resize_dim']
+        input_height, input_width = observation_resize_dim
 
     modules_type = [
         module['type'] 

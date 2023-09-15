@@ -108,7 +108,8 @@ def PreprocessFunction(x, use_cuda=False, training=False, normalization=True):
         ret.requires_grad = True 
     if ret.shape[-1]==1:
         ret = ret.squeeze(-1)
-    if ret.shape[-1]!=ret.shape[-2]:
+    if len(ret.shape) > 3 \
+    and ret.shape[-1]!=ret.shape[-2]:
         ret = ret.transpose(1,3)
     return ret 
 
