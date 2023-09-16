@@ -1,10 +1,11 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py \
---seed=10 \
+--seed=20 \
 --project=ETHER \
 --success_threshold=0.5 \
+--use_cuda=True \
 --config=room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=False \
---coverage_metric=True \
+--coverage_manipulation_metric=True \
 --MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_top_view=False \
 --use_ETHER=False --use_THER=True \
@@ -12,7 +13,12 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_ELA=False --ELA_use_ELA=True \
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=False \
---THER_use_THER=True --THER_use_THER_predictor_supervised_training=True \
+--THER_use_THER=True \
+--THER_use_THER_predictor_supervised_training=True \
+--THER_use_THER_predictor_supervised_training_data_collection=True \
+--semantic_embedding_init='none' \
+--semantic_prior_mixing='multiplicative' \
+--semantic_prior_mixing_with_detach=False \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
