@@ -855,7 +855,7 @@ def compute_loss(
     weights_entropy_reg_alpha = float(kwargs.get('weights_entropy_reg_alpha', 0.0))
     use_PER = kwargs['use_PER']
     PER_beta = kwargs['PER_running_beta']
-    HER_target_clamping = kwargs['HER_target_clamping']
+    HER_target_clamping = kwargs.get('HER_target_clamping', False)
     
     #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
