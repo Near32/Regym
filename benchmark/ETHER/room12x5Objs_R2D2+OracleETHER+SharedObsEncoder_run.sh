@@ -52,8 +52,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=256 --ETHER_rg_accuracy_threshold=50 \
---ETHER_rg_nbr_train_distractors=1 --ETHER_rg_nbr_test_distractors=1 \
+--ETHER_rg_nbr_epoch_per_update=256 --ETHER_rg_accuracy_threshold=20 \
+--ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
 --ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling=uniform \
 --ETHER_rg_use_cuda=True \
