@@ -488,6 +488,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
 
     def init_referential_game(self):
+        ReferentialGym.datasets.dataset.DSS_version = self.kwargs["ETHER_rg_distractor_sampling_scheme_version"]
+        print(f"DSS_version = {ReferentialGym.datasets.dataset.DSS_version}.")
         ReferentialGym.datasets.dataset.OC_version = self.kwargs["ETHER_rg_object_centric_version"]
         print(f"OC_version = {ReferentialGym.datasets.dataset.OC_version}.")
         ReferentialGym.datasets.dataset.DC_version = self.kwargs["ETHER_rg_descriptive_version"]

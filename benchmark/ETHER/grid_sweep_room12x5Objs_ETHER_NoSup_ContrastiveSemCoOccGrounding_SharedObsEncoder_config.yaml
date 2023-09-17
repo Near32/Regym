@@ -165,6 +165,9 @@ parameters:
     ETHER_rg_descriptive_version:
         values: [1]
 
+    ETHER_rg_distractor_sampling_scheme_version:
+        values: [1]
+
     ETHER_rg_learning_rate:
         values: [6.25e-5]
     ETHER_rg_weight_decay:

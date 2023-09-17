@@ -983,6 +983,7 @@ def main():
     parser.add_argument("--ETHER_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
+    parser.add_argument("--ETHER_rg_distractor_sampling_scheme_version", type=int, default=1)
     parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_color_jitter_prob", type=float, default=0)

@@ -45,6 +45,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_egocentric_prob=0.5 \
 --ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=10 \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
+--ETHER_rg_distractor_sampling_scheme_version=2 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
