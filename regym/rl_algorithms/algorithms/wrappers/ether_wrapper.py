@@ -833,6 +833,19 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         from ReferentialGym import modules as rg_modules
         
+        if self.kwargs["ETHER_rg_use_aita_sampling"]:
+            aita_sampling_id = "aita_sampling_0"
+            aita_sampling_config = {
+                "update_epoch_period": self.kwargs['ETHER_rg_aita_update_epoch_period'],
+                "max_workers": 8,
+                "comprange": self.kwargs['ETHER_rg_aita_levenshtein_comprange'],
+            }
+            
+            modules[aita_sampling_id] = rg_modules.AITAModule(
+                id=aita_sampling_id,
+                config=aita_sampling_config,
+            )
+  
         if self.kwargs["ETHER_rg_use_obverter_sampling"]:
             obverter_sampling_id = "obverter_sampling_0"
             obverter_sampling_config = {
@@ -1355,7 +1368,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
-        
+        if self.kwargs["ETHER_rg_use_aita_sampling"]:
+            pipelines[optim_id].append(aita_sampling_id)
+         
         pipelines[optim_id].append(logger_id)
         
         rg_config["modules"] = modules

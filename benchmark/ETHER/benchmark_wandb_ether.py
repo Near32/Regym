@@ -1012,6 +1012,9 @@ def main():
         #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
     )
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
+    parser.add_argument("--ETHER_rg_use_aita_sampling", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_aita_update_epoch_period", type=int, default=32)
+    parser.add_argument("--ETHER_rg_aita_levenshtein_comprange", type=float, default=1.0)
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)

@@ -2,7 +2,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --seed=20 \
 --project=ETHER \
 --success_threshold=0.5 \
---use_cuda=False \
+--use_cuda=True \
 --config=room12x5Objs_miniworld_wandb_benchmark_OracleETHER+R2D2+RP+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=False \
 --coverage_manipulation_metric=True \
@@ -17,6 +17,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_use_THER_predictor_supervised_training=False \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_with_Oracle=True \
+--ETHER_rg_use_aita_sampling=True \
+--ETHER_rg_aita_update_epoch_period=256 \
+--ETHER_rg_aita_levenshtein_comprange=0.5 \
 --ETHER_rg_max_sentence_length=20 \
 --ETHER_use_supervised_training=False \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
@@ -52,11 +55,11 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=1024 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=256 --ETHER_rg_accuracy_threshold=20 \
+--ETHER_rg_nbr_epoch_per_update=256 --ETHER_rg_accuracy_threshold=35 \
 --ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
---ETHER_replay_capacity=1024 --ETHER_test_replay_capacity=256 \
+--ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling=uniform \
 --ETHER_rg_use_cuda=True \
 --ETHER_rg_metric_fast=True --ETHER_rg_parallel_TS_worker=8 \
