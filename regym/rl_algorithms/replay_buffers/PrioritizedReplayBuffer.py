@@ -587,7 +587,7 @@ class PrioritizedReplayStorage(ReplayStorage):
             self.tree = regym.RegymManager.dict({idx:0 for idx in range(2 * int(self.capacity) - 1)}, lock=False)
             self._max_priority = regym.RegymManager.Value(float, 1.0, lock=False)
         else:
-            self.tree = np.zeros(2 * int(self.capacity) - 1)
+            self.tree = np.zeros(2 * int(self.capacity) - 1, dtype=object)
             self._max_priority = np.ones(1, dtype=np.float32)
         
         self.sumPi_alpha = 0.0

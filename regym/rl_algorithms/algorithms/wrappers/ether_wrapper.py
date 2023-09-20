@@ -1557,13 +1557,13 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 log_freq=32,
                 log_graph=False,
             )
-            '''
             wandb.watch(
                 self.listener, 
                 log='gradients',
                 log_freq=32,
                 log_graph=False,
             )
+            '''
             
         if update:
             self.update_datasets()
