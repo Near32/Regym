@@ -108,11 +108,13 @@ class ListenerWrapper(nn.Module):
         self,
         listener_agent:DiscriminativeListener,
         predicate_threshold:float=0.5,
+        **kwargs,
     ):
         super(ListenerWrapper, self).__init__()
         self.listener_agent = listener_agent
         self.predicate_threshold = getattr(listener_agent, "predicate_threshold", predicate_threshold)
-    
+        self.use_oracle = kwargs.get("use_oracle", False)
+        
     def get_final_decision(
         self,
         sentences_token_idx,
@@ -149,7 +151,33 @@ class ListenerWrapper(nn.Module):
         ).squeeze(1)
         
         return final_decision_probs
+    
+    def oracle_forward(
+        self,
+        sentences:torch.Tensor,
+        rnn_states:Dict[str,object],
+        experiences:torch.Tensor,
+    ):
+        output_dict = {}
+        
+        batch_size = sentences.shape[0]
+        max_sentence_length = sentences.shape[1]
+        nbr_distractors_po = experiences.shape[1]
 
+        decision_probs = torch.zeros((batch_size, max_sentence_length, nbr_distractors_po+1))
+        # (batch_size x max_sentence_length x nbr_distractors+2)
+        
+        descriptions = rnn_states['InstructionGenerator']['achieved_goal'][0].to(sentences.device)
+        # (batch_size x max_sentence_length)
+        
+        match_value = (sentences == descriptions).float().mean(-1, keepdim=True)
+        decision_probs = match_value.reshape((batch_size, 1, 1)).repeat(1, max_sentence_length, 1)
+        if self.listener_agent.kwargs['descriptive']:
+            not_probs = 1-decision_probs
+            decision_probs = torch.cat([decision_probs, not_probs], dim=-1)
+        output_dict['decision'] = decision_probs
+        return output_dict
+    
     def forward(
         self,
         x:torch.Tensor,
@@ -179,10 +207,17 @@ class ListenerWrapper(nn.Module):
             sentences_one_hots = sentences_one_hots.cuda()
             experiences = experiences.cuda()
 
-        output_dict = self.listener_agent.forward(
-            sentences=sentences_one_hots, 
-            experiences=experiences, 
-        )
+        if self.use_oracle:
+            output_dict = self.oracle_forward(
+                sentences=sentences_widx,
+                rnn_states=rnn_states,
+                experiences=experiences
+            )
+        else:
+            output_dict = self.listener_agent.forward(
+                sentences=sentences_one_hots, 
+                experiences=experiences, 
+            )
         
         decision_probs = output_dict['decision']
         if self.listener_agent.kwargs['descriptive']:
@@ -381,7 +416,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         self.init_referential_game()
         self.goal_predicated_reward_fn_kwargs = {
-            'listener': ListenerWrapper(self.listener),
+            'listener': ListenerWrapper(self.listener, use_oracle=self.kwargs.get("ETHER_with_Oracle_listener", False)),
             'use_continuous_feedback': self.kwargs.get('ETHER_use_continuous_feedback', False),
         }
         
@@ -1459,6 +1494,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "object_centric":           self.rg_config["object_centric"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ETHER_rg_distractor_sampling_with_replacement'],
         }
         dataset_args["test"] = {
             "dataset_class":            "DualLabeledDataset",
@@ -1474,6 +1510,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "object_centric":           self.rg_config["object_centric"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ETHER_rg_distractor_sampling_with_replacement'],
         }
 
         self.dataset_args = dataset_args

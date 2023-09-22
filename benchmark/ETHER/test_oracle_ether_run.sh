@@ -12,14 +12,17 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_RP=False --RP_use_RP=True \
 --use_ELA=False --ELA_use_ELA=True \
 --use_HER=False --goal_oriented=False \
+--HER_strategy=future-4 \
+--HER_target_clamping=True \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
 --THER_use_THER_predictor_supervised_training=False \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_with_Oracle=True \
+--ETHER_with_Oracle_listener=True \
 --ETHER_rg_use_aita_sampling=True \
 --ETHER_rg_aita_update_epoch_period=256 \
---ETHER_rg_aita_levenshtein_comprange=0.5 \
+--ETHER_rg_aita_levenshtein_comprange=1.0 \
 --ETHER_rg_max_sentence_length=20 \
 --ETHER_use_supervised_training=False \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
@@ -28,7 +31,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_logits_mdl_principle_factor=1.0e-4 \
 --ETHER_rg_logits_mdl_principle_accuracy_threshold=40.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
---ETHER_use_continuous_feedback=True \
+--ETHER_use_continuous_feedback=False \
 --ETHER_rg_agent_nbr_latent_dim=1024 \
 --ETHER_rg_normalize_features=False \
 --ETHER_listener_based_predicated_reward_fn=True \
@@ -55,12 +58,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=32778 \
 --ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=256 --ETHER_rg_accuracy_threshold=35 \
+--ETHER_rg_nbr_epoch_per_update=1 --ETHER_rg_accuracy_threshold=80 \
 --ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
 --ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
---ETHER_rg_distractor_sampling=uniform \
+--ETHER_rg_distractor_sampling=similarity-90 \
+--ETHER_rg_distractor_sampling_with_replacement=True \
 --ETHER_rg_use_cuda=True \
 --ETHER_rg_metric_fast=True --ETHER_rg_parallel_TS_worker=8 \
 --ETHER_rg_metric_epoch_period=8 --ETHER_rg_dis_metric_epoch_period=0 \
@@ -103,7 +107,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_feedbacks_failure_reward=-0.1 --ELA_feedbacks_success_reward=1 \
 --THER_use_PER=True --THER_observe_achieved_goal=True \
 --THER_lock_test_storage=True \
---THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=1 \
+--THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=True \
 --THER_replay_capacity=1024 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
@@ -118,13 +122,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
+--nbr_training_iteration_per_cycle=128 --nbr_episode_per_cycle=16 \
 --single_pick_episode=True \
 --time_limit=40 \
 --train_observation_budget=1.0e6
