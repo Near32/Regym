@@ -144,6 +144,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         filter_out_timed_out_episode:Optional[bool]=False,
         timing_out_episode_length_threshold:Optional[int]=40,
         episode_length_reward_shaping:Optional[bool]=False,
+        episode_length_reward_shaping_type:Optional[str]='old',
         train_contrastively:Optional[bool]=False,
         contrastive_training_nbr_neg_examples:Optional[int]=0,
         ):
@@ -173,6 +174,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.filter_out_timed_out_episode = filter_out_timed_out_episode
         self.timing_out_episode_length_threshold = timing_out_episode_length_threshold
         self.episode_length_reward_shaping = episode_length_reward_shaping
+        self.episode_length_reward_shaping_type = episode_length_reward_shaping_type
         self.train_contrastively = train_contrastively
         self.contrastive_training_nbr_neg_examples = contrastive_training_nbr_neg_examples
         self.contrastive_goal_value = None 
@@ -447,8 +449,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 self.reward_shape = r.shape
                 her_r = self.feedbacks['success']*torch.ones_like(r) if r.item()>0 else self.feedbacks['failure']*torch.ones_like(r)
                 if self.episode_length_reward_shaping:
-                    if her_r > 0:
+                    if 'new' in self.episode_length_reward_shaping_type \
+                    and her_r > 0:
                         her_r *= (1.0-float(idx)/self.timing_out_episode_length_threshold)
+                    if 'old' in self.episode_length_reward_shaping_type:
+                        her_r *= float(idx)/self.timing_out_episode_length_threshold
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
                 non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
@@ -727,9 +732,13 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             else:
                                 new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
                             if self.episode_length_reward_shaping:
-                                if new_her_r > 0:
+                                if 'new' in self.episode_length_reward_shaping_type \
+                                and new_her_r > 0:
                                     reshaping_idx = idx-last_terminal_idx
                                     new_her_r *= (1.0-float(reshaping_idx)/self.timing_out_episode_length_threshold)
+                                if 'old' in self.episode_length_reward_shaping_type:
+                                    reshaping_idx = idx-last_terminal_idx
+                                    new_her_r *= float(reshaping_idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
 
                             if self.relabel_terminal:
@@ -869,9 +878,13 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             else:
                                 new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
                             if self.episode_length_reward_shaping:
-                                if new_her_r > 0:
+                                if 'new' in self.episode_length_reward_shaping_type \
+                                and new_her_r > 0:
                                     reshaping_idx = idx-last_terminal_idx
                                     new_her_r *= (1.0-float(reshaping_idx)/self.timing_out_episode_length_threshold)
+                                if 'old' in self.episode_length_reward_shaping_type:
+                                    reshaping_idx = idx-last_terminal_idx
+                                    new_her_r *= float(idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
 
                             if self.relabel_terminal:
