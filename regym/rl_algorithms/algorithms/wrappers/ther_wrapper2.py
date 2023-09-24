@@ -1367,6 +1367,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             filter_out_timed_out_episode=self.filter_out_timed_out_episode,
             timing_out_episode_length_threshold=self.timing_out_episode_length_threshold,
             episode_length_reward_shaping=self.episode_length_reward_shaping,
+            episode_length_reward_shaping_type=self.episode_length_reward_shaping_type,
             train_contrastively=self.train_contrastively,
             contrastive_training_nbr_neg_examples=self.contrastive_training_nbr_neg_examples,
         )

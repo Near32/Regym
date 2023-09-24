@@ -366,6 +366,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         filter_out_timed_out_episode:Optional[bool]=False,
         timing_out_episode_length_threshold:Optional[int]=40,
         episode_length_reward_shaping:Optional[bool]=False,
+        episode_length_reward_shaping_type:Optional[str]='new',
         train_contrastively:Optional[bool]=False,
         contrastive_training_nbr_neg_examples:Optional[int]=0,
         ):
@@ -396,6 +397,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             filter_out_timed_out_episode=filter_out_timed_out_episode,
             timing_out_episode_length_threshold=timing_out_episode_length_threshold,
             episode_length_reward_shaping=episode_length_reward_shaping,
+            episode_length_reward_shaping_type=episode_length_reward_shaping_type,
             train_contrastively=train_contrastively,
             contrastive_training_nbr_neg_examples=contrastive_training_nbr_neg_examples,
         )
@@ -1673,6 +1675,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             filter_out_timed_out_episode=self.filter_out_timed_out_episode,
             timing_out_episode_length_threshold=self.timing_out_episode_length_threshold,
             episode_length_reward_shaping=self.episode_length_reward_shaping,
+            episode_length_reward_shaping_type=self.episode_length_reward_shaping_type,
             train_contrastively=self.train_contrastively,
             contrastive_training_nbr_neg_examples=self.contrastive_training_nbr_neg_examples,
         )
