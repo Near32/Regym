@@ -505,6 +505,7 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
@@ -532,6 +533,7 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
@@ -955,6 +957,7 @@ def main():
     
     parser.add_argument("--use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_with_Oracle", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_with_Oracle_type", type=str, default="visible-entities",)
     parser.add_argument("--ETHER_with_Oracle_listener", type=str2bool, default="False",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)

@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py \
---seed=20 \
+--seed=10 \
 --project=ETHER \
 --success_threshold=0.5 \
 --use_cuda=True \
@@ -12,13 +12,14 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_RP=False --RP_use_RP=True \
 --use_ELA=False --ELA_use_ELA=True \
 --use_HER=False --goal_oriented=False \
---HER_strategy=future-4 \
+--HER_strategy=final-1 \
 --HER_target_clamping=True \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
 --THER_use_THER_predictor_supervised_training=False \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_with_Oracle=True \
+--ETHER_with_Oracle_type='goal-only' \
 --ETHER_with_Oracle_listener=True \
 --ETHER_rg_use_aita_sampling=True \
 --ETHER_rg_aita_update_epoch_period=256 \
@@ -107,7 +108,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_feedbacks_failure_reward=-0.1 --ELA_feedbacks_success_reward=1 \
 --THER_use_PER=True --THER_observe_achieved_goal=True \
 --THER_lock_test_storage=True \
---THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
+--THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=True \
 --THER_replay_capacity=1024 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
