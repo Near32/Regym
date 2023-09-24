@@ -8,16 +8,16 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --coverage_manipulation_metric=False \
 --MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_top_view=False \
---use_ETHER=True --use_THER=True \
+--use_ETHER=False --use_THER=True \
 --use_RP=False --RP_use_RP=False \
 --use_ELA=False --ELA_use_ELA=False \
 --use_HER=False --goal_oriented=False \
 --HER_strategy=final-1 \
 --HER_target_clamping=True \
 --ETHER_use_ETHER=True \
---THER_use_THER=True \
+--THER_use_THER=False \
 --THER_use_THER_predictor_supervised_training=False \
---THER_use_THER_predictor_supervised_training_data_collection=True \
+--THER_use_THER_predictor_supervised_training_data_collection=False \
 --ETHER_with_Oracle=False \
 --ETHER_with_Oracle_type='goal-only' \
 --ETHER_with_Oracle_listener=False \
