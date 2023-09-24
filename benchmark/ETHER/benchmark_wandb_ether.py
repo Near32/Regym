@@ -505,6 +505,7 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
@@ -532,6 +533,7 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
@@ -821,6 +823,10 @@ def main():
         type=float, 
         default=2e4,
     )
+    parser.add_argument("--HER_strategy",
+        type=str, 
+        default="final-1", 
+    )
     parser.add_argument("--HER_target_clamping",
         type=str2bool, 
         default="False", 
@@ -951,6 +957,8 @@ def main():
     
     parser.add_argument("--use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_with_Oracle", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_with_Oracle_type", type=str, default="visible-entities",)
+    parser.add_argument("--ETHER_with_Oracle_listener", type=str2bool, default="False",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
@@ -1046,6 +1054,7 @@ def main():
     parser.add_argument("--ETHER_rg_emb_dropout_prob", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_use_feat_converter", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_distractor_sampling_with_replacement", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_init_curriculum_nbr_distractors", type=int, default=1)
     parser.add_argument("--ETHER_rg_nbr_experience_repetition", type=int, default=1)

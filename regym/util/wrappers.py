@@ -2436,7 +2436,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         return observation
 
 class BehaviourDescriptionWrapper(gym.ObservationWrapper):
-    def __init__(self, env, max_sentence_length=10):
+    def __init__(self, env, max_sentence_length=10, use_visible_entities=False):
         """
         Add an observation string that describe the achieved goal for a PickUp-based env.
         'EoS' most of the time, unless, by order of priority:
@@ -2445,7 +2445,8 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         """
         gym.ObservationWrapper.__init__(self, env)
         self.max_sentence_length = max_sentence_length
-
+        self.use_visible_entities = use_visible_entities
+        
         self.observation_space = copy.deepcopy(env.observation_space)
         self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
 
@@ -2465,7 +2466,8 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         
         if color is not None and shape is not None:
             achieved_goal = f"pick up the {color} {shape}".lower()
-        elif 'visible_entities' in observation.keys():
+        elif self.use_visible_entities \
+        and 'visible_entities' in observation.keys():
             achieved_goal = copy.deepcopy(observation['visible_entities'])
         observation['behaviour_description'] = achieved_goal
         return observation
@@ -3580,6 +3582,7 @@ def baseline_ther_wrapper(
     full_obs=False,
     single_pick_episode=False,
     observe_achieved_goal=False,
+    use_visible_entities=False,
     babyai_mission=False,
     miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
@@ -3665,7 +3668,11 @@ def baseline_ther_wrapper(
     
     observation_keys_mapping={'mission':'desired_goal'}
     if observe_achieved_goal:
-        env = BehaviourDescriptionWrapper(env=env, max_sentence_length=max_sentence_length)
+        env = BehaviourDescriptionWrapper(
+            env=env, 
+            max_sentence_length=max_sentence_length,
+            use_visible_entities=use_visible_entities,
+        )
         observation_keys_mapping['behaviour_description'] = 'achieved_goal'
     if miniworld_entity_visibility_oracle:
         observation_keys_mapping['visible_entities'] = "visible_entities_widx"
