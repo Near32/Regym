@@ -464,7 +464,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 d2store = {
                     's':s, 
                     'a':a, 
-                    'r':her_r if self.kwargs['THER_use_THER'] else r, 
+                    'r':her_r, #if self.kwargs['THER_use_THER'] else r, 
                     'succ_s':succ_s, 
                     'non_terminal':non_terminal, 
                     'rnn_states':copy_hdict(rnn_states),
