@@ -675,7 +675,8 @@ agents:
             'achieved_goal':{
                 #shape: [28], #[63,], 
                 shape: [20], #10], 
-                target_location: ['OracleTHER']
+                #target_location: ['OracleTHER']
+                target_location: ['InstructionGenerator']
             },
             
  
