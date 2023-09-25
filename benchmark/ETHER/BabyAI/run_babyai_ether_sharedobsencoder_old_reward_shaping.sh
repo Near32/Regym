@@ -14,14 +14,14 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
---THER_use_THER_predictor_supervised_training=False \
+--THER_use_THER_predictor_supervised_training=True \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_with_Oracle=False \
 --ETHER_rg_use_aita_sampling=False \
 --ETHER_rg_aita_update_epoch_period=256 \
 --ETHER_rg_aita_levenshtein_comprange=1.0 \
 --ETHER_rg_max_sentence_length=10 \
---ETHER_use_supervised_training=False \
+--ETHER_use_supervised_training=True \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
@@ -72,6 +72,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_lock_test_storage=True \
 --THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=True \
+--THER_episode_length_reward_shaping_type='old' \
 --THER_replay_capacity=1024 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
 --THER_predictor_test_train_split_interval=5 --THER_test_replay_capacity=256 \

@@ -61,7 +61,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_use_predictor:  True
     THER_predictor_policy_shared_phi: False
 
-    THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
+    THER_max_sentence_length: &THER_max_sentence_length 20 
     THER_vocabulary: &THER_vocabulary [
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
@@ -552,21 +552,6 @@ agents:
                         input: "inputs:FiLMedBlock2:processed_input"
                     use_cuda: True
                     
-                'InstructionGeneratorMLP':
-                    type: FullyConnectedNetworkModule
-                    state_dim: *mlp_input_dim #3136
-                    hidden_units: ['BN1024', 'BN512', 'BN256']
-                    #hidden_units: ['BN512', 'BN256']
-                    #hidden_units: ['BN256', 'BN128', 'BN64']
-                    non_linearities: ['ReLU']
-                    dropout: 0.25
-                    config: None
-                    input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
-                    output_stream_ids:
-                        input: "inputs:InstructionGeneratorMLP:processed_input"
-                    use_cuda: True
-                
                 'MLP':
                     type: FullyConnectedNetworkModule
                     state_dim: *mlp_input_dim #3136
@@ -626,50 +611,20 @@ agents:
                     use_cuda: True
 
                 'InstructionGenerator':
-                    type: CaptionRNNModule
+                    type: OracleTHERModule
                     vocabulary: *THER_vocabulary 
                     vocab_size: *THER_vocab_size 
                     max_sentence_length: *THER_max_sentence_length 
-                    #input_dim: *feature_dim #*instruction_generator_input_dim
-                    input_dim: *caption_feature_dim #*instruction_generator_input_dim
-                    embedding_size: *caption_feature_dim
-                    #embedding_size: *feature_dim
-                    hidden_units: *hidden_dim 
-                    num_layers: 1
-                    gate: None #F.relu, 
-                    dropout: 0.25 #0.0  
-                    rnn_fn: "GRU"
                     config:
-                        predict_PADs: False
-                        diversity_loss_weighting: False #True
-                        rectify_contrastive_imbalance: False
-                        semantic_embeddings_prior: *semantic_embeddings_prior
-                        semantic_prior_mixing: "multiplicative"
-                        semantic_prior_mixing_with_detach: True
-                        input_mm_projector_BN: False
-                        semantic_embedding_init: 'ortho'
+                        hidden_units: *hidden_dim 
                     input_stream_ids:
-                        #input0: "inputs:InstructionGeneratorMLP:processed_input"
-                        input0: "inputs:SharedObsEncoder:processed_input"
+                        #input0: "inputs:OracleTHER:achieved_goal"
+                        input0: "inputs:InstructionGenerator:achieved_goal"
                         input0_gt_sentences: "inputs:gt_sentences"
                     output_stream_ids:
                         input0: "inputs:InstructionGenerator:processed_input0"
                     use_cuda: True 
 
-                #'OracleTHER':
-                #    type: OracleTHERModule
-                #    vocabulary: *THER_vocabulary 
-                #    vocab_size: *THER_vocab_size 
-                #    max_sentence_length: *THER_max_sentence_length 
-                #    config: None
-                #    input_stream_ids:
-                #        input0: "inputs:OracleTHER:achieved_goal"
-                #        input0_gt_sentences: "inputs:gt_sentences"
-                #    output_stream_ids:
-                #        input0: "inputs:InstructionGenerator:processed_input0"
-                #    use_cuda: True 
-
-            
             output_mappings:
                 head:
                     "a" : "modules:RLHead:a"
@@ -712,16 +667,17 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [20], #10], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             
             # Uncomment the following if using THER_observe_achieved_goal
-            #'achieved_goal':{
-            #    #shape: [28], #[63,], 
-            #    shape: [10], #20], 
-            #    target_location: ['OracleTHER']
-            #},
+            'achieved_goal':{
+                #shape: [28], #[63,], 
+                shape: [20], #10], 
+                #target_location: ['OracleTHER']
+                target_location: ['InstructionGenerator']
+            },
             
  
             #'action_mask':{

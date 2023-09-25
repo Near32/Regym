@@ -48,12 +48,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_egocentric_prob=0 \
 --ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=10 \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
+--ETHER_rg_distractor_sampling_scheme_version=2 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=True --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=256 --ETHER_rg_accuracy_threshold=50 \
---ETHER_rg_nbr_train_distractors=1 --ETHER_rg_nbr_test_distractors=1 \
+--ETHER_rg_nbr_epoch_per_update=256 --ETHER_rg_accuracy_threshold=20 \
+--ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
 --ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling=uniform \
 --ETHER_rg_use_cuda=True \
@@ -127,3 +128,4 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 #--train_observation_budget=300000 
 # WARNING: if THER_contrastive_training_nbr_neg_examples != 0 then THER_train_contrastively is toggled to True. 
 # WARNING: THER_filter_out_timed_out_episode is only filtering out for relabelling but not the actual trajectory : it is going to make it to the ReplayBuffer.
+

@@ -412,7 +412,7 @@ class MARLEnvironmentModule(Module):
                 if actor_index == 0:
                     self.sample_episode_count += 1
                 if len(self.trajectories) >= self.nbr_actors:
-                    mean_total_return = sum( self.total_returns) / len(self.trajectories)
+                    mean_total_return = sum( self.total_returns).item() / len(self.trajectories)
                     std_ext_return = math.sqrt( sum( [math.pow( r-mean_total_return ,2) for r in self.total_returns]) / len(self.total_returns) )
                     mean_positive_total_return = sum( self.positive_total_returns) / len(self.trajectories)
                     std_ext_positive_return = math.sqrt( sum( [math.pow( r-mean_positive_total_return ,2) for r in self.positive_total_returns]) / len(self.positive_total_returns) )

@@ -108,11 +108,13 @@ class ListenerWrapper(nn.Module):
         self,
         listener_agent:DiscriminativeListener,
         predicate_threshold:float=0.5,
+        **kwargs,
     ):
         super(ListenerWrapper, self).__init__()
         self.listener_agent = listener_agent
         self.predicate_threshold = getattr(listener_agent, "predicate_threshold", predicate_threshold)
-    
+        self.use_oracle = kwargs.get("use_oracle", False)
+        
     def get_final_decision(
         self,
         sentences_token_idx,
@@ -149,7 +151,33 @@ class ListenerWrapper(nn.Module):
         ).squeeze(1)
         
         return final_decision_probs
+    
+    def oracle_forward(
+        self,
+        sentences:torch.Tensor,
+        rnn_states:Dict[str,object],
+        experiences:torch.Tensor,
+    ):
+        output_dict = {}
+        
+        batch_size = sentences.shape[0]
+        max_sentence_length = sentences.shape[1]
+        nbr_distractors_po = experiences.shape[1]
 
+        decision_probs = torch.zeros((batch_size, max_sentence_length, nbr_distractors_po+1))
+        # (batch_size x max_sentence_length x nbr_distractors+2)
+        
+        descriptions = rnn_states['InstructionGenerator']['achieved_goal'][0].to(sentences.device)
+        # (batch_size x max_sentence_length)
+        
+        match_value = (sentences == descriptions).float().mean(-1, keepdim=True)
+        decision_probs = match_value.reshape((batch_size, 1, 1)).repeat(1, max_sentence_length, 1)
+        if self.listener_agent.kwargs['descriptive']:
+            not_probs = 1-decision_probs
+            decision_probs = torch.cat([decision_probs, not_probs], dim=-1)
+        output_dict['decision'] = decision_probs
+        return output_dict
+    
     def forward(
         self,
         x:torch.Tensor,
@@ -179,10 +207,17 @@ class ListenerWrapper(nn.Module):
             sentences_one_hots = sentences_one_hots.cuda()
             experiences = experiences.cuda()
 
-        output_dict = self.listener_agent.forward(
-            sentences=sentences_one_hots, 
-            experiences=experiences, 
-        )
+        if self.use_oracle:
+            output_dict = self.oracle_forward(
+                sentences=sentences_widx,
+                rnn_states=rnn_states,
+                experiences=experiences
+            )
+        else:
+            output_dict = self.listener_agent.forward(
+                sentences=sentences_one_hots, 
+                experiences=experiences, 
+            )
         
         decision_probs = output_dict['decision']
         if self.listener_agent.kwargs['descriptive']:
@@ -331,6 +366,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         filter_out_timed_out_episode:Optional[bool]=False,
         timing_out_episode_length_threshold:Optional[int]=40,
         episode_length_reward_shaping:Optional[bool]=False,
+        episode_length_reward_shaping_type:Optional[str]='new',
         train_contrastively:Optional[bool]=False,
         contrastive_training_nbr_neg_examples:Optional[int]=0,
         ):
@@ -361,6 +397,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             filter_out_timed_out_episode=filter_out_timed_out_episode,
             timing_out_episode_length_threshold=timing_out_episode_length_threshold,
             episode_length_reward_shaping=episode_length_reward_shaping,
+            episode_length_reward_shaping_type=episode_length_reward_shaping_type,
             train_contrastively=train_contrastively,
             contrastive_training_nbr_neg_examples=contrastive_training_nbr_neg_examples,
         )
@@ -381,7 +418,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         self.init_referential_game()
         self.goal_predicated_reward_fn_kwargs = {
-            'listener': ListenerWrapper(self.listener),
+            'listener': ListenerWrapper(self.listener, use_oracle=self.kwargs.get("ETHER_with_Oracle_listener", False)),
             'use_continuous_feedback': self.kwargs.get('ETHER_use_continuous_feedback', False),
         }
         
@@ -488,6 +525,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
 
     def init_referential_game(self):
+        ReferentialGym.datasets.dataset.DSS_version = self.kwargs["ETHER_rg_distractor_sampling_scheme_version"]
+        print(f"DSS_version = {ReferentialGym.datasets.dataset.DSS_version}.")
         ReferentialGym.datasets.dataset.OC_version = self.kwargs["ETHER_rg_object_centric_version"]
         print(f"OC_version = {ReferentialGym.datasets.dataset.OC_version}.")
         ReferentialGym.datasets.dataset.DC_version = self.kwargs["ETHER_rg_descriptive_version"]
@@ -831,6 +870,19 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         
         from ReferentialGym import modules as rg_modules
         
+        if self.kwargs["ETHER_rg_use_aita_sampling"]:
+            aita_sampling_id = "aita_sampling_0"
+            aita_sampling_config = {
+                "update_epoch_period": self.kwargs['ETHER_rg_aita_update_epoch_period'],
+                "max_workers": 8,
+                "comprange": self.kwargs['ETHER_rg_aita_levenshtein_comprange'],
+            }
+            
+            modules[aita_sampling_id] = rg_modules.AITAModule(
+                id=aita_sampling_id,
+                config=aita_sampling_config,
+            )
+  
         if self.kwargs["ETHER_rg_use_obverter_sampling"]:
             obverter_sampling_id = "obverter_sampling_0"
             obverter_sampling_config = {
@@ -1354,7 +1406,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
-        
+        if self.kwargs["ETHER_rg_use_aita_sampling"]:
+            pipelines[optim_id].append(aita_sampling_id)
+         
         pipelines[optim_id].append(logger_id)
         
         rg_config["modules"] = modules
@@ -1443,6 +1497,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "object_centric":           self.rg_config["object_centric"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ETHER_rg_distractor_sampling_with_replacement'],
         }
         dataset_args["test"] = {
             "dataset_class":            "DualLabeledDataset",
@@ -1458,6 +1513,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "object_centric":           self.rg_config["object_centric"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ETHER_rg_distractor_sampling_with_replacement'],
         }
 
         self.dataset_args = dataset_args
@@ -1541,13 +1597,13 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 log_freq=32,
                 log_graph=False,
             )
-            '''
             wandb.watch(
                 self.listener, 
                 log='gradients',
                 log_freq=32,
                 log_graph=False,
             )
+            '''
             
         if update:
             self.update_datasets()
@@ -1620,6 +1676,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             filter_out_timed_out_episode=self.filter_out_timed_out_episode,
             timing_out_episode_length_threshold=self.timing_out_episode_length_threshold,
             episode_length_reward_shaping=self.episode_length_reward_shaping,
+            episode_length_reward_shaping_type=self.episode_length_reward_shaping_type,
             train_contrastively=self.train_contrastively,
             contrastive_training_nbr_neg_examples=self.contrastive_training_nbr_neg_examples,
         )

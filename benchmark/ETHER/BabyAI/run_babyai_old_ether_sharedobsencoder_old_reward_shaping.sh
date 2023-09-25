@@ -14,21 +14,21 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
---THER_use_THER_predictor_supervised_training=False \
+--THER_use_THER_predictor_supervised_training=True \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_with_Oracle=False \
 --ETHER_rg_use_aita_sampling=False \
 --ETHER_rg_aita_update_epoch_period=256 \
 --ETHER_rg_aita_levenshtein_comprange=1.0 \
 --ETHER_rg_max_sentence_length=10 \
---ETHER_use_supervised_training=False \
+--ETHER_use_supervised_training=True \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
---ETHER_rg_logits_mdl_principle_factor=1.0e-4 \
---ETHER_rg_logits_mdl_principle_accuracy_threshold=40.0 \
+--ETHER_rg_logits_mdl_principle_factor=1.0e-5 \
+--ETHER_rg_logits_mdl_principle_accuracy_threshold=10.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
---ETHER_use_continuous_feedback=True \
+--ETHER_use_continuous_feedback=False \
 --ETHER_rg_agent_nbr_latent_dim=32 \
 --ETHER_rg_normalize_features=False \
 --ETHER_listener_based_predicated_reward_fn=True \
@@ -54,28 +54,29 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=512 \
 --ETHER_rg_descriptive=True --ETHER_rg_object_centric=False \
 --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=64 --ETHER_rg_accuracy_threshold=80 \
---ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=7 \
---ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
+--ETHER_rg_nbr_epoch_per_update=1 --ETHER_rg_accuracy_threshold=80 \
+--ETHER_rg_nbr_train_distractors=31 --ETHER_rg_nbr_test_distractors=7 \
+--ETHER_replay_capacity=2048 --ETHER_test_replay_capacity=256 \
 --ETHER_rg_distractor_sampling=uniform \
 --ETHER_rg_use_cuda=True \
 --ETHER_rg_metric_fast=True --ETHER_rg_parallel_TS_worker=8 \
 --ETHER_rg_metric_epoch_period=8 --ETHER_rg_dis_metric_epoch_period=8 \
 --ETHER_rg_metric_batch_size=32 \
---ETHER_rg_nbr_train_points=2048 --ETHER_rg_nbr_eval_points=1024 \
+--ETHER_rg_nbr_train_points=1024 --ETHER_rg_nbr_eval_points=512 \
 --ETHER_rg_metric_resampling=False --ETHER_rg_dis_metric_resampling=False \
 --ETHER_rg_metric_active_factors_only=True \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
 --THER_lock_test_storage=True \
 --THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=True \
---THER_replay_capacity=1024 --THER_min_capacity=12 \
+--THER_episode_length_reward_shaping_type='old' \
+--THER_replay_capacity=256 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
 --THER_predictor_test_train_split_interval=5 --THER_test_replay_capacity=256 \
---THER_test_min_capacity=4 --THER_replay_period=4096 \
+--THER_test_min_capacity=4 --THER_replay_period=256 \
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=False \
@@ -84,7 +85,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=4e3 --replay_capacity=10e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \

@@ -65,13 +65,13 @@ parameters:
         values: [True]
 
     THER_use_THER_predictor_supervised_training:
-        values: [True]
+        values: [False]
 
     THER_use_THER_predictor_supervised_training_data_collection:
         values: [True]
 
     ETHER_use_supervised_training:
-        values: [False, True]
+        values: [False]
 
     ETHER_rg_sanity_check_compactness_ambiguity_metric:
         values: [False]
@@ -130,7 +130,7 @@ parameters:
         values: [True]
 
     ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding:
-        values: [False]
+        values: [True]
 
     ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda:
         values: [100.0]

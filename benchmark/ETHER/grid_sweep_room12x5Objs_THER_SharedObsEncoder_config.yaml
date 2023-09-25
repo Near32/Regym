@@ -391,7 +391,7 @@ parameters:
     THER_test_min_capacity:
         values: [4]
     THER_replay_period:
-        values: [4096]
+        values: [16384]
 
     THER_train_on_success:
         values: [False]
@@ -404,7 +404,7 @@ parameters:
         values: [0.95]
 
     THER_predictor_accuracy_safe_to_relabel_threshold:
-        values: [0.2]
+        values: [0.2, 0.4]
     THER_filter_predicate_fn:
         values: [True, False]
 
