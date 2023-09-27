@@ -49,6 +49,7 @@ class RLHiddenStatePolicy(nn.Module):
     def __init__(
         self, 
         agent:Agent,
+        player_idx:Optional[int]=0,
         node_id_to_extract:Optional[str]="hidden",
         ):
         """
@@ -58,9 +59,8 @@ class RLHiddenStatePolicy(nn.Module):
         self.model = agent
         self.node_id_to_extract = node_id_to_extract.split(",")
         
-        # TODO remove or update the following as it does not matter
-        # since we are only ever using one such actor...
-        self.player_idx = 0
+        self.player_idx = player_idx
+        self.reset_with_vdn = None
     
     def get_hiddens(self, info=None, from_pred=None):
         if from_pred is None:
@@ -89,6 +89,9 @@ class RLHiddenStatePolicy(nn.Module):
                 nodes.append(node[nidx])
 
         vdn = self.model.kwargs.get('vdn', False)
+        if self.reset_with_vdn is not None \
+        and not self.reset_with_vdn:   
+           vdn = False
         vdn_nbr_players = self.model.kwargs.get('vdn_nbr_players', 2)
         
         nbr_nodes = len(nodes)
@@ -129,8 +132,9 @@ class RLHiddenStatePolicy(nn.Module):
             node_id_to_extract=''.join(self.node_id_to_extract), 
         )
 
-    def reset(self, batch_size:int, training:Optional[bool]=False):
-        self.model.set_nbr_actor(batch_size, vdn=False, training=training)
+    def reset(self, batch_size:int, vdn:Optional[bool]=False, training:Optional[bool]=False):
+        self.reset_with_vdn = vdn
+        self.model.set_nbr_actor(batch_size, vdn=vdn, training=training)
 
     def save_inner_state(self):
         self.saved_inner_state = self.model.get_rnn_states()
