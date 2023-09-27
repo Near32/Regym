@@ -81,7 +81,17 @@ def _concatenate_list_hdict(
                     out_pointer[k] = concat_fn(concat_list)
     return out_hd
 
-class VDNVecEnvWrapper(object):
+
+class VecEnvWrapper(object):
+    def __init__(self, env):
+        self.env = env
+    
+    @property
+    def unwrapped(self):
+        return self.env.unwrapped
+
+
+class VDNVecEnvWrapper(VecEnvWrapper):
     def __init__(self, env, nbr_players):
         '''
         Value-Decomposition Network-purposed wrapper expects the action argument to
@@ -94,7 +104,7 @@ class VDNVecEnvWrapper(object):
         into a singleton list whose element contains an extra dimension as the player
         dimension.
         '''
-        self.env = env
+        VecEnvWrapper.__init__(self, env)
         self.nbr_players = nbr_players
 
     def get_nbr_envs(self):
@@ -2049,7 +2059,7 @@ class SADVecEnvWrapper_depr(object):
 
         return next_obs, reward, done, next_infos
 
-class SADVecEnvWrapper(object):
+class SADVecEnvWrapper(VecEnvWrapper):
     def __init__(self, env, nbr_actions, otherplay=False):
         """
         Simplified Action Decoder wrapper expects the action argument for
@@ -2062,7 +2072,7 @@ class SADVecEnvWrapper(object):
         of the CURRENT PLAYER into the next_info dictionnary of ALL players with
         an extra player_offset tensor.
         """
-        self.env = env
+        VecEnvWrapper.__init__(self, env)
         self.otherplay=otherplay
         self.nbr_actions = nbr_actions
         self.nbr_players = None
