@@ -15,6 +15,7 @@ from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocess
 from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
 from regym.rl_algorithms.algorithms.wrappers import (
     ETHERAlgorithmWrapper,
+    OnlineReferentialGameAlgorithmWrapper,
     ELAAlgorithmWrapper,
     RewardPredictionAlgorithmWrapper,
 )
@@ -321,7 +322,25 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                 "success":kwargs['ELA_feedbacks_success_reward'],
             },
         )
-
+    
+    if kwargs.get("use_ORG", False):
+        predictor = ArchiPredictorSpeaker(
+            model=model, 
+            **kwargs["ArchiModel"],
+            pipeline_name="caption_generator",
+            generator_name="CaptionGenerator",
+            trainable=False,
+        )
+        algorithm = OnlineReferentialGameAlgorithmWrapper(
+          algorithm=algorithm,
+          predictor=predictor,
+        )
+        predictor.set_postprocess_fn(
+            partial(kwargs.get("ORG_postprocess_fn", None),
+                algorithm=algorithm,
+            )
+        )
+            
     agent = R2D2Agent(
         name=agent_name,
         algorithm=algorithm,
