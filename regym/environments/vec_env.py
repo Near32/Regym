@@ -57,6 +57,9 @@ class VecEnv():
             self.launch_env_process(idx=0)
         return self.env_processes[0].action_space
     @property
+    def unwrapped(self):
+        return self
+    @property
     def unwrapped_env(self):
         if self.env_processes[0] is None:
             self.launch_env_process(idx=0)
