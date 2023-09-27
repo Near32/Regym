@@ -49,9 +49,29 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
     def set_postprocess_fn(self, postprocess_fn):
         self.postprocess_fn = postprocess_fn
             
-    def clone(self):
+    def save(self, path, filename=None):
+        postprocess_fn = self.postprocess_fn
+        self.postprocess_fn = None 
+        
+        logger = self.logger
+        self.logger = None
+        
+        if filename is None:
+            filepath = path+self.id+".agent"
+        else:
+            filepath = os.path.join(path, filename)
+        torch.save(self, filepath)
+        
+        self.logger = logger 
+        self.postprocess_fn = postprocess_fn
+        return 
+
+    def clone(self, clone_proxies=False, minimal=False):
         self.reset()
-        return Speaker.clone(self)
+        cloned = Speaker.clone(self)
+        if not clone_proxies:
+            cloned.postprocess_fn = None
+        return cloned
 
     def speaker_init(
         self,

@@ -294,7 +294,7 @@ experiment:
         },
     ]
     experiment_id: 'r2d2_s2b_debug'
-    benchmarking_episodes: 10
+    benchmarking_episodes: 0
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 'None' #1.0e1 #1.0e20
     #benchmarking_record_episode_interval: 1.0e20

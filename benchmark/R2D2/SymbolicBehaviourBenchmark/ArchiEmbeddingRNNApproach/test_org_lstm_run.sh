@@ -4,15 +4,15 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --success_threshold=0.5 \
 --use_cuda=True \
---seed=20 \
+--seed=30 \
 --yaml_config=s2b_descr+feedback_comp_foc_1shot_r2d2_org_lstm_benchmark_config.yaml \
 --descriptive=True \
 --max_nbr_values_per_latent=5 \
---min_nbr_values_per_latent=3 \
---sampling_strategy=component-focused-1shot \
+--min_nbr_values_per_latent=2 \
+--sampling_strategy=component-focused-2shots \
 --nbr_distractors=0 \
 --nbr_latents=3 \
---nbr_object_centric_samples=8 \
+--nbr_object_centric_samples=4 \
 --provide_listener_feedback=True \
 --sad=True --vdn=True \
 --use_ORG=True \
@@ -27,6 +27,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_use_supervised_training=False \
 --ORG_with_compactness_ambiguity_metric=False \
 --ORG_rg_sanity_check_compactness_ambiguity_metric=False \
+--ORG_rg_reset_listener_each_training=True \
 --ORG_rg_shared_architecture=False \
 --ORG_rg_with_logits_mdl_principle=True \
 --ORG_rg_logits_mdl_principle_factor=1.0e-4 \
@@ -54,9 +55,10 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_rg_descriptive_version=2 \
 --ORG_rg_learning_rate=6.25e-5 --ORG_rg_weight_decay=0.0 \
 --ORG_rg_l2_weight_decay=0.0 --ORG_rg_l1_weight_decay=0.0 \
---ORG_rg_vocab_size=64 --ORG_rg_training_period=32 \
---ORG_rg_descriptive=True --ORG_rg_use_curriculum_nbr_distractors=False \
---ORG_rg_nbr_epoch_per_update=1 --ORG_rg_accuracy_threshold=80 \
+--ORG_rg_vocab_size=64 --ORG_rg_training_period=256 \
+--ORG_rg_descriptive=True --ORG_rg_object_centric=True \
+--ORG_rg_use_curriculum_nbr_distractors=False \
+--ORG_rg_nbr_epoch_per_update=64 --ORG_rg_accuracy_threshold=80 \
 --ORG_rg_nbr_train_distractors=0 --ORG_rg_nbr_test_distractors=0 \
 --ORG_rg_distractor_sampling=uniform \
 --ORG_rg_distractor_sampling_with_replacement=True \
@@ -68,7 +70,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_rg_metric_resampling=False --ORG_rg_dis_metric_resampling=False \
 --ORG_rg_metric_active_factors_only=True \
 --nbr_episode_per_cycle=32 \
---nbr_training_iteration_per_cycle=4 \
+--nbr_training_iteration_per_cycle=32 \
 --min_handled_experiences=1e1 \
 --nbr_minibatches=4 \
 --batch_size=64 \
@@ -86,6 +88,12 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --use_rule_based_agent=False \
 --use_speaker_rule_based_agent=False \
 --node_id_to_extract=hidden \
+--speaker_rec_adaptive_period=True \
+--speaker_rec_biasing=True \
+--speaker_rec=True \
+--speaker_rec_period=2 \
+--speaker_rec_max_adaptive_period=1000 \
+--speaker_rec_lambda=1.0e0 \
 --listener_comm_rec_adaptive_period=True \
 --listener_rec_adaptive_period=True \
 --listener_comm_rec_biasing=True \

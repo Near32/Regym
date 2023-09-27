@@ -151,6 +151,11 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         # Set rnn_states as default reset_state for copy of model in agents
         self.old_reset_states = self.speaker.get_reset_states()
         self.speaker.set_reset_states(self.new_reset_states)
+        
+
+        ## Listener :
+        if self.kwargs['ORG_rg_reset_listener_each_training']:
+            self.listener.reset(whole=True)
         return 
     
     def regularise_agents(self):
@@ -559,7 +564,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         population_handler_id = "population_handler_0"
         population_handler_config = copy.deepcopy(rg_config)
         population_handler_config["verbose"] = self.kwargs["ORG_rg_verbose"]
-        population_handler_config["agent_saving"] = False
+        population_handler_config["agent_saving"] = True #False
         population_handler_stream_ids = {
             "current_speaker_streams_dict":"modules:current_speaker",
             "current_listener_streams_dict":"modules:current_listener",
@@ -1102,6 +1107,22 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.rg_train_dataset = self.venv.unwrapped.env_processes[self.current_actor].unwrapped.datasets['test'].previous_datasets['train']
         self.rg_test_dataset = self.venv.unwrapped.env_processes[self.current_actor].unwrapped.datasets['test'].previous_datasets['test']
         
+        #####
+        self.rg_train_dataset.sampling_strategy = None
+        self.rg_train_dataset.reset_sampling()
+        self.rg_test_dataset.__init__( 
+            train=False, 
+            transform=self.rg_train_dataset.transform, 
+            sampling_strategy=None,
+            split_strategy=self.rg_train_dataset.split_strategy, 
+            nbr_latents=self.rg_train_dataset.nbr_latents, 
+            min_nbr_values_per_latent=self.rg_train_dataset.min_nbr_values_per_latent, 
+            max_nbr_values_per_latent=self.rg_train_dataset.max_nbr_values_per_latent, 
+            nbr_object_centric_samples=self.rg_train_dataset.nbr_object_centric_samples,
+            prototype=self.rg_train_dataset,
+        )
+        ##### 
+        
         need_dict_wrapping = {}
         dataset_args = {"modes":["train", "test"]}
         dataset_args["train"] = {
@@ -1226,7 +1247,10 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 clone_proxies=clone_proxies,
                 minimal=minimal
             ), 
-            predictor=self.predictor, 
+            predictor=self.predictor.clone(
+                clone_proxies=clone_proxies,
+                minimal=minimal,
+            ), 
         )
         return cloned_algo
 

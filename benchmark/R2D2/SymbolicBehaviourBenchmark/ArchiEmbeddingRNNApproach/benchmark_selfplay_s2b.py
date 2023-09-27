@@ -227,6 +227,9 @@ def make_rl_pubsubmanager(
       "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
       'sampling_period':task_config['speaker_rec_period'],
+      'adaptive_sampling_period':task_config['speaker_rec_adaptive_period'],
+      'max_sampling_period':task_config['speaker_rec_max_adaptive_period'],
+      'loss_lambda_weight':task_config['speaker_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[0],
           player_idx=0,
@@ -1036,12 +1039,13 @@ def main():
         type=float, 
         default=5e-2,
     )
-    #parser.add_argument("--speaker_rec", type=str, default="False",)
+    parser.add_argument("--speaker_rec", type=str, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
+    parser.add_argument("--speaker_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_lambda", type=float, default=1.0,)
-    #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
+    parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
@@ -1129,6 +1133,12 @@ def main():
         type=float, 
         default=0.0,
     )
+    parser.add_argument("--speaker_rec_max_adaptive_period", type=int, default=1000,)
+    parser.add_argument("--speaker_rec_adaptive_period", type=str2bool, default="False",)
+    parser.add_argument("--speaker_rec_period", 
+        type=int, 
+        default=10,
+    )
     parser.add_argument("--listener_rec_max_adaptive_period", type=int, default=1000,)
     parser.add_argument("--listener_rec_adaptive_period", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_period", 
@@ -1137,10 +1147,6 @@ def main():
     )
     parser.add_argument("--listener_comm_rec_adaptive_period", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_period", 
-        type=int, 
-        default=10,
-    )
-    parser.add_argument("--speaker_rec_period", 
         type=int, 
         default=10,
     )
@@ -1254,6 +1260,7 @@ def main():
     parser.add_argument("--use_cuda", type=str2bool, default="False")
 
     parser.add_argument("--use_ORG", type=str2bool, default="True",)
+    parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
     parser.add_argument("--ORG_with_Oracle", type=str2bool, default="False",)
     parser.add_argument("--ORG_with_Oracle_type", type=str, default="visible-entities",)
     parser.add_argument("--ORG_with_Oracle_listener", type=str2bool, default="False",)
@@ -1291,7 +1298,7 @@ def main():
     parser.add_argument("--ORG_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ORG_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ORG_rg_distractor_sampling_scheme_version", type=int, default=1)
-    parser.add_argument("--ORG_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ORG_rg_descriptive_version", type=int, default=2)
     parser.add_argument("--ORG_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_color_jitter_prob", type=float, default=0)
     parser.add_argument("--ORG_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
