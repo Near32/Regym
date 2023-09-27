@@ -25,6 +25,12 @@ class ArchiPredictor(nn.Module):
         if self.use_oracle:
             print("ARCHI PREDICTOR::WARNING: using OracleTHER.")
     
+    def get_reset_states(self):
+        return self.model.get_reset_states()
+    
+    def set_reset_states(self, new_reset_states):
+        self.model.set_reset_states(new_reset_states)
+    
     def clone(self):
         return copy.deepcopy(self)
  
