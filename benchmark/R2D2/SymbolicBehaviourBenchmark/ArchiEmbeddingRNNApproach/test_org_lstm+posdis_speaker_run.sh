@@ -6,7 +6,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --use_cuda=True \
 --seed=30 \
 --saving_interval=1e20 \
---yaml_config=s2b_descr+feedback_comp_foc_1shot_r2d2_org_lstm_benchmark_config.yaml \
+--yaml_config=s2b_descr+feedback_comp_foc_1shot_r2d2_org_lstm+posdis_speaker_benchmark_config.yaml \
 --descriptive=True \
 --max_nbr_values_per_latent=5 \
 --min_nbr_values_per_latent=2 \
@@ -18,7 +18,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --sad=True --vdn=True \
 --use_ORG=True \
 --ORG_use_ORG=True \
---ORG_with_Oracle=False \
+--ORG_with_Oracle=True \
 --ORG_with_Oracle_listener=False \
 --ORG_rg_use_aita_sampling=False \
 --ORG_rg_aita_update_epoch_period=256 \
@@ -27,7 +27,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_use_supervised_training=False \
 --ORG_with_compactness_ambiguity_metric=False \
 --ORG_rg_sanity_check_compactness_ambiguity_metric=False \
---ORG_rg_reset_listener_each_training=True \
+--ORG_rg_reset_listener_each_training=False \
 --ORG_rg_shared_architecture=False \
 --ORG_rg_with_logits_mdl_principle=True \
 --ORG_rg_logits_mdl_principle_factor=1.0e-4 \
@@ -52,14 +52,14 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_rg_egocentric_tr_xy=10 \
 --ORG_rg_object_centric_version=2 \
 --ORG_rg_distractor_sampling_scheme_version=2 \
---ORG_rg_descriptive_version=1 \
+--ORG_rg_descriptive_version=2 \
 --ORG_rg_learning_rate=6.25e-5 --ORG_rg_weight_decay=0.0 \
 --ORG_rg_l2_weight_decay=0.0 --ORG_rg_l1_weight_decay=0.0 \
---ORG_rg_vocab_size=64 --ORG_rg_training_period=512 \
+--ORG_rg_vocab_size=64 --ORG_rg_training_period=2 \
 --ORG_rg_descriptive=True --ORG_rg_object_centric=True \
 --ORG_rg_use_curriculum_nbr_distractors=False \
 --ORG_rg_batch_size=32 \
---ORG_rg_nbr_epoch_per_update=1024 --ORG_rg_accuracy_threshold=80 \
+--ORG_rg_nbr_epoch_per_update=256 --ORG_rg_accuracy_threshold=80 \
 --ORG_rg_nbr_train_distractors=0 --ORG_rg_nbr_test_distractors=0 \
 --ORG_rg_distractor_sampling=uniform \
 --ORG_rg_distractor_sampling_with_replacement=True \

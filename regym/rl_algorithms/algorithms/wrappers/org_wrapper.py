@@ -1202,13 +1202,13 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             wandb.watch(
                 self.speaker, 
                 log='gradients',
-                log_freq=32,
+                log_freq=2,
                 log_graph=False,
             )
             wandb.watch(
                 self.listener, 
                 log='gradients',
-                log_freq=32,
+                log_freq=2,
                 log_graph=False,
             )
             '''

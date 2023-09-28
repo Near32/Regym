@@ -327,19 +327,20 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         predictor = ArchiPredictorSpeaker(
             model=model, 
             **kwargs["ArchiModel"],
-            pipeline_name="caption_generator",
-            generator_name="CaptionGenerator",
+            pipeline_name="instruction_generator" if kwargs["ORG_with_Oracle"] else "caption_generator",
+            generator_name="InstructionGenerator" if kwargs["ORG_with_Oracle"] else "CaptionGenerator",
             trainable=False,
         )
         algorithm = OnlineReferentialGameAlgorithmWrapper(
           algorithm=algorithm,
           predictor=predictor,
         )
-        predictor.set_postprocess_fn(
-            partial(kwargs.get("ORG_postprocess_fn", None),
-                algorithm=algorithm,
+        if not kwargs["ORG_with_Oracle"]:
+            predictor.set_postprocess_fn(
+                partial(kwargs.get("ORG_postprocess_fn", None),
+                    algorithm=algorithm,
+                )
             )
-        )
             
     agent = R2D2Agent(
         name=agent_name,

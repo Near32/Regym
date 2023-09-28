@@ -171,12 +171,17 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         batch_size = features.shape[0]
+        extra_rnn_states = self.model.get_reset_states({
+            'repeat':batch_size,
+            'cuda':self.kwargs['use_cuda'],
+            }
+        )
         if rnn_states is None:
-            rnn_states = self.model.get_reset_states({
-                'repeat':batch_size,
-                'cuda':self.kwargs['use_cuda'],
-                }
-            )
+            rnn_states = extra_rnn_states
+        else:
+            for k,v in extra_rnn_states.items():
+                rnn_states[k] = v
+				
         input_dict = {
             'obs':features,
             'rnn_states': rnn_states,
@@ -229,9 +234,17 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         gt_sentences=None,
         rnn_states=None,
     ):
+        batch_size = x.shape[0]
         if rnn_states is None:
-            rnn_states = self.model.get_reset_states()
-
+            rnn_states = self.model.get_reset_states({
+                'repeat':batch_size,
+                'cuda':self.kwargs['use_cuda'],
+                }
+            )
+        else:
+            for k,v in self.model.get_reset_states():
+                rnn_states[k] = v
+				
         input_dict = {
             'obs':x,
             'rnn_states': rnn_states,
