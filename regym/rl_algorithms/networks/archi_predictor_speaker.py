@@ -68,9 +68,12 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
 
     def clone(self, clone_proxies=False, minimal=False):
         self.reset()
+        postprocess_fn = self.postprocess_fn
+        self.postprocess_fn = None
         cloned = Speaker.clone(self)
-        if not clone_proxies:
-            cloned.postprocess_fn = None
+        if clone_proxies:
+            cloned.postprocess_fn = postprocess_fn
+        self.postprocess_fn = postprocess_fn
         return cloned
 
     def speaker_init(

@@ -1098,7 +1098,7 @@ def main():
     )
     parser.add_argument("--saving_interval", 
         type=float, 
-        default=5e5,
+        default=1e15,
     )
     parser.add_argument("--learning_rate", 
         type=float, 

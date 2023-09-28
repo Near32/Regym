@@ -5,6 +5,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --success_threshold=0.5 \
 --use_cuda=True \
 --seed=30 \
+--saving_interval=1e20 \
 --yaml_config=s2b_descr+feedback_comp_foc_1shot_r2d2_org_lstm_benchmark_config.yaml \
 --descriptive=True \
 --max_nbr_values_per_latent=5 \
@@ -70,7 +71,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_rg_metric_resampling=False --ORG_rg_dis_metric_resampling=False \
 --ORG_rg_metric_active_factors_only=True \
 --nbr_episode_per_cycle=32 \
---nbr_training_iteration_per_cycle=32 \
+--nbr_training_iteration_per_cycle=4 \
 --min_handled_experiences=1e1 \
 --nbr_minibatches=4 \
 --batch_size=64 \
