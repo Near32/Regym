@@ -180,6 +180,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             rnn_states = extra_rnn_states
         else:
             for k,v in extra_rnn_states.items():
+                if k in rnn_states: continue
                 rnn_states[k] = v
 				
         input_dict = {
@@ -242,7 +243,8 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
                 }
             )
         else:
-            for k,v in self.model.get_reset_states():
+            for k,v in self.model.get_reset_states().items():
+                if k in rnn_states: continue
                 rnn_states[k] = v
 				
         input_dict = {
