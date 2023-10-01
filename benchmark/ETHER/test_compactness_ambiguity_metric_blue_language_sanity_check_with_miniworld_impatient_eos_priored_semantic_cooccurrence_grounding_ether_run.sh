@@ -12,6 +12,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_use_ETHER=True --THER_use_THER=True \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=True \
 --MiniWorld_entity_visibility_oracle=True \
+--MiniWorld_entity_visibility_oracle_language_specs=key \
+--MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
 --ETHER_rg_logits_mdl_principle_factor=1.0e-3 \
@@ -26,10 +28,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_egocentric=False \
 --ETHER_rg_object_centric_version=2 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=4096 \
+--ETHER_rg_vocab_size=128 --ETHER_rg_training_period=4096 \
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=1 --ETHER_rg_accuracy_threshold=99 \
---ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=7 \
+--ETHER_rg_nbr_train_distractors=1 --ETHER_rg_nbr_test_distractors=1 \
 --ETHER_replay_capacity=1024 --ETHER_test_replay_capacity=512 \
 --ETHER_rg_distractor_sampling=similarity-90 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
@@ -46,7 +48,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_relabel_terminal=False --THER_filter_out_timed_out_episode=True \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=400 \
---BabyAI_Bot_action_override=False \
+--BabyAI_Bot_action_override=False --time_limit=100 \
 --train_observation_budget=6144 
 
 #--ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \

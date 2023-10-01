@@ -52,7 +52,7 @@ class DQNAgent(Agent):
         self.nbr_steps = 0
         
         # With respect to the number of observations:
-        self.saving_interval = float(self.kwargs['saving_interval']) if 'saving_interval' in self.kwargs else 5e5
+        self.saving_interval = float(self.kwargs.get('saving_interval', 5e7))
         self.previous_save_quotient = 0
 
     def get_update_count(self):

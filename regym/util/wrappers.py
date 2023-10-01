@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, List, Callable, Union
 import os
 import copy
+import re
 from functools import partial 
 from collections.abc import Iterable
 from collections import deque, OrderedDict
@@ -80,7 +81,17 @@ def _concatenate_list_hdict(
                     out_pointer[k] = concat_fn(concat_list)
     return out_hd
 
-class VDNVecEnvWrapper(object):
+
+class VecEnvWrapper(object):
+    def __init__(self, env):
+        self.env = env
+    
+    @property
+    def unwrapped(self):
+        return self.env.unwrapped
+
+
+class VDNVecEnvWrapper(VecEnvWrapper):
     def __init__(self, env, nbr_players):
         '''
         Value-Decomposition Network-purposed wrapper expects the action argument to
@@ -93,7 +104,7 @@ class VDNVecEnvWrapper(object):
         into a singleton list whose element contains an extra dimension as the player
         dimension.
         '''
-        self.env = env
+        VecEnvWrapper.__init__(self, env)
         self.nbr_players = nbr_players
 
     def get_nbr_envs(self):
@@ -2048,7 +2059,7 @@ class SADVecEnvWrapper_depr(object):
 
         return next_obs, reward, done, next_infos
 
-class SADVecEnvWrapper(object):
+class SADVecEnvWrapper(VecEnvWrapper):
     def __init__(self, env, nbr_actions, otherplay=False):
         """
         Simplified Action Decoder wrapper expects the action argument for
@@ -2061,7 +2072,7 @@ class SADVecEnvWrapper(object):
         of the CURRENT PLAYER into the next_info dictionnary of ALL players with
         an extra player_offset tensor.
         """
-        self.env = env
+        VecEnvWrapper.__init__(self, env)
         self.otherplay=otherplay
         self.nbr_actions = nbr_actions
         self.nbr_players = None
@@ -2410,7 +2421,8 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         """
         for obs_key, map_key in self.observation_keys_mapping.items():
             #t_goal = [w.lower() for w in observation[obs_key].split(' ')]
-            t_goal = [w for w in observation[obs_key].split(' ')]
+            #t_goal = [w for w in observation[obs_key].split(' ')]
+            t_goal = [w for w in re.findall(r'\d|\w+|\.', observation[obs_key])]
             for w in t_goal:
                 if w not in self.vocabulary:
                     import ipdb; ipdb.set_trace()
@@ -3586,6 +3598,9 @@ def baseline_ther_wrapper(
     babyai_mission=False,
     miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
+    miniworld_entity_visibility_oracle_language_specs=False,
+    miniworld_entity_visibility_oracle_include_depth=False,
+    miniworld_entity_visibility_oracle_include_depth_precision=0,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
     ne_dampening_rate=0.0,
@@ -3601,6 +3616,9 @@ def baseline_ther_wrapper(
             qualifying_area_ratio=0.15,
             qualifying_screen_ratio=0.025,
             as_obs=True,
+            language_specs=miniworld_entity_visibility_oracle_language_specs,
+            include_depth=miniworld_entity_visibility_oracle_include_depth,
+            include_depth_precision=miniworld_entity_visibility_oracle_include_depth_precision,
             with_top_view=miniworld_entity_visibility_oracle_top_view,
             verbose=False,
         )

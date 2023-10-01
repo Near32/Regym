@@ -52,7 +52,8 @@ def build_MARLEnvironmentModule(
 
 
 class MARLEnvironmentModule(Module):
-    def __init__(self,
+    def __init__(
+        self,
                  id:str,
                  config:Dict[str,object],
                  input_stream_ids:Dict[str,str]=None):
@@ -122,6 +123,10 @@ class MARLEnvironmentModule(Module):
         self.info = None 
 
         self.agents = input_streams_dict["current_agents"].agents
+        for agent in self.agents:
+            if hasattr(agent, 'algorithm') \
+            and hasattr(agent.algorithm, 'set_venv'):
+                agent.algorithm.set_venv(self.env)
         self.sad = self.config.get('sad', False)
         self.vdn = self.config.get('vdn', False)
         self.saving_obs_period = self.config.get('saving_obs_period', 1e6) 
@@ -145,6 +150,12 @@ class MARLEnvironmentModule(Module):
         self.nbr_actors = self.env.get_nbr_envs()
         self.nbr_players = self.config['nbr_players']
 
+        initial_env_config = self.config.get('env_configs', {})
+        self.env_configs = [copy.deepcopy(initial_env_config) for _ in range(self.nbr_actors)]
+        for actor_idx in range(self.nbr_actors):
+            self.env_configs[actor_idx]['seed'] = self.config.get('seed', 0)
+            self.env_configs[actor_idx]['seed'] += actor_idx
+        
         self.done = [False]*self.nbr_actors
         
         for agent in self.agents:
@@ -193,7 +204,9 @@ class MARLEnvironmentModule(Module):
             self.initialisation(input_streams_dict)
 
         if self.observations is None:
-            env_reset_output_dict = self.env.reset(env_configs=self.config.get('env_configs', None))
+            env_reset_output_dict = self.env.reset(
+                env_configs=self.env_configs,
+            )
             self.observations = env_reset_output_dict[self.obs_key]
             self.info = env_reset_output_dict[self.info_key]
             if self.vdn:
@@ -243,23 +256,24 @@ class MARLEnvironmentModule(Module):
         ]
 
         env_output_dict = self.env.step(actions, online_reset=True)
-        succ_observations = env_output_dict[self.succ_obs_key]
+        self.succ_observations = succ_observations = env_output_dict[self.succ_obs_key]
         reward = env_output_dict[self.reward_key]
         done = env_output_dict[self.done_key]
-        succ_info = env_output_dict[self.succ_info_key]
+        self.succ_info = succ_info = env_output_dict[self.succ_info_key]
 
         if self.vdn:
             nonvdn_actions = env_output_dict['actions']
-            nonvdn_succ_observations = env_output_dict['succ_observations']
+            self.nonvdn_succ_observations = env_output_dict['succ_observations']
             nonvdn_reward = env_output_dict['reward']
             nonvdn_done = env_output_dict['done']
-            nonvdn_succ_info = env_output_dict['succ_info']
+            self.nonvdn_succ_info = env_output_dict['succ_info']
 
-        if self.sad and isinstance(actions[0], dict):
-            actions = [
-                a["action"]
-                for a in actions
-            ]
+        # TODO: testing whether the following is necessary:
+        #if self.sad and isinstance(actions[0], dict):
+        #    actions = [
+        #        a["action"]
+        #        for a in actions
+        #    ]
         
         for hook in self.config['step_hooks']:
             hook(
@@ -289,7 +303,7 @@ class MARLEnvironmentModule(Module):
                 if self.vdn:
                     obs = self.nonvdn_observations
                     act = nonvdn_actions
-                    succ_obs = nonvdn_succ_observations
+                    succ_obs = self.nonvdn_succ_observations
                     rew = nonvdn_reward
                     d = nonvdn_done
                     info = self.nonvdn_info
@@ -462,10 +476,12 @@ class MARLEnvironmentModule(Module):
             if self.vdn:
                 obs = self.nonvdn_observations
                 act = nonvdn_actions
-                succ_obs = nonvdn_succ_observations
+                #succ_obs = self.succ_observations
+                succ_obs = self.nonvdn_succ_observations
                 rew = nonvdn_reward
                 d = nonvdn_done
                 info = self.nonvdn_info
+                #succ_info = self.succ_info
                 succ_info = self.nonvdn_succ_info
             else:
                 obs = self.observations
@@ -615,8 +631,8 @@ class MARLEnvironmentModule(Module):
             outputs_stream_dict["actions"] = nonvdn_actions 
             outputs_stream_dict["reward"] = nonvdn_reward 
             outputs_stream_dict["done"] = nonvdn_done 
-            outputs_stream_dict["succ_observations"] = nonvdn_succ_observations
-            outputs_stream_dict["succ_info"] = nonvdn_succ_info
+            outputs_stream_dict["succ_observations"] = copy.deepcopy(self.nonvdn_succ_observations)
+            outputs_stream_dict["succ_info"] = copy.deepcopy(self.nonvdn_succ_info)
 
         # Prepare player dicts for RLAgent modules:
         for pidx in range(self.nbr_agents):
@@ -624,17 +640,17 @@ class MARLEnvironmentModule(Module):
             pidx_d['observations'] = self.observations[pidx]
             pidx_d['infos'] = self.info[pidx] 
             pidx_d['actions'] = actions[pidx]
-            pidx_d['succ_observations'] = succ_observations[pidx]
-            pidx_d['succ_infos'] = succ_info[pidx] 
+            pidx_d['succ_observations'] = self.succ_observations[pidx]
+            pidx_d['succ_infos'] = self.succ_info[pidx] 
             pidx_d['rewards'] = reward[pidx]
             pidx_d['dones'] = done
             setattr(self, f"player_{pidx}", pidx_d)
 
-        self.observations = copy.deepcopy(succ_observations)
-        self.info = copy.deepcopy(succ_info)
+        self.observations = copy.deepcopy(self.succ_observations)
+        self.info = copy.deepcopy(self.succ_info)
         if self.vdn:
-            self.nonvdn_observations = copy.deepcopy(nonvdn_succ_observations)
-            self.nonvdn_info = copy.deepcopy(nonvdn_succ_info)
+            self.nonvdn_observations = copy.deepcopy(self.nonvdn_succ_observations)
+            self.nonvdn_info = copy.deepcopy(self.nonvdn_succ_info)
 
         outputs_stream_dict["signals:mode"] = 'train'
         outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch

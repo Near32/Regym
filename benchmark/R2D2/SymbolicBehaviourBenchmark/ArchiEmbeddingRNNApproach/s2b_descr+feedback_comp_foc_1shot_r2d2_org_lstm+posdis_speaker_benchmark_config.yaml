@@ -294,7 +294,7 @@ experiment:
         },
     ]
     experiment_id: 'r2d2_s2b_debug'
-    benchmarking_episodes: 10
+    benchmarking_episodes: 0
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 'None' #1.0e1 #1.0e20
     #benchmarking_record_episode_interval: 1.0e20
@@ -449,6 +449,17 @@ agents:
         # critic_arch_linear_post_hidden_units: [256]
         # critic_arch_feature_dim: 128
 
+        vocabulary: &vocabulary [
+            'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
+            'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
+            'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
+            'yellow', 'grey', 'the', 'a', 'object',
+            'key', 'ball', 'red', 'green', 'blue', 'purple', 
+            'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
+            'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
+            'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box'
+        ]
+        
         ArchiModel:
             model_id: 'RL_LSTM_Model'
             hyperparameters:
@@ -456,8 +467,9 @@ agents:
                 key_dim: 64
                 hidden_dim: 512
                 output_dim: 256
-                action_dim: 8
-                lstm_input_dim: &lstm_input_dim 245
+                action_dim: &action_dim 519 #171 #8
+                lstm_input_dim: &lstm_input_dim 593 #245
+                rl_state_dim: &rl_state_dim 1031 #683 
             input_stream_ids:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"
@@ -497,7 +509,7 @@ agents:
                 'CommEncoder':
                     type: FullyConnectedNetworkModule
                     #state_dim: 30 
-                    state_dim: 15  #"{{hidden_dim}}"
+                    state_dim: 21 #15  #"{{hidden_dim}}"
                     hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -537,8 +549,8 @@ agents:
                     use_cuda: True
                 'RLHead':
                     type: RLCategoricalHeadModule
-                    state_dim: 683 
-                    action_dim: 171 #519 #"{{action_dim}}"
+                    state_dim: *rl_state_dim #683 
+                    action_dim: *action_dim #519 #"{{action_dim}}"
                     noisy: False
                     dueling: True
                     config: None
@@ -548,6 +560,21 @@ agents:
                         action: "inputs:action"
                         legal_actions: "inputs:head:extra_inputs:legal_actions"
                     use_cuda: True
+                'InstructionGenerator':
+                    type: OracleTHERModule
+                    vocabulary: *vocabulary 
+                    _vocab_size: 64 #*vocab_size 
+                    _max_sentence_length: 20 #*THER_max_sentence_length 
+                    config:
+                        hidden_units: 512 
+                    input_stream_ids:
+                        #input0: "inputs:OracleTHER:achieved_goal"
+                        input0: "inputs:InstructionGenerator:achieved_goal"
+                        #input0_gt_sentences: "inputs:gt_sentences"
+                    output_stream_ids:
+                        input0: "inputs:InstructionGenerator:processed_input0"
+                    use_cuda: True 
+            
             output_mappings:
                 head:
                     "a": "modules:RLHead:a"
@@ -559,7 +586,9 @@ agents:
                     #"log_pi_a" : "modules:RLHead:log_pi_a"
                     "log_a" : "modules:RLHead:log_a"
                     "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
-            
+                caption_generator:
+                    "a" : "modules:RLHead:a"
+ 
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
                     head:
@@ -572,9 +601,20 @@ agents:
                 head:
                     - 'CoreLSTM'
                     - 'RLHead'
+                caption_generator:
+                    - 'ObsEncoderFCN'
+                    - 'CommEncoder' 
+                    - 'ConcatenationOperation'
+                    - 'CoreLSTM'
+                    - 'RLHead'
+                    #- 'CaptionGenerator'
+                instruction_generator: 
+                    - 'ObsEncoderFCN'
+                    - 'InstructionGenerator'
             features_id: 
                 torso: "modules:ConcatenationOperation:output"
-            
+                instruction_generator: "inputs:InstructionGenerator:processed_input0"
+                #caption_generator: "modules:RLHead:a"
         extra_inputs_infos: {
             'previous_reward':{
                 shape: [1,], 

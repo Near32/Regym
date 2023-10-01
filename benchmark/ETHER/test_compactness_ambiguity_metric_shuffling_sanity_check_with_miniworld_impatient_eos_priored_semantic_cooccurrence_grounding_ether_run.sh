@@ -1,4 +1,4 @@
-WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=10 \
+WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_ether.py --seed=20 \
 --config=miniworld_wandb_benchmark_ETHER_config.yaml \
 --n_step=3 --nbr_actor=2 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
@@ -11,6 +11,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --ETHER_use_ETHER=True --THER_use_THER=True \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=True \
+--ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric=True \
 --MiniWorld_entity_visibility_oracle=True \
 --ETHER_rg_shared_architecture=False \
 --ETHER_rg_with_logits_mdl_principle=True \
