@@ -486,7 +486,7 @@ def training_process(
     if hasattr(torch.backends, "cudnn"):
       torch.backends.cudnn.deterministic = True
       torch.backends.cudnn.benchmark = False
-
+    
     pixel_wrapping_fn = partial(
       baseline_ther_wrapper,
       size=task_config['observation_resize_dim'], 
@@ -723,6 +723,7 @@ def main():
         default=10,
     )
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
+    parser.add_argument("--nbr_frame_stacking", type=int, default=4) 
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
@@ -974,6 +975,7 @@ def main():
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
     parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
+    parser.add_argument("--ETHER_rg_freeze_speaker", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
@@ -1031,6 +1033,7 @@ def main():
     parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False, 
         #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
     )
+    parser.add_argument("--ETHER_rg_tau0", type=float, default=0.2)
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
     parser.add_argument("--ETHER_rg_use_aita_sampling", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_aita_update_epoch_period", type=int, default=32)

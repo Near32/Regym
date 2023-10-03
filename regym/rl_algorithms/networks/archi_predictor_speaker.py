@@ -140,12 +140,12 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
     def parameters(self):
         params = []
         
+        if not self.trainable:
+            return params
+        
         if hasattr(self, 'tau_fc'):
             #print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
             params += self.tau_fc.parameters()
-        
-        if not self.trainable:
-            return params
         
         for km, module in self.model.modules.items():
             if km in self.model.pipelines[self.pipeline_name]: #["instruction_generator"]:
@@ -154,7 +154,11 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         return params
 
     def _compute_tau(self, tau0, h):
-        tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        batch_size = h.shape[0]
+        if self.trainable:
+            tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        else:
+            tau = tau0*torch.ones(batch_size, 1).to(h.device)
         return tau
     
     def _utter(self, features, sentences=None, rnn_states=None):

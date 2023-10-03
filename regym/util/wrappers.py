@@ -3317,7 +3317,11 @@ class Gymnasium2GymWrapper(gym.Wrapper):
                 else:
                     raise NotImplementedError
             self.observation_space = gym.spaces.Dict(**obs_space)
-
+    
+    def reset(self, **kwargs):
+        if 'return_info' in kwargs:
+            kwargs.pop("return_info")
+        return self.env.reset(**kwargs)
     def step(self, action):
         step_output = self.env.step(action)
         if len(step_output) == 4:

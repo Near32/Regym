@@ -202,13 +202,14 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             lr *= self.nbr_actor
         #print(f"THER Predictor Learning rate: {lr}")
         
-        self.predictor_optimizer = optim.Adam(
-            self.predictor.parameters(), 
-            lr=lr, betas=(0.9,0.999), 
-            eps=float(self.kwargs.get('ther_adam_eps')),
-            weight_decay=float(self.kwargs.get("ther_adam_weight_decay", 0.0)),
-        )
-        self.best_predictor_optimizer_sd = self.predictor_optimizer.state_dict()
+        if self.kwargs["THER_use_THER_predictor_supervised_training"]:
+            self.predictor_optimizer = optim.Adam(
+                self.predictor.parameters(), 
+                lr=lr, betas=(0.9,0.999), 
+                eps=float(self.kwargs.get('ther_adam_eps')),
+                weight_decay=float(self.kwargs.get("ther_adam_weight_decay", 0.0)),
+            )
+            self.best_predictor_optimizer_sd = self.predictor_optimizer.state_dict()
 
         self.predictor_storages = None 
         self._reset_predictor_storages()

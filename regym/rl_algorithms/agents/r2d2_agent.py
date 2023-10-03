@@ -257,7 +257,11 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                 else:
                     print("WARNING : R2D2 Agent with THER : THER predictor does NOT predict PAD tokens.")
                 if kwargs.get("use_ETHER", False):
-                    predictor = ArchiPredictorSpeaker(model=model, **kwargs["ArchiModel"])
+                    predictor = ArchiPredictorSpeaker(
+                        model=model, 
+                        trainable=not(kwargs.get("ETHER_rg_freeze_speaker", False)),
+                        **kwargs["ArchiModel"],
+                    )
                 else:
                     predictor = ArchiPredictor(model=model, **kwargs["ArchiModel"])
             else:
