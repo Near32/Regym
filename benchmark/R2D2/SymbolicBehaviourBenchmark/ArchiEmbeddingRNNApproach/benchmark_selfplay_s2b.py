@@ -1260,7 +1260,9 @@ def main():
     parser.add_argument("--use_cuda", type=str2bool, default="False")
 
     parser.add_argument("--use_ORG", type=str2bool, default="True",)
+    parser.add_argument("--ORG_rg_tau0", type=float, default=0.2,)
     parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
+    parser.add_argument("--ORG_use_predictor", type=str2bool, default="True",)
     parser.add_argument("--ORG_with_Oracle", type=str2bool, default="False",)
     parser.add_argument("--ORG_with_Oracle_type", type=str, default="visible-entities",)
     parser.add_argument("--ORG_with_Oracle_listener", type=str2bool, default="False",)

@@ -140,12 +140,12 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
     def parameters(self):
         params = []
         
+        if not self.trainable:
+            return params
+        
         if hasattr(self, 'tau_fc'):
             #print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
             params += self.tau_fc.parameters()
-        
-        if not self.trainable:
-            return params
         
         for km, module in self.model.modules.items():
             if km in self.model.pipelines[self.pipeline_name]: #["instruction_generator"]:
@@ -154,6 +154,8 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         return params
 
     def _compute_tau(self, tau0, h):
+        if not self.trainable:
+            return tau0*torch.ones(h.shape[0]).to(h.device)
         tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
         return tau
     
@@ -312,7 +314,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             next_sentences_hidden_states = None
             next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
         
-        if self.training:
+        if self.training and self.trainable:
             if "gumbel_softmax" in graphtype:    
                 if next_sentences_hidden_states is None: 
                     self.tau = self._compute_tau(tau0=tau0)
