@@ -1317,6 +1317,7 @@ def main():
     parser.add_argument("--ORG_rg_max_sentence_length", type=int, default=10)
     parser.add_argument("--ORG_rg_distractor_sampling", type=str, default='uniform')
     parser.add_argument("--ORG_rg_object_centric", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_object_centric_type", type=str, default="hard")
     parser.add_argument("--ORG_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
     parser.add_argument("--ORG_rg_vocab_size", type=int, default=32)
     # TODO : integrate this feature in ArchiPredictorSpeaker ...

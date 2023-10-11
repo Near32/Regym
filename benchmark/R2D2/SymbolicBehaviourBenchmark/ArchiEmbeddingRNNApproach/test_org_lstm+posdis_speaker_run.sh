@@ -57,9 +57,10 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_rg_distractor_sampling_scheme_version=2 \
 --ORG_rg_descriptive_version=1 \
 --ORG_rg_learning_rate=3.0e-4 --ORG_rg_weight_decay=0.0 \
---ORG_rg_l2_weight_decay=0.0 --ORG_rg_l1_weight_decay=5e-3 \
+--ORG_rg_l2_weight_decay=0.0 --ORG_rg_l1_weight_decay=0.0 \
 --ORG_rg_vocab_size=64 --ORG_rg_training_period=2 \
 --ORG_rg_descriptive=True --ORG_rg_object_centric=True \
+--ORG_rg_object_centric_type='ratio-75' \
 --ORG_rg_use_curriculum_nbr_distractors=False \
 --ORG_rg_batch_size=32 \
 --ORG_rg_nbr_epoch_per_update=4096 --ORG_rg_accuracy_threshold=101 \
