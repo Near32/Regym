@@ -3602,7 +3602,7 @@ def baseline_ther_wrapper(
     babyai_mission=False,
     miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
-    miniworld_entity_visibility_oracle_language_specs=False,
+    miniworld_entity_visibility_oracle_language_specs='none',
     miniworld_entity_visibility_oracle_include_depth=False,
     miniworld_entity_visibility_oracle_include_depth_precision=0,
     miniworld_entity_visibility_oracle_top_view=False,

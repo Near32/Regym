@@ -408,9 +408,13 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
+      miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
@@ -437,9 +441,13 @@ def training_process(
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
       observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
+      miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
@@ -844,6 +852,9 @@ def main():
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_symbolic_image", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_language_specs", type=str, default="NONE",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth", type=str2bool, default=False)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_densify", type=str2bool, default="False",)
