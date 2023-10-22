@@ -1,14 +1,14 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
---seed=20 --static_envs=False \
+--seed=20 --static_envs=True \
 --use_cuda=True \
 --project=EReLELA \
 --success_threshold=0.999 \
 --config=maze3x3_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
---language_guided_curiosity=True \
+--language_guided_curiosity=False \
 --language_guided_curiosity_densify=False \
 --language_guided_curiosity_non_episodic_dampening_rate=0.001 \
 --coverage_manipulation_metric=True \
---MiniWorld_entity_visibility_oracle=True \
+--MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_language_specs='none' \
 --MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \

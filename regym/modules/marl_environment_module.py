@@ -154,7 +154,8 @@ class MARLEnvironmentModule(Module):
         self.env_configs = [copy.deepcopy(initial_env_config) for _ in range(self.nbr_actors)]
         for actor_idx in range(self.nbr_actors):
             self.env_configs[actor_idx]['seed'] = self.config.get('seed', 0)
-            self.env_configs[actor_idx]['seed'] += actor_idx
+            if not self.config.get('static_envs', False):
+                self.env_configs[actor_idx]['seed'] += actor_idx
         
         self.done = [False]*self.nbr_actors
         

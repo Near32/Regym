@@ -247,6 +247,8 @@ def train_and_evaluate(
 
     config['publish_trajectories'] = False 
     config['training'] = True
+    config['seed'] = task_config['seed'] 
+    config['static_envs'] = task_config.get('static_envs', False)
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
     
@@ -469,6 +471,7 @@ def training_process(
       test_env_config=task_config.get('env-config', {}),
       seed=seed,
       test_seed=100+seed,
+      static=task_config.get('static_envs', False),
       gathering=True,
       train_video_recording_episode_period=benchmarking_record_episode_interval,
       train_video_recording_dirpath=video_recording_dirpath,
@@ -626,6 +629,7 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--static_envs", type=str2bool, default=False) 
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
     parser.add_argument("--success_threshold", 
         type=float, 

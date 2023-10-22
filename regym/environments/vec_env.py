@@ -14,6 +14,7 @@ class VecEnv():
                  worker_id=None, 
                  seed=0, 
                  gathering=True,
+                 static=False,
                  video_recording_episode_period=None,
                  video_recording_dirpath='./tmp/regym/video_recording/',
                  video_recording_render_mode='rgb_array',
@@ -24,6 +25,7 @@ class VecEnv():
         self.video_recording_render_mode = video_recording_render_mode
 
         self.gathering = gathering
+        self.static = static
         self.seed = seed
         self.env_creator = env_creator
         self.nbr_parallel_env = nbr_parallel_env
@@ -65,7 +67,7 @@ class VecEnv():
             self.launch_env_process(idx=0)
         return self.env_processes[0]
 
-    def seed(self, seed):
+    def seeding(self, seed):
         self.seed = seed 
 
     def get_nbr_envs(self):
@@ -90,7 +92,9 @@ class VecEnv():
         self.env_queues[idx] = {'in':list(), 'out':list()}
         wid = self.worker_ids[idx]
         if wid is not None: wid += worker_id_offset
-        seed = self.seed+idx+1
+        seed = self.seed
+        if not self.static:
+            seed += idx+1
         """
         if idx==0 and self.initial_env is not None:
             self.env_processes[idx] = self.initial_env
@@ -151,7 +155,14 @@ class VecEnv():
                 else:
                     raise NotImplementedError
             ### SEED UPDATE ###
-            self.env_configs[idx]['seed'] = self.nbr_parallel_env + self.env_configs[idx].get('seed', idx)
+            ## WARNING: env_configs may be set by MARLEnvironmentModule...
+            self.env_configs[idx]['seed'] = self.env_configs[idx].get('seed', self.seed)
+            if not self.static:
+                # Initial Offset:
+                if self.env_configs[idx]['seed'] == self.seed:
+                    self.env_configs[idx]['seed'] += idx
+                # Repeated/Dynamic Offset:
+                self.env_configs[idx]['seed'] += self.nbr_parallel_env
             ###################
             env_config = copy.deepcopy(self.env_configs[idx]) 
             if env_config is not None and 'worker_id' in env_config: 
