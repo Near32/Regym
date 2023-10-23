@@ -276,14 +276,20 @@ class DQNAgent(Agent):
 
         period_check = self.replay_period
         period_count_check = self.replay_period_count
+        previous_check_quotient = getattr(self, 'training_previous_check_quotient', 0)
         if self.nbr_episode_per_cycle is not None:
             period_check = self.nbr_episode_per_cycle
             period_count_check = self.nbr_episode_per_cycle_count
+        
+        new_check_quotient = (period_count_check // period_check)
 
         if self.training \
         and self.handled_experiences > self.kwargs['min_handled_experiences'] \
         and self.algorithm.unwrapped.stored_experiences() > self.kwargs['min_capacity'] \
-        and (period_count_check % period_check == 0 and not(self.async_actor)):
+        and new_check_quotient != previous_check_quotient \
+        and not(self.async_actor):
+            #and (period_count_check % period_check == 0 and not(self.async_actor)):
+            self.training_previous_check_quotient = new_check_quotient
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
                 minibatch_size *= self.replay_period

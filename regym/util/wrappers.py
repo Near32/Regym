@@ -3377,11 +3377,10 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
 
     def compute_coverage(self, agent_poses):
         coverage_count = 0
+        poses = np.stack(agent_poses, axis=0)
         for cov_point in self.coverage_points:
-            distances = [
-                np.linalg.norm(cov_point-pose, 2)
-                for pose in agent_poses
-            ]
+            cov_point = np.expand_dims(cov_point, 0)
+            distances = np.linalg.norm(cov_point-poses, 2, axis=-1)
             min_dist = min(distances)
             if min_dist < self.coverage_epsilon:
                 coverage_count += 1
@@ -3403,17 +3402,17 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         ManipulationRatio = float(self.manipulation_count)/self.episode_length
         PickupRatio = float(self.pickup_count)/self.episode_length
         wandb.log({
-            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":CoverageRatio,
-            f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
-            f"Wrappers/LanguageGuidedCuriosity/ManipulationCount":self.manipulation_count,
-            f"Wrappers/LanguageGuidedCuriosity/ManipulationRatio":ManipulationRatio,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/EpisodeLength": self.episode_length,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogramIndex": self.episode_idx,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/RewardHistogram": reward_hist,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogram": manipulation_hist,
-            f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
-            f"Wrappers/LanguageGuidedCuriosity/PickupCount": self.pickup_count,
-            f"Wrappers/LanguageGuidedCuriosity/PickupRatio": PickupRatio,
+            f"Wrappers/CoverageManipulationMetric/CoverageRatio":CoverageRatio,
+            f"Wrappers/CoverageManipulationMetric/CoverageCount":self.coverage_count,
+            f"Wrappers/CoverageManipulationMetric/ManipulationCount":self.manipulation_count,
+            f"Wrappers/CoverageManipulationMetric/ManipulationRatio":ManipulationRatio,
+            f"Wrappers/CoverageManipulationMetric/EpisodeLength": self.episode_length,
+            f"Wrappers/CoverageManipulationMetric/ManipulationHistogramIndex": self.episode_idx,
+            f"Wrappers/CoverageManipulationMetric/RewardHistogram": reward_hist,
+            f"Wrappers/CoverageManipulationMetric/ManipulationHistogram": manipulation_hist,
+            f"Wrappers/CoverageManipulationMetric/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
+            f"Wrappers/CoverageManipulationMetric/PickupCount": self.pickup_count,
+            f"Wrappers/CoverageManipulationMetric/PickupRatio": PickupRatio,
             },
             commit=False,
         )
@@ -3467,6 +3466,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             next_infos['metrics']['pickup_count'] = self.pickup_count
             PickupRatio = float(self.pickup_count)/self.episode_length
             next_infos['metrics']['pickup_ratio'] = PickupRatio
+            next_infos['metrics']['episode_length'] = self.episode_length
 
         return next_observation, reward, done, next_infos
 
@@ -3607,6 +3607,7 @@ def baseline_ther_wrapper(
     miniworld_entity_visibility_oracle_include_depth_precision=0,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
+    language_guided_curiosity_intrinsic_weight=1.0,
     ne_dampening_rate=0.0,
     language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
@@ -3676,6 +3677,7 @@ def baseline_ther_wrapper(
     if language_guided_curiosity:
         env = LanguageGuidedCuriosityWrapper(
             env=env,
+            intrinsic_weight=language_guided_curiosity_intrinsic_weight,
             ne_dampening_rate=ne_dampening_rate,
             densify=language_guided_curiosity_densify,
         )
