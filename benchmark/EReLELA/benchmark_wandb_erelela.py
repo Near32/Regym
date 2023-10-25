@@ -415,6 +415,7 @@ def training_process(
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_discrete_depth=task_config['MiniWorld_entity_visibility_oracle_include_discrete_depth'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
@@ -449,6 +450,7 @@ def training_process(
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_discrete_depth=task_config['MiniWorld_entity_visibility_oracle_include_discrete_depth'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
@@ -859,6 +861,7 @@ def main():
     parser.add_argument("--MiniWorld_symbolic_image", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_language_specs", type=str, default="NONE",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_discrete_depth", type=str2bool, default=False)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth", type=str2bool, default=False)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
@@ -1255,4 +1258,17 @@ def main():
         )
 
 if __name__ == '__main__':
+    if False: #True:
+      #torch.multiprocessing.freeze_support()
+      torch.multiprocessing.set_start_method("forkserver")#, force=True)
+      #torch.multiprocessing.set_start_method("spawn", force=True)
+      #ray.init() #local_mode=True)
+      #ray.init(local_mode=True)
+      
+      #from regym import CustomManager as Manager
+      #from multiprocessing.managers import SyncManager, MakeProxyType, public_methods
+      #regym.RegymManager = Manager()
+      regym.AlgoManager = mp.Manager()
+      #regym.AlgoManager.start()
+    
     main()

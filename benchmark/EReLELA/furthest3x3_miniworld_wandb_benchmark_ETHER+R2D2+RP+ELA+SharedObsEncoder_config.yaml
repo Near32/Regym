@@ -140,7 +140,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
-        'yellow', 'grey', 'the', 'a', 'object',
+        'yellow', 'grey', 'the', 'a', 'object', 'far', 'medium', 'near',
         'key', 'ball', 'red', 'green', 'blue', 'purple', 
         'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
         'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
