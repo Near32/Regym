@@ -7,7 +7,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --language_guided_curiosity=True \
 --language_guided_curiosity_intrinsic_weight=1.0 \
 --language_guided_curiosity_densify=False \
---language_guided_curiosity_non_episodic_dampening_rate=0.001 \
+--language_guided_curiosity_non_episodic_dampening_rate=0.0 \
 --coverage_manipulation_metric=True \
 --MiniWorld_entity_visibility_oracle=True \
 --MiniWorld_entity_visibility_oracle_language_specs='none' \
@@ -92,7 +92,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --THER_timing_out_episode_length_threshold=200 \
 --BabyAI_Bot_action_override=False \
---n_step=3 --nbr_actor=8 --eps_greedy_alpha=2.0 \
+--n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
@@ -101,7 +101,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
---single_pick_episode=False \
+--single_pick_episode=True \
 --time_limit=200 \
 --train_observation_budget=1.0e7
 
