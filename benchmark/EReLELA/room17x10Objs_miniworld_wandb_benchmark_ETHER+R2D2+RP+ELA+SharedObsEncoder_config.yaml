@@ -380,8 +380,8 @@ experiment:
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
         'env-config': {
-                'num_objs':5,
-                'room_size':12,
+                'num_objs':10,
+                'room_size':17,
                 'num_cols':6,
                 'num_rows':6,
                 'use_penalty': False,

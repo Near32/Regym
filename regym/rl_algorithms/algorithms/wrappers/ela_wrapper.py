@@ -215,6 +215,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         
         # Logging new values over actor list :
         wandb_dict = {}
+        '''
         for k in metrics.keys():
             hist = [self.per_actor_metrics[actor_index][i][k] 
                     for i in range(len(self.per_actor_metrics[actor_index]))]
@@ -231,6 +232,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             wandb_dict,
             commit=False,
         )
+        '''
         if len(self.per_actor_metrics[actor_index]) >= 32:
             self.per_actor_metrics[actor_index].pop(0)
         
@@ -245,7 +247,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         
         wandb.log(
             wandb_dict,
-            commit=True,
+            commit=False,#True,
         )
         return 
     

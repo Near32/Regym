@@ -3608,6 +3608,7 @@ def baseline_ther_wrapper(
     miniworld_entity_visibility_oracle_include_depth_precision=0,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
+    language_guided_curiosity_extrinsic_weight=1.0,
     language_guided_curiosity_intrinsic_weight=1.0,
     ne_dampening_rate=0.0,
     language_guided_curiosity_densify=False,
@@ -3679,6 +3680,7 @@ def baseline_ther_wrapper(
     if language_guided_curiosity:
         env = LanguageGuidedCuriosityWrapper(
             env=env,
+            extrinsic_weight=language_guided_curiosity_extrinsic_weight,
             intrinsic_weight=language_guided_curiosity_intrinsic_weight,
             ne_dampening_rate=ne_dampening_rate,
             densify=language_guided_curiosity_densify,

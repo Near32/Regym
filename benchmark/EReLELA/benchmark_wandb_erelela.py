@@ -420,6 +420,7 @@ def training_process(
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
+      language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
@@ -455,6 +456,7 @@ def training_process(
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
+      language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
@@ -866,6 +868,7 @@ def main():
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_extrinsic_weight", type=float, default=1.0)
     parser.add_argument("--language_guided_curiosity_intrinsic_weight", type=float, default=1.0)
     parser.add_argument("--language_guided_curiosity_densify", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_non_episodic_dampening_rate", type=float, default=0.0,)
