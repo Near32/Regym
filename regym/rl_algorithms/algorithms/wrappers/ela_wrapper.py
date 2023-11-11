@@ -42,7 +42,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         )
         
         self.hook_fns = []
-        self.nbr_episode_success_range = 256
+        self.nbr_episode_success_range = 32 #256
         self.feedbacks = feedbacks 
         
         self.extrinsic_weight = extrinsic_weight

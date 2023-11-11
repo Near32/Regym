@@ -3605,6 +3605,7 @@ def baseline_ther_wrapper(
     miniworld_entity_visibility_oracle_language_specs='none',
     miniworld_entity_visibility_oracle_include_discrete_depth=False,
     miniworld_entity_visibility_oracle_include_depth=False,
+    miniworld_entity_visibility_oracle_too_far_threshold=-1,
     miniworld_entity_visibility_oracle_include_depth_precision=0,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
@@ -3627,6 +3628,7 @@ def baseline_ther_wrapper(
             include_discrete_depth=miniworld_entity_visibility_oracle_include_discrete_depth,
             include_depth=miniworld_entity_visibility_oracle_include_depth,
             include_depth_precision=miniworld_entity_visibility_oracle_include_depth_precision,
+            too_far_threshold=miniworld_entity_visibility_oracle_too_far_threshold,
             with_top_view=miniworld_entity_visibility_oracle_top_view,
             verbose=False,
         )

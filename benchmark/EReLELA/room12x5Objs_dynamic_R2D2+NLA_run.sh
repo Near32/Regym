@@ -6,12 +6,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --config=room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=True \
 --language_guided_curiosity_extrinsic_weight=1.0 \
---language_guided_curiosity_intrinsic_weight=0.01 \
+--language_guided_curiosity_intrinsic_weight=0.05 \
 --language_guided_curiosity_densify=False \
 --language_guided_curiosity_non_episodic_dampening_rate=0.0 \
 --coverage_manipulation_metric=True \
 --MiniWorld_entity_visibility_oracle=True \
 --MiniWorld_entity_visibility_oracle_language_specs='none' \
+--MiniWorld_entity_visibility_oracle_too_far_threshold=-1.0 \
 --MiniWorld_entity_visibility_oracle_include_discrete_depth=True \
 --MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \
@@ -101,9 +102,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
+--nbr_training_iteration_per_cycle=4 --nbr_episode_per_cycle=0 \
 --single_pick_episode=True \
---time_limit=200 \
+--time_limit=600 \
 --train_observation_budget=1.0e7
 
 #--train_observation_budget=300000 

@@ -418,6 +418,7 @@ def training_process(
       miniworld_entity_visibility_oracle_include_discrete_depth=task_config['MiniWorld_entity_visibility_oracle_include_discrete_depth'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
+      miniworld_entity_visibility_oracle_too_far_threshold=task_config['MiniWorld_entity_visibility_oracle_too_far_threshold'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
@@ -454,6 +455,7 @@ def training_process(
       miniworld_entity_visibility_oracle_include_discrete_depth=task_config['MiniWorld_entity_visibility_oracle_include_discrete_depth'],
       miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
       miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
+      miniworld_entity_visibility_oracle_too_far_threshold=task_config['MiniWorld_entity_visibility_oracle_too_far_threshold'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
@@ -866,6 +868,7 @@ def main():
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_discrete_depth", type=str2bool, default=False)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth", type=str2bool, default=False)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_too_far_threshold", type=float, default=-1)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_extrinsic_weight", type=float, default=1.0)
