@@ -366,16 +366,19 @@ class MARLEnvironmentModule(Module):
                             pa_succ_info,
                         ))
                     else:
+                        '''
                         previous_r = 0
                         previous_int_r = 0
                         if len(self.per_actor_per_player_trajectories[actor_index][player_index]):
                             previous_int_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][3]
                             previous_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][2]
+                        '''
+                        #TODO: figure out what was this previous piece of code useful for...
                         self.per_actor_per_player_trajectories[actor_index][player_index].append((
                             None, 
                             None, 
-                            pa_r+previous_r, 
-                            pa_int_r+previous_int_r, 
+                            pa_r, #+previous_r, 
+                            pa_int_r, #+previous_int_r, 
                             None, 
                             None, 
                             None, 
@@ -516,16 +519,19 @@ class MARLEnvironmentModule(Module):
                         pa_succ_info,
                     ))
                 else:
+                    '''
                     previous_r = 0
                     previous_int_r = 0
                     if len(self.per_actor_per_player_trajectories[actor_index][player_index]):
                         previous_int_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][3]
                         previous_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][2]
+                    '''
+                    #TODO: figure out what was this previous piece of code for...
                     self.per_actor_per_player_trajectories[actor_index][player_index].append((
                         None, 
                         None, 
-                        pa_r+previous_r, 
-                        pa_int_r+previous_int_r, 
+                        pa_r, #+previous_r, 
+                        pa_int_r, #+previous_int_r, 
                         None, 
                         None, 
                         None, 
