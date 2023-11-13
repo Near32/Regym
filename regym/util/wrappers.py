@@ -2826,41 +2826,42 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         env_output = super(PeriodicVideoRecorderWrapper, self).reset(**kwargs)
 
+        if self.is_video_enabled:
+            frame = None
+            if self.record_obs:
+                frame = env_output
+                while isinstance(frame, list) or isinstance(frame, tuple):
+                    frame = frame[0]
+                #if frame.shape[-1] != 3:
+                #    frame = frame.transpose(2,1,0)
+                frame = frame.transpose(0,2,1)
+            #self.video_recorder.capture_frame(frame=frame)
+            self.frames.append(frame)
+            #self.video_recorder.close()
+            #del self.video_recorder
+            self.frames = np.stack(self.frames,0)
+            wandb_video = wandb.Video(
+                #data_or_path=self.current_video_path,
+                data_or_path=self.frames,
+                fps=2,
+                format='mp4',
+            )
+            wandb.log({
+                "Video":wandb_video,
+                },
+                commit=False,
+            )
+            del wandb_video
+            del self.frames
+            self.is_video_enabled = False
+
+        self.episode_idx += 1
+        
         if self.episode_idx % self.video_recording_episode_period == 0:
             self.current_video_path = path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
             self._init_video_recorder(env=self.env, path=path) 
             self.is_video_enabled = True
-        else:
-            if self.is_video_enabled:
-                frame = None
-                if self.record_obs:
-                    frame = env_output
-                    while isinstance(frame, list) or isinstance(frame, tuple):
-                        frame = frame[0]
-                    #if frame.shape[-1] != 3:
-                    #    frame = frame.transpose(2,1,0)
-                    frame = frame.transpose(0,2,1)
-                #self.video_recorder.capture_frame(frame=frame)
-                self.frames.append(frame)
-                #self.video_recorder.close()
-                #del self.video_recorder
-                self.frames = np.stack(self.frames,0)
-                wandb_video = wandb.Video(
-                    #data_or_path=self.current_video_path,
-                    data_or_path=self.frames,
-                    fps=2,
-                    format='mp4',
-                )
-                wandb.log({
-                    "Video":wandb_video,
-                    },
-                    commit=False,
-                )
-                del wandb_video
-                del self.frames
-                self.is_video_enabled = False
-
-        self.episode_idx += 1
+        
         return env_output
 
     def step(self, action):

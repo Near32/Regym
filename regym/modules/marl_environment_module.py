@@ -354,40 +354,17 @@ class MARLEnvironmentModule(Module):
                             pa_int_r = agent.get_intrinsic_reward(actor_index)
                     """    
                     # Logging:
-                    if self.config.get('publish_trajectories', False):
-                        self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                            pa_obs, 
-                            pa_a, 
-                            pa_r, 
-                            pa_int_r, 
-                            pa_succ_obs, 
-                            pa_done, 
-                            pa_info, 
-                            pa_succ_info,
-                        ))
-                    else:
-                        '''
-                        previous_r = 0
-                        previous_int_r = 0
-                        if len(self.per_actor_per_player_trajectories[actor_index][player_index]):
-                            previous_int_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][3]
-                            previous_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][2]
-                        '''
-                        #TODO: figure out what was this previous piece of code useful for...
-                        self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                            None, 
-                            None, 
-                            pa_r, #+previous_r, 
-                            pa_int_r, #+previous_int_r, 
-                            None, 
-                            None, 
-                            None, 
-                            None,
-                        ))
-                        if len(self.per_actor_per_player_trajectories[actor_index][player_index]) > 1:
-                            del self.per_actor_per_player_trajectories[actor_index][player_index][0] 
+                    self.per_actor_per_player_trajectories[actor_index][player_index].append((
+                        pa_obs, 
+                        pa_a, 
+                        pa_r, 
+                        pa_int_r, 
+                        pa_succ_obs, 
+                        pa_done, 
+                        pa_info, 
+                        pa_succ_info,
+                    ))
                     
-
                 self.update_count = self.agents[0].get_update_count()
                 self.episode_count += 1
                 self.episode_count_record += 1
@@ -507,39 +484,17 @@ class MARLEnvironmentModule(Module):
                 pa_info = info[player_index][actor_index]
                 pa_succ_info = succ_info[player_index][actor_index]
 
-                if self.config.get('publish_trajectories', False):
-                    self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                        pa_obs, 
-                        pa_a, 
-                        pa_r, 
-                        pa_int_r, 
-                        pa_succ_obs, 
-                        pa_done, 
-                        pa_info, 
-                        pa_succ_info,
-                    ))
-                else:
-                    '''
-                    previous_r = 0
-                    previous_int_r = 0
-                    if len(self.per_actor_per_player_trajectories[actor_index][player_index]):
-                        previous_int_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][3]
-                        previous_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][2]
-                    '''
-                    #TODO: figure out what was this previous piece of code for...
-                    self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                        None, 
-                        None, 
-                        pa_r, #+previous_r, 
-                        pa_int_r, #+previous_int_r, 
-                        None, 
-                        None, 
-                        None, 
-                        None,
-                    ))
-                    if len(self.per_actor_per_player_trajectories[actor_index][player_index]) > 1:
-                        del self.per_actor_per_player_trajectories[actor_index][player_index][0] 
-                
+                self.per_actor_per_player_trajectories[actor_index][player_index].append((
+                    pa_obs, 
+                    pa_a, 
+                    pa_r, 
+                    pa_int_r, 
+                    pa_succ_obs, 
+                    pa_done, 
+                    pa_info, 
+                    pa_succ_info,
+                ))
+            
             if self.config['test_nbr_episode'] != 0 \
             and self.obs_count % self.config['test_obs_interval'] == 0:
                 save_traj = False
