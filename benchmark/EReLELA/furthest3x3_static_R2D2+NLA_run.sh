@@ -6,7 +6,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --config=furthest3x3_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=True \
 --language_guided_curiosity_extrinsic_weight=2.0 \
---language_guided_curiosity_intrinsic_weight=0.05 \
+--language_guided_curiosity_intrinsic_weight=0.1 \
 --language_guided_curiosity_densify=False \
 --language_guided_curiosity_non_episodic_dampening_rate=0.0 \
 --coverage_manipulation_metric=True \
@@ -16,6 +16,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --MiniWorld_entity_visibility_oracle_include_discrete_depth=True \
 --MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \
+--PER_use_rewards_in_priority=True \
 --use_ETHER=False --use_THER=False \
 --use_RP=False --RP_use_RP=True \
 --use_ELA=True --ELA_use_ELA=False \
