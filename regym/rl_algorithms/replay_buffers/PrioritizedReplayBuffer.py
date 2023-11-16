@@ -336,7 +336,7 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
         eta=0.9,
         keys=None,
         circular_keys={'succ_s':'s'},
-        circular_offsets={'succ_s':1}
+        circular_offsets={'succ_s':1},
         use_rewards_in_priority=False,
     ):
         SharedReplayStorage.__init__(
@@ -451,7 +451,6 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
         error = self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
 
         if self.use_rewards_in_priority:
-            import ipdb; ipdb.set_trace()
             assert sequence_dict is not None
             rewards = sequence_dict['rewards'].cpu().detach().numpy()
             max_reward = rewards.max()
@@ -696,7 +695,6 @@ class PrioritizedReplayStorage(ReplayStorage):
         error = self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
         
         if self.use_rewards_in_priority:
-            import ipdb; ipdb.set_trace()
             assert sequence_dict is not None
             rewards = sequence_dict['rewards'].cpu().detach().numpy()
             max_reward = rewards.max()

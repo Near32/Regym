@@ -390,8 +390,8 @@ class DQNAlgorithm(Algorithm):
                     beta_increase_interval=beta_increase_interval,
                     keys=keys,
                     circular_keys=circular_keys,                 
-                    circular_offsets=circular_offsets
-                    use_rewards_in_priority=kwargs.get('PER_use_rewards_in_priority', False),
+                    circular_offsets=circular_offsets,
+                    use_rewards_in_priority=self.kwargs.get('PER_use_rewards_in_priority', False),
                 )
             else:
                 rp = ReplayStorage(
