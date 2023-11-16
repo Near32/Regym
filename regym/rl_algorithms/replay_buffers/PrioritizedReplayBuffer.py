@@ -327,15 +327,18 @@ class PrioritizedReplayStorage_:
 
 @ray.remote
 class SharedPrioritizedReplayStorage(SharedReplayStorage):
-    def __init__(self,
-                 capacity,
-                 alpha=0.2,
-                 beta=1.0,
-                 beta_increase_interval=1e4,
-                 eta=0.9,
-                 keys=None,
-                 circular_keys={'succ_s':'s'},
-                 circular_offsets={'succ_s':1}):
+    def __init__(
+        self,
+        capacity,
+        alpha=0.2,
+        beta=1.0,
+        beta_increase_interval=1e4,
+        eta=0.9,
+        keys=None,
+        circular_keys={'succ_s':'s'},
+        circular_offsets={'succ_s':1}
+        use_rewards_in_priority=False,
+    ):
         SharedReplayStorage.__init__(
             self=self,
             capacity=capacity,
@@ -349,6 +352,7 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
         self.beta_increase_interval = beta_increase_interval
         
         self.eta = eta
+        self.use_rewards_in_priority = use_rewards_in_priority
         self.epsilon = 1e-4
 
         
@@ -438,13 +442,23 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
     def priority(self, error) :
         return (error+self.epsilon)**self.alpha
 
-    def sequence_priority(self, sequence_errors) :
+    def sequence_priority(self, sequence_errors, sequence_dict=None) :
         '''
         :param sequence_errors: torch.Tensor of shape (unroll_dim,)
         '''
         max_error = sequence_errors.max()
         mean_error = sequence_errors.mean()
         error = self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
+
+        if self.use_rewards_in_priority:
+            import ipdb; ipdb.set_trace()
+            assert sequence_dict is not None
+            rewards = sequence_dict['rewards'].cpu().detach().numpy()
+            max_reward = rewards.max()
+            mean_reward = rewards.mean()
+            reward_mult = 1+max(0, self.eta*max_reward+(1-self.eta)*mean_reward)
+            error *= reward_mult
+        
         return self.priority(error)
 
     def update(self, idx, priority):
@@ -545,15 +559,18 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
 
 
 class PrioritizedReplayStorage(ReplayStorage):
-    def __init__(self,
-                 capacity,
-                 alpha=0.9,
-                 beta=0.6,
-                 beta_increase_interval=None,
-                 eta=0.9,
-                 keys=None,
-                 circular_keys={'succ_s':'s'},
-                 circular_offsets={'succ_s':1}):
+    def __init__(
+        self,
+        capacity,
+        alpha=0.9,
+        beta=0.6,
+        beta_increase_interval=None,
+        eta=0.9,
+        keys=None,
+        circular_keys={'succ_s':'s'},
+        circular_offsets={'succ_s':1},
+        use_rewards_in_priority=False,
+    ):
         super(PrioritizedReplayStorage, self).__init__(
             capacity=capacity,
             keys=keys,
@@ -566,6 +583,7 @@ class PrioritizedReplayStorage(ReplayStorage):
         self.beta_increase_interval = beta_increase_interval
         
         self.eta = eta
+        self.use_rewards_in_priority = use_rewards_in_priority
         self.epsilon = 1e-4
 
         
@@ -669,13 +687,23 @@ class PrioritizedReplayStorage(ReplayStorage):
     def priority(self, error) :
         return (error+self.epsilon)**self.alpha
 
-    def sequence_priority(self, sequence_errors) :
+    def sequence_priority(self, sequence_errors, sequence_dict=None) :
         '''
         :param sequence_errors: torch.Tensor of shape (unroll_dim,)
         '''
         max_error = sequence_errors.max()
         mean_error = sequence_errors.mean()
         error = self.eta*max_error+(1-self.eta)*mean_error+self.epsilon
+        
+        if self.use_rewards_in_priority:
+            import ipdb; ipdb.set_trace()
+            assert sequence_dict is not None
+            rewards = sequence_dict['rewards'].cpu().detach().numpy()
+            max_reward = rewards.max()
+            mean_reward = rewards.mean()
+            reward_mult = 1+max(0, self.eta*max_reward+(1-self.eta)*mean_reward)
+            error *= reward_mult
+        
         return self.priority(error)
 
     def update(self, idx, priority):

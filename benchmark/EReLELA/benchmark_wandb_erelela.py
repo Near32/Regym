@@ -671,6 +671,7 @@ def main():
     #)
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
     
+    parser.add_argument("--PER_use_rewards_in_priority", type=str2bool, default="False")
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
@@ -926,6 +927,8 @@ def main():
     parser.add_argument("--ETHER_rg_observability", type=str, default='partial')
     parser.add_argument("--ETHER_rg_max_sentence_length", type=int, default=10)
     parser.add_argument("--ETHER_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ETHER_rg_distractor_sampling_scheme_version", type=int, default=1)
+    parser.add_argument("--ETHER_rg_distractor_sampling_with_replacement", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_object_centric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
     parser.add_argument("--ETHER_rg_vocab_size", type=int, default=32)
@@ -1033,6 +1036,8 @@ def main():
     parser.add_argument("--ELA_rg_observability", type=str, default='partial')
     parser.add_argument("--ELA_rg_max_sentence_length", type=int, default=10)
     parser.add_argument("--ELA_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ELA_rg_distractor_sampling_scheme_version", type=int, default=1)
+    parser.add_argument("--ELA_rg_distractor_sampling_with_replacement", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_object_centric", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
     parser.add_argument("--ELA_rg_vocab_size", type=int, default=32)

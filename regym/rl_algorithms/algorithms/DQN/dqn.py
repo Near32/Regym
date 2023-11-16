@@ -391,6 +391,7 @@ class DQNAlgorithm(Algorithm):
                     keys=keys,
                     circular_keys=circular_keys,                 
                     circular_offsets=circular_offsets
+                    use_rewards_in_priority=kwargs.get('PER_use_rewards_in_priority', False),
                 )
             else:
                 rp = ReplayStorage(
@@ -640,7 +641,8 @@ class DQNAlgorithm(Algorithm):
         array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
-        
+        list_sampled_samples = []
+
         self.optimizer.zero_grad()
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
@@ -697,6 +699,7 @@ class DQNAlgorithm(Algorithm):
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
+                list_sampled_samples.append(sampled_samples)
                 #wandb_data = copy.deepcopy(wandb.run.history._data)
                 #wandb.run.history._data = {}
                 wandb.log({
@@ -726,6 +729,7 @@ class DQNAlgorithm(Algorithm):
             self._update_replay_buffer_priorities(
                 sampled_losses_per_item=sampled_losses_per_item, 
                 array_batch_indices=array_batch_indices,
+                list_sampled_samples=list_sampled_samples,
                 minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
             )
 
@@ -816,10 +820,13 @@ class DQNAlgorithm(Algorithm):
         sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
         return sampled_rnn_states, sampled_next_rnn_states
 
-    def _update_replay_buffer_priorities(self, 
-                                         sampled_losses_per_item: List[torch.Tensor], 
-                                         array_batch_indices: List,
-                                         minibatch_size: int):
+    def _update_replay_buffer_priorities(
+            self, 
+            sampled_losses_per_item: List[torch.Tensor], 
+            array_batch_indices: List,
+            list_sampled_samples: List[Dict[str, torch.Tensor]],
+            minibatch_size: int
+        ):
         '''
         Updates the priorities of each sampled elements from their respective storages.
 

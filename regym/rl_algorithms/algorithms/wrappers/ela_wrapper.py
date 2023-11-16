@@ -391,6 +391,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.update_predictor(successful_traj=successful_traj)
 	   
     def init_referential_game(self):
+        ReferentialGym.datasets.dataset.DSS_version = self.kwargs["ELA_rg_distractor_sampling_scheme_version"]
         ReferentialGym.datasets.dataset.OC_version = self.kwargs["ELA_rg_object_centric_version"]
         print(f"OC_version = {ReferentialGym.datasets.dataset.OC_version}.")
         ReferentialGym.datasets.dataset.DC_version = self.kwargs["ELA_rg_descriptive_version"]
@@ -1310,6 +1311,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "object_centric":           self.rg_config["object_centric"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ELA_rg_distractor_sampling_with_replacement'],
         }
         dataset_args["test"] = {
             "dataset_class":            "DualLabeledDataset",
@@ -1325,6 +1327,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "object_centric":           self.rg_config["object_centric"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ELA_rg_distractor_sampling_with_replacement'],
         }
 
         self.dataset_args = dataset_args
