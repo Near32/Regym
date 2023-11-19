@@ -3514,8 +3514,11 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         else:
             obs = reset_output
             infos = [{}]
-
-        if len(infos):
+        
+        #if isinstance(infos, dict):
+        #    infos = [infos]
+        #if len(infos):
+        if isinstance(infos, list):
             for info_idx in range(len(infos)):
                 infos[info_idx]['language_guided_reward'] = 0.0
                 infos[info_idx]['extrinsic_reward'] = 0.0

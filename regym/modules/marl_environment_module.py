@@ -382,6 +382,11 @@ class MARLEnvironmentModule(Module):
                 traj = self.per_actor_per_player_trajectories[actor_index][player_id] #self.trajectories[-1][player_id]
                 # assumes HER-typed reward: i.e. 0== success, -1 otherwise:
                 self.total_successes.append(float((traj[-1][2].item() > self.success_threshold)))
+                if 'success' in traj[-1][7]:
+                    if traj[-1][7]['success']:
+                        self.total_successes[-1] = 1.0
+                    else:
+                        self.total_successes[-1] = 0.0
                 self.total_returns.append(sum([ exp[2] for exp in traj]))
                 self.positive_total_returns.append(sum([ exp[2] if exp[2]>0 else 0.0 for exp in traj]))
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))

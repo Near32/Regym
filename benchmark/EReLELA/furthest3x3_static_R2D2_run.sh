@@ -101,7 +101,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
---time_limit=200 \
+--terminate_on_completion=True \
+--time_limit=100 \
 --train_observation_budget=1.0e7
 
 #--train_observation_budget=300000 
