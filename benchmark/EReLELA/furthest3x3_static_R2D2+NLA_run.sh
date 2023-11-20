@@ -17,6 +17,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \
 --PER_use_rewards_in_priority=True \
+--PER_alpha=0.5 --PER_beta=1.0 \
 --use_ETHER=False --use_THER=False \
 --use_RP=False --RP_use_RP=True \
 --use_ELA=True --ELA_use_ELA=False \
