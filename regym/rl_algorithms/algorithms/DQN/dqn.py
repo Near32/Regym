@@ -747,6 +747,8 @@ class DQNAlgorithm(Algorithm):
         self.model.train(False)
         
         beta = 1.0
+        kwargs = copy.deepcopy(self.kwargs)
+        kwargs['use_PER'] = False 
         
         batch_indices = torch.arange(samples['s'].shape[0])
         sampled_samples = {}
@@ -772,7 +774,7 @@ class DQNAlgorithm(Algorithm):
             
             sampled_samples[out_k] = v
             # (batch_size, unroll_dim, ...)
-         
+        
         loss, loss_per_item = self.loss_fn(
             samples=sampled_samples,
             models=self.get_models(),
@@ -781,7 +783,7 @@ class DQNAlgorithm(Algorithm):
             
             gamma=self.GAMMA,
             PER_running_beta=beta,
-            **self.kwargs,
+            **kwargs,
         )
             
         '''

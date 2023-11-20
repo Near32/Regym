@@ -849,7 +849,7 @@ def compute_loss(
     goals = None #samples['goals']
     rnn_states = samples['rnn_states']
     next_rnn_states = samples['next_rnn_states']
-    importanceSamplingWeights = samples['importanceSamplingWeights']
+    importanceSamplingWeights = samples.get('importanceSamplingWeights', None)
     
     model = models['model']
     target_model = models['target_model']
@@ -1291,8 +1291,9 @@ def compute_loss(
     wandb.log({'Training/EntropyVal':  training_predictions['ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/TotalLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
     if use_PER:
-        wandb.log({'Training/ImportanceSamplingMean':  importanceSamplingWeights.cpu().mean().item(), "training_step":iteration_count}, commit=False)
-        wandb.log({'Training/ImportanceSamplingStd':  importanceSamplingWeights.cpu().std().item(), "training_step":iteration_count}, commit=False)
+        if importanceSamplingWeights is not None:
+            wandb.log({'Training/ImportanceSamplingMean':  importanceSamplingWeights.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+            wandb.log({'Training/ImportanceSamplingStd':  importanceSamplingWeights.cpu().std().item(), "training_step":iteration_count}, commit=False)
         wandb.log({'Training/PER_Beta':  PER_beta, "training_step":iteration_count}, commit=False)
     
     wandb.log({}, commit=True)
