@@ -674,6 +674,7 @@ def main():
     parser.add_argument("--PER_use_rewards_in_priority", type=str2bool, default="False")
     parser.add_argument("--PER_alpha", type=float, default=0.9)
     parser.add_argument("--PER_beta", type=float, default=0.6)
+    parser.add_argument("--PER_compute_initial_priority", type=str2bool, default="False")
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
@@ -855,6 +856,7 @@ def main():
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
     parser.add_argument("--THER_observe_achieved_goal", type=str2bool, default="False",)
     parser.add_argument("--single_pick_episode", type=str2bool, default="False",)
+    parser.add_argument("--terminate_on_completion", type=str2bool, default="True",)
     parser.add_argument("--THER_train_contrastively", type=str2bool, default="False",)
     parser.add_argument("--THER_contrastive_training_nbr_neg_examples", type=int, default=0,)
     parser.add_argument("--THER_feedbacks_failure_reward", type=int, default=-1,)
