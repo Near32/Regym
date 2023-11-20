@@ -672,6 +672,7 @@ def main():
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
     
     parser.add_argument("--PER_use_rewards_in_priority", type=str2bool, default="False")
+    parser.add_argument("--PER_compute_initial_priority", type=str2bool, default="False")
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
