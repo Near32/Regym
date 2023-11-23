@@ -345,6 +345,10 @@ class DQNAlgorithm(Algorithm):
         else:
             self.eps = self.epsend + max(0, (self.epsstart-self.epsend)/((float(nbr_steps)/self.epsdecay)+1))
 
+        log_dict = {}
+        for actor_i, eps_i in enumerate(self.eps):
+            log_dict[f'Training/Eps_Actor_{actor_i}'] = eps_i
+        wandb.log(log_dict, commit=False)
         """
         if self.summary_writer is not None:
             for actor_i in range(self.eps.shape[0]):

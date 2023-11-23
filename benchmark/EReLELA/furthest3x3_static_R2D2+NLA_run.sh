@@ -16,8 +16,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --MiniWorld_entity_visibility_oracle_include_discrete_depth=True \
 --MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \
---PER_alpha=0.9 --PER_beta=1.0 \
+--PER_alpha=0.5 --PER_beta=1.0 \
 --PER_use_rewards_in_priority=False \
+--sequence_replay_PER_eta=0.1 \
 --PER_compute_initial_priority=True \
 --use_ETHER=False --use_THER=False \
 --use_RP=False --RP_use_RP=True \
@@ -97,7 +98,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --THER_timing_out_episode_length_threshold=200 \
 --BabyAI_Bot_action_override=False \
---n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
+--n_step=3 --nbr_actor=32 
+--epsstart=1.0 --epsend=0.1 \
+--epsdecay=10000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
@@ -109,7 +112,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --single_pick_episode=False \
 --terminate_on_completion=True \
 --time_limit=100 \
---benchmarking_record_episode_interval=32 \
+--benchmarking_record_episode_interval=8 \
 --train_observation_budget=1.0e7
 
 #--train_observation_budget=300000 

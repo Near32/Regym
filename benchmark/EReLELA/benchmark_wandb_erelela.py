@@ -674,6 +674,7 @@ def main():
     parser.add_argument("--PER_use_rewards_in_priority", type=str2bool, default="False")
     parser.add_argument("--PER_alpha", type=float, default=0.9)
     parser.add_argument("--PER_beta", type=float, default=0.6)
+    parser.add_argument("--sequence_replay_PER_eta", type=float, default=0.9)
     parser.add_argument("--PER_compute_initial_priority", type=str2bool, default="False")
     parser.add_argument("--learning_rate", 
         type=float, 
@@ -715,10 +716,10 @@ def main():
         type=float, 
         default=0.0,
     )
-    parser.add_argument("--eps_greedy_alpha", 
-        type=float, 
-        default=2.0,
-    )
+    parser.add_argument("--eps_greedy_alpha", type=float, default=7.0)
+    parser.add_argument("--epsstart", type=float, default=1.0)
+    parser.add_argument("--epsend", type=float, default=0.1)
+    parser.add_argument("--epsdecay", type=int, default=10000)
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
