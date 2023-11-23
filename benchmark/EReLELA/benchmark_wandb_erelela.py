@@ -1044,6 +1044,7 @@ def main():
     parser.add_argument("--ELA_rg_distractor_sampling_scheme_version", type=int, default=1)
     parser.add_argument("--ELA_rg_distractor_sampling_with_replacement", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_object_centric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_object_centric_type", type=str, default='hard')
     parser.add_argument("--ELA_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
     parser.add_argument("--ELA_rg_vocab_size", type=int, default=32)
     # TODO : integrate this feature in ArchiPredictorSpeaker ...

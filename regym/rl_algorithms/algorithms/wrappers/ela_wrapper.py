@@ -534,6 +534,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "descriptive_target_ratio": descriptive_ratio,
             
             "object_centric":           self.kwargs["ELA_rg_object_centric"],
+            "object_centric_type":      self.kwargs["ELA_rg_object_centric_type"],
             "nbr_stimulus":             1,
             
             "graphtype":                self.kwargs["ELA_rg_graphtype"],
@@ -1309,6 +1310,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "nbr_distractors":          self.rg_config["nbr_distractors"],
             "observability":            self.rg_config["observability"],
             "object_centric":           self.rg_config["object_centric"],
+            "object_centric_type":      self.rg_config["object_centric_type"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
             'with_replacement':         self.kwargs['ELA_rg_distractor_sampling_with_replacement'],
@@ -1325,6 +1327,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "nbr_distractors":          self.rg_config["nbr_distractors"],
             "observability":            self.rg_config["observability"],
             "object_centric":           self.rg_config["object_centric"],
+            "object_centric_type":      self.rg_config["object_centric_type"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
             'with_replacement':         self.kwargs['ELA_rg_distractor_sampling_with_replacement'],

@@ -4,13 +4,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --project=EReLELA \
 --success_threshold=0.999 \
 --config=furthest3x3_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
---language_guided_curiosity=True \
+--language_guided_curiosity=False \
 --language_guided_curiosity_extrinsic_weight=2.0 \
 --language_guided_curiosity_intrinsic_weight=0.1 \
 --language_guided_curiosity_densify=False \
 --language_guided_curiosity_non_episodic_dampening_rate=0.0 \
 --coverage_manipulation_metric=True \
---MiniWorld_entity_visibility_oracle=True \
+--MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_language_specs='none' \
 --MiniWorld_entity_visibility_oracle_too_far_threshold=-1.0 \
 --MiniWorld_entity_visibility_oracle_include_discrete_depth=True \
@@ -22,7 +22,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --PER_compute_initial_priority=True \
 --use_ETHER=False --use_THER=False \
 --use_RP=False --RP_use_RP=True \
---use_ELA=True --ELA_use_ELA=False \
+--use_ELA=True --ELA_use_ELA=True \
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=False --THER_use_THER=False \
 --ETHER_rg_use_cuda=True \
@@ -69,19 +69,24 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ELA_lock_test_storage=True \
 --ELA_rg_color_jitter_prob=0.0 \
---ELA_rg_gaussian_blur_prob=0.5 \
---ELA_rg_egocentric_prob=0.5 \
+--ELA_rg_gaussian_blur_prob=0.0 \
+--ELA_rg_egocentric_prob=0.0 \
 --ELA_rg_object_centric_version=2 --ELA_rg_descriptive_version=1 \
+--ELA_rg_distractor_sampling_scheme_version=2 \
+--ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_learning_rate=6.25e-5 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=32 \
---ELA_rg_training_period=4096 \
---ELA_rg_descriptive=False --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=2 --ELA_rg_accuracy_threshold=95 \
+--ELA_rg_training_period=2048 \
+--ELA_rg_descriptive=False \
+--ELA_rg_object_centric=False \
+--ELA_rg_object_centric_type='hard' \
+--ELA_rg_use_curriculum_nbr_distractors=False \
+--ELA_rg_nbr_epoch_per_update=64 --ELA_rg_accuracy_threshold=95 \
 --ELA_rg_nbr_train_distractors=15 --ELA_rg_nbr_test_distractors=7 \
---ELA_replay_capacity=4096 --ELA_test_replay_capacity=1024 \
+--ELA_replay_capacity=2048 --ELA_test_replay_capacity=1024 \
 --ELA_rg_distractor_sampling=uniform \
---ELA_reward_extrinsic_weight=1.0 --ELA_reward_intrinsic_weight=1.0 \
+--ELA_reward_extrinsic_weight=1.0 --ELA_reward_intrinsic_weight=0.05 \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
 --THER_lock_test_storage=True \
