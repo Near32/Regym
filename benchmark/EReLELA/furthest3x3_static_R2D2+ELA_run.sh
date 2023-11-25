@@ -61,8 +61,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=False \
 --ELA_rg_with_logits_mdl_principle=True \
---ELA_rg_logits_mdl_principle_factor=1.0e-3 \
---ELA_rg_logits_mdl_principle_accuracy_threshold=80.0 \
+--ELA_rg_logits_mdl_principle_factor=1.0e-4 \
+--ELA_rg_logits_mdl_principle_accuracy_threshold=30.0 \
 --ELA_rg_agent_loss_type=Impatient+Hinge \
 --ELA_rg_use_semantic_cooccurrence_grounding=False \
 --ELA_rg_semantic_cooccurrence_grounding_lambda=1.0 \
@@ -72,19 +72,19 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_gaussian_blur_prob=0.0 \
 --ELA_rg_egocentric_prob=0.0 \
 --ELA_rg_object_centric_version=2 --ELA_rg_descriptive_version=1 \
---ELA_rg_distractor_sampling_scheme_version=2 \
+--ELA_rg_distractor_sampling_scheme_version=1 \
 --ELA_rg_distractor_sampling_with_replacement=True \
---ELA_rg_learning_rate=6.25e-5 --ELA_rg_weight_decay=0.0 \
+--ELA_rg_learning_rate=3e-4 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=32 \
---ELA_rg_training_period=2048 \
+--ELA_rg_training_period=4096 \
 --ELA_rg_descriptive=False \
 --ELA_rg_object_centric=False \
 --ELA_rg_object_centric_type='hard' \
 --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=64 --ELA_rg_accuracy_threshold=95 \
+--ELA_rg_nbr_epoch_per_update=64 --ELA_rg_accuracy_threshold=75 \
 --ELA_rg_nbr_train_distractors=15 --ELA_rg_nbr_test_distractors=7 \
---ELA_replay_capacity=2048 --ELA_test_replay_capacity=1024 \
+--ELA_replay_capacity=4096 --ELA_test_replay_capacity=1024 \
 --ELA_rg_distractor_sampling=uniform \
 --ELA_reward_extrinsic_weight=1.0 --ELA_reward_intrinsic_weight=0.05 \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
@@ -105,7 +105,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
 --epsstart=1.0 --epsend=0.1 \
---epsdecay=1000 --eps_greedy_alpha=2.0 \
+--epsdecay=100000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \

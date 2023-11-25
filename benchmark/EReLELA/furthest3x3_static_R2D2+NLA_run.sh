@@ -100,7 +100,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
 --epsstart=1.0 --epsend=0.1 \
---epsdecay=1000 --eps_greedy_alpha=2.0 \
+--epsdecay=100000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
