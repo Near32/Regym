@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
---seed=20 --static_envs=True \
+--seed=10 --static_envs=True \
 --use_cuda=True \
 --project=EReLELA \
 --success_threshold=0.999 \
@@ -97,7 +97,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --epsstart=1.0 --epsend=0.1 \
---epsdecay=100000 --eps_greedy_alpha=2.0 \
+--epsdecay=10000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
@@ -107,9 +107,10 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
---terminate_on_completion=False \
+--terminate_on_completion=True \
 --time_limit=100 \
---train_observation_budget=1.0e7
+--benchmarking_record_episode_interval=32 \
+--train_observation_budget=2.0e6
 
 #--train_observation_budget=300000 
 
