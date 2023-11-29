@@ -151,12 +151,9 @@ class MARLEnvironmentModule(Module):
         self.nbr_players = self.config['nbr_players']
 
         initial_env_config = self.config.get('env_configs', {})
+        if 'seed' in initial_env_config:    del initial_env_config['seed']
         self.env_configs = [copy.deepcopy(initial_env_config) for _ in range(self.nbr_actors)]
-        for actor_idx in range(self.nbr_actors):
-            self.env_configs[actor_idx]['seed'] = self.config.get('seed', 0)
-            if not self.config.get('static_envs', False):
-                self.env_configs[actor_idx]['seed'] += actor_idx
-        
+
         self.done = [False]*self.nbr_actors
         
         for agent in self.agents:
@@ -203,6 +200,7 @@ class MARLEnvironmentModule(Module):
 
         if not self.init:
             self.initialisation(input_streams_dict)
+        mean_episode_successes = 0.0 
 
         if self.observations is None:
             env_reset_output_dict = self.env.reset(
@@ -531,6 +529,7 @@ class MARLEnvironmentModule(Module):
                     done_key=self.done_key,
                     info_key=self.info_key,
                     succ_info_key=self.succ_info_key,
+                    success_threshold=self.config['success_threshold'],
                 )
 
             #if self.obs_count % 1e4 == 0\
@@ -622,7 +621,8 @@ class MARLEnvironmentModule(Module):
         outputs_stream_dict["signals:mode"] = 'train'
         outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch
 
-        if self.obs_count >= self.config["max_obs_count"]:
+        if self.obs_count >= self.config["max_obs_count"] \
+        or mean_episode_successes >= 0.999 :
             outputs_stream_dict["signals:done_training"] = True 
             outputs_stream_dict["signals:trained_agents"] = self.agents 
             

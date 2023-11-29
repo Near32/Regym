@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
---seed=10 --static_envs=True \
+--seed=10 --env_seed=20 --static_envs=True \
 --use_cuda=True \
 --project=EReLELA \
 --success_threshold=0.999 \
@@ -105,11 +105,12 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
+--nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \
 --time_limit=100 \
 --benchmarking_record_episode_interval=32 \
+--benchmarking_interval=5.0e4 \
 --train_observation_budget=2.0e6
 
 #--train_observation_budget=300000 

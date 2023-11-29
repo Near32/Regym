@@ -155,7 +155,8 @@ class VecEnv():
                 else:
                     raise NotImplementedError
             ### SEED UPDATE ###
-            ## WARNING: env_configs may be set by MARLEnvironmentModule...
+            ## DEPRC : WARNING: env_configs may be set by MARLEnvironmentModule...
+            ## NOW: MARLEnvironmentModule removes any seed entry from env_config dict.
             self.env_configs[idx]['seed'] = self.env_configs[idx].get('seed', self.seed)
             if not self.static:
                 # Initial Offset:
@@ -163,6 +164,7 @@ class VecEnv():
                     self.env_configs[idx]['seed'] += idx
                 # Repeated/Dynamic Offset:
                 self.env_configs[idx]['seed'] += self.nbr_parallel_env
+            #print(f"\nEnv {idx} : seed = {self.env_configs[idx]['seed']}\n")
             ###################
             env_config = copy.deepcopy(self.env_configs[idx]) 
             if env_config is not None and 'worker_id' in env_config: 

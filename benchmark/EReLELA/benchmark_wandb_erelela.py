@@ -309,6 +309,7 @@ def training_process(
     base_path: str = './',
     video_recording_episode_period: int = None,
     seed: int = 0,
+    env_seed: int = 0,
     ):
     
     test_only = task_config.get('test_only', False)
@@ -477,8 +478,8 @@ def training_process(
       test_wrapping_fn=test_pixel_wrapping_fn,
       env_config=task_config.get('env-config', {}),
       test_env_config=task_config.get('env-config', {}),
-      seed=seed,
-      test_seed=100+seed,
+      seed=env_seed,
+      test_seed=env_seed if task_config['static_envs'] else 100+env_seed,
       static=task_config.get('static_envs', False),
       gathering=True,
       train_video_recording_episode_period=benchmarking_record_episode_interval,
@@ -637,8 +638,13 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--env_seed", 
+        type=int, 
+        default=20,
+    )
     parser.add_argument("--static_envs", type=str2bool, default=False) 
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
+    parser.add_argument("--benchmarking_interval", type=float, default=5.0e4)
     parser.add_argument("--benchmarking_record_episode_interval", type=int, default=40)
     parser.add_argument("--success_threshold", 
         type=float, 
@@ -1273,6 +1279,7 @@ def main():
             ),
             base_path=path,
             seed=experiment_config['seed'],
+            env_seed=experiment_config['env_seed'],
         )
 
 if __name__ == '__main__':

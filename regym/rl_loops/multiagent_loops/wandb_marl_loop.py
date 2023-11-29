@@ -200,6 +200,7 @@ def test_agent(
     done_key="done",
     info_key="info",
     succ_info_key="succ_info",
+    success_threshold=1.0,
     requested_metrics: List[str] = []
     ) -> Optional[Dict]:
     '''
@@ -234,6 +235,8 @@ def test_agent(
         succ_info_key=succ_info_key,
     )
 
+    successes = [t for t in trajectory if t[-1][2]>=success_threshold]
+    mean_episode_successes = len(successes)/len(trajectory)
     total_return = [ sum([ exp[2] for exp in t]) for t in trajectory]
     positive_total_return = [ sum([ exp[2] if exp[2]>0 else 0.0 for exp in t]) for t in trajectory]
     mean_total_return = sum( total_return) / len(trajectory)
@@ -274,10 +277,12 @@ def test_agent(
         requested_metrics
     )
 
+    wandb.log({'PerObservation/Testing/MeanEpisodeSuccesses':  mean_episode_successes}, commit=False) # iteration)
     wandb.log({'PerObservation/Testing/MeanTotalReturn':  mean_total_return}, commit=False) # iteration)
     wandb.log({'PerObservation/Testing/MeanPositiveTotalReturn':  mean_positive_total_return}, commit=False) # iteration)
     wandb.log({'PerObservation/Testing/MeanTotalIntReturn':  mean_total_int_return}, commit=False) # iteration)
 
+    wandb.log({'PerUpdate/Testing/MeanEpisodeSuccesses':  mean_episode_successes}, commit=False) # iteration)
     wandb.log({'PerUpdate/Testing/MeanTotalReturn':  mean_total_return}, commit=False) # update_count)
     wandb.log({'PerUpdate/Testing/MeanPositiveTotalReturn':  mean_positive_total_return}, commit=False) # update_count)
     wandb.log({'PerUpdate/Testing/MeanTotalIntReturn':  mean_total_int_return}, commit=False) # update_count)
