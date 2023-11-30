@@ -1,9 +1,9 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
---seed=10 --env_seed=20 --static_envs=True \
+--seed=10 --env_seed=12 --static_envs=True \
 --use_cuda=True \
 --project=EReLELA \
 --success_threshold=0.999 \
---config=furthest3x3_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
+--config=furthest3x4_miniworld_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
 --language_guided_curiosity=False \
 --language_guided_curiosity_extrinsic_weight=2.0 \
 --language_guided_curiosity_intrinsic_weight=0.1 \
