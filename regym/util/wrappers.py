@@ -2447,8 +2447,17 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             
         return observation
 
+
+from Minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
+
 class BehaviourDescriptionWrapper(gym.ObservationWrapper):
-    def __init__(self, env, max_sentence_length=10, use_visible_entities=False):
+    def __init__(
+        self, 
+        env, 
+        max_sentence_length=10, 
+        use_visible_entities=False,
+        descr_type='pickup_only',
+    ):
         """
         Add an observation string that describe the achieved goal for a PickUp-based env.
         'EoS' most of the time, unless, by order of priority:
@@ -2456,6 +2465,7 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
             - 'visible_entities' is among the observations, then we use this description sentence. 
         """
         gym.ObservationWrapper.__init__(self, env)
+        self.descr_type = descr_type
         self.max_sentence_length = max_sentence_length
         self.use_visible_entities = use_visible_entities
         
@@ -2463,7 +2473,9 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
 
     def observation( self, observation):
+        # TODO : regularise self.descr_type if self.language=='french'
         achieved_goal = "EoS"
+        list_textual_descriptions = []
         color = None
         shape = None
         if hasattr(self.unwrapped, "carrying"):
@@ -2478,10 +2490,187 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         
         if color is not None and shape is not None:
             achieved_goal = f"pick up the {color} {shape}".lower()
+            list_textual_descriptions.append(achieved_goal)
         elif self.use_visible_entities \
         and 'visible_entities' in observation.keys():
             achieved_goal = copy.deepcopy(observation['visible_entities'])
-        observation['behaviour_description'] = achieved_goal
+            list_textual_descriptions.append(achieved_goal)
+        
+        if self.descr_type == 'pickup_only':
+            observation['behaviour_description'] = achieved_goal
+            return observation
+
+        # ELSE : let us add more information:
+        # Adapted from :
+        # https://github.com/flowersteam/Grounding_LLMs_with_online_RL/blob/2958ccd5f90f22323acfd8690b8053c4d18c5197/babyai-text/gym-minigrid/gym_minigrid/minigrid.py#L1326
+        
+        assert hasattr(self.unwrapped, 'gen_obs_grid')
+        grid, vis_mask = self.unwrapped.gen_obs_grid()
+        image = grid.encode(vis_mask)
+
+        self.language = 'english'
+        IDX_TO_STATE = {0: 'open', 1:'closed', 2:'locked'}
+        global IDX_TO_COLOR #IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
+        global IDX_TO_OBJECT #IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
+        
+        import ipdb; ipdb.set_trace()
+        self.agent_pos = self.unwrapped.agent_pos
+        agent_pos_vx, agent_pos_vy = self.unwrapped.get_view_coords(self.agent_pos[0], self.agent_pos[1])
+        
+        view_field_dictionary = {}
+        
+        for i in range(image.shape[0]):
+            for j in range(image.shape[1]):
+                if image[i][j][0] != 0 and image[i][j][0] != 1 and image[i][j][0] != 2:
+                    if i not in view_field_dictionary.keys():
+                        view_field_dictionary[i] = dict()
+                        view_field_dictionary[i][j] = image[i][j]
+                    else:
+                        view_field_dictionary[i][j] = image[i][j]
+        
+        # Find the wall if any
+        #  We describe a wall only if there is no objects between the agent and the wall in straight line
+        
+        # Find wall in front
+        j = agent_pos_vy - 1
+        object_seen = False
+        while j >= 0 and not object_seen:
+            if image[agent_pos_vx][j][0] != 0 and image[agent_pos_vx][j][0] != 1:
+                if image[agent_pos_vx][j][0] == 2:
+                    if self.language == 'english':
+                        descr = f"You see a wall" 
+                        if 'precise' in self.descr_type:
+                            descr += f"{agent_pos_vy - j} step{'s' if agent_pos_vy - j > 1 else ''} forward"
+                        else:
+                            descr += "in front"
+                        list_textual_descriptions.append(descr)
+                    elif self.language == 'french':
+                        list_textual_descriptions.append("Tu vois un mur à {} pas devant".format(agent_pos_vy - j))
+                    object_seen = True
+                else:
+                    object_seen = True
+            j -= 1
+        # Find wall left 
+        i = agent_pos_vx - 1
+        object_seen = False
+        while i >= 0 and not object_seen:
+            if image[i][agent_pos_vy][0] != 0 and image[i][agent_pos_vy][0] != 1:
+                if image[i][agent_pos_vy][0] == 2:
+                    if self.language == 'english':
+                        descr = f"You see a wall" 
+                        if 'precise' in self.descr_type:
+                            descr += f"{agent_pos_vx - i} step{'s' if agent_pos_vx - i > 1 else ''} left"
+                        else:
+                            descr += "on the left"
+                        list_textual_descriptions.append(descr)
+                    elif self.language == 'french':
+                        list_textual_descriptions.append("Tu vois un mur à {} pas à gauche".format(agent_pos_vx - i))
+                    object_seen = True
+                else:
+                    object_seen = True
+            i -= 1
+        # Find wall right
+        i = agent_pos_vx + 1
+        object_seen = False
+        while i < image.shape[0] and not object_seen:
+            if image[i][agent_pos_vy][0] != 0 and image[i][agent_pos_vy][0] != 1:
+                if image[i][agent_pos_vy][0] == 2:
+                    if self.language == 'english':
+                        descr = f"You see a wall" 
+                        if 'precise' in self.descr_type:
+                            descr += f"{i - agent_pos_vx} step{'s' if i - agent_pos_vx > 1 else ''} right"
+                        else:
+                            descr += "on the right"
+                        list_textual_descriptions.append(descr)
+                    elif self.language == 'french':
+                         list_textual_descriptions.append("Tu vois un mur à {} pas à droite".format(i - agent_pos_vx))
+                    object_seen = True
+                else:
+                    object_seen = True
+            i += 1
+
+        # returns the position of seen objects relative to you
+        for i in view_field_dictionary.keys():
+            for j in view_field_dictionary[i].keys():
+                if i != agent_pos_vx or j != agent_pos_vy:
+                    object = view_field_dictionary[i][j]
+                    relative_position = dict()
+
+                    if i - agent_pos_vx > 0:
+                        if self.language == 'english':
+                            relative_position["x_axis"] = ("right", i - agent_pos_vx)
+                        elif self.language == 'french':
+                             relative_position["x_axis"] = ("à droite", i - agent_pos_vx)
+                    elif i - agent_pos_vx == 0:
+                        if self.language == 'english':
+                            relative_position["x_axis"] = ("face", 0)
+                        elif self.language == 'french':
+                            relative_position["x_axis"] = ("en face", 0)
+                    else:
+                        if self.language == 'english':
+                            relative_position["x_axis"] = ("left", agent_pos_vx - i)
+                        elif self.language == 'french':
+                            relative_position["x_axis"] = ("à gauche", agent_pos_vx - i)
+                    if agent_pos_vy - j > 0:
+                        if self.language == 'english':
+                            relative_position["y_axis"] = ("forward", agent_pos_vy - j)
+                        elif self.language == 'french':
+                            relative_position["y_axis"] = ("devant", agent_pos_vy - j)
+                    elif agent_pos_vy - j == 0:
+                        if self.language == 'english':
+                            relative_position["y_axis"] = ("forward", 0)
+                        elif self.language == 'french':
+                            relative_position["y_axis"] = ("devant", 0)
+
+                    distances = []
+                    if relative_position["x_axis"][0] in ["face", "en face"]:
+                        distances.append((relative_position["y_axis"][1], relative_position["y_axis"][0]))
+                    elif relative_position["y_axis"][1] == 0:
+                        distances.append((relative_position["x_axis"][1], relative_position["x_axis"][0]))
+                    else:
+                        distances.append((relative_position["x_axis"][1], relative_position["x_axis"][0]))
+                        distances.append((relative_position["y_axis"][1], relative_position["y_axis"][0]))
+
+                    description = ""
+                    if object[0] != 4:  # if it is not a door
+                        if self.language == 'english':
+                            description = f"You see a {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]} "
+                        elif self.language == 'french':
+                            description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} "
+
+                    else:
+                        if IDX_TO_STATE[object[2]] != 0:  # if it is not open
+                            if self.language == 'english':
+                                description = f"You see a {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]} "
+                            elif self.language == 'french':
+                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]} "
+
+                        else:
+                            if self.language == 'english':
+                                description = f"You see an {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]} "
+                            elif self.language == 'french':
+                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]} "
+
+                    for _i, _distance in enumerate(distances):
+                        if _i > 0:
+                            if self.language == 'english':
+                                description += " and "
+                            elif self.language == 'french':
+                                description += " et "
+
+                        if self.language == 'english':
+                            if 'precise' in self.descr_type:
+                                description += f"{_distance[0]} step{'s' if _distance[0] > 1 else ''} {_distance[1]}"
+                            else:
+                                description += f" {_distance[1]}"
+                                import ipdb; ipdb.set_trace()
+                        elif self.language == 'french':
+                            description += f"{_distance[0]} pas {_distance[1]}"
+
+                    list_textual_descriptions.append(description)
+
+        observation['behaviour_description'] = " SEP ".join(list_textual_escriptions)
+
         return observation
 
 
@@ -3618,6 +3807,7 @@ def baseline_ther_wrapper(
     ne_dampening_rate=0.0,
     language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
+    descr_type='pickup_only',
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3706,6 +3896,7 @@ def baseline_ther_wrapper(
             env=env, 
             max_sentence_length=max_sentence_length,
             use_visible_entities=use_visible_entities,
+            descr_type=descr_type,
         )
         observation_keys_mapping['behaviour_description'] = 'achieved_goal'
     if miniworld_entity_visibility_oracle:
