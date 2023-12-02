@@ -8,7 +8,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --language_guided_curiosity_extrinsic_weight=2.0 \
 --language_guided_curiosity_intrinsic_weight=0.1 \
 --language_guided_curiosity_densify=False \
---language_guided_curiosity_non_episodic_dampening_rate=0.0 \
+--language_guided_curiosity_non_episodic_dampening_rate=0.1 \
 --coverage_manipulation_metric=True \
 --MiniWorld_entity_visibility_oracle=True \
 --MiniWorld_entity_visibility_oracle_language_specs='none' \
@@ -102,7 +102,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --epsstart=1.0 --epsend=0.1 \
 --epsdecay=100000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --replay_capacity=20e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
@@ -111,7 +111,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \
---time_limit=100 \
+--time_limit=400 \
 --benchmarking_record_episode_interval=8 \
 --benchmarking_interval=1.0e4 \
 --train_observation_budget=2.0e6
