@@ -10,10 +10,10 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --descriptive=True \
 --max_nbr_values_per_latent=5 \
 --min_nbr_values_per_latent=2 \
---sampling_strategy=component-focused-1shot \
+--sampling_strategy=component-focused-2shots \
 --nbr_distractors=0 \
 --nbr_latents=3 \
---nbr_object_centric_samples=4 \
+--nbr_object_centric_samples=1 \
 --provide_listener_feedback=True \
 --sad=True --vdn=True \
 --use_ORG=True \
@@ -55,12 +55,12 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_rg_descriptive_version=1 \
 --ORG_rg_learning_rate=6.25e-5 --ORG_rg_weight_decay=0.0 \
 --ORG_rg_l2_weight_decay=0.0 --ORG_rg_l1_weight_decay=0.0 \
---ORG_rg_vocab_size=64 --ORG_rg_training_period=512 \
+--ORG_rg_vocab_size=64 --ORG_rg_training_period=256 \
 --ORG_rg_descriptive=True --ORG_rg_object_centric=True \
 --ORG_rg_use_curriculum_nbr_distractors=False \
 --ORG_rg_batch_size=32 \
---ORG_rg_nbr_epoch_per_update=1024 --ORG_rg_accuracy_threshold=80 \
---ORG_rg_nbr_train_distractors=0 --ORG_rg_nbr_test_distractors=0 \
+--ORG_rg_nbr_epoch_per_update=256 --ORG_rg_accuracy_threshold=101 \
+--ORG_rg_nbr_train_distractors=3 --ORG_rg_nbr_test_distractors=0 \
 --ORG_rg_distractor_sampling=uniform \
 --ORG_rg_distractor_sampling_with_replacement=True \
 --ORG_rg_use_cuda=True \
