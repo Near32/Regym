@@ -492,7 +492,11 @@ class ReconstructionFromHiddenStateModule(Module):
             if filtering_signal:
                 indices = list(range(len(self.x)))
             else:
-                indices = np.random.choice(list(range(len(self.x))), size=len(self.x)//self.sampling_fraction, replace=False)
+                indices = np.random.choice(
+                    list(range(len(self.x))), 
+                    size=max(2,len(self.x)//self.sampling_fraction), 
+                    replace=False,
+                )
             
             x = [traj for idx, traj in enumerate(self.x) if idx in indices]
             labels = [labels for idx, labels in enumerate(self.labels) if idx in indices]
@@ -517,7 +521,7 @@ class ReconstructionFromHiddenStateModule(Module):
 
             logs_dict[f"{mode}/{self.id}/ReconstructionAccuracy/{'Eval' if filtering_signal else 'Sample'}"] = rec_accuracy.mean()
             
-            logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/LossLambdaWeight/{'Eval' if filtering_signal else 'Sample'}"] = self.config['loss_lambda_weight']
+            logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/LossLambdaWeight/{'Eval' if filtering_signal else 'Sample'}"] = self.config.get('loss_lambda_weight',1.0)
             logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/MSE/{'Eval' if filtering_signal else 'Sample'}"] = L_mse.mean()
             #logs_dict[f"{mode}/{self.id}/ReconstructionLoss/Log/BCE/{'Eval' if filtering_signal else 'Sample'}"] = L_rec.mean()
 
@@ -525,7 +529,7 @@ class ReconstructionFromHiddenStateModule(Module):
             losses_dict = input_streams_dict["losses_dict"]
             #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_rec]
             #losses_dict[f"{mode}/{self.id}/ReconstructionLoss/MSE/{'Eval' if filtering_signal else 'Sample'}"] = [1.0, L_mse]
-            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{self.config.get('reconstruction_loss', 'BCE')}/{'Eval' if filtering_signal else 'Sample'}"] = [self.config['loss_lambda_weight'], L_rec]
+            losses_dict[f"{mode}/{self.id}/ReconstructionLoss/{self.config.get('reconstruction_loss', 'BCE')}/{'Eval' if filtering_signal else 'Sample'}"] = [self.config.get('loss_lambda_weight', 1.0), L_rec]
             
             
             # Adaptive Sampling Period:

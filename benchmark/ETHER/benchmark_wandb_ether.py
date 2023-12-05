@@ -24,6 +24,9 @@ import minigrid
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
 
+from regym.modules import ReconstructionFromHiddenStateModule, MultiReconstructionFromHiddenStateModule
+from rl_hiddenstate_policy import RLHiddenStatePolicy
+
 from regym.pubsub_manager import PubSubManager
 
 import wandb
@@ -285,6 +288,109 @@ def make_rl_pubsubmanager(
         
         pipelines['rl_loop_0'].append(babyai_bot_id)
 
+    listener_comm_rec = True
+    vocab_size = task_config['ETHER_rg_vocab_size']
+    max_sentence_length = task_config['ETHER_rg_max_sentence_length']
+    node_id_to_extract="hidden"
+    sentence_length_to_rec = 5
+    def build_comm_to_reconstruct_from_trajectory_fn(
+        traj: List[List[Any]],
+        player_id:int,
+    ) -> List[torch.Tensor]:
+        """
+        Aims to reconstruct the current communication only...
+        """
+        likelihoods = []
+        for exp in traj[player_id]:
+            target_pred_idx = torch.from_numpy(exp[6]['desired_goal'])
+            batch_size = target_pred_idx.shape[0]
+            target_pred = torch.nn.functional.one_hot(
+                target_pred_idx[...,:sentence_length_to_rec],
+                num_classes=vocab_size+1,
+            )
+            likelihoods.append(target_pred.reshape(batch_size, -1))
+        return likelihoods
+
+
+    comm_rec_p0_id = "CommReconstruction_player0"
+    comm_rec_p0_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    print("WARNING: Biasing for Communication Reconstruction.")
+    #print("WARNING: NOT biasing Listener's Communication Reconstruction.")
+    
+    def comm_accuracy_pre_process_fn(
+        pred:torch.Tensor, 
+        target:torch.Tensor,
+        ):
+        batch_size = pred.shape[0]
+        # Reshape into (bs*sentence_length, vocab_size+|{EoS}|):
+        target = target.reshape(-1, vocab_size+1) #(env_config_hp.get('vocab_size', 5)+1))
+        pred = pred.reshape(-1, vocab_size+1) #(env_config_hp.get('vocab_size', 5)+1))
+        
+        # Retrieve target idx:
+        target_idx = target.max(dim=-1, keepdim=True)[1]
+        # (bs*sentence_length, 1)
+        mask = target_idx.reshape(batch_size, -1).sum(dim=-1, keepdim=False) 
+        # (bs )
+        # Filter out when the message is only made of EoS symbols:
+        mask = (mask != torch.zeros_like(mask)).float()
+        
+        pred_distr = pred.softmax(dim=-1)
+
+        #acc = ((pred-0.1<=target).float()+(pred+0.1>=target).float())==2).gather(
+        '''
+        acc = (pred_distr>=0.5).float().gather(
+            dim=-1,
+            index=target_idx,
+        )
+        '''
+        pred_idx = pred.max(dim=-1, keepdim=True)[1]
+        acc = (target_idx == pred_idx).float().reshape(batch_size,-1)
+        # (batch_size, sentence_length)
+        
+        out_d = {
+            'acc': acc,
+            'mask': mask,
+        }
+
+        return out_d
+
+    comm_rec_p0_config = {
+      "biasing": True, #listener_comm_rec_biasing,
+      "nbr_players":len(agents),
+      "player_id":0,
+      'use_cuda':True,
+      "reconstruction_loss":"BCE",
+      "signal_to_reconstruct_dim": (vocab_size+1)*sentence_length_to_rec, #max_sentence_length,
+      'sampling_period': 2, #10 = task_config['listener_rec_period'],
+      "hiddenstate_policy": RLHiddenStatePolicy(
+          agent=agents[-1],
+          node_id_to_extract=node_id_to_extract, 
+      ),
+      "build_signal_to_reconstruct_from_trajectory_fn": build_comm_to_reconstruct_from_trajectory_fn,
+      "accuracy_pre_process_fn":comm_accuracy_pre_process_fn,
+    }
+    
+    if listener_comm_rec:
+        modules[comm_rec_p0_id] = ReconstructionFromHiddenStateModule(
+            id=comm_rec_p0_id,
+            config=comm_rec_p0_config,
+            input_stream_ids=comm_rec_p0_input_stream_ids,
+        )
+    
+    if listener_comm_rec:
+        pipelines["rl_loop_0"].append(comm_rec_p0_id)
+     
     optim_id = "global_optim"
     optim_config = {
       "modules":modules,
@@ -342,7 +448,8 @@ def train_and_evaluate(
       "pipelines": {},
     }
 
-    config['publish_trajectories'] = False 
+    import ipdb; ipdb.set_trace()
+    config['publish_trajectories'] = True #False 
     config['training'] = True
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 

@@ -160,7 +160,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.hook_fns = []
         self.semantic_cooccurrence_test = False 
 
-        self.nbr_episode_success_range = 256
+        self.nbr_episode_success_range = 32 #256
 
         if goal_predicated_reward_fn is None:   goal_predicated_reward_fn = state_eq_goal_reward_fn2
         if _extract_goal_from_info_fn is None:  _extract_goal_from_info_fn = self._extract_goal_from_info_default_fn
@@ -643,7 +643,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     if successful_traj: self.nbr_success += 1
                     if self.episode_count % self.nbr_episode_success_range == 0:
                         wandb.log({
-                            'PerEpisode/SuccessRatio': float(self.nbr_success)/self.nbr_episode_success_range,
+                            'PerEpisode2SuccessRatio': float(self.nbr_success)/self.nbr_episode_success_range,
                             'PerEpisode/SuccessRatioIndex': int(self.episode_count//self.nbr_episode_success_range),
                             },
                             commit=False,
