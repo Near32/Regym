@@ -364,15 +364,17 @@ def make_rl_pubsubmanager(
         }
 
         return out_d
-
+    
+    import ipdb; ipdb.set_trace()
     comm_rec_p0_config = {
-      "biasing": True, #listener_comm_rec_biasing,
+      "biasing": False, #listener_comm_rec_biasing,
       "nbr_players":len(agents),
       "player_id":0,
       'use_cuda':True,
       "reconstruction_loss":"BCE",
       "signal_to_reconstruct_dim": (vocab_size+1)*sentence_length_to_rec, #max_sentence_length,
-      'sampling_period': 2, #10 = task_config['listener_rec_period'],
+      'sampling_period': 32, #task_config['listener_rec_period'],
+      'adaptive_sampling_period': True,
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
           node_id_to_extract=node_id_to_extract, 

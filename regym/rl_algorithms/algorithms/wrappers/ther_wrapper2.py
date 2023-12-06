@@ -643,7 +643,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     if successful_traj: self.nbr_success += 1
                     if self.episode_count % self.nbr_episode_success_range == 0:
                         wandb.log({
-                            'PerEpisode2SuccessRatio': float(self.nbr_success)/self.nbr_episode_success_range,
+                            'PerEpisode/SuccessRatio': float(self.nbr_success)/self.nbr_episode_success_range,
                             'PerEpisode/SuccessRatioIndex': int(self.episode_count//self.nbr_episode_success_range),
                             },
                             commit=False,

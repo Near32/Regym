@@ -588,7 +588,7 @@ agents:
                         'output_dim': *lstm_input_dim #321
                     input_stream_ids:
                         #input0: "inputs:ObsEncoder:processed_input"
-                        input1: "inputs:CommEncoder:processed_input"
+                        input0: "inputs:CommEncoder:processed_input"
                         input1: "inputs:MLP:processed_input"
                         input2: "inputs:ActionEmbeddor:processed_input"
                         #input3: "inputs:critic_body:extra_inputs:previous_reward"
@@ -613,8 +613,8 @@ agents:
                 'InstructionGenerator':
                     type: OracleTHERModule
                     vocabulary: *THER_vocabulary 
-                    vocab_size: *THER_vocab_size 
-                    max_sentence_length: *THER_max_sentence_length 
+                    _vocab_size: *THER_vocab_size 
+                    _max_sentence_length: *THER_max_sentence_length 
                     config:
                         hidden_units: *hidden_dim 
                     input_stream_ids:
