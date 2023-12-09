@@ -1,7 +1,7 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --seed=20 \
 --project=ETHER \
---success_threshold=0.5 \
+--success_threshold=0.001 \
 --use_cuda=True \
 --config=babyAI_wandb_benchmark_MultiplicativeSemanticPrior_ETHER_config.yaml \
 --language_guided_curiosity=False \

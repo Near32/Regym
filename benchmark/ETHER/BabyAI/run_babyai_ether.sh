@@ -1,6 +1,6 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_wandb_ether.py --seed=30 \
 --config=babyAI_wandb_benchmark_ETHER_config.yaml \
---n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
+--success_threshold=0.001 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=5e3 --replay_capacity=10e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
