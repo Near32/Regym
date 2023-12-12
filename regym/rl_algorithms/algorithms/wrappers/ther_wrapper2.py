@@ -183,6 +183,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         #self.rewards = rewards 
         self.feedbacks = feedbacks 
         self.test_acc = 0.0
+        self.safe_relabelling = False 
 
         self.predictor = predictor 
         
@@ -239,6 +240,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         
         self.nbr_relabelled_traj = 0 
         self.nbr_successfull_traj = 0
+        self.nbr_categorized_storages = self.kwargs.get('r2d2_nbr_categorized_storages', 1)
 
     def _reset_predictor_storages(self):
         if self.predictor_storages is not None:
@@ -657,7 +659,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 
             # Are we relabelling?
             # Is it safe to use the predictor:
-            safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+            safe_relabelling = self.safe_relabelling # self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+
             # Is it a timed out episode that we should filter:
             timed_out_episode = episode_length >= self.timing_out_episode_length_threshold
             if self.filter_out_timed_out_episode:
@@ -950,8 +953,30 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             # we can send them to the main algorithm as complete
             # whole trajectories, one experience at a time.
             for key in per_episode_d2store:
+                if self.nbr_categorized_storages==1:
+                    storage_index=None
+                else:
+                    # 0 --> non-positive reward / 1--> positive rewards :
+                    positive_reward_sum = sum([exp['r'].item() for exp in per_episode_d2store[key] if exp['r'].item()>0])
+                    storage_index = 0
+                    if positive_reward_sum > 0: storage_index = 1
+
+                if self.nbr_categorized_storages >= 3:
+                    # idem + [0,1]: actual trajectory / [2]: relabeled trajectory :
+                    # TODO: add a 4th category to differentiate between task-relevant goals
+                    # and task-irrelevant goal description
+                    if key >= 0 :  storage_index = 2
+                
                 for didx, d2store in enumerate(per_episode_d2store[key]):
-                    self.algorithm.store(d2store, actor_index=actor_index)
+                    self.algorithm.store(
+                        d2store, 
+                        actor_index=actor_index,
+                        storage_index=storage_index,
+                    )
+                if not hasattr(self, 'per_storage_traj_counts'):  self.per_storage_traj_counts = {}
+                if storage_index not in self.per_storage_traj_counts: self.per_storage_traj_counts[storage_index] = 0
+                self.per_storage_traj_counts[storage_index] += 1
+                wandb.log({f'PerEpisode/HER_traj_storage_counts/{storage_index}': self.per_storage_traj_counts[storage_index]}, commit=False)
                 wandb.log({f'PerEpisode/HER_traj_length/{key}': len(per_episode_d2store[key])}, commit=False)
             # Reset the relevant episode buffer:
             self.episode_buffer[actor_index] = []
@@ -992,6 +1017,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             if self.test_acc >= self.kwargs['THER_predictor_accuracy_threshold']:
                 full_update = False
                 break
+        self.safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
         wandb.log({f"Training/THER_Predictor/FullUpdate":int(full_update)}, commit=False)
          
     def train_predictor(self, minibatch_size=None):

@@ -125,7 +125,7 @@ class RLHiddenStatePolicy(nn.Module):
 
     def clone(self, training=False):
         return RLHiddenStatePolicy(
-            agent=self.model.clone(training=training),
+            agent=self.model.clone(training=training, minimal=True),
             node_id_to_extract=''.join(self.node_id_to_extract), 
         )
 

@@ -32,11 +32,18 @@ class R2D2Algorithm(DQNAlgorithm):
                  loss_fn: Callable = r2d2_loss.compute_loss,
                  sum_writer=None,
                  name='r2d2_algo',
-                 single_storage=True):
-        
+                 single_storage=True,
+    ):
+        '''
+        :params:
+          -single_storage: default is True, it is unclear why was this fixed, maybe because of PER? #TODO
+        '''
         Algorithm.__init__(self=self, name=name)
         self.single_storage = single_storage
-
+        self.nbr_categorized_storages = kwargs.get('r2d2_nbr_categorized_storages', 1)
+        if self.nbr_categorized_storages > 1 and self.single_storage:
+            print(f"WARNING: single_storage hyperparam is overriden by usage of categorized storages on PER.")
+        
         print(kwargs)
 
         self.sequence_replay_unroll_length = kwargs['sequence_replay_unroll_length']
@@ -137,6 +144,9 @@ class R2D2Algorithm(DQNAlgorithm):
         nbr_storages = 1
         if not(self.single_storage):
             nbr_storages = self.nbr_actor
+        if self.nbr_categorized_storages > 1:
+            print(f"WARNING: single_storage hyperparam is overriden by usage of categorized storages on PER.")
+            nbr_storages = self.nbr_categorized_storages
         storage_capacity = self.replay_buffer_capacity // nbr_storages
         
         self.storages = []
@@ -235,10 +245,20 @@ class R2D2Algorithm(DQNAlgorithm):
             d[key] = value
         return d
 
-    def _add_sequence_to_replay_storage(self, actor_index:int, override:bool=False):
-        storage_index = actor_index
-        if self.single_storage:
+    def _add_sequence_to_replay_storage(
+        self, 
+        actor_index:int, 
+        override:bool=False,
+        storage_index:int=None,
+    ):
+        if storage_index is None :
+            assert self.nbr_categorized_storages>1
+            storage_index = actor_index
+        
+        if self.nbr_categorized_storages==1 \
+        and self.single_storage:
             storage_index = 0
+            
         # Can we add the current sequence buffer to the replay storage?
         if not override and len(self.sequence_replay_buffers[actor_index]) < self.sequence_replay_unroll_length:
             return
@@ -333,7 +353,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 self.storages[storage_index].add(current_sequence_exp_dict)
 
     # NOTE: overriding this function from DQNAlgorithm -
-    def store(self, exp_dict, actor_index=0):
+    def store(self, exp_dict, actor_index=0, storage_index:int=None):
         '''
         Compute n-step returns, for each actor, separately,
         and then assembles experiences into sequences of experiences of length
@@ -344,8 +364,14 @@ class R2D2Algorithm(DQNAlgorithm):
         If the input `exp_dict` is terminal, 
         then the n-step buffer is dumped entirely in the sequence buffer
         and the sequence is committed to the relevant storage buffer.
+        
+        :params:
+          -storage_index: default is None when not using categorized storages.
         '''
         torch.set_grad_enabled(False)
+
+        if storage_index is not None:
+            assert self.nbr_categorized_storages > 1
 
         if False: #self.n_step>1:
             raise NotImplementedError
@@ -401,6 +427,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 # Only add if experience count handled, 
                 # no longer cares about crossing the episode barrier as the loss handles it,
                 # unless self.sequence_replay_store_on_terminal is true
+                storage_index=storage_index,
             )
 
         # Make sure the sequence buffer do not cross the episode barrier:
@@ -433,14 +460,15 @@ class R2D2Algorithm(DQNAlgorithm):
         unroll_length = self.sequence_replay_unroll_length - self.sequence_replay_burn_in_length
 
         if isinstance(self.storages[0], ray.actor.ActorHandle):
-            ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) for storage in self.storages]
+            ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) if len(storage) else [] for storage in self.storages]
         else:
-            ps_tree_indices = [storage.get_tree_indices() for storage in self.storages]
+            ps_tree_indices = [storage.get_tree_indices() if len(storage) else [] for storage in self.storages]
         
         for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
             storage_idx = arr_bidx//minibatch_size
             el_idx_in_batch = arr_bidx%minibatch_size
 
+            assert len(ps_tree_indices[storage_idx])
             el_idx_in_storage = ps_tree_indices[storage_idx][el_idx_in_batch]
             #el_idx_in_storage = self.storages[storage_idx].tree_indices[el_idx_in_batch]
             

@@ -855,6 +855,7 @@ def main():
     #    default="False",
     #)
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
+    parser.add_argument("--r2d2_nbr_categorized_storages", type=int, default=1,)
     
     parser.add_argument("--learning_rate", 
         type=float, 
@@ -1310,6 +1311,9 @@ def main():
     if args.sequence_replay_burn_in_ratio != 0.0:
         dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
         dargs['burn_in'] = True 
+    if args.r2d2_nbr_categorized_storages > 1:
+        import ipdb; ipdb.set_trace()
+        dargs['sequence_replay_store_on_terminal'] = True    
     
     dargs['seed'] = int(dargs['seed'])
     

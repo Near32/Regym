@@ -551,19 +551,19 @@ class DQNAlgorithm(Algorithm):
         fulls = {}
         if self.use_PER:
             fulls['importanceSamplingWeights'] = []
+            fulls['array_batch_indices'] = []
 
         for key in keys:    fulls[key] = []
 
         using_ray = isinstance(storages[0], ray.actor.ActorHandle)
-        for storage in storages:
+        for storage_idx, storage in enumerate(storages):
             # Check that there is something in the storage 
             if using_ray:
                 storage_size = ray.get(storage.__len__.remote())
             else:
                 storage_size = len(storage)
                 
-            if storage_size < 1: continue
-            #if len(storage) <= 1: continue
+            if storage_size <= 1: continue
             if self.use_PER:
                 if using_ray:
                     sample, importanceSamplingWeights = ray.get(
@@ -573,6 +573,10 @@ class DQNAlgorithm(Algorithm):
                     sample, importanceSamplingWeights = storage.sample(batch_size=minibatch_size, keys=keys)
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
+                array_batch_offset = minibatch_size*storage_idx
+                array_batch_indices = array_batch_offset + np.arange(minibatch_size)
+                array_batch_indices = torch.from_numpy(array_batch_indices)
+                fulls['array_batch_indices'].append(array_batch_indices)
             else:
                 sample = storage.sample(batch_size=minibatch_size, keys=keys)
             
@@ -637,7 +641,11 @@ class DQNAlgorithm(Algorithm):
         nbr_sampled_element_per_storage = self.nbr_minibatches*minibatch_size 
         list_batch_indices = [storage_idx*nbr_sampled_element_per_storage+np.arange(nbr_sampled_element_per_storage) \
                                 for storage_idx, _ in enumerate(self.storages)]
-        array_batch_indices = np.concatenate(list_batch_indices, axis=0)
+        
+        if 'array_batch_indices' in samples:
+            array_batch_indices = samples['array_batch_indices']
+        else:
+            array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
         
