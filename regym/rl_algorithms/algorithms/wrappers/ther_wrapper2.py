@@ -242,6 +242,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.nbr_successfull_traj = 0
         self.nbr_categorized_storages = self.kwargs.get('r2d2_nbr_categorized_storages', 1)
 
+    def check_safe_relabelling(self):
+        self.safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+        return self.safe_relabelling
+
     def _reset_predictor_storages(self):
         if self.predictor_storages is not None:
             for storage in self.predictor_storages: storage.reset()
@@ -659,7 +663,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                 
             # Are we relabelling?
             # Is it safe to use the predictor:
-            safe_relabelling = self.safe_relabelling # self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+            safe_relabelling = self.check_safe_relabelling() # self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
 
             # Is it a timed out episode that we should filter:
             timed_out_episode = episode_length >= self.timing_out_episode_length_threshold

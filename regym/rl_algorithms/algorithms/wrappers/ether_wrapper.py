@@ -430,6 +430,13 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                     predictor=self.predictor,
                 )
 
+    #Overriden from THERAlgorithmWrapper2
+    def check_safe_relabelling(self):
+        if self.kwargs.get('THER_use_THER_predictor_supervised_training', False):
+            self.safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+        else:
+            self.safe_relabelling = self.ether_test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+        return self.safe_relabelling
 
     def _reset_rg_storages(self):
         if self.rg_storages is not None:
