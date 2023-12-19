@@ -251,7 +251,7 @@ class R2D2Algorithm(DQNAlgorithm):
         override:bool=False,
         storage_index:int=None,
     ):
-        if storage_index is None :
+        if storage_index is not None :
             assert self.nbr_categorized_storages>1
             storage_index = actor_index
         

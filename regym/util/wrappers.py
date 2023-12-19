@@ -3581,9 +3581,10 @@ def baseline_ther_wrapper(
     add_rgb_wrapper=False,
     full_obs=False,
     single_pick_episode=False,
-    observe_achieved_goal=False,
+    observe_achieved_pickup_goal=False,
     use_visible_entities=False,
     babyai_mission=False,
+    faceupobject_oracle=False,
     miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
     miniworld_entity_visibility_oracle_top_view=False,
@@ -3667,7 +3668,7 @@ def baseline_ther_wrapper(
         env = ClipRewardEnv(env)
     
     observation_keys_mapping={'mission':'desired_goal'}
-    if observe_achieved_goal:
+    if observe_achieved_pickup_goal:
         env = BehaviourDescriptionWrapper(
             env=env, 
             max_sentence_length=max_sentence_length,
@@ -3676,6 +3677,8 @@ def baseline_ther_wrapper(
         observation_keys_mapping['behaviour_description'] = 'achieved_goal'
     if miniworld_entity_visibility_oracle:
         observation_keys_mapping['visible_entities'] = "visible_entities_widx"
+    if faceupobject_oracle:
+        observation_keys_mapping['achieved_goal'] = 'achieved_goal'
 
     env = TextualGoal2IdxWrapper(
         env=env,
