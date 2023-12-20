@@ -844,7 +844,7 @@ def compute_loss(
     goals = None #samples['goals']
     rnn_states = samples['rnn_states']
     next_rnn_states = samples['next_rnn_states']
-    importanceSamplingWeights = samples['importanceSamplingWeights']
+    importanceSamplingWeights = samples.get('importanceSamplingWeights', None)
     
     model = models['model']
     target_model = models['target_model']

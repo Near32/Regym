@@ -8,6 +8,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --coverage_manipulation_metric=False \
 --MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_top_view=False \
+--use_PER=True \
 --use_ETHER=False --use_THER=True \
 --use_RP=False --RP_use_RP=False \
 --use_ELA=False --ELA_use_ELA=False \

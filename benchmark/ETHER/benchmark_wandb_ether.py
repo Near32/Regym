@@ -885,6 +885,7 @@ def main():
     #    type=int, 
     #    default=0,
     #)
+    parser.add_argument("--use_PER", type=str2bool, default="False",)
     parser.add_argument("--sequence_replay_use_online_states", type=str2bool, default="True")
     parser.add_argument("--sequence_replay_use_zero_initial_states", type=str2bool, default="False")
     parser.add_argument("--sequence_replay_store_on_terminal", type=str2bool, default="False")
@@ -1056,6 +1057,7 @@ def main():
     parser.add_argument("--THER_predict_PADs", type=str2bool, default="False",)
     parser.add_argument("--THER_filter_predicate_fn", type=str2bool, default="False",)
     parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
+    parser.add_argument("--THER_store_only_relabelled_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_symbolic_image", type=str2bool, default="False",)

@@ -957,6 +957,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             # we can send them to the main algorithm as complete
             # whole trajectories, one experience at a time.
             for key in per_episode_d2store:
+                if self.kwargs['THER_store_only_relabelled_episode'] \
+                and key==-1:    continue
+
                 if self.nbr_categorized_storages==1:
                     storage_index=None
                 else:
