@@ -316,7 +316,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             next_sentences_hidden_states = None
             next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
         
-        if self.training:
+        if self.training and self.trainable:
             if "gumbel_softmax" in graphtype:    
                 if next_sentences_hidden_states is None: 
                     self.tau = self._compute_tau(tau0=tau0)

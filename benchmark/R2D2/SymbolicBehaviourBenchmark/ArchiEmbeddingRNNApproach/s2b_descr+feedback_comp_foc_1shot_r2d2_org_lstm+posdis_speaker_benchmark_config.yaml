@@ -463,13 +463,14 @@ agents:
         ArchiModel:
             model_id: 'RL_LSTM_Model'
             hyperparameters:
+                comm_state_dim: &comm_state_dim 21 #36 #15
                 value_dim: 64
                 key_dim: 64
                 hidden_dim: 512
                 output_dim: 256
-                action_dim: &action_dim 519 #171 #8
-                lstm_input_dim: &lstm_input_dim 593 #245
-                rl_state_dim: &rl_state_dim 1031 #683 
+                action_dim: &action_dim 519 #2929 #171 #8
+                lstm_input_dim: &lstm_input_dim 593  #3003 #245
+                rl_state_dim: &rl_state_dim 1031 #3441 #683 
             input_stream_ids:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"
@@ -509,7 +510,7 @@ agents:
                 'CommEncoder':
                     type: FullyConnectedNetworkModule
                     #state_dim: 30 
-                    state_dim: 21 #15  #"{{hidden_dim}}"
+                    state_dim: *comm_state_dim #21 #15  #"{{hidden_dim}}"
                     hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -564,9 +565,10 @@ agents:
                     type: OracleTHERModule
                     vocabulary: *vocabulary 
                     _vocab_size: 64 #*vocab_size 
-                    _max_sentence_length: 20 #*THER_max_sentence_length 
+                    _max_sentence_length: 4 #*THER_max_sentence_length 
                     config:
-                        hidden_units: 512 
+                        hidden_units: 512
+                        logits_base: 5.0 
                     input_stream_ids:
                         #input0: "inputs:OracleTHER:achieved_goal"
                         input0: "inputs:InstructionGenerator:achieved_goal"
@@ -588,6 +590,7 @@ agents:
                     "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
                 caption_generator:
                     "a" : "modules:RLHead:a"
+                    #"a" : "inputs:InstructionGenerator:processed_input0"
  
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
@@ -607,8 +610,8 @@ agents:
                     - 'ConcatenationOperation'
                     - 'CoreLSTM'
                     - 'RLHead'
-                    #- 'CaptionGenerator'
                 instruction_generator: 
+                    #- 'CaptionGenerator'
                     - 'ObsEncoderFCN'
                     - 'InstructionGenerator'
             features_id: 
@@ -626,7 +629,7 @@ agents:
             },
 
             'multi_binary_communication_channel':{
-                shape: [21], 
+                shape: [*comm_state_dim], #[21], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             #'communication_channel':{

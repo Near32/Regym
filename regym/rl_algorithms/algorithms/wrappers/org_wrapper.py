@@ -26,7 +26,12 @@ from regym.rl_algorithms.utils import (
 )
 
 import ReferentialGym
-from ReferentialGym.agents import DiscriminativeListener, LSTMObsListener, LSTMCNNListener
+from ReferentialGym.agents import (
+    DiscriminativeListener, 
+    LSTMObsListener, 
+    LSTMCNNListener,
+    LSTMObsSpeaker,
+)
 
 
 
@@ -149,9 +154,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             )
         
         # Set rnn_states as default reset_state for copy of model in agents
-        self.old_reset_states = self.speaker.get_reset_states()
-        self.speaker.set_reset_states(self.new_reset_states)
-        
+        if hasattr(self.speaker, 'get_reset_states'):
+            self.old_reset_states = self.speaker.get_reset_states()
+            self.speaker.set_reset_states(self.new_reset_states)
 
         ## Listener :
         if self.kwargs['ORG_rg_reset_listener_each_training']:
@@ -159,9 +164,10 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         return 
     
     def regularise_agents(self):
-        self.speaker.set_reset_states(
-          self.old_reset_states,
-        )
+        if hasattr(self.speaker, 'set_reset_states'):
+            self.speaker.set_reset_states(
+                self.old_reset_states,
+            )
         return 
             
     def init_referential_game(self):
@@ -302,10 +308,11 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             "descriptive_target_ratio": descriptive_ratio,
             
             "object_centric":           self.kwargs["ORG_rg_object_centric"],
+            "object_centric_type":      self.kwargs["ORG_rg_object_centric_type"],
             "nbr_stimulus":             1,
             
             "graphtype":                self.kwargs["ORG_rg_graphtype"],
-            "tau0":                     0.2,
+            "tau0":                     self.kwargs["ORG_rg_tau0"],
             "gumbel_softmax_eps":       1e-6,
             "vocab_size":               self.kwargs["ORG_rg_vocab_size"],
             "force_eos":                self.kwargs["ORG_rg_force_eos"],
@@ -432,17 +439,24 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             agent_config["symbol_processing_nbr_hidden_units"] = self.kwargs["ORG_rg_symbol_processing_nbr_hidden_units"]
             agent_config["symbol_processing_nbr_rnn_layers"] = 1
         elif 'MLP' in agent_config["architecture"]:
+            """ 
             if "BN" in self.kwargs["ORG_rg_arch"]:
+                agent_config["fc_hidden_units"] = ["BN32", "BN64", "BN128"]#[128,] 
                 agent_config["fc_hidden_units"] = ["BN32", "BN64", "BN128"]#[128,] 
             else:
                 agent_config["fc_hidden_units"] = [32, 64, 128]#[128,] 
             agent_config["mini_batch_size"] = self.kwargs["ORG_rg_mini_batch_size"]
             agent_config["feat_converter_output_size"] = 128 
-            
+            """ 
             agent_config["temporal_encoder_nbr_hidden_units"] = 0
             agent_config["temporal_encoder_nbr_rnn_layers"] = 0
             agent_config["temporal_encoder_mini_batch_size"] = self.kwargs["ORG_rg_mini_batch_size"]
-            agent_config["symbol_processing_nbr_hidden_units"] = self.kwargs["ORG_rg_symbol_processing_nbr_hidden_units"]
+            
+            agent_config['use_feat_converter'] = False 
+            agent_config["mini_batch_size"] = self.kwargs["ORG_rg_mini_batch_size"]
+            agent_config["fc_hidden_units"] = [64,64 ]#[128,] 
+            agent_config["feat_converter_output_size"] = 64 
+            agent_config["symbol_processing_nbr_hidden_units"] = 64 #self.kwargs["ORG_rg_symbol_processing_nbr_hidden_units"]
             agent_config["symbol_processing_nbr_rnn_layers"] = 1
         else:
             raise NotImplementedError
@@ -463,15 +477,38 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         vocab_size = rg_config['vocab_size']
         max_sentence_length = rg_config['max_sentence_length']
         
-        speaker = self.predictor
-        speaker.speaker_init(
-            kwargs=agent_config, 
-            obs_shape=agent_obs_shape, 
-            vocab_size=vocab_size, 
-            max_sentence_length=max_sentence_length,
-            agent_id='s0',
-            logger=None
-        )
+        nbr_obs_dim = 15 #30
+        
+        if self.kwargs['ORG_use_predictor']:
+            speaker = self.predictor
+            speaker.speaker_init(
+                kwargs=agent_config, 
+                obs_shape=agent_obs_shape, 
+                vocab_size=vocab_size, 
+                max_sentence_length=max_sentence_length,
+                agent_id='s0',
+                logger=None
+            )
+            # It is not necessarry to change the input to be latents,
+            # because the rnn_states is being replaced with containing the latents
+            # by the archi predictor speaker.
+            print("Speaker:", speaker)
+        else:
+            if self.kwargs["ORG_with_Oracle_listener"]:
+                agent_obs_shape[-1] = nbr_obs_dim #15 #9 #15 
+            speaker = LSTMObsSpeaker(
+                kwargs=agent_config, 
+                obs_shape=agent_obs_shape, 
+                vocab_size=vocab_size, 
+                max_sentence_length=max_sentence_length,
+                agent_id='s0',
+                logger=None
+            )
+            print("Speaker:", speaker)
+            import ipdb; ipdb.set_trace()
+            if self.kwargs["ORG_with_Oracle_listener"]:
+                speaker.input_stream_ids["speaker"]["experiences"] = "current_dataloader:sample:speaker_exp_latents_one_hot_encoded.float" 
+         
         if hasattr(self, 'vocabulary'):
             speaker.set_vocabulary(self.vocabulary)
         elif hasattr(speaker, 'vocabulary'):
@@ -479,10 +516,12 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             self.idx2w = speaker.idx2w
         else:
             raise NotImplementedError
-        print("Speaker:", speaker)
         self.speaker = speaker
 
         listener_config = copy.deepcopy(agent_config)
+        #TODO : 
+        if self.kwargs["ORG_with_Oracle_listener"]:
+            agent_obs_shape[-1] = nbr_obs_dim #15 #9 #15 
         if self.kwargs["ORG_rg_shared_architecture"]:
             if len(obs_shape)==1:
                 listener_config['obs_encoder'] = speaker.obs_encoder
@@ -520,6 +559,10 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             )
         listener.set_vocabulary(self.vocabulary)
         print("Listener:", listener)
+        import ipdb; ipdb.set_trace()
+        if self.kwargs["ORG_with_Oracle_listener"]:
+            #listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents" 
+            listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents_one_hot_encoded" 
         self.listener = listener
 
         ## Train set:
@@ -1137,6 +1180,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             "nbr_distractors":          self.rg_config["nbr_distractors"],
             "observability":            self.rg_config["observability"],
             "object_centric":           self.rg_config["object_centric"],
+            "object_centric_type":      self.rg_config["object_centric_type"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
             'with_replacement':         self.kwargs['ORG_rg_distractor_sampling_with_replacement'],
@@ -1153,6 +1197,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             "nbr_distractors":          self.rg_config["nbr_distractors"],
             "observability":            self.rg_config["observability"],
             "object_centric":           self.rg_config["object_centric"],
+            "object_centric_type":      self.rg_config["object_centric_type"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
             'with_replacement':         self.kwargs['ORG_rg_distractor_sampling_with_replacement'],
@@ -1208,7 +1253,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             wandb.watch(
                 self.listener, 
                 log='gradients',
-                log_freq=2,
+                log_freq=32,
                 log_graph=False,
             )
             '''
