@@ -3918,7 +3918,8 @@ def baseline_ther_wrapper(
         env = ClipRewardEnv(env)
     
     observation_keys_mapping={'mission':'desired_goal'}
-    if observe_achieved_pickup_goal or 'descr' in descr_type:
+    if observe_achieved_pickup_goal \
+    or (language_guided_curiosity and 'descr' in descr_type):
         env = BehaviourDescriptionWrapper(
             env=env, 
             max_sentence_length=max_sentence_length,
@@ -3926,7 +3927,8 @@ def baseline_ther_wrapper(
             descr_type=descr_type,
         )
         observation_keys_mapping[env.observation_space_name] = 'achieved_goal'
-    if miniworld_entity_visibility_oracle or 'descr' in descr_type:
+    if miniworld_entity_visibility_oracle \
+    or (language_guided_curiosity and 'descr' in descr_type):
         observation_keys_mapping['visible_entities'] = "visible_entities_widx"
     if faceupobject_oracle:
         observation_keys_mapping['achieved_goal'] = 'achieved_goal'
