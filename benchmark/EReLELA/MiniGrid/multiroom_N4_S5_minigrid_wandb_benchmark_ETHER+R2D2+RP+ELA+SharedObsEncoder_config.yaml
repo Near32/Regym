@@ -137,8 +137,8 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
 
     THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
     THER_vocabulary: &THER_vocabulary [
-        'you', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps',
-        'traverse', 'room', 'rooms', 'goal',
+        'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
+        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'forward',  
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
@@ -214,10 +214,10 @@ ELA_extra_hyperparameters: &ELA_extra_hyperparameters
     ELA_split_strategy: None 
 
     ELA_vocab_size: &ELA_vocab_size 64 #1024 
-    ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 32 #10 
+    ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 64 #10 
     ELA_vocabulary: &ELA_vocabulary [
-        'you', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps',
-        'traverse', 'room', 'rooms', 'goal',
+        'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
+        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'forward',  
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 

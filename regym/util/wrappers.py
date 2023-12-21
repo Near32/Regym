@@ -2473,7 +2473,10 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         self.use_visible_entities = use_visible_entities
         
         self.observation_space = copy.deepcopy(env.observation_space)
-        self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
+        self.observation_space_name = 'behaviour_description'
+        if 'descr' in self.descr_type:
+            self.observation_space_name = 'visible_entities'
+        self.observation_space.spaces[self.observation_space_name] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
 
     def observation( self, observation):
         need_to_return_info = False
@@ -2677,7 +2680,7 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
 
                     list_textual_descriptions.append(description)
 
-        observation['behaviour_description'] = " SEP ".join(list_textual_descriptions)
+        observation[self.observation_space_name] = " SEP ".join(list_textual_descriptions).lower()
         
         if need_to_return_info:
             return observation, info
@@ -3911,6 +3914,31 @@ def baseline_ther_wrapper(
             concatenate_keys_with_obs=concatenate_keys_with_obs,
         )
     
+    if clip_reward:
+        env = ClipRewardEnv(env)
+    
+    observation_keys_mapping={'mission':'desired_goal'}
+    if observe_achieved_pickup_goal or 'descr' in descr_type:
+        env = BehaviourDescriptionWrapper(
+            env=env, 
+            max_sentence_length=max_sentence_length,
+            use_visible_entities=use_visible_entities,
+            descr_type=descr_type,
+        )
+        observation_keys_mapping[env.observation_space_name] = 'achieved_goal'
+    if miniworld_entity_visibility_oracle or 'descr' in descr_type:
+        observation_keys_mapping['visible_entities'] = "visible_entities_widx"
+    if faceupobject_oracle:
+        observation_keys_mapping['achieved_goal'] = 'achieved_goal'
+
+    env = TextualGoal2IdxWrapper(
+        env=env,
+        max_sentence_length=max_sentence_length,
+        vocabulary=vocabulary,
+        vocab_size=vocab_size,
+        observation_keys_mapping=observation_keys_mapping,
+    )
+
     if language_guided_curiosity:
         env = LanguageGuidedCuriosityWrapper(
             env=env,
@@ -3924,31 +3952,6 @@ def baseline_ther_wrapper(
             env=env,
             pick_idx=env.actions.pickup,
         )
-
-    if clip_reward:
-        env = ClipRewardEnv(env)
-    
-    observation_keys_mapping={'mission':'desired_goal'}
-    if observe_achieved_pickup_goal:
-        env = BehaviourDescriptionWrapper(
-            env=env, 
-            max_sentence_length=max_sentence_length,
-            use_visible_entities=use_visible_entities,
-            descr_type=descr_type,
-        )
-        observation_keys_mapping['behaviour_description'] = 'achieved_goal'
-    if miniworld_entity_visibility_oracle:
-        observation_keys_mapping['visible_entities'] = "visible_entities_widx"
-    if faceupobject_oracle:
-        observation_keys_mapping['achieved_goal'] = 'achieved_goal'
-
-    env = TextualGoal2IdxWrapper(
-        env=env,
-        max_sentence_length=max_sentence_length,
-        vocabulary=vocabulary,
-        vocab_size=vocab_size,
-        observation_keys_mapping=observation_keys_mapping,
-    )
 
     #env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
     if observation_key is not None:

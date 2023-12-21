@@ -410,7 +410,7 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
       use_visible_entities=False, #('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
@@ -448,7 +448,7 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
       use_visible_entities=False, #('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
@@ -1183,7 +1183,8 @@ def main():
 
     if dargs['language_guided_curiosity']:
         dargs['coverage_manipulation_metric'] = True
-        dargs["MiniWorld_entity_visibility_oracle"] = True
+        if 'descr' not in dargs['language_guided_curiosity_descr_type']:
+            dargs["MiniWorld_entity_visibility_oracle"] = True
     
     print(dargs)
 
