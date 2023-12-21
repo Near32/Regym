@@ -2448,7 +2448,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         return observation
 
 
-from Minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
+from minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
 
 class BehaviourDescriptionWrapper(gym.ObservationWrapper):
     def __init__(
@@ -3807,7 +3807,7 @@ def baseline_ther_wrapper(
     ne_dampening_rate=0.0,
     language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
-    descr_type='pickup_only',
+    descr_type='pickup_only', #'precise-descr',
     ):
     
     if miniworld_entity_visibility_oracle:

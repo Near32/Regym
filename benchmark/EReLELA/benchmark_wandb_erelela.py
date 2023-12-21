@@ -427,6 +427,7 @@ def training_process(
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
+      descr_type=task_config['language_guided_curiosity_descr_type'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -464,6 +465,7 @@ def training_process(
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
+      descr_type=task_config['language_guided_curiosity_descr_type'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -864,6 +866,7 @@ def main():
     parser.add_argument("--THER_observe_achieved_goal", type=str2bool, default="False",)
     parser.add_argument("--single_pick_episode", type=str2bool, default="False",)
     parser.add_argument("--terminate_on_completion", type=str2bool, default="True",)
+    parser.add_argument("--allow_carrying", type=str2bool, default="True",)
     parser.add_argument("--THER_train_contrastively", type=str2bool, default="False",)
     parser.add_argument("--THER_contrastive_training_nbr_neg_examples", type=int, default=0,)
     parser.add_argument("--THER_feedbacks_failure_reward", type=int, default=-1,)
@@ -883,6 +886,7 @@ def main():
     parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
     parser.add_argument("--MiniWorld_entity_visibility_oracle_too_far_threshold", type=float, default=-1)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_descr_type", type=str, default="pickup_only",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_extrinsic_weight", type=float, default=1.0)
     parser.add_argument("--language_guided_curiosity_intrinsic_weight", type=float, default=1.0)

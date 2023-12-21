@@ -8,7 +8,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --language_guided_curiosity_extrinsic_weight=2.0 \
 --language_guided_curiosity_intrinsic_weight=0.1 \
 --language_guided_curiosity_densify=False \
---language_guided_curiosity_non_episodic_dampening_rate=0.1 \
+--language_guided_curiosity_non_episodic_dampening_rate=1.0 \
 --coverage_manipulation_metric=True \
 --MiniWorld_entity_visibility_oracle=True \
 --MiniWorld_entity_visibility_oracle_language_specs='none' \
@@ -111,6 +111,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \
+--allow_carrying=False \
 --time_limit=400 \
 --benchmarking_record_episode_interval=8 \
 --benchmarking_interval=1.0e4 \
