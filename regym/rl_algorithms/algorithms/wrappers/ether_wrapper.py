@@ -411,7 +411,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         self.nbr_data = 0 
 
         self.ether_test_acc = 0.0
-        
+        self.safe_relabelling = False 
+
         self.rg_iteration = 0
         self.vocabulary = self.predictor.model.modules['InstructionGenerator'].vocabulary
         self.idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
@@ -429,6 +430,13 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                     predictor=self.predictor,
                 )
 
+    #Overriden from THERAlgorithmWrapper2
+    def check_safe_relabelling(self):
+        if self.kwargs.get('THER_use_THER_predictor_supervised_training', False):
+            self.safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+        else:
+            self.safe_relabelling = self.ether_test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
+        return self.safe_relabelling
 
     def _reset_rg_storages(self):
         if self.rg_storages is not None:
@@ -1556,6 +1564,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             if self.test_acc >= self.kwargs['THER_predictor_accuracy_threshold']:
                 full_update = False
                 break
+        self.safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
         wandb.log({f"Training/THER_Predictor/TestAccuracy":self.test_acc}, commit=False)
         wandb.log({f"Training/THER_Predictor/FullUpdate":int(full_update)}, commit=False)
     
@@ -1570,6 +1579,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             if self.ether_test_acc >= self.kwargs['ETHER_rg_accuracy_threshold']:
                 full_update = False
                 break
+        if not self.kwargs.get('THER_use_THER_predictor_supervised_training', False):
+            self.safe_relabelling = self.ether_test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
         wandb.log({f"Training/ETHER/TestAccuracy":self.ether_test_acc}, commit=False)
         wandb.log({f"Training/ETHER/FullUpdate":int(full_update)}, commit=False)
 

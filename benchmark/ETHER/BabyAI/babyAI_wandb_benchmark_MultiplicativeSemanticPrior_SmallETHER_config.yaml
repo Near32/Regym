@@ -412,11 +412,11 @@ agents:
             hyperparameters:
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
-                encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
-                caption_feature_dim: &caption_feature_dim 256 #64
+                encoder_final_depth_dim: &encoder_final_depth_dim 128 #256 #64
+                caption_feature_dim: &caption_feature_dim 128 #256 #64
                 feature_dim: &feature_dim 512 #256 #64
                 lstm_input_dim: &lstm_input_dim 1088 #576 #513 #321 #769 #512 #128
-                mlp_input_dim: &mlp_input_dim 2304 #10816 #3136
+                mlp_input_dim: &mlp_input_dim 4608 #2304 #10816 #3136
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
                 action_dim: &action_dim 7
@@ -452,13 +452,14 @@ agents:
                     input_shape: [12, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
                     #channels: ['BN32', 'BN32', 'BN64']
-                    channels: [32, 64, 128, *encoder_final_depth_dim]
-                    #kernel_sizes: [8, 4, 3] #[3, 3, 3]
-                    kernel_sizes: [8, 4, 3, 3]
-                    #strides: [4, 2, 1] #[2, 2, 2]
-                    strides: [4, 2, 2, 1] #[2, 2, 2]
-                    #paddings: [1, 1, 1]
-                    paddings: [0, 1, 1, 1]
+                    #channels: [32, 64, 128, *encoder_final_depth_dim]
+                    channels: [32, 64, *encoder_final_depth_dim]
+                    kernel_sizes: [8, 4, 3] #[3, 3, 3]
+                    #kernel_sizes: [8, 4, 3, 3]
+                    strides: [4, 2, 1] #[2, 2, 2]
+                    #strides: [4, 2, 2, 1] #[2, 2, 2]
+                    paddings: [1, 1, 1]
+                    #paddings: [0, 1, 1, 1]
                     fc_hidden_units: [] #[128] #[256, 128]
                     non_linearities: ['ReLU']
                     dropout: 0.0

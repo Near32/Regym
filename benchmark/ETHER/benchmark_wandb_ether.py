@@ -24,6 +24,9 @@ import minigrid
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
 
+from regym.modules import ReconstructionFromHiddenStateModule, MultiReconstructionFromHiddenStateModule
+from rl_hiddenstate_policy import RLHiddenStatePolicy
+
 from regym.pubsub_manager import PubSubManager
 
 import wandb
@@ -285,6 +288,112 @@ def make_rl_pubsubmanager(
         
         pipelines['rl_loop_0'].append(babyai_bot_id)
 
+    import ipdb; ipdb.set_trace()
+    listener_comm_rec = False #True
+    vocab_size = task_config['ETHER_rg_vocab_size']
+    max_sentence_length = task_config['ETHER_rg_max_sentence_length']
+    node_id_to_extract="hidden"
+    sentence_length_to_rec = 5
+    def build_comm_to_reconstruct_from_trajectory_fn(
+        traj: List[List[Any]],
+        player_id:int,
+    ) -> List[torch.Tensor]:
+        """
+        Aims to reconstruct the current communication only...
+        """
+        likelihoods = []
+        for exp in traj[player_id]:
+            target_pred_idx = torch.from_numpy(exp[6]['desired_goal'])
+            batch_size = target_pred_idx.shape[0]
+            target_pred = torch.nn.functional.one_hot(
+                target_pred_idx[...,:sentence_length_to_rec],
+                num_classes=vocab_size+1,
+            )
+            likelihoods.append(target_pred.reshape(batch_size, -1))
+        return likelihoods
+
+
+    comm_rec_p0_id = "CommReconstruction_player0"
+    comm_rec_p0_input_stream_ids = {
+      "logs_dict":"logs_dict",
+      "losses_dict":"losses_dict",
+      "epoch":"signals:epoch",
+      "mode":"signals:mode",
+
+      "trajectories":f"modules:{envm_id}:trajectories",
+      "filtering_signal":f"modules:{envm_id}:new_trajectories_published",
+
+      "current_agents":"modules:current_agents:ref",  
+    }
+
+    print("WARNING: Biasing for Communication Reconstruction.")
+    #print("WARNING: NOT biasing Listener's Communication Reconstruction.")
+    
+    def comm_accuracy_pre_process_fn(
+        pred:torch.Tensor, 
+        target:torch.Tensor,
+        ):
+        batch_size = pred.shape[0]
+        # Reshape into (bs*sentence_length, vocab_size+|{EoS}|):
+        target = target.reshape(-1, vocab_size+1) #(env_config_hp.get('vocab_size', 5)+1))
+        pred = pred.reshape(-1, vocab_size+1) #(env_config_hp.get('vocab_size', 5)+1))
+        
+        # Retrieve target idx:
+        target_idx = target.max(dim=-1, keepdim=True)[1]
+        # (bs*sentence_length, 1)
+        mask = target_idx.reshape(batch_size, -1).sum(dim=-1, keepdim=False) 
+        # (bs )
+        # Filter out when the message is only made of EoS symbols:
+        mask = (mask != torch.zeros_like(mask)).float()
+        
+        pred_distr = pred.softmax(dim=-1)
+
+        #acc = ((pred-0.1<=target).float()+(pred+0.1>=target).float())==2).gather(
+        '''
+        acc = (pred_distr>=0.5).float().gather(
+            dim=-1,
+            index=target_idx,
+        )
+        '''
+        pred_idx = pred.max(dim=-1, keepdim=True)[1]
+        acc = (target_idx == pred_idx).float().reshape(batch_size,-1)
+        # (batch_size, sentence_length)
+        
+        out_d = {
+            'acc': acc,
+            'mask': mask,
+        }
+
+        return out_d
+    
+    import ipdb; ipdb.set_trace()
+    comm_rec_p0_config = {
+      "biasing": False, #listener_comm_rec_biasing,
+      "nbr_players":len(agents),
+      "player_id":0,
+      'use_cuda':True,
+      "reconstruction_loss":"BCE",
+      "signal_to_reconstruct_dim": (vocab_size+1)*sentence_length_to_rec, #max_sentence_length,
+      'sampling_period': 32, #task_config['listener_rec_period'],
+      'adaptive_sampling_period': True,
+      "hiddenstate_policy": RLHiddenStatePolicy(
+          agent=agents[-1],
+          node_id_to_extract=node_id_to_extract, 
+      ),
+      "build_signal_to_reconstruct_from_trajectory_fn": build_comm_to_reconstruct_from_trajectory_fn,
+      "accuracy_pre_process_fn":comm_accuracy_pre_process_fn,
+    }
+    
+    if listener_comm_rec:
+        modules[comm_rec_p0_id] = ReconstructionFromHiddenStateModule(
+            id=comm_rec_p0_id,
+            config=comm_rec_p0_config,
+            input_stream_ids=comm_rec_p0_input_stream_ids,
+        )
+    
+    if listener_comm_rec:
+        pipelines["rl_loop_0"].append(comm_rec_p0_id)
+     
     optim_id = "global_optim"
     optim_config = {
       "modules":modules,
@@ -343,7 +452,8 @@ def train_and_evaluate(
     }
     
     config['seed'] = task_config['seed']
-    config['publish_trajectories'] = False 
+    import ipdb; ipdb.set_trace()
+    config['publish_trajectories'] = True #False 
     config['training'] = True
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
@@ -505,9 +615,10 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
       use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      faceupobject_oracle=task_config['FaceUpObject_oracle'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
@@ -536,9 +647,10 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
       use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
+      faceupobject_oracle=task_config['FaceUpObject_oracle'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
@@ -754,6 +866,7 @@ def main():
     #    default="False",
     #)
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
+    parser.add_argument("--r2d2_nbr_categorized_storages", type=int, default=1,)
     
     parser.add_argument("--learning_rate", 
         type=float, 
@@ -780,6 +893,7 @@ def main():
     #    type=int, 
     #    default=0,
     #)
+    parser.add_argument("--use_PER", type=str2bool, default="False",)
     parser.add_argument("--sequence_replay_use_online_states", type=str2bool, default="True")
     parser.add_argument("--sequence_replay_use_zero_initial_states", type=str2bool, default="False")
     parser.add_argument("--sequence_replay_store_on_terminal", type=str2bool, default="False")
@@ -940,6 +1054,7 @@ def main():
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping_type", type=str, default="new",)
     parser.add_argument("--THER_observe_achieved_goal", type=str2bool, default="False",)
+    parser.add_argument("--FaceUpObject_oracle", type=str2bool, default="False",)
     parser.add_argument("--single_pick_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_train_contrastively", type=str2bool, default="False",)
     parser.add_argument("--THER_contrastive_training_nbr_neg_examples", type=int, default=0,)
@@ -950,6 +1065,7 @@ def main():
     parser.add_argument("--THER_predict_PADs", type=str2bool, default="False",)
     parser.add_argument("--THER_filter_predicate_fn", type=str2bool, default="False",)
     parser.add_argument("--THER_filter_out_timed_out_episode", type=str2bool, default="False",)
+    parser.add_argument("--THER_store_only_relabelled_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_timing_out_episode_length_threshold", type=int, default=40,)
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_symbolic_image", type=str2bool, default="False",)
@@ -1215,6 +1331,9 @@ def main():
     if args.sequence_replay_burn_in_ratio != 0.0:
         dargs['sequence_replay_burn_in_length'] = int(args.sequence_replay_burn_in_ratio*args.sequence_replay_unroll_length)
         dargs['burn_in'] = True 
+    if args.r2d2_nbr_categorized_storages > 1:
+        import ipdb; ipdb.set_trace()
+        dargs['sequence_replay_store_on_terminal'] = True    
     
     dargs['seed'] = int(dargs['seed'])
     

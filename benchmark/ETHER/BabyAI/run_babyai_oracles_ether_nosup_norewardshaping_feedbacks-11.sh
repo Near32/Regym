@@ -1,7 +1,7 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --seed=10 \
 --project=ETHER \
---success_threshold=0.5 \
+--success_threshold=0.001 \
 --use_cuda=True \
 --config=babyAI_wandb_benchmark_MultiplicativeSemanticPrior_OracleETHER_config.yaml \
 --language_guided_curiosity=False \
@@ -76,7 +76,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_lock_test_storage=True \
 --THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=False \
---THER_episode_length_reward_shaping_type='new' \
+--THER_episode_length_reward_shaping_type='old' \
 --THER_replay_capacity=1024 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
 --THER_predictor_test_train_split_interval=5 --THER_test_replay_capacity=256 \

@@ -61,16 +61,10 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_use_predictor:  True
     THER_predictor_policy_shared_phi: False
 
-    THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
+    THER_max_sentence_length: &THER_max_sentence_length 20 
     THER_vocabulary: &THER_vocabulary [
-        'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
-        'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
-        'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
-        'yellow', 'grey', 'the', 'a', 'object',
-        'key', 'ball', 'red', 'green', 'blue', 'purple', 
-        'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
-        'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
-        'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box'
+        'ball', 'box', 'key', 'none', 
+        'red', 'green', 'blue', 'purple', 'yellow', 'grey',
     ]
     
     THER_use_PER: True 
@@ -292,16 +286,15 @@ experiment:
         #'env-id': 'BabyAI-GoToObj-v0',
         #'env-id': 'BabyAI-GoToLocal-v0',
         #'env-id': 'BabyAI-PickupDistDebug-v0',
-        'env-id': 'BabyAI-PickupDist-v0',
+        #'env-id': 'BabyAI-PickupDist-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
+        'env-id': 'MiniGrid-FaceUpObject-I0-N4-W4-v0',
         'env-config': {},
 
-        'run-id': 'B1M/final-1/EpPerCycle16/lrPr1m4Net1m3/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
+        'run-id': 'test_oracleEther',
          
         'agent-id': 'archi_r2d2_ETH3R',
-        #'agent-id': '1step_prioritized_double_THER_LargeCNN_beta4m1_alpha_7m1_HER40TrainPerCycle_16EpPerCycle_NoPrioritizedPredTraining',
-        #'agent-id': '1step_double_THER_LargeCNN_HER40TrainPerCycle_16EpPerCycle_PredPiSharedPhi',
         
         'nbr_actor': 32,
         'sad': False,
@@ -316,7 +309,7 @@ experiment:
         'previous_reward_action': True,
         'observation_key': 'image',
         'nbr_frame_skipping': 0,
-        'nbr_frame_stacking': 4, #1,
+        'nbr_frame_stacking': 1,
         'frame_depth': 3,
         # The following requires a wrapper that provides direction,
         # as it is no always available...
@@ -328,7 +321,7 @@ experiment:
         'reload': 'None',
     },]
     
-    experiment_id: 'ETHER_BabyAI_Benchmark'
+    experiment_id: 'ETHER_FaceUpObject_OracleETHER_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 5.0e3
     benchmarking_record_episode_interval: None #1.0e8
@@ -412,15 +405,15 @@ agents:
             hyperparameters:
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
-                encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
-                caption_feature_dim: &caption_feature_dim 256 #64
+                encoder_final_depth_dim: &encoder_final_depth_dim 128 #256 #64
+                caption_feature_dim: &caption_feature_dim 128 #256 #64
                 feature_dim: &feature_dim 512 #256 #64
                 lstm_input_dim: &lstm_input_dim 1088 #576 #513 #321 #769 #512 #128
-                mlp_input_dim: &mlp_input_dim 2304 #10816 #3136
+                mlp_input_dim: &mlp_input_dim 8192 #4608 #2304 #10816 #3136
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
-                action_dim: &action_dim 7
-                rlhead_state_dim: &rlhead_state_dim 1031 #1032 #520
+                action_dim: &action_dim 8 #7
+                rlhead_state_dim: &rlhead_state_dim 1032 #1031 #1032 #520
                 temporal_dim: &temporal_dim 4
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
@@ -449,16 +442,18 @@ agents:
                 'SharedObsEncoder':
                     type: ConvolutionalNetworkModule
                     #input_shape: [16, 56, 56]
-                    input_shape: [12, 56, 56]
+                    #input_shape: [12, 56, 56]
+                    input_shape: [3, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
                     #channels: ['BN32', 'BN32', 'BN64']
-                    channels: [32, 64, 128, *encoder_final_depth_dim]
-                    #kernel_sizes: [8, 4, 3] #[3, 3, 3]
-                    kernel_sizes: [8, 4, 3, 3]
-                    #strides: [4, 2, 1] #[2, 2, 2]
-                    strides: [4, 2, 2, 1] #[2, 2, 2]
-                    #paddings: [1, 1, 1]
-                    paddings: [0, 1, 1, 1]
+                    #channels: [32, 64, 128, *encoder_final_depth_dim]
+                    channels: [32, 64, *encoder_final_depth_dim]
+                    kernel_sizes: [8, 4, 3] #[3, 3, 3]
+                    #kernel_sizes: [8, 4, 3, 3]
+                    strides: [4, 2, 1] #[2, 2, 2]
+                    #strides: [4, 2, 2, 1] #[2, 2, 2]
+                    paddings: [1, 1, 1]
+                    #paddings: [0, 1, 1, 1]
                     fc_hidden_units: [] #[128] #[256, 128]
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -552,21 +547,6 @@ agents:
                         input: "inputs:FiLMedBlock2:processed_input"
                     use_cuda: True
                     
-                'InstructionGeneratorMLP':
-                    type: FullyConnectedNetworkModule
-                    state_dim: *mlp_input_dim #3136
-                    hidden_units: ['BN1024', 'BN512', 'BN256']
-                    #hidden_units: ['BN512', 'BN256']
-                    #hidden_units: ['BN256', 'BN128', 'BN64']
-                    non_linearities: ['ReLU']
-                    dropout: 0.25
-                    config: None
-                    input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
-                    output_stream_ids:
-                        input: "inputs:InstructionGeneratorMLP:processed_input"
-                    use_cuda: True
-                
                 'MLP':
                     type: FullyConnectedNetworkModule
                     state_dim: *mlp_input_dim #3136
@@ -626,50 +606,20 @@ agents:
                     use_cuda: True
 
                 'InstructionGenerator':
-                    type: CaptionRNNModule
+                    type: OracleTHERModule
                     vocabulary: *THER_vocabulary 
-                    vocab_size: *THER_vocab_size 
-                    max_sentence_length: *THER_max_sentence_length 
-                    #input_dim: *feature_dim #*instruction_generator_input_dim
-                    input_dim: *caption_feature_dim #*instruction_generator_input_dim
-                    embedding_size: *caption_feature_dim
-                    #embedding_size: *feature_dim
-                    hidden_units: *hidden_dim 
-                    num_layers: 1
-                    gate: None #F.relu, 
-                    dropout: 0.25 #0.0  
-                    rnn_fn: "GRU"
+                    _vocab_size: *THER_vocab_size 
+                    _max_sentence_length: *THER_max_sentence_length 
                     config:
-                        predict_PADs: False
-                        diversity_loss_weighting: False #True
-                        rectify_contrastive_imbalance: False
-                        semantic_embeddings_prior: *semantic_embeddings_prior
-                        semantic_prior_mixing: "multiplicative"
-                        semantic_prior_mixing_with_detach: True
-                        input_mm_projector_BN: False
-                        semantic_embedding_init: 'ortho'
+                        hidden_units: *hidden_dim 
                     input_stream_ids:
-                        #input0: "inputs:InstructionGeneratorMLP:processed_input"
-                        input0: "inputs:SharedObsEncoder:processed_input"
+                        #input0: "inputs:OracleTHER:achieved_goal"
+                        input0: "inputs:InstructionGenerator:achieved_goal"
                         input0_gt_sentences: "inputs:gt_sentences"
                     output_stream_ids:
                         input0: "inputs:InstructionGenerator:processed_input0"
                     use_cuda: True 
 
-                #'OracleTHER':
-                #    type: OracleTHERModule
-                #    vocabulary: *THER_vocabulary 
-                #    vocab_size: *THER_vocab_size 
-                #    max_sentence_length: *THER_max_sentence_length 
-                #    config: None
-                #    input_stream_ids:
-                #        input0: "inputs:OracleTHER:achieved_goal"
-                #        input0_gt_sentences: "inputs:gt_sentences"
-                #    output_stream_ids:
-                #        input0: "inputs:InstructionGenerator:processed_input0"
-                #    use_cuda: True 
-
-            
             output_mappings:
                 head:
                     "a" : "modules:RLHead:a"
@@ -712,16 +662,17 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [20], #10], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             
             # Uncomment the following if using THER_observe_achieved_goal
-            #'achieved_goal':{
-            #    #shape: [28], #[63,], 
-            #    shape: [10], #20], 
-            #    target_location: ['OracleTHER']
-            #},
+            'achieved_goal':{
+                #shape: [28], #[63,], 
+                shape: [20], #10], 
+                #target_location: ['OracleTHER']
+                target_location: ['InstructionGenerator']
+            },
             
  
             #'action_mask':{

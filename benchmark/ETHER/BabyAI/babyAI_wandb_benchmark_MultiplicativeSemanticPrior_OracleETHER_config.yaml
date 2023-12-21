@@ -415,7 +415,7 @@ agents:
                 encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
                 caption_feature_dim: &caption_feature_dim 256 #64
                 feature_dim: &feature_dim 512 #256 #64
-                lstm_input_dim: &lstm_input_dim 576 #513 #321 #769 #512 #128
+                lstm_input_dim: &lstm_input_dim 1088 #576 #513 #321 #769 #512 #128
                 mlp_input_dim: &mlp_input_dim 2304 #10816 #3136
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
@@ -588,7 +588,7 @@ agents:
                         'output_dim': *lstm_input_dim #321
                     input_stream_ids:
                         #input0: "inputs:ObsEncoder:processed_input"
-                        #input1: "inputs:CommEncoder:processed_input"
+                        input0: "inputs:CommEncoder:processed_input"
                         input1: "inputs:MLP:processed_input"
                         input2: "inputs:ActionEmbeddor:processed_input"
                         #input3: "inputs:critic_body:extra_inputs:previous_reward"
@@ -613,8 +613,8 @@ agents:
                 'InstructionGenerator':
                     type: OracleTHERModule
                     vocabulary: *THER_vocabulary 
-                    vocab_size: *THER_vocab_size 
-                    max_sentence_length: *THER_max_sentence_length 
+                    _vocab_size: *THER_vocab_size 
+                    _max_sentence_length: *THER_max_sentence_length 
                     config:
                         hidden_units: *hidden_dim 
                     input_stream_ids:
