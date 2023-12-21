@@ -2389,6 +2389,9 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         #self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
         self.vocabulary = list(self.vocabulary)
         #########################################
+        
+        #for steps in range(20):
+        #    self.vocabulary.append( f"{steps}")
 
         while len(self.vocabulary) < self.vocab_size-2:
             self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
@@ -2473,6 +2476,11 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
 
     def observation( self, observation):
+        need_to_return_info = False
+        if isinstance(observation, tuple):
+            observation, info = observation
+            need_to_return_info = True
+        
         # TODO : regularise self.descr_type if self.language=='french'
         achieved_goal = "EoS"
         list_textual_descriptions = []
@@ -2498,6 +2506,8 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         
         if self.descr_type == 'pickup_only':
             observation['behaviour_description'] = achieved_goal
+            if need_to_return_info:
+                return observation,info
             return observation
 
         # ELSE : let us add more information:
@@ -2513,7 +2523,6 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         global IDX_TO_COLOR #IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
         global IDX_TO_OBJECT #IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
         
-        import ipdb; ipdb.set_trace()
         self.agent_pos = self.unwrapped.agent_pos
         agent_pos_vx, agent_pos_vy = self.unwrapped.get_view_coords(self.agent_pos[0], self.agent_pos[1])
         
@@ -2540,9 +2549,9 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
                     if self.language == 'english':
                         descr = f"You see a wall" 
                         if 'precise' in self.descr_type:
-                            descr += f"{agent_pos_vy - j} step{'s' if agent_pos_vy - j > 1 else ''} forward"
+                            descr += f" {agent_pos_vy - j} step{'s' if agent_pos_vy - j > 1 else ''} forward"
                         else:
-                            descr += "in front"
+                            descr += " in front"
                         list_textual_descriptions.append(descr)
                     elif self.language == 'french':
                         list_textual_descriptions.append("Tu vois un mur à {} pas devant".format(agent_pos_vy - j))
@@ -2559,9 +2568,9 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
                     if self.language == 'english':
                         descr = f"You see a wall" 
                         if 'precise' in self.descr_type:
-                            descr += f"{agent_pos_vx - i} step{'s' if agent_pos_vx - i > 1 else ''} left"
+                            descr += f" {agent_pos_vx - i} step{'s' if agent_pos_vx - i > 1 else ''} left"
                         else:
-                            descr += "on the left"
+                            descr += " on the left"
                         list_textual_descriptions.append(descr)
                     elif self.language == 'french':
                         list_textual_descriptions.append("Tu vois un mur à {} pas à gauche".format(agent_pos_vx - i))
@@ -2578,9 +2587,9 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
                     if self.language == 'english':
                         descr = f"You see a wall" 
                         if 'precise' in self.descr_type:
-                            descr += f"{i - agent_pos_vx} step{'s' if i - agent_pos_vx > 1 else ''} right"
+                            descr += f" {i - agent_pos_vx} step{'s' if i - agent_pos_vx > 1 else ''} right"
                         else:
-                            descr += "on the right"
+                            descr += " on the right"
                         list_textual_descriptions.append(descr)
                     elif self.language == 'french':
                          list_textual_descriptions.append("Tu vois un mur à {} pas à droite".format(i - agent_pos_vx))
@@ -2641,15 +2650,15 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
                     else:
                         if IDX_TO_STATE[object[2]] != 0:  # if it is not open
                             if self.language == 'english':
-                                description = f"You see a {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]} "
+                                description = f"You see a {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]}"
                             elif self.language == 'french':
-                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]} "
+                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]}"
 
                         else:
                             if self.language == 'english':
-                                description = f"You see an {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]} "
+                                description = f"You see an {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]}"
                             elif self.language == 'french':
-                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]} "
+                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]}"
 
                     for _i, _distance in enumerate(distances):
                         if _i > 0:
@@ -2660,17 +2669,18 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
 
                         if self.language == 'english':
                             if 'precise' in self.descr_type:
-                                description += f"{_distance[0]} step{'s' if _distance[0] > 1 else ''} {_distance[1]}"
+                                description += f" {_distance[0]} step{'s' if _distance[0] > 1 else ''} {_distance[1]}"
                             else:
                                 description += f" {_distance[1]}"
-                                import ipdb; ipdb.set_trace()
                         elif self.language == 'french':
-                            description += f"{_distance[0]} pas {_distance[1]}"
+                            description += f" {_distance[0]} pas {_distance[1]}"
 
                     list_textual_descriptions.append(description)
 
-        observation['behaviour_description'] = " SEP ".join(list_textual_escriptions)
-
+        observation['behaviour_description'] = " SEP ".join(list_textual_descriptions)
+        
+        if need_to_return_info:
+            return observation, info
         return observation
 
 
@@ -3501,7 +3511,7 @@ class Gymnasium2GymWrapper(gym.Wrapper):
                     )
                 elif 'discrete' in type(space).__name__.lower():
                     obs_space[key] = gym.spaces.Discrete(n=space.n)
-                elif 'babyaimission' in type(space).__name__.lower():
+                elif 'mission' in type(space).__name__.lower():
                     #obs_space[key] = copy.deepcopy(space)
                     obs_space[key] = GymBabyAIMissionSpace()
                 else:
@@ -3511,7 +3521,14 @@ class Gymnasium2GymWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         if 'return_info' in kwargs:
             kwargs.pop("return_info")
-        return self.env.reset(**kwargs)
+        ret = self.env.reset(**kwargs)
+        if isinstance(ret, tuple):
+            obs, info = ret
+        else:
+            obs = ret 
+            info = {}
+        return obs, info
+
     def step(self, action):
         step_output = self.env.step(action)
         if len(step_output) == 4:
@@ -3545,14 +3562,28 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         
         self.coverage_count = 0
         self.coverage_points = []
-        x = self.min_x = self.env.unwrapped.min_x
-        z = self.min_z = self.env.unwrapped.min_z
-        self.max_x = self.env.unwrapped.max_x
-        self.max_z = self.env.unwrapped.max_z
+        self.env_type = ''
+        if hasattr(self.env.unwrapped, 'min_x'):
+            # MiniWorld environment
+            self.env_type = 'miniworld'
+            x = self.min_x = self.env.unwrapped.min_x
+            z = self.min_z = self.env.unwrapped.min_z
+            self.max_x = self.env.unwrapped.max_x
+            self.max_z = self.env.unwrapped.max_z
+        elif hasattr(self.env.unwrapped, 'size'):
+            # MiniGrid environment
+            self.env_type = 'minigrid'
+            x = self.min_x = z = self.min_z = 0
+            self.max_x = self.max_z = self.env.unwrapped.size
+            self.coverage_precision = 1.0
+            self.coverage_epsilon = 0.5 
         while x < self.max_x:
             z = self.min_z
             while z < self.max_z:
-                self.coverage_points.append(np.array([x, 0.0, z]))
+                if self.env_type=='miniworld':
+                    self.coverage_points.append(np.array([x, 0.0, z]))
+                elif self.env_type=='minigrid':
+                    self.coverage_points.append(np.array([x, z]))
                 z += self.coverage_precision
             x += self.coverage_precision
         self.nbr_coverage_points = len(self.coverage_points)
@@ -3614,14 +3645,20 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         self.episode_idx += 1
         self.pickup_count = 0
 
-        self.agent_poses = [self.env.unwrapped.agent.pos]
+        if hasattr(self.unwrapped, 'agent'):
+            self.agent_poses = [self.env.unwrapped.agent.pos]
+        else:
+            self.agent_poses = [self.env.unwrapped.agent_pos]
 
         return obs, infos 
     
     def step(self, action):
         next_observation, reward, done, next_infos = self.env.step(action)
         
-        self.agent_poses.append(self.env.unwrapped.agent.pos)
+        if hasattr(self.unwrapped, 'agent'):
+            self.agent_poses.append(self.unwrapped.agent.pos)
+        else:
+            self.agent_poses.append(self.unwrapped.agent_pos)
 
         self.episode_length += 1
         if reward > 0 :
