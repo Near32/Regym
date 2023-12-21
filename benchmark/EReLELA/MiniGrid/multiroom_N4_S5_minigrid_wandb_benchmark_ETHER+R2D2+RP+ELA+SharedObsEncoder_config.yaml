@@ -417,7 +417,7 @@ experiment:
         # as it is no always available...
         #'concatenate_keys_with_obs': ['direction', 'action'],
         'concatenate_keys_with_obs': [], #'action'],
-        'add_rgb_wrapper': False,
+        'add_rgb_wrapper': True,
         'full_obs': False,
         'reload': 'None',
     },]

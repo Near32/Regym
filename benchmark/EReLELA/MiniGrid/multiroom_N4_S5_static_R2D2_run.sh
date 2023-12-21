@@ -110,7 +110,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --single_pick_episode=False \
 --terminate_on_completion=True \
 --time_limit=200 \
---benchmarking_record_episode_interval=8 \
+--benchmarking_record_episode_interval=4 \
 --benchmarking_interval=1.0e4 \
 --train_observation_budget=2.0e6
 
