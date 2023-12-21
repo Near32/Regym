@@ -472,6 +472,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         her_r *= (1.0-float(idx)/self.timing_out_episode_length_threshold)
                     if 'old' in self.episode_length_reward_shaping_type:
                         her_r *= float(idx)/self.timing_out_episode_length_threshold
+                
+                # ARCHER real reward scaling:
+                her_r *= self.kwargs['THER_real_reward_scaler']
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
                 non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
@@ -793,6 +796,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     new_her_r *= float(reshaping_idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
 
+                            # ARCHER hindsight reward scaling:
+                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
+
                             if self.relabel_terminal:
                                 if all(new_her_r>self.feedbacks['failure']):
                                     last_terminal_idx = idx
@@ -938,6 +944,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     reshaping_idx = idx-last_terminal_idx
                                     new_her_r *= float(idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
+
+                            # ARCHER hindsight reward scaling:
+                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
 
                             if self.relabel_terminal:
                                 if all(new_her_r>self.feedbacks['failure']):

@@ -77,7 +77,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_observe_achieved_goal=False \
 --FaceUpObject_oracle=True \
 --THER_lock_test_storage=True \
---THER_real_reward_scaler=1.0 --THER_hindsight_reward_scaler=1.0 \
+--THER_real_reward_scaler=0.5 --THER_hindsight_reward_scaler=2 \
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=False \
 --THER_episode_length_reward_shaping_type='old' \
