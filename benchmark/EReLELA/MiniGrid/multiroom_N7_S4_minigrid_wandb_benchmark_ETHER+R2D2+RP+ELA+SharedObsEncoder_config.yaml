@@ -214,7 +214,7 @@ ELA_extra_hyperparameters: &ELA_extra_hyperparameters
     ELA_split_strategy: None 
 
     ELA_vocab_size: &ELA_vocab_size 64 #1024 
-    ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 64 #10 
+    ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 128 #64 #10 
     ELA_vocabulary: &ELA_vocabulary [
         'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
         'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'forward',  

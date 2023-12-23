@@ -75,7 +75,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_object_centric_version=2 --ELA_rg_descriptive_version=1 \
 --ELA_rg_learning_rate=6.25e-5 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
---ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=64 \
+--ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
 --ELA_rg_training_period=4096 \
 --ELA_rg_descriptive=False --ELA_rg_use_curriculum_nbr_distractors=False \
 --ELA_rg_nbr_epoch_per_update=2 --ELA_rg_accuracy_threshold=95 \
@@ -113,7 +113,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --single_pick_episode=False \
 --terminate_on_completion=True \
 --allow_carrying=False \
---time_limit=200 \
+--time_limit=240 \
 --benchmarking_record_episode_interval=4 \
 --benchmarking_interval=1.0e4 \
 --train_observation_budget=2.0e6

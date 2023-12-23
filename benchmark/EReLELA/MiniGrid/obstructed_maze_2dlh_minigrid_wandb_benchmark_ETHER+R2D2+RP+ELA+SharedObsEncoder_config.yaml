@@ -383,8 +383,12 @@ experiment:
         #'env-id': 'MiniWorld-MazeConditionalPickUpFurthestObject-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-id': 'MiniGrid-MultiRoom-N4-S5-v0',
+        #'env-id': 'MiniGrid-MultiRoom-N4-S5-v0',
+        #'env-id': 'MiniGrid-MultiRoom-N2-S4-v0',
+        'env-id': 'MiniGrid-ObstructedMaze-2Dlh-v0',
         'env-config': {
+                #"minNumRooms": 7, 
+                #"maxNumRooms": 7,
                 #'num_objs':8,
                 #'room_size':2,
                 #'num_cols':3,
