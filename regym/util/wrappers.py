@@ -3803,6 +3803,9 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
                 self.ne_damps.append(ne_damp)
                 self.intrinsic_reward *= ne_damp
 
+        # Making reward binary:
+        reward = float(int(reward > 0))
+
         self.intrinsic_return += self.intrinsic_reward
         self.extrinsic_return += reward 
 
