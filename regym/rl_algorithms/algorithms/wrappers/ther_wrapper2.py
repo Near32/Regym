@@ -23,6 +23,17 @@ import wandb
 import pandas as pd
 
 
+def wandb_ImageOrGIF(data):
+    if data.shape[0] == 3:
+        return wandb.Image(data.transpose(1,2))
+    nbr_frames = data.shape[0] // 3
+    data = data.reshape(3, nbr_frames, *data.shape[-2:]).transpose(0,1)
+    #.transpose(2,3)
+    if data.max().item() <= 1.0:
+        data = data*255
+    return wandb.Video(data, fps=1, format='gif')
+
+
 def predictor_based_goal_predicated_reward_fn2(
     predictor, 
     achieved_exp, 
@@ -339,6 +350,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         # Vocabulary logging:
         if not hasattr(self, "w2idx"):
             self.w2idx = self.predictor.model.modules['InstructionGenerator'].w2idx
+            self.idx2w = dict(zip(self.w2idx.values(), self.w2idx.keys()))
             vocab_data = {"token_idx": list(self.w2idx.values()), "token": list(self.w2idx.keys())}
             vocab_df = pd.DataFrame(vocab_data)
             wandb.log({"VocabularyTable":wandb.Table(data=vocab_df),}, commit=True)
@@ -461,6 +473,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         her_r *= (1.0-float(idx)/self.timing_out_episode_length_threshold)
                     if 'old' in self.episode_length_reward_shaping_type:
                         her_r *= float(idx)/self.timing_out_episode_length_threshold
+                
+                # ARCHER real reward scaling:
+                her_r *= self.kwargs['THER_real_reward_scaler']
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
                 non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
@@ -718,6 +733,39 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     achieved_latent_goal_from_target_exp = batched_achieved_latent_goal_from_target_exp
                     if achieved_latent_goal_from_target_exp is not None:
                         achieved_latent_goal_from_target_exp = achieved_latent_goal_from_target_exp[0:1]
+                    # Wandb logging :
+                    #############################################
+                    #self.wandb_relabelling_table_logging = True
+                    if getattr(self, 'wandb_relabelling_table_logging', False):
+                        if getattr(self, 'wandb_logging_table', None) is None:
+                            columns = [
+                                "relabelling_idx",
+                                "observation",
+                                #"initial_goal",
+                                "relabelled_goal",
+                            ]
+                            self.wandb_logging_table = wandb.Table(columns)
+                     
+                        if self.nbr_relabelled_traj%2==0:
+                            data = []
+                            data.append(self.nbr_relabelled_traj)
+                            data.append(
+                                wandb_ImageOrGIF(
+                                    batched_target_exp[0]['succ_s'][0]
+                                )
+                            )
+                            achieved_goal_from_target_exp_str = " ".join([
+                                self.idx2w[token.item()] 
+                                for token in achieved_goal_from_target_exp[0]
+                            ])
+                            data.append(achieved_goal_from_target_exp_str)
+                            self.wandb_logging_table.add_data(*data)
+                         
+                            if self.nbr_relabelled_traj%32==0:
+                                wandb.log({f"THER/RelabellingTable":self.wandb_logging_table}, commit=False)
+                                self.wandb_logging_table = None
+                    #############################################
+
                     last_terminal_idx = 0
                     for idx in range(episode_length):    
                         s = self.episode_buffer[actor_index][idx]['s']
@@ -748,6 +796,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     reshaping_idx = idx-last_terminal_idx
                                     new_her_r *= float(reshaping_idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
+
+                            # ARCHER hindsight reward scaling:
+                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
 
                             if self.relabel_terminal:
                                 if all(new_her_r>self.feedbacks['failure']):
@@ -894,6 +945,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     reshaping_idx = idx-last_terminal_idx
                                     new_her_r *= float(idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
+
+                            # ARCHER hindsight reward scaling:
+                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
 
                             if self.relabel_terminal:
                                 if all(new_her_r>self.feedbacks['failure']):
