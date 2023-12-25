@@ -1,9 +1,9 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=10 --env_seed=1 --static_envs=True \
+--seed=10 --env_seed=12 --static_envs=False \
 --use_cuda=True \
 --project=EReLELA-MultiRoom-Benchmark \
 --success_threshold=0.999 \
---config=obstructed_maze_2dlh_minigrid_wandb_benchmark_ETHER+R2D2+RP+ELA+SharedObsEncoder_config.yaml \
+--config=multiroom_N7_S4_minigrid_wandb_benchmark_POMDPERELELA_config.yaml \
 --language_guided_curiosity=True \
 --language_guided_curiosity_descr_type='descr' \
 --language_guided_curiosity_extrinsic_weight=10.0 \
@@ -114,7 +114,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --single_pick_episode=False \
 --terminate_on_completion=True \
 --allow_carrying=False \
---time_limit=600 \
+--time_limit=240 \
 --benchmarking_record_episode_interval=4 \
 --benchmarking_interval=1.0e4 \
 --train_observation_budget=2.0e6

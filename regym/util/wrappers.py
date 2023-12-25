@@ -3716,6 +3716,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         extrinsic_weight=1.0, #1.0, #0.01,
         ne_dampening_rate=0.1,
         ne_damp_min=1e-4,
+        binary_reward=False,
         densify=True,
     ):
         super(LanguageGuidedCuriosityWrapper, self).__init__(env)
@@ -3724,6 +3725,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         self.extrinsic_weight = extrinsic_weight
         self.intrinsic_return = 0
         self.extrinsic_return = 0
+        self.binary_reward = binary_reward
         self.episode_idx = 0 
         self.ne_dampening_rate = ne_dampening_rate
         if self.ne_dampening_rate > 0.0:
@@ -3804,7 +3806,8 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
                 self.intrinsic_reward *= ne_damp
 
         # Making reward binary:
-        reward = float(int(reward > 0))
+        if self.binary_reward:
+            reward = float(int(reward > 0))
 
         self.intrinsic_return += self.intrinsic_reward
         self.extrinsic_return += reward 
@@ -3850,6 +3853,7 @@ def baseline_ther_wrapper(
     language_guided_curiosity_extrinsic_weight=1.0,
     language_guided_curiosity_intrinsic_weight=1.0,
     ne_dampening_rate=0.0,
+    language_guided_curiosity_binary_reward=False,
     language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
     descr_type='pickup_only', #'precise-descr',
@@ -3953,6 +3957,7 @@ def baseline_ther_wrapper(
             extrinsic_weight=language_guided_curiosity_extrinsic_weight,
             intrinsic_weight=language_guided_curiosity_intrinsic_weight,
             ne_dampening_rate=ne_dampening_rate,
+            binary_reward=language_guided_curiosity_binary_reward,
             densify=language_guided_curiosity_densify,
         )
     if coverage_manipulation_metric:

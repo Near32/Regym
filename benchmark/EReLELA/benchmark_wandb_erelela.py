@@ -424,6 +424,7 @@ def training_process(
       language_guided_curiosity=task_config['language_guided_curiosity'],
       language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
+      language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
@@ -462,6 +463,7 @@ def training_process(
       language_guided_curiosity=task_config['language_guided_curiosity'],
       language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
+      language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
@@ -890,6 +892,7 @@ def main():
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_extrinsic_weight", type=float, default=1.0)
     parser.add_argument("--language_guided_curiosity_intrinsic_weight", type=float, default=1.0)
+    parser.add_argument("--language_guided_curiosity_binary_reward", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_densify", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_non_episodic_dampening_rate", type=float, default=0.0,)
     parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
