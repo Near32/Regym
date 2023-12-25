@@ -3306,6 +3306,15 @@ class Gymnasium2GymWrapper(gym.Wrapper):
                     raise NotImplementedError
             self.observation_space = gym.spaces.Dict(**obs_space)
 
+    def reset(self, **kwargs):
+        return_info = kwargs.pop('return_info', False)
+        rout = self.env.reset(**kwargs)
+        if isinstance(rout, tuple):
+            return rout
+        elif return_info:
+            return rout, {}
+        return rout
+ 
     def step(self, action):
         step_output = self.env.step(action)
         if len(step_output) == 4:
