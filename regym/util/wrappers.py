@@ -3274,8 +3274,9 @@ class GymRGBImgPartialObsWrapper(gym.ObservationWrapper):
 ###################################################################################
 
 class Gymnasium2GymWrapper(gym.Wrapper):
-    def __init__(self, env):
+    def __init__(self, env, remove_return_info=False):
         gym.Wrapper.__init__(self, env)
+        self.remove_return_info = remove_return_info
 
         if 'dict' in type(self.env.observation_space).__name__.lower():
             obs_space = {}
@@ -3311,14 +3312,14 @@ class Gymnasium2GymWrapper(gym.Wrapper):
             self.observation_space = gym.spaces.Dict(**obs_space)
 
     def reset(self, **kwargs):
-        #return_info = kwargs.pop('return_info', False)
+        if self.remove_return_info:
+            return_info = kwargs.pop('return_info', False)
         rout = self.env.reset(**kwargs)
-        '''
+        
         if isinstance(rout, tuple):
             return rout
-        elif return_info:
+        elif return_info or self.remove_return_info:
             return rout, {}
-        '''
         return rout
  
     def step(self, action):
@@ -3594,6 +3595,7 @@ def baseline_ther_wrapper(
     observation_key=None,
     concatenate_keys_with_obs=[],
     add_rgb_wrapper=False,
+    remove_return_info_wrapper=False,
     full_obs=False,
     single_pick_episode=False,
     describe_achieved_pickup_goal=False,
@@ -3628,7 +3630,10 @@ def baseline_ther_wrapper(
             as_obs=True,
         )
 
-    env = Gymnasium2GymWrapper(env=env)
+    env = Gymnasium2GymWrapper(
+        env=env,
+        remove_return_info=remove_return_info_wrapper,
+    )
     if time_limit>0:
         env = TimeLimit(env, max_episode_steps=time_limit)
 
