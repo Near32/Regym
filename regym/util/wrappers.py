@@ -3302,17 +3302,23 @@ class Gymnasium2GymWrapper(gym.Wrapper):
                 elif 'babyaimission' in type(space).__name__.lower():
                     #obs_space[key] = copy.deepcopy(space)
                     obs_space[key] = GymBabyAIMissionSpace()
+                elif 'multibinary' in type(space).__name__.lower():
+                    obs_space[key] = gym.spaces.MultiBinary(n=space.n)
+                elif 'space' in type(space).__name__.lower():
+                    obs_space[key] = gym.spaces.Space[str]()
                 else:
                     raise NotImplementedError
             self.observation_space = gym.spaces.Dict(**obs_space)
 
     def reset(self, **kwargs):
-        return_info = kwargs.pop('return_info', False)
+        #return_info = kwargs.pop('return_info', False)
         rout = self.env.reset(**kwargs)
+        '''
         if isinstance(rout, tuple):
             return rout
         elif return_info:
             return rout, {}
+        '''
         return rout
  
     def step(self, action):
@@ -3590,10 +3596,10 @@ def baseline_ther_wrapper(
     add_rgb_wrapper=False,
     full_obs=False,
     single_pick_episode=False,
-    observe_achieved_pickup_goal=False,
+    describe_achieved_pickup_goal=False,
     use_visible_entities=False,
     babyai_mission=False,
-    faceupobject_oracle=False,
+    bespoke_env_oracle=False,
     miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
     miniworld_entity_visibility_oracle_top_view=False,
@@ -3623,7 +3629,8 @@ def baseline_ther_wrapper(
         )
 
     env = Gymnasium2GymWrapper(env=env)
-    env = TimeLimit(env, max_episode_steps=time_limit)
+    if time_limit>0:
+        env = TimeLimit(env, max_episode_steps=time_limit)
 
     if add_rgb_wrapper:
         if full_obs:
@@ -3676,8 +3683,12 @@ def baseline_ther_wrapper(
     if clip_reward:
         env = ClipRewardEnv(env)
     
-    observation_keys_mapping={'mission':'desired_goal'}
-    if observe_achieved_pickup_goal:
+    if 'desired_goal' not in list(env.observation_space.keys()):
+        observation_keys_mapping={'mission':'desired_goal'}
+    else:
+        observation_keys_mapping={'desired_goal':'desired_goal'}
+
+    if describe_achieved_pickup_goal:
         env = BehaviourDescriptionWrapper(
             env=env, 
             max_sentence_length=max_sentence_length,
@@ -3686,7 +3697,7 @@ def baseline_ther_wrapper(
         observation_keys_mapping['behaviour_description'] = 'achieved_goal'
     if miniworld_entity_visibility_oracle:
         observation_keys_mapping['visible_entities'] = "visible_entities_widx"
-    if faceupobject_oracle:
+    if bespoke_env_oracle:
         observation_keys_mapping['achieved_goal'] = 'achieved_goal'
 
     env = TextualGoal2IdxWrapper(

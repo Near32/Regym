@@ -546,15 +546,20 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             obs_instance = getattr(self.rg_storages[0], self.kwargs['ETHER_exp_key'])[0][0]
             obs_shape = obs_instance.shape
             # Format is [ batch_size =1  x depth x w x h]
-            stimulus_depth_dim = obs_shape[1]
+            stimulus_depth_dim = 1 
+            if isinstance(obs_shape, list): stimulus_depth_dim = obs_shape[1]
         except Exception as e:
             print(e)
             obs_instance = None
-            obs_shape = self.kwargs["preprocessed_observation_shape"]
+            obs_shape = self.kwargs.get("preprocessed_observation_shape", [1,self.kwargs.get('observation_resize_dim', 1)])
             # Format is [ depth x w x h]
             stimulus_depth_dim = obs_shape[0]
 
-        stimulus_resize_dim = obs_shape[-1] #args.resizeDim #64 #28
+        if isinstance(obs_shape, list):
+            stimulus_resize_dim = obs_shape[-1] #args.resizeDim #64 #28
+        else:
+            assert isinstance(obs_shape, int)
+            stimulus_resize_dim = obs_shape
         normalize_rgb_values = False 
         transformations = []
         rgb_scaler = 1.0 #255.0

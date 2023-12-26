@@ -1,4 +1,5 @@
 import gym
+from gym import spaces
 from gym.spaces import Discrete, MultiBinary, Dict
 from gym.utils import seeding
 import numpy as np
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 # Adapted from:
 # https://github.com/JunkyByte/HER_DQN/blob/master/src/Custom_Env/BitSwap.py
 class NBitsSwapEnv(gym.Env):
-    metadata = {'render.modes': ['human']}
+    metadata = {'render_modes': ['human']}
 
     def __init__(self, n=10, fixed_goal=False):
         super(NBitsSwapEnv, self).__init__()
@@ -17,9 +18,13 @@ class NBitsSwapEnv(gym.Env):
         self.fixed_goal = fixed_goal
 
         self.action_space = Discrete(self.n)
-        self.observation_space = Dict({"observation": MultiBinary(self.n), 
-                                       "achieved_goal": MultiBinary(self.n), 
-                                       "desired_goal": MultiBinary(self.n)})
+        self.observation_space = Dict({
+            "observation": MultiBinary(self.n), 
+            #"achieved_goal": MultiBinary(self.n), 
+            "achieved_goal": spaces.Space[str](), 
+            #"desired_goal": MultiBinary(self.n),
+            "desired_goal": spaces.Space[str](),
+        })
 
         self.max_episode_steps = n
 
@@ -38,11 +43,13 @@ class NBitsSwapEnv(gym.Env):
     def _get_obs(self):
         ret = {}
         ret["observation"] = self.state.copy()
-        ret["achieved_goal"] = self.state.copy()
-        ret["desired_goal"] = self.goal.copy()
+        #ret["achieved_goal"] = self.goal.copy()
+        ret["achieved_goal"] = ' '.join(['one' if s==1 else 'zero' for s in self.state])
+        #ret["desired_goal"] = self.goal.copy()
+        ret["desired_goal"] = ' '.join(['one' if s==1 else 'zero' for s in self.goal])
         return ret 
 
-    def reset(self):
+    def reset(self, **kwargs):
         self.nbr_steps = 0
         self.state = self.np_random.randint(2, size=self.n)
         if not self.fixed_goal:
@@ -50,6 +57,8 @@ class NBitsSwapEnv(gym.Env):
 
         info = {'latents':
                     {   's': [self.state.copy()], 
+                        'a': [0*np.ones(1)],
+                        'step_idx': [self.nbr_steps*np.ones(1)],
                         'succ_s': [self.state.copy()],
                         'achieved_goal': [self.state.copy()],
                         'desired_goal': [self.goal.copy()],
@@ -62,14 +71,16 @@ class NBitsSwapEnv(gym.Env):
         assert(action < self.n)
         init_state = self.state.copy()
         
-        self.state[action] = not self.state[action]
+        self.state[action] = 1-self.state[action]
         obs = self._get_obs()
-        reward = 0 if self._calc_reward() else -1
+        reward = 1 if self._calc_reward() else 0
         self.nbr_steps += 1
-        terminal = True if reward >= -0.5 or self.nbr_steps >= self.max_episode_steps else False
+        terminal = True if reward >= 0.5 or self.nbr_steps >= self.max_episode_steps else False
         
         info = {'latents':
-                    {   's': [init_state.copy()], 
+                    {   's': [init_state.copy()],
+                        'a': [action*np.ones(1)],
+                        'step_idx': [self.nbr_steps*np.ones(1)],
                         'succ_s': [self.state.copy()],
                         'achieved_goal': [self.state.copy()],
                         'desired_goal': [self.goal.copy()],

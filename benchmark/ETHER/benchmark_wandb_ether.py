@@ -222,6 +222,8 @@ def make_rl_pubsubmanager(
         "mode":"signals:mode",
 
         "reset_actors":f"modules:{envm_id}:reset_actors",
+        "reset_observations":f"modules:{envm_id}:ref:player_{aidx}:reset_observations",
+        "reset_infos":f"modules:{envm_id}:ref:player_{aidx}:reset_infos",
         
         "observations":f"modules:{envm_id}:ref:player_{aidx}:observations",
         "infos":f"modules:{envm_id}:ref:player_{aidx}:infos",
@@ -614,10 +616,10 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
+      describe_achieved_pickup_goal=task_config['THER_describe_achieved_goal'],
       use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
-      faceupobject_oracle=task_config['FaceUpObject_oracle'],
+      bespoke_env_oracle=task_config['bespoke_env_oracle'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
@@ -643,10 +645,10 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
+      describe_achieved_pickup_goal=task_config['THER_describe_achieved_goal'],
       use_visible_entities=('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
-      faceupobject_oracle=task_config['FaceUpObject_oracle'],
+      bespoke_env_oracle=task_config['bespoke_env_oracle'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
@@ -1045,8 +1047,8 @@ def main():
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping_type", type=str, default="new",)
-    parser.add_argument("--THER_observe_achieved_goal", type=str2bool, default="False",)
-    parser.add_argument("--FaceUpObject_oracle", type=str2bool, default="False",)
+    parser.add_argument("--THER_describe_achieved_goal", type=str2bool, default="False",)
+    parser.add_argument("--bespoke_env_oracle", type=str2bool, default="False",)
     parser.add_argument("--single_pick_episode", type=str2bool, default="False",)
     parser.add_argument("--THER_train_contrastively", type=str2bool, default="False",)
     parser.add_argument("--THER_contrastive_training_nbr_neg_examples", type=int, default=0,)
