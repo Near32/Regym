@@ -126,6 +126,8 @@ class MARLEnvironmentModule(Module):
         self.vdn = self.config.get('vdn', False)
         self.saving_obs_period = self.config.get('saving_obs_period', 1e6) 
 
+        self.reset_obs_key = "reset_observations"
+        self.reset_info_key = "reset_info"
         self.obs_key = "observations"
         self.info_key = "info"
         self.action_key = "actions"
@@ -200,6 +202,8 @@ class MARLEnvironmentModule(Module):
                 self.nonvdn_observations = env_reset_output_dict["observations"]
                 self.nonvdn_info = env_reset_output_dict["info"]
             
+            outputs_stream_dict[self.reset_obs_key] = copy.deepcopy(self.observations)
+            outputs_stream_dict[self.reset_info_key] = copy.deepcopy(self.info)
             outputs_stream_dict[self.obs_key] = copy.deepcopy(self.observations)
             outputs_stream_dict[self.info_key] = copy.deepcopy(self.info)
             outputs_stream_dict[self.action_key] = None 
@@ -209,6 +213,8 @@ class MARLEnvironmentModule(Module):
             outputs_stream_dict[self.succ_info_key] = None
 
             if self.vdn:
+                outputs_stream_dict["reset_observations"] = copy.deepcopy(self.nonvdn_observations)
+                outputs_stream_dict["reset_infos"] = copy.deepcopy(self.nonvdn_info)
                 outputs_stream_dict["observations"] = copy.deepcopy(self.nonvdn_observations)
                 outputs_stream_dict["info"] = copy.deepcopy(self.nonvdn_info)
                 outputs_stream_dict["actions"] = None
@@ -219,6 +225,8 @@ class MARLEnvironmentModule(Module):
 
             for pidx in range(self.nbr_agents):
                 pidx_d = getattr(self, f"player_{pidx}")
+                pidx_d['reset_observations'] = self.observations[pidx]
+                pidx_d['reset_infos'] = self.info[pidx]
                 pidx_d['observations'] = None
                 pidx_d['infos'] = None
                 pidx_d['actions'] = None
@@ -243,17 +251,21 @@ class MARLEnvironmentModule(Module):
         ]
 
         env_output_dict = self.env.step(actions, online_reset=True)
+        reset_observations = env_output_dict[self.reset_obs_key]
         succ_observations = env_output_dict[self.succ_obs_key]
         reward = env_output_dict[self.reward_key]
         done = env_output_dict[self.done_key]
         succ_info = env_output_dict[self.succ_info_key]
+        reset_info = env_output_dict[self.reset_info_key]
 
         if self.vdn:
             nonvdn_actions = env_output_dict['actions']
+            nonvdn_reset_observations = env_output_dict['reset_observations']
             nonvdn_succ_observations = env_output_dict['succ_observations']
             nonvdn_reward = env_output_dict['reward']
             nonvdn_done = env_output_dict['done']
-            nonvdn_succ_info = env_output_dict['succ_info']
+            nonvdn_reset_info = env_output_dict['reset_infos']
+            nonvdn_succ_info = env_output_dict['succ_infos']
 
         if self.sad and isinstance(actions[0], dict):
             actions = [
@@ -289,18 +301,22 @@ class MARLEnvironmentModule(Module):
                 if self.vdn:
                     obs = self.nonvdn_observations
                     act = nonvdn_actions
+                    reset_obs = nonvdn_reset_observations
                     succ_obs = nonvdn_succ_observations
                     rew = nonvdn_reward
                     d = nonvdn_done
                     info = self.nonvdn_info
+                    reset_info = self.nonvdn_reset_info
                     succ_info = self.nonvdn_succ_info
                 else:
                     obs = self.observations
                     act = actions
+                    reset_obs = reset_observations
                     succ_obs = succ_observations
                     rew = reward
                     d = done
                     info = self.info
+                    reset_info = reset_info
                     succ_info = succ_info
             
                 for player_index in range(self.nbr_players):
@@ -462,18 +478,22 @@ class MARLEnvironmentModule(Module):
             if self.vdn:
                 obs = self.nonvdn_observations
                 act = nonvdn_actions
+                reset_obs = nonvdn_reset_observations
                 succ_obs = nonvdn_succ_observations
                 rew = nonvdn_reward
                 d = nonvdn_done
                 info = self.nonvdn_info
+                reset_info = self.nonvdn_reset_info
                 succ_info = self.nonvdn_succ_info
             else:
                 obs = self.observations
                 act = actions
+                reset_obs = reset_observations
                 succ_obs = succ_observations
                 rew = reward
                 d = done
                 info = self.info
+                reset_info = reset_info
                 succ_info = succ_info
             
             for player_index in range(self.nbr_players):
@@ -606,7 +626,9 @@ class MARLEnvironmentModule(Module):
         outputs_stream_dict[self.action_key] = actions 
         outputs_stream_dict[self.reward_key] = reward 
         outputs_stream_dict[self.done_key] = done 
+        outputs_stream_dict[self.reset_obs_key] = reset_observations
         outputs_stream_dict[self.succ_obs_key] = succ_observations
+        outputs_stream_dict[self.reset_info_key] = reset_info
         outputs_stream_dict[self.succ_info_key] = succ_info
 
         if self.vdn:
@@ -615,7 +637,9 @@ class MARLEnvironmentModule(Module):
             outputs_stream_dict["actions"] = nonvdn_actions 
             outputs_stream_dict["reward"] = nonvdn_reward 
             outputs_stream_dict["done"] = nonvdn_done 
+            outputs_stream_dict["reset_observations"] = nonvdn_reset_observations
             outputs_stream_dict["succ_observations"] = nonvdn_succ_observations
+            outputs_stream_dict["reset_info"] = nonvdn_reset_info
             outputs_stream_dict["succ_info"] = nonvdn_succ_info
 
         # Prepare player dicts for RLAgent modules:
@@ -624,17 +648,27 @@ class MARLEnvironmentModule(Module):
             pidx_d['observations'] = self.observations[pidx]
             pidx_d['infos'] = self.info[pidx] 
             pidx_d['actions'] = actions[pidx]
+            pidx_d['reset_observations'] = reset_observations[pidx]
             pidx_d['succ_observations'] = succ_observations[pidx]
+            pidx_d['reset_infos'] = reset_info[pidx] 
             pidx_d['succ_infos'] = succ_info[pidx] 
             pidx_d['rewards'] = reward[pidx]
             pidx_d['dones'] = done
             setattr(self, f"player_{pidx}", pidx_d)
 
+        '''
         self.observations = copy.deepcopy(succ_observations)
         self.info = copy.deepcopy(succ_info)
         if self.vdn:
             self.nonvdn_observations = copy.deepcopy(nonvdn_succ_observations)
             self.nonvdn_info = copy.deepcopy(nonvdn_succ_info)
+        '''
+
+        self.observations = copy.deepcopy(reset_observations)
+        self.info = copy.deepcopy(reset_info)
+        if self.vdn:
+            self.nonvdn_observations = copy.deepcopy(nonvdn_reset_observations)
+            self.nonvdn_info = copy.deepcopy(nonvdn_reset_info)
 
         outputs_stream_dict["signals:mode"] = 'train'
         outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch

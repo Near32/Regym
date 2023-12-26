@@ -34,6 +34,8 @@ class RLAgentModule(Module):
             "mode":"signals:mode",
 
             "reset_actors":"modules:marl_environment_module:reset_actors",
+            "reset_observations":f"modules:marl_environment_module:ref:player_{player_idx}:reset_observations",
+            "reset_infos":f"modules:marl_environment_module:ref:player_{player_idx}:reset_infos",
             
             "observations":f"modules:marl_environment_module:ref:player_{player_idx}:observations",
             "infos":f"modules:marl_environment_module:ref:player_{player_idx}:infos",
@@ -92,6 +94,14 @@ class RLAgentModule(Module):
                 succ_infos=copy.deepcopy(self.new_infos),
             )
 
+        if len(input_streams_dict['reset_actors'])!=0:
+            assert all([input_streams_dict['dones'][aidx] for aidx in input_streams_dict['reset_actors']])
+            self.agent.reset_actors(indices=input_streams_dict['reset_actors'])                
+            
+            # Update observations:
+            self.new_observations = input_streams_dict['reset_observations']
+            self.new_infos = input_streams_dict['reset_infos']
+
         if self.agent.training:
             self.new_actions = self.agent.take_action(
                 state=self.new_observations,
@@ -110,8 +120,4 @@ class RLAgentModule(Module):
         outputs_streams_dict[self.config['actions_stream_id']] = copy.deepcopy(self.new_actions)
         outputs_streams_dict["signals:agent_update_count"] = self.agent.get_update_count()
 
-        if len(input_streams_dict['reset_actors'])!=0:
-            assert all([input_streams_dict['dones'][aidx] for aidx in input_streams_dict['reset_actors']])
-            self.agent.reset_actors(indices=input_streams_dict['reset_actors'])                
-         
         return outputs_streams_dict

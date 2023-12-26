@@ -227,16 +227,6 @@ class DQNAgent(Agent):
                 done_actors_among_notdone.append(actor_index)
 
             exp_dict = {}
-            exp_dict['s'] = state[actor_index,...].unsqueeze(0)
-            exp_dict['a'] = a[actor_index,...].unsqueeze(0)
-            exp_dict['r'] = r[actor_index,...].unsqueeze(0)
-            exp_dict['succ_s'] = succ_state[actor_index,...].unsqueeze(0)
-            exp_dict['non_terminal'] = non_terminal[actor_index,...].unsqueeze(0)
-            if infos is not None:
-                exp_dict['info'] = infos[actor_index]
-            if succ_infos is not None:
-                exp_dict['succ_info'] = succ_infos[actor_index]
-
             #########################################################################
             #########################################################################
             # Exctracts tensors at root level:
@@ -244,6 +234,20 @@ class DQNAgent(Agent):
             #########################################################################
             #########################################################################
             
+
+            exp_dict['s'] = state[actor_index,...].unsqueeze(0)
+            #########################################################################
+            # POSSIBLY OVERRIDING THE PREDICTED ACTION
+            # BECAUSE OF THE \Epsilon-GREEDY POLICY:
+            exp_dict['a'] = a[actor_index,...].unsqueeze(0)
+            #########################################################################
+            exp_dict['r'] = r[actor_index,...].unsqueeze(0)
+            exp_dict['succ_s'] = succ_state[actor_index,...].unsqueeze(0)
+            exp_dict['non_terminal'] = non_terminal[actor_index,...].unsqueeze(0)
+            if infos is not None:
+                exp_dict['info'] = infos[actor_index]
+            if succ_infos is not None:
+                exp_dict['succ_info'] = succ_infos[actor_index]
 
             # Extracts remaining info:
             if self.recurrent:

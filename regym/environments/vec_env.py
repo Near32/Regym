@@ -113,7 +113,13 @@ class VecEnv():
     def clean(self, idx):
         self.env_processes[idx].close()
 
-    def check_update_reset_env_process(self, idx, env_configs=None, reset=False):
+    def check_update_reset_env_process(
+        self, 
+        idx, 
+        env_configs=None, 
+        reset=False,
+        return_values=False,
+    ):
         p = self.env_processes[idx]
         if p is None:
             self.launch_env_process(idx)
@@ -135,6 +141,10 @@ class VecEnv():
                 out = self.env_processes[idx].reset()
             else:
                 out = self.env_processes[idx].reset(**env_config)
+            
+            if return_values:
+                return out
+
             self.env_queues[idx]['out'] = out
 
     def get_from_queue(self, idx, exhaust_first_when_failure=False):
@@ -147,7 +157,26 @@ class VecEnv():
                 action = action[0]
                 if isinstance(action, np.ndarray) and action.shape[0]==1:
                     action = action.item()
-        self.env_queues[idx]['out'] = self.env_processes[idx].step(action)
+        obs, reward, done, info = self.env_processes[idx].step(action)
+        self.env_queues[idx]['out'] = [
+            None,
+            None,
+            obs,
+            reward,
+            done,
+            info,
+        ]
+
+        if done:
+            robs, rinfo = self.check_update_reset_env_process(
+                idx=idx, 
+                env_configs=None, 
+                reset=True,
+                return_values=True,
+            )
+                
+            self.env_queues[idx][0] = robs
+            self.env_queues[idx][1] = rinfo
 
     def render(self, render_mode="rgb_array", env_indices=None) :
         if env_indices is None: env_indices = range(self.nbr_parallel_env)
@@ -158,8 +187,61 @@ class VecEnv():
             observations.append(obs)
 
         return observations
+    
+    def format_obs(self, observations):
+        if isinstance(observations[0], list):
+            per_env_obs = [ 
+                np.concatenate([ 
+                    #np.array(obs[idx_agent]).reshape(1,-1) 
+                    np.expand_dims(obs[idx_agent], axis=0) if obs[idx_agent].shape[0]!=1 else obs[idx_agent] 
+                    for obs in observations
+                    ], 
+                    axis=0
+                ) 
+                for idx_agent in range(len(observations[0])) 
+            ]
+        else:
+            per_env_obs = [] 
+            per_env_obs.append(
+                np.concatenate([ 
+                    np.expand_dims(obs, axis=0) if obs.shape[0]!=1 else obs 
+                    for obs in observations
+                    ], 
+                    axis=0
+                ) 
+            ) 
+            
+        return per_env_obs
+    
+    def format_infos(self, infos):
+        if isinstance(infos[0], dict):
+            # i.e. there is only one agent:
+            per_env_infos = [ 
+                [ 
+                    info
+                    for info in infos
+                ]
+                for idx_agent in range(1) 
+            ]
+        else:
+            per_env_infos = [ 
+                [ 
+                    info[idx_agent] 
+                    for info in infos
+                ]
+                for idx_agent in range(len(infos[0])) 
+            ]
 
-    def format(self, observations, infos, rewards=None):
+        return per_env_infos
+
+    def format(
+        self, 
+        observations, 
+        infos, 
+        rewards=None,
+        reset_observations=None,
+        reset_infos=None,
+    ):
         # TODO: deprecate single agent bool and use common formatting:
         if False: #self.single_agent:
             per_env_obs = np.concatenate( [ np.expand_dims(np.array(obs), axis=0) for obs in observations], axis=0)
@@ -170,28 +252,12 @@ class VecEnv():
             per_env_infos = infos
         else:
             # agent/player x actor/env x ...
-            if isinstance(observations[0], list):
-                per_env_obs = [ 
-                    np.concatenate([ 
-                        #np.array(obs[idx_agent]).reshape(1,-1) 
-                        np.expand_dims(obs[idx_agent], axis=0) if obs[idx_agent].shape[0]!=1 else obs[idx_agent] 
-                        for obs in observations
-                        ], 
-                        axis=0
-                    ) 
-                    for idx_agent in range(len(observations[0])) 
-                ]
+            per_env_obs = self.format_obs(observations)
+            if reset_observations is not None:
+                per_env_reset_obs = self.format_obs(reset_observations)
             else:
-                per_env_obs = [] 
-                per_env_obs.append(
-                    np.concatenate([ 
-                        np.expand_dims(obs, axis=0) if obs.shape[0]!=1 else obs 
-                        for obs in observations
-                        ], 
-                        axis=0
-                    ) 
-                ) 
-                
+                per_env_reset_obs = copy.deepcopy(per_env_obs)
+
             if rewards is not None:
                 if isinstance(rewards[0], list):
                     per_env_reward = [ 
@@ -216,24 +282,16 @@ class VecEnv():
             else:
                 per_env_reward = None
 
-            if isinstance(infos[0], dict):
-                # i.e. there is only one agent:
-                per_env_infos = [ 
-                    [ 
-                        info
-                        for info in infos
-                    ]
-                    for idx_agent in range(1) 
-                ]
+            per_env_infos = self.format_infos(infos)
+            if reset_infos is not None:
+                per_env_reset_infos = self.format_infos(reset_infos)
             else:
-                per_env_infos = [ 
-                    [ 
-                        info[idx_agent] 
-                        for info in infos
-                    ]
-                    for idx_agent in range(len(infos[0])) 
-                ]
-        return per_env_obs, per_env_infos, per_env_reward
+                per_env_reset_infos = copy.deepcopy(per_env_infos)
+
+        if rewards is None:
+            return per_env_obs, per_env_infos, per_env_reward
+
+        return per_env_reset_obs, per_env_obs, per_env_reset_infos, per_env_infos, per_env_reward
 
     def reset(self, env_configs=None, env_indices=None) :
         if env_indices is None: env_indices = range(self.nbr_parallel_env)
@@ -271,7 +329,11 @@ class VecEnv():
             infos.append(info)
 
         per_env_obs, \
-        per_env_infos, _ = self.format(observations, infos)
+        per_env_infos, _ = self.format(
+            observations=observations, 
+            infos=infos,
+            rewards=None,
+        )
         
         for idx in env_indices:
             self.dones[idx] = False
@@ -290,8 +352,10 @@ class VecEnv():
                                 on the fly in this function (after ignoring the currently 
                                 provided action), or not.
         """
+        reset_observations = {}
         observations = []
         rewards = []
+        reset_infos = {}
         infos = []
         dones = []
         
@@ -348,7 +412,10 @@ class VecEnv():
                 r = self.init_reward[env_index]
                 done = False
             else:
-                obs, r, done, info = experience
+                robs, rinfo, obs, r, done, info = experience
+                if robs is None:
+                    robs = copy.deepcopy(obs)
+                    rinfo = copy.deepcopy(info)
 
             if len(self.init_reward)<len(self.env_queues):
                 # Zero-out this initial reward:
@@ -357,6 +424,10 @@ class VecEnv():
                     for ridx in range(len(init_r)):
                         init_r[ridx] = 0*init_r[ridx]  
                 self.init_reward.append(init_r)
+            
+            if robs is not None:
+                reset_observations[env_index] = robs
+                reset_infos[env_index] = rinfo
 
             observations.append( obs )
             rewards.append( r )
@@ -364,20 +435,41 @@ class VecEnv():
             if only_progress_non_terminated and self.dones[env_index]:
                 rewards[-1] = self.init_reward[env_index]
 
-            self.dones[env_index] = done 
+            self.dones[env_index] = not(online_reset) and done #done 
             dones.append(done)
             infos.append(info)
         
-            
-        per_env_obs, \
-        per_env_infos, \
-        per_env_reward = self.format(observations, infos, rewards)
+        
+        if len(reset_observations):
+            reset_observations = [
+                reset_observations[env_idx] if env_idx in reset_observations else obs
+                for env_idx, obs in enumerate(observations)
+            ]
+            reset_infos = [
+                reset_infos[env_idx] if env_idx in reset_infos else infos
+                for env_idx, infos in enumerate(infos)
+            ]
+        else:
+            reset_observations = None
+            reset_infos = None
+
+        per_env_reset_obs, per_env_obs, \
+        per_env_reset_infos, per_env_infos, \
+        per_env_reward = self.format(
+            observations=observations, 
+            infos=infos, 
+            rewards=rewards,
+            reset_observations=reset_observations, 
+            reset_infos=reset_infos, 
+        )
        
         output_dict = {
+            "reset_observations":per_env_reset_obs, 
             "succ_observations":per_env_obs, 
             "reward":per_env_reward, 
             "done":dones, 
-            "succ_info":per_env_infos
+            "reset_info":per_env_reset_infos,
+            "succ_info":per_env_infos,
         }
 
         return copy.deepcopy(output_dict)
