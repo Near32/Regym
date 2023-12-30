@@ -741,6 +741,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 "relabelling_idx",
                                 "observation",
                                 #"initial_goal",
+                                '''
+                                "obs 1",
+                                "obs 2",
+                                "obs 3",
+                                '''
                                 "relabelled_goal",
                             ]
                             self.wandb_logging_table = wandb.Table(columns)
@@ -753,6 +758,12 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     batched_target_exp[0]['succ_s'][0]
                                 )
                             )
+                            '''
+                            obs = batched_target_exp[0]['succ_s'][0].reshape(-1)
+                            data.append(obs[0])
+                            data.append(obs[1])
+                            data.append(obs[2])
+                            '''
                             achieved_goal_from_target_exp_str = " ".join([
                                 self.idx2w[token.item()] 
                                 for token in achieved_goal_from_target_exp[0]
@@ -835,7 +846,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                 'info': info,
                                 'succ_info': succ_info,
                             }
-                        
+                            #import ipdb; ipdb.set_trace()
+                            d2store_her['info'][self.target_goal_key_from_info] = achieved_goal_from_target_exp.numpy()
+                            d2store_her['succ_info'][self.target_goal_key_from_info] = achieved_goal_from_target_exp.numpy()
+
                             if self.algorithm.summary_writer is not None:
                                 self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_final', new_her_r.mean().item(), self.algorithm.get_update_count())
                                 #self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_dist', dist.mean().item(), self.algorithm.get_update_count())

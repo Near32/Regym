@@ -295,7 +295,7 @@ experiment:
         #'env-id': 'BabyAI-PickupDist-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-id': '5BitsSwap-v0',
+        'env-id': '3BitsSwap-v0',
         'env-config': {},
         'run-id': 'testNBitsSwap',
         'agent-id': 'archi_r2d2_ETH3R',
@@ -408,7 +408,7 @@ agents:
         ArchiModel:
             model_id: 'RL_FiLMedETHERModel'
             hyperparameters:
-                obs_dim: &obs_dim 5 
+                obs_dim: &obs_dim 3 
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
                 encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
@@ -418,8 +418,8 @@ agents:
                 mlp_input_dim: &mlp_input_dim 32 #2304 #10816 #3136
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
-                action_dim: &action_dim 5
-                rlhead_state_dim: &rlhead_state_dim 1029 #1032 #520
+                action_dim: &action_dim 3
+                rlhead_state_dim: &rlhead_state_dim 1027 #1032 #520
                 temporal_dim: &temporal_dim 4
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
