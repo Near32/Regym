@@ -72,7 +72,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --ETHER_rg_nbr_train_points=2048 --ETHER_rg_nbr_eval_points=1024 \
 --ETHER_rg_metric_resampling=False --ETHER_rg_dis_metric_resampling=False \
 --ETHER_rg_metric_active_factors_only=True \
---THER_use_PER=True --THER_observe_achieved_goal=True \
+--THER_use_PER=True --THER_describe_achieved_goal=True \
+--bespoke_env_oracle=False \
 --THER_lock_test_storage=True \
 --THER_real_reward_scaler=0.5 --THER_hindsight_reward_scaler=2 \
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
