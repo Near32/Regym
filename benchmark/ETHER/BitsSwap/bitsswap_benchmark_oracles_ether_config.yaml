@@ -320,6 +320,7 @@ experiment:
         #'concatenate_keys_with_obs': ['direction', 'action'],
         'concatenate_keys_with_obs': [], #'action'],
         'add_rgb_wrapper': False,
+        'remove_return_info_wrapper': False,
         'full_obs': False,
         'single_pick_episode': False,
         'reload': 'None',

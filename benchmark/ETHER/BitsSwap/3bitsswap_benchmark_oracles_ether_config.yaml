@@ -61,7 +61,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_use_predictor:  True
     THER_predictor_policy_shared_phi: False
 
-    THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
+    THER_max_sentence_length: &THER_max_sentence_length 20 
     THER_vocabulary: &THER_vocabulary [
         'one', 'zero', 'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
@@ -295,7 +295,8 @@ experiment:
         #'env-id': 'BabyAI-PickupDist-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-id': '5BitsSwap-v0',
+        #'env-id': '5BitsSwap-v0',
+        'env-id': '3BitsSwap-v0',
         'env-config': {},
         'run-id': 'testNBitsSwap',
         'agent-id': 'archi_r2d2_ETH3R',
@@ -408,7 +409,7 @@ agents:
         ArchiModel:
             model_id: 'RL_FiLMedETHERModel'
             hyperparameters:
-                obs_dim: &obs_dim 5 
+                obs_dim: &obs_dim 3 #5 
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
                 encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
@@ -418,8 +419,8 @@ agents:
                 mlp_input_dim: &mlp_input_dim 32 #2304 #10816 #3136
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
-                action_dim: &action_dim 5
-                rlhead_state_dim: &rlhead_state_dim 1029 #1032 #520
+                action_dim: &action_dim 3 #5
+                rlhead_state_dim: &rlhead_state_dim 1027 #1032 #520
                 temporal_dim: &temporal_dim 4
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
@@ -528,21 +529,42 @@ agents:
                         input: "inputs:CommEncoder:processed_input"
                     use_cuda: True
 
-                'InstructionGeneratorMLP':
-                    type: FullyConnectedNetworkModule
-                    state_dim: *mlp_input_dim #3136
-                    hidden_units: ['BN1024', 'BN512', 'BN256']
-                    #hidden_units: ['BN512', 'BN256']
-                    #hidden_units: ['BN256', 'BN128', 'BN64']
-                    non_linearities: ['ReLU']
-                    dropout: 0.25
-                    config: None
-                    input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
-                    output_stream_ids:
-                        input: "inputs:InstructionGeneratorMLP:processed_input"
-                    use_cuda: True
-                
+                #'FiLMedBlock1':
+                #    type: FiLMedModule
+                #    config:
+                #        nbr_input_channels: *encoder_final_depth_dim
+                #        nbr_input_features: *feature_dim
+                #        nbr_output_channels: *encoder_final_depth_dim
+                #        kernel_sizes: [1, 3]
+                #        strides: [1, 1]
+                #        paddings: [0, 1]
+                #        use_coordconv: True
+                #        use_residual_connection: True
+                #    input_stream_ids:
+                #        input: "inputs:SharedObsEncoder:processed_input"
+                #        modulation_input: "inputs:CommEncoder:processed_input"
+                #    output_stream_ids:
+                #        input: "inputs:FiLMedBlock1:processed_input"
+                #    use_cuda: True
+                #    
+                #'FiLMedBlock2':
+                #    type: FiLMedModule
+                #    config:
+                #        nbr_input_channels: *encoder_final_depth_dim
+                #        nbr_input_features: *feature_dim
+                #        nbr_output_channels: *encoder_final_depth_dim
+                #        kernel_sizes: [1, 3]
+                #        strides: [1, 1]
+                #        paddings: [0, 1]
+                #        use_coordconv: True
+                #        use_residual_connection: True
+                #    input_stream_ids:
+                #        input: "inputs:FiLMedBlock1:processed_input"
+                #        modulation_input: "inputs:CommEncoder:processed_input"
+                #    output_stream_ids:
+                #        input: "inputs:FiLMedBlock2:processed_input"
+                #    use_cuda: True
+                    
                 'MLP':
                     type: FullyConnectedNetworkModule
                     state_dim: *mlp_input_dim #3136
@@ -554,6 +576,7 @@ agents:
                     config: None
                     input_stream_ids:
                         input: "inputs:SharedObsEncoder:processed_input"
+                        #input: "inputs:FiLMedBlock2:processed_input"
                     output_stream_ids:
                         input: "inputs:MLP:processed_input"
                     use_cuda: True
@@ -601,50 +624,20 @@ agents:
                     use_cuda: True
 
                 'InstructionGenerator':
-                    type: CaptionRNNModule
+                    type: OracleTHERModule
                     vocabulary: *THER_vocabulary 
-                    vocab_size: *THER_vocab_size 
-                    max_sentence_length: *THER_max_sentence_length 
-                    #input_dim: *feature_dim #*instruction_generator_input_dim
-                    input_dim: *caption_feature_dim #*instruction_generator_input_dim
-                    embedding_size: *caption_feature_dim
-                    #embedding_size: *feature_dim
-                    hidden_units: *hidden_dim 
-                    num_layers: 1
-                    gate: None #F.relu, 
-                    dropout: 0.25 #0.0  
-                    rnn_fn: "GRU"
+                    _vocab_size: *THER_vocab_size 
+                    _max_sentence_length: *THER_max_sentence_length 
                     config:
-                        predict_PADs: False
-                        diversity_loss_weighting: False #True
-                        rectify_contrastive_imbalance: False
-                        semantic_embeddings_prior: *semantic_embeddings_prior
-                        semantic_prior_mixing: "multiplicative"
-                        semantic_prior_mixing_with_detach: True
-                        input_mm_projector_BN: False
-                        semantic_embedding_init: 'ortho'
+                        hidden_units: *hidden_dim 
                     input_stream_ids:
-                        #input0: "inputs:InstructionGeneratorMLP:processed_input"
-                        input0: "inputs:SharedObsEncoder:processed_input"
+                        #input0: "inputs:OracleTHER:achieved_goal"
+                        input0: "inputs:InstructionGenerator:achieved_goal"
                         input0_gt_sentences: "inputs:gt_sentences"
                     output_stream_ids:
                         input0: "inputs:InstructionGenerator:processed_input0"
                     use_cuda: True 
 
-                #'OracleTHER':
-                #    type: OracleTHERModule
-                #    vocabulary: *THER_vocabulary 
-                #    vocab_size: *THER_vocab_size 
-                #    max_sentence_length: *THER_max_sentence_length 
-                #    config: None
-                #    input_stream_ids:
-                #        input0: "inputs:OracleTHER:achieved_goal"
-                #        input0_gt_sentences: "inputs:gt_sentences"
-                #    output_stream_ids:
-                #        input0: "inputs:InstructionGenerator:processed_input0"
-                #    use_cuda: True 
-
-            
             output_mappings:
                 head:
                     "a" : "modules:RLHead:a"
@@ -663,6 +656,7 @@ agents:
                 torso: "inputs:ConcatenationOperation:output"
             
             pipelines:
+                #torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 torso: ['SharedObsEncoder', 'CommEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
@@ -687,16 +681,17 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [20], #10], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             
             # Uncomment the following if using THER_describe_achieved_goal
-            #'achieved_goal':{
-            #    #shape: [28], #[63,], 
-            #    shape: [10], #20], 
-            #    target_location: ['OracleTHER']
-            #},
+            'achieved_goal':{
+                #shape: [28], #[63,], 
+                shape: [20], #10], 
+                #target_location: ['OracleTHER']
+                target_location: ['InstructionGenerator']
+            },
             
  
             #'action_mask':{

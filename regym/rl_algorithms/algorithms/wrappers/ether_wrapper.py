@@ -21,7 +21,7 @@ from regym.rl_algorithms.utils import archi_concat_fn, _extract_rnn_states_from_
 
 import ReferentialGym
 from ReferentialGym.datasets import DemonstrationDataset
-from ReferentialGym.agents import DiscriminativeListener, LSTMCNNListener
+from ReferentialGym.agents import DiscriminativeListener, LSTMCNNListener, LSTMObsListener
 
 ###########################################################
 ###########################################################
@@ -811,6 +811,21 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             agent_config["temporal_encoder_mini_batch_size"] = self.kwargs["ETHER_rg_mini_batch_size"]
             agent_config["symbol_processing_nbr_hidden_units"] = self.kwargs["ETHER_rg_symbol_processing_nbr_hidden_units"]
             agent_config["symbol_processing_nbr_rnn_layers"] = 1
+        elif "MLP" in agent_config["architecture"]:
+            agent_config["mini_batch_size"] = self.kwargs["ETHER_rg_mini_batch_size"]
+            agent_config["feat_converter_output_size"] = 256
+            
+            if "BN" in self.kwargs["ETHER_rg_arch"]:
+                agent_config["fc_hidden_units"] = ["BN256","BN256",self.kwargs["ETHER_rg_symbol_processing_nbr_hidden_units"]]
+            else:
+                agent_config["fc_hidden_units"] = [256, 256, self.kwargs["ETHER_rg_symbol_processing_nbr_hidden_units"]]
+
+            agent_config['non_linearities'] = [nn.LeakyReLU]
+            agent_config["temporal_encoder_nbr_hidden_units"] = 0
+            agent_config["temporal_encoder_nbr_rnn_layers"] = 0
+            agent_config["temporal_encoder_mini_batch_size"] = self.kwargs["ETHER_rg_mini_batch_size"]
+            agent_config["symbol_processing_nbr_hidden_units"] = self.kwargs["ETHER_rg_symbol_processing_nbr_hidden_units"]
+            agent_config["symbol_processing_nbr_rnn_layers"] = 1
         else:
             raise NotImplementedError
 
@@ -818,13 +833,20 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         nbr_distractors = 1 if 'partial' in rg_config['observability'] else agent_config['nbr_distractors']['train']
         nbr_stimulus = agent_config['nbr_stimulus']
         
-        obs_shape = [
-            nbr_distractors+1,
-            nbr_stimulus, 
-            rg_config['stimulus_depth_dim'],
-            rg_config['stimulus_resize_dim'],
-            rg_config['stimulus_resize_dim']
-        ]
+        if 'MLP' in agent_config['architecture']:
+            obs_shape = [
+                nbr_distractors+1,
+                nbr_stimulus,
+                rg_config['stimulus_resize_dim'],
+            ]
+        else:
+            obs_shape = [
+                nbr_distractors+1,
+                nbr_stimulus, 
+                rg_config['stimulus_depth_dim'],
+                rg_config['stimulus_resize_dim'],
+                rg_config['stimulus_resize_dim']
+            ]
         
         vocab_size = rg_config['vocab_size']
         max_sentence_length = rg_config['max_sentence_length']
@@ -856,6 +878,15 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 max_sentence_length=max_sentence_length,
                 agent_id='l0',
                 logger=None,
+            )
+        elif 'MLP' in agent_config['architecture']:
+            listener = LSTMObsListener(
+                kwargs=listener_config, 
+                obs_shape=obs_shape, 
+                vocab_size=vocab_size, 
+                max_sentence_length=max_sentence_length,
+                agent_id='l0',
+                logger=None
             )
         else:
             listener = LSTMCNNListener(

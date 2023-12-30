@@ -698,7 +698,7 @@ def training_process(
     #/////////////////////////////////////////////////////////////////
     #/////////////////////////////////////////////////////////////////
     
-    agent_config['ETHER_rg_latents_build_fn'] = MiniWorld_latents_build_fn
+    agent_config['ETHER_rg_latents_build_fn'] = MiniWorld_latents_build_fn if 'BitsSwap' not in task_config['env-id'] else None
 
     agent_config['task_config'] = task_config
     agent_config['nbr_actor'] = task_config['nbr_actor']
