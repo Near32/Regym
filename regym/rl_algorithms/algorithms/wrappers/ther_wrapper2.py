@@ -229,6 +229,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.strategy = strategy
         assert( ('future' in self.strategy or 'final' in self.strategy) and '-' in self.strategy)
         self.k = int(self.strategy.split('-')[-1])    
+        self.previous_episode_achieved_exp = None
+
         self.goal_predicated_reward_fn = goal_predicated_reward_fn
         self._extract_goal_from_info_fn = _extract_goal_from_info_fn
         self.achieved_goal_key_from_info = achieved_goal_key_from_info
@@ -495,8 +497,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                     'non_terminal':non_terminal, 
                     'rnn_states':copy_hdict(rnn_states),
                     'next_rnn_states':copy_hdict(next_rnn_states),
-                    'info': info,
-                    'succ_info': succ_info,
+                    'info': copy.deepcopy(info),
+                    'succ_info': copy.deepcopy(succ_info),
                 }
 
                 """
@@ -697,7 +699,175 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             and safe_relabelling:
                 self.nbr_relabelled_traj += 1
                 # Relabelling everything with the hindsight_goal computed on the fly, and set the reward accordingly:
+                if 'contrastive' in self.strategy \
+                and self.previous_episode_achieved_exp is not None:
+                    batched_target_exp = [self.previous_episode_achieved_exp]
+                    batched_achieved_exp = self.episode_buffer[actor_index]
+                    batched_new_r, batched_achieved_goal_from_target_exp, \
+                    batched_achieved_latent_goal_from_target_exp = self.goal_predicated_reward_fn(
+                        achieved_exp=batched_achieved_exp, 
+                        target_exp=batched_target_exp,
+                        _extract_goal_from_info_fn=self._extract_goal_from_info_fn,
+                        goal_key=self.achieved_goal_key_from_info,
+                        latent_goal_key=self.achieved_latent_goal_key_from_info,
+                        epsilon=1e-1,
+                        feedbacks=self.feedbacks,
+                        reward_shape=self.reward_shape,
+                        **self.goal_predicated_reward_fn_kwargs,
+                    )
+                    
+                    positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
+                    positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
+                    
+                    achieved_goal_from_target_exp = batched_achieved_goal_from_target_exp[0:1]
+                    achieved_latent_goal_from_target_exp = batched_achieved_latent_goal_from_target_exp
+                    if achieved_latent_goal_from_target_exp is not None:
+                        achieved_latent_goal_from_target_exp = achieved_latent_goal_from_target_exp[0:1]
+                    # Wandb logging :
+                    #############################################
+                    #self.wandb_relabelling_table_logging = True
+                    if getattr(self, 'wandb_relabelling_table_logging', False):
+                        if getattr(self, 'wandb_logging_table', None) is None:
+                            columns = [
+                                "relabelling_idx",
+                                "observation",
+                                #"initial_goal",
+                                '''
+                                "obs 1",
+                                "obs 2",
+                                "obs 3",
+                                '''
+                                "relabelled_goal",
+                            ]
+                            self.wandb_logging_table = wandb.Table(columns)
+                     
+                        if self.nbr_relabelled_traj%2==0:
+                            data = []
+                            data.append(self.nbr_relabelled_traj)
+                            data.append(
+                                wandb_ImageOrGIF(
+                                    batched_target_exp[0]['succ_s'][0]
+                                )
+                            )
+                            '''
+                            obs = batched_target_exp[0]['succ_s'][0].reshape(-1)
+                            data.append(obs[0])
+                            data.append(obs[1])
+                            data.append(obs[2])
+                            '''
+                            achieved_goal_from_target_exp_str = " ".join([
+                                self.idx2w[token.item()] 
+                                for token in achieved_goal_from_target_exp[0]
+                            ])
+                            data.append(achieved_goal_from_target_exp_str)
+                            self.wandb_logging_table.add_data(*data)
+                         
+                            if self.nbr_relabelled_traj%32==0:
+                                wandb.log({f"THER/RelabellingTable":self.wandb_logging_table}, commit=False)
+                                self.wandb_logging_table = None
+                    #############################################
+
+                    last_terminal_idx = 0
+                    for idx in range(episode_length):    
+                        s = self.episode_buffer[actor_index][idx]['s']
+                        a = self.episode_buffer[actor_index][idx]['a']
+                        r = self.episode_buffer[actor_index][idx]['r']
+                        
+                        new_r = batched_new_r[idx:idx+1]
+
+                        succ_s = self.episode_buffer[actor_index][idx]['succ_s']
+                        non_terminal = self.episode_buffer[actor_index][idx]['non_terminal']
+
+                        info = self.episode_buffer[actor_index][idx]['info']
+                        succ_info = self.episode_buffer[actor_index][idx]['succ_info']
+                        rnn_states = self.episode_buffer[actor_index][idx]['rnn_states']
+                        next_rnn_states = self.episode_buffer[actor_index][idx]['next_rnn_states']
+                        
+                        for k in range(self.k):
+                            if self.filter_predicate_fn:
+                                new_her_r = self.feedbacks['success'] if idx==(episode_length-1) else self.feedbacks['failure']
+                            else:
+                                new_her_r = new_r.item() #self.feedbacks['success']*torch.ones_like(r) if all(new_r>-0.5) else self.feedbacks['failure']*torch.ones_like(r)
+                            if self.episode_length_reward_shaping:
+                                if 'new' in self.episode_length_reward_shaping_type \
+                                and new_her_r > 0:
+                                    reshaping_idx = idx-last_terminal_idx
+                                    new_her_r *= (1.0-float(reshaping_idx)/self.timing_out_episode_length_threshold)
+                                if 'old' in self.episode_length_reward_shaping_type:
+                                    reshaping_idx = idx-last_terminal_idx
+                                    new_her_r *= float(reshaping_idx)/self.timing_out_episode_length_threshold
+                            new_her_r = new_her_r*torch.ones_like(r)
+
+                            if self.relabel_terminal:
+                                if all(new_her_r>self.feedbacks['failure']):
+                                    last_terminal_idx = idx
+                                    new_non_terminal = torch.zeros_like(non_terminal)
+                                else:
+                                    new_non_terminal = torch.ones_like(non_terminal)
+                            else:
+                                new_non_terminal = non_terminal
+
+                            # ARCHER hindsight reward scaling:
+                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
+
+                            d2store_her = {
+                                's':s, 
+                                'a':a, 
+                                'r':new_her_r, 
+                                'succ_s':succ_s, 
+                                'non_terminal':new_non_terminal, 
+                                'rnn_states': copy_hdict(
+                                    self._update_goals_in_rnn_states(
+                                        hdict=rnn_states,
+                                        goal_value=achieved_goal_from_target_exp,
+                                        latent_goal_value=achieved_latent_goal_from_target_exp,
+                                        goal_key=self.target_goal_key_from_info,
+                                        latent_goal_key=self.target_latent_goal_key_from_info,
+                                    )
+                                ),
+                                'next_rnn_states': copy_hdict(
+                                    self._update_goals_in_rnn_states(
+                                        hdict=next_rnn_states,
+                                        goal_value=achieved_goal_from_target_exp,
+                                        latent_goal_value=achieved_latent_goal_from_target_exp,
+                                        goal_key=self.target_goal_key_from_info,
+                                        latent_goal_key=self.target_latent_goal_key_from_info,
+                                    )
+                                ),
+                                'info': copy.deepcopy(info),
+                                'succ_info': copy.deepcopy(succ_info),
+                            }
+                            #import ipdb; ipdb.set_trace()
+                            d2store_her['info'][self.target_goal_key_from_info] = achieved_goal_from_target_exp.numpy()
+                            d2store_her['succ_info'][self.target_goal_key_from_info] = achieved_goal_from_target_exp.numpy()
+
+                            if self.algorithm.summary_writer is not None:
+                                self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_final', new_her_r.mean().item(), self.algorithm.get_update_count())
+                                #self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_dist', dist.mean().item(), self.algorithm.get_update_count())
+                            #wandb.log({'PerUpdate/HER_AfterRelabellingReward': new_her_r.mean().item()}, commit=False)
+                    
+                            # Adding this relabelled experience to the replay buffer with 'proper' goal...
+                            #self.algorithm.store(d2store_her, actor_index=actor_index)
+                            valid_exp = True
+                            if self.filtering_fn != "None":
+                                kwargs = {
+                                    "d2store":d2store,
+                                    "episode_buffer":self.episode_buffer[actor_index],
+                                    "achieved_goal_from_target_exp":achieved_goal_from_target_exp,
+                                    "achieved_latent_goal_from_target_exp":achieved_latent_goal_from_target_exp,
+                                }
+                                valid_exp = self.filtering_fn(**kwargs)
+                            if not valid_exp:   continue
+                    
+                            if k not in per_episode_d2store: per_episode_d2store[k] = []
+                            per_episode_d2store[k].append(d2store_her)
+                
                 if 'final' in self.strategy:
+                    ## CONTRASTIVE :
+                    #self.previous_episode_achieved_exp = copy_hdict(self.episode_buffer[actor_index][-1])
+                    self.previous_episode_achieved_exp = self.episode_buffer[actor_index][-1]
+                    ##
                     batched_target_exp = [self.episode_buffer[actor_index][-1]]
                     batched_achieved_exp = self.episode_buffer[actor_index]
                     batched_new_r, batched_achieved_goal_from_target_exp, \
@@ -807,9 +977,6 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     new_her_r *= float(reshaping_idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
 
-                            # ARCHER hindsight reward scaling:
-                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
-
                             if self.relabel_terminal:
                                 if all(new_her_r>self.feedbacks['failure']):
                                     last_terminal_idx = idx
@@ -818,6 +985,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     new_non_terminal = torch.ones_like(non_terminal)
                             else:
                                 new_non_terminal = non_terminal
+
+                            # ARCHER hindsight reward scaling:
+                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
 
                             d2store_her = {
                                 's':s, 
@@ -843,8 +1013,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                         latent_goal_key=self.target_latent_goal_key_from_info,
                                     )
                                 ),
-                                'info': info,
-                                'succ_info': succ_info,
+                                'info': copy.deepcopy(info),
+                                'succ_info': copy.deepcopy(succ_info),
                             }
                             #import ipdb; ipdb.set_trace()
                             d2store_her['info'][self.target_goal_key_from_info] = achieved_goal_from_target_exp.numpy()
@@ -872,6 +1042,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             per_episode_d2store[k].append(d2store_her)
                 
                 if 'future' in self.strategy:
+                    ## CONTRASTIVE :
+                    #self.previous_episode_achieved_exp = copy_hdict(self.episode_buffer[actor_index][-1])
+                    self.previous_episode_achieved_exp = self.episode_buffer[actor_index][-1]
+                    ##
                     set_indices = set(list(range(episode_length)))
                     #TODO: modify probs based on descriptions:
                     probs = np.ones(episode_length)
@@ -959,9 +1133,6 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     new_her_r *= float(idx)/self.timing_out_episode_length_threshold
                             new_her_r = new_her_r*torch.ones_like(r)
 
-                            # ARCHER hindsight reward scaling:
-                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
-
                             if self.relabel_terminal:
                                 if all(new_her_r>self.feedbacks['failure']):
                                     last_terminal_idx = idx
@@ -970,6 +1141,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                     new_non_terminal = torch.ones_like(non_terminal)
                             else:
                                 new_non_terminal = non_terminal
+
+                            # ARCHER hindsight reward scaling:
+                            new_her_r *= self.kwargs['THER_hindsight_reward_scaler']
 
                             d2store_her = {
                                 's':s, 
@@ -995,10 +1169,14 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                                         latent_goal_key=self.target_latent_goal_key_from_info,
                                     )
                                 ),
-                                'info': info,
-                                'succ_info': succ_info,
+                                'info': copy.deepcopy(info),
+                                'succ_info': copy.deepcopy(succ_info),
                             }
                         
+                            #import ipdb; ipdb.set_trace()
+                            d2store_her['info'][self.target_goal_key_from_info] = achieved_goal_from_target_exp.numpy()
+                            d2store_her['succ_info'][self.target_goal_key_from_info] = achieved_goal_from_target_exp.numpy()
+
                             if self.algorithm.summary_writer is not None:
                                 self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_final', new_her_r.mean().item(), self.algorithm.get_update_count())
                                 #self.algorithm.summary_writer.add_scalar('PerUpdate/HER_reward_dist', dist.mean().item(), self.algorithm.get_update_count())

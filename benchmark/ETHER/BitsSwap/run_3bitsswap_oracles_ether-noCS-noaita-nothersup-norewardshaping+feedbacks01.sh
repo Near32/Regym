@@ -12,7 +12,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --use_RP=False --RP_use_RP=False \
 --use_ELA=False --ELA_use_ELA=False \
 --use_HER=False --goal_oriented=False \
---HER_strategy=final-1 \
+--HER_strategy='final-1' \
 --HER_target_clamping=False \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
@@ -59,7 +59,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=32778 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=64556 \
 --ETHER_rg_descriptive=True --ETHER_rg_object_centric=False \
 --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=1 --ETHER_rg_accuracy_threshold=80 \
@@ -76,7 +76,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_use_PER=True --THER_describe_achieved_goal=False \
 --bespoke_env_oracle=True \
 --THER_lock_test_storage=True \
---THER_real_reward_scaler=0.5 --THER_hindsight_reward_scaler=2 \
+--THER_real_reward_scaler=0.5 --THER_hindsight_reward_scaler=2.0 \
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=False \
 --THER_episode_length_reward_shaping_type='old' \
@@ -88,7 +88,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=False \
 --THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \
---THER_store_only_relabelled_episode=True \
+--THER_store_only_relabelled_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \

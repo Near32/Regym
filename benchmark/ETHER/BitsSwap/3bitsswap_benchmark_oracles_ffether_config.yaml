@@ -612,7 +612,8 @@ agents:
                     action_dim: *action_dim
                     noisy: False
                     dueling: True
-                    config: None
+                    config:
+                        mlp_nbr_layers: 3
                     input_stream_ids: 
                         input0: "inputs:ConcatenationOperation:output"
                         #input0: "inputs:CoreLSTM:lstm_output"
