@@ -91,7 +91,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_store_only_relabelled_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
---n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
+--n_step=3 --nbr_actor=32 \
+--eps_greedy_alpha=2.0 --epsend=0.001 --epsdecay=10000 \
 --nbr_minibatches=1 --batch_size=64 \
 --r2d2_nbr_categorized_storages=1 \
 --min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \

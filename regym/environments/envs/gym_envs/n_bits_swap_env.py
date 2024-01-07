@@ -54,6 +54,8 @@ class NBitsSwapEnv(gym.Env):
         self.state = self.np_random.randint(2, size=self.n)
         if not self.fixed_goal:
             self.goal = self.np_random.randint(2, size=self.n)
+            while all(self.state==self.goal):
+                self.goal = self.np_random.randint(2, size=self.n)
 
         info = {'latents':
                     {   's': [self.state.copy()], 

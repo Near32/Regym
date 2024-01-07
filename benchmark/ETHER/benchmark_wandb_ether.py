@@ -905,10 +905,10 @@ def main():
         type=float, 
         default=0.0,
     )
-    parser.add_argument("--eps_greedy_alpha", 
-        type=float, 
-        default=2.0,
-    )
+    parser.add_argument("--eps_greedy_alpha", type=float, default=2.0)
+    parser.add_argument("--epsstart", type=float, default=1.0)
+    parser.add_argument("--epsend", type=float, default=0.1)
+    parser.add_argument("--epsdecay", type=float, default=10000)
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
