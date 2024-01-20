@@ -414,16 +414,16 @@ agents:
                 max_sentence_length: *THER_max_sentence_length
                 encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
                 caption_feature_dim: &caption_feature_dim 256 #64
-                feature_dim: &feature_dim 512 #256 #64
+                feature_dim: &feature_dim 64 #512 #256 #64
                 #lstm_input_dim: &lstm_input_dim 1088 #576 #513 #321 #769 #512 #128
-                lstm_input_dim: &lstm_input_dim 640 #576 #1088 #576 #513 #321 #769 #512 #128
-                #mlp_input_dim: &mlp_input_dim 32 2304 #10816 #3136
+                lstm_input_dim: &lstm_input_dim 192 #576 #1088 #576 #513 #321 #769 #512 #128
+                mlp_input_dim: &mlp_input_dim 32 #2304 #10816 #3136
                 comm_state_dim: &comm_state_dim 64 #256
-                hidden_dim: &hidden_dim 512 #1024 #512
-                #hidden_dim: &hidden_dim 128 #1024 #512
+                #hidden_dim: &hidden_dim 512 #1024 #512
+                hidden_dim: &hidden_dim 128 #1024 #512
                 action_dim: &action_dim 3 #5
-                rlhead_state_dim: &rlhead_state_dim 1027 #1032 #520
-                #rlhead_state_dim: &rlhead_state_dim 195 #1539 #1032 #520
+                #rlhead_state_dim: &rlhead_state_dim 1027 #1032 #520
+                rlhead_state_dim: &rlhead_state_dim 195 #1539 #1032 #520
                 temporal_dim: &temporal_dim 4
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 

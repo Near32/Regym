@@ -92,7 +92,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
---eps_greedy_alpha=2.0 --epsend=0.001 --epsdecay=10000 \
+--eps_greedy_alpha=2.0 --epsend=0.1 --epsdecay=100000 \
 --nbr_minibatches=1 --batch_size=64 \
 --r2d2_nbr_categorized_storages=1 \
 --min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
@@ -101,7 +101,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=4 --nbr_episode_per_cycle=0 \
+--nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=40 \
 --time_limit=0 \
 --train_observation_budget=2000000

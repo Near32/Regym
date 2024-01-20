@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 class NBitsSwapEnv(gym.Env):
     metadata = {'render_modes': ['human']}
 
-    def __init__(self, n=10, fixed_goal=False):
+    def __init__(self, n=10, fixed_goal=False, max_steps=None):
         super(NBitsSwapEnv, self).__init__()
         self.n = n 
         self.fixed_goal = fixed_goal
+        self.max_episode_steps = max_steps if max_steps is not None else n
 
         self.action_space = Discrete(self.n)
         self.observation_space = Dict({
@@ -26,7 +27,6 @@ class NBitsSwapEnv(gym.Env):
             "desired_goal": spaces.Space[str](),
         })
 
-        self.max_episode_steps = n
 
         self.nbr_steps = 0
         self.state = None
