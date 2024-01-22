@@ -3538,7 +3538,7 @@ class Gymnasium2GymWrapper(gym.Wrapper):
             next_observations, reward, done, next_infos = step_output
         else:
             next_observations, reward, done, truncated, next_infos = step_output
-            done = truncated and done
+            done = truncated or done
         return next_observations, reward, done, next_infos
 
 
@@ -3884,7 +3884,8 @@ def baseline_ther_wrapper(
         )
 
     env = Gymnasium2GymWrapper(env=env)
-    env = TimeLimit(env, max_episode_steps=time_limit)
+    if time_limit>0:
+        env = TimeLimit(env, max_episode_steps=time_limit)
     #if hasattr(env.unwrapped, 'max_steps'):
     #    env.unwrapped.max_steps = time_limit
 
