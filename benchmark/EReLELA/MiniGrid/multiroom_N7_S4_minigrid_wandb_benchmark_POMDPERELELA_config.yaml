@@ -498,12 +498,12 @@ agents:
                 vocab_size: *ELA_vocab_size
                 max_sentence_length: *ELA_rg_max_sentence_length
                 caption_feature_dim: &caption_feature_dim 256 #256 #64
-                feature_dim: &feature_dim 512 #256 #64
-                lstm_input_dim: &lstm_input_dim 576 #1088 #576 #577 #321 #769 #512 #128
+                feature_dim: &feature_dim 128 #512 #256 #64
+                lstm_input_dim: &lstm_input_dim 192 #576 #1088 #576 #577 #321 #769 #512 #128
                 comm_state_dim: &comm_state_dim 256
-                hidden_dim: &hidden_dim 1024 #512
+                hidden_dim: &hidden_dim 128 #1024 #512
                 action_dim: &action_dim 6 #7
-                rlhead_state_dim: &rlhead_state_dim 1543 #1031 #1030 #1032 #520
+                rlhead_state_dim: &rlhead_state_dim 135 #1543 #1031 #1030 #1032 #520
                 temporal_dim: &temporal_dim 4
                 mlp_input_dim: &mlp_input_dim 2304 #6400 #3136
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
@@ -584,24 +584,24 @@ agents:
                 #        input: "inputs:RGObsEncoder:processed_input"
                 #    use_cuda: True
     
-                'CommEncoder':
-                    type: EmbeddingRNNModule 
-                    vocab_size: *THER_vocab_size
-                    feature_dim: *feature_dim 
-                    embedding_size: *feature_dim 
-                    hidden_units: *hidden_dim
-                    num_layers: 1
-                    gate: None #F.relu, 
-                    dropout: 0.0 
-                    rnn_fn: "GRU"
-                    padding_idx: 0
-                    config: None
-                    input_stream_ids:
-                        #input: "inputs:phi_body:extra_inputs:dialog"
-                        input: "inputs:phi_body:extra_inputs:desired_goal"
-                    output_stream_ids:
-                        input: "inputs:CommEncoder:processed_input"
-                    use_cuda: True
+                #'CommEncoder':
+                #    type: EmbeddingRNNModule 
+                #    vocab_size: *THER_vocab_size
+                #    feature_dim: *feature_dim 
+                #    embedding_size: *feature_dim 
+                #    hidden_units: *hidden_dim
+                #    num_layers: 1
+                #    gate: None #F.relu, 
+                #    dropout: 0.0 
+                #    rnn_fn: "GRU"
+                #    padding_idx: 0
+                #    config: None
+                #    input_stream_ids:
+                #        #input: "inputs:phi_body:extra_inputs:dialog"
+                #        input: "inputs:phi_body:extra_inputs:desired_goal"
+                #    output_stream_ids:
+                #        input: "inputs:CommEncoder:processed_input"
+                #    use_cuda: True
 
                 #'FiLMedBlock1':
                 #    type: FiLMedModule
@@ -642,7 +642,7 @@ agents:
                 'CaptionGeneratorMLP':
                     type: FullyConnectedNetworkModule
                     state_dim: *mlp_input_dim #3136
-                    hidden_units: ['BN1024', 'BN512', 'BN256']
+                    hidden_units: ['BN512', 'BN256', 'BN256']
                     non_linearities: ['ReLU']
                     dropout: 0.25
                     config: None
@@ -675,7 +675,7 @@ agents:
                     #max_norm: None
                     config: None
                     input_stream_ids:
-                        input: "inputs:critic_body:extra_inputs:previous_action_int"
+                        input: "inputs:phi_body:extra_inputs:previous_action_int"
                     output_stream_ids:
                         input: "inputs:ActionEmbeddor:processed_input"
                     use_cuda: True
@@ -702,14 +702,15 @@ agents:
                     #use_intrinsic_critic: False
                     noisy: False
                     dueling: True
-                    config: None
+                    config: 
+                        mlp_nbr_layers: 2
                     input_stream_ids: 
                         #input0: "inputs:CoreLSTM:lstm_output"
                         input0: "inputs:CoreLSTM:output"
-                        input1: "inputs:CommEncoder:processed_input"
+                        #input1: "inputs:CommEncoder:processed_input"
                         # WARNING: no longer giving previous reward as it is going to be modified by algo wrapper ELA...
                         #input1: "inputs:critic_body:extra_inputs:previous_reward"
-                        input2: "inputs:critic_body:extra_inputs:previous_action"
+                        input2: "inputs:phi_body:extra_inputs:previous_action"
                         #input3: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         #legal_actions: "inputs:legal_actions"
@@ -737,18 +738,18 @@ agents:
                         input0: "inputs:CaptionGenerator:processed_input0"
                     use_cuda: True 
 
-                'RewardPredictionMLP':
-                    type: FullyConnectedNetworkModule
-                    state_dim: *hidden_dim 
-                    hidden_units: [3] #[256, 3]
-                    non_linearities: ['None'] #['ReLU', 'None']
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "inputs:CoreLSTM:output"
-                    output_stream_ids:
-                        input: "inputs:RewardPredictionMLP:processed_input"
-                    use_cuda: True
+                #'RewardPredictionMLP':
+                #    type: FullyConnectedNetworkModule
+                #    state_dim: *hidden_dim 
+                #    hidden_units: [3] #[256, 3]
+                #    non_linearities: ['None'] #['ReLU', 'None']
+                #    dropout: 0.0
+                #    config: None
+                #    input_stream_ids:
+                #        input: "inputs:CoreLSTM:output"
+                #    output_stream_ids:
+                #        input: "inputs:RewardPredictionMLP:processed_input"
+                #    use_cuda: True
 
                 #'OracleTHER':
                 #    type: OracleTHERModule
@@ -783,17 +784,18 @@ agents:
             features_id: 
                 caption_generator: "inputs:CaptionGenerator:processed_input0"
                 torso: "inputs:ConcatenationOperation:output"
-                reward_prediction: "inputs:RewardPredictionMLP:processed_input"
+                #reward_prediction: "inputs:RewardPredictionMLP:processed_input"
             
             pipelines:
                 #torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 #head: ['CoreLSTM', 'RLHead']
                 torso: ['SharedObsEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
-                head: ['CommEncoder', 'CoreLSTM', 'RLHead']
+                #head: ['CommEncoder', 'CoreLSTM', 'RLHead']
+                head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
                 caption_generator: ['SharedObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
                 #caption_generator: ['RGObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
-                reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
+                #reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
         
         extra_inputs_infos: {
             # WARNING: no longer giving previous reward as it is going to be modified by algo wrapper ELA...
@@ -803,19 +805,21 @@ agents:
             #},
             'previous_action':{
                 shape: ['task.action_dim',], 
-                target_location: ['critic_body', 'extra_inputs']
+                #target_location: ['critic_body', 'extra_inputs']
+                target_location: ['phi_body', 'extra_inputs']
             },
             'previous_action_int':{
                 shape: [1,], 
-                target_location: ['critic_body', 'extra_inputs']
+                #target_location: ['critic_body', 'extra_inputs']
+                target_location: ['phi_body', 'extra_inputs']
             },
 
             #'dialog':{
-            'desired_goal':{
-                #shape: [28], #[63,], 
-                shape: [*ELA_rg_max_sentence_length], 
-                target_location: ['phi_body', 'extra_inputs']
-            },
+            #'desired_goal':{
+            #    #shape: [28], #[63,], 
+            #    shape: [*ELA_rg_max_sentence_length], 
+            #    target_location: ['phi_body', 'extra_inputs']
+            #},
             
             # Uncomment the following if using THER_observe_achieved_goal
             #'achieved_goal':{

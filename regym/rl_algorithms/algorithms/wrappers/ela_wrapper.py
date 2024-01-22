@@ -639,11 +639,13 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
          
             if "3x3" in agent_config["architecture"]:
                 agent_config["cnn_encoder_kernels"] = [3,3,3]
+                agent_config["cnn_encoder_strides"] = [2,2,2]
             elif "7x4x3" in agent_config["architecture"]:
                 agent_config["cnn_encoder_kernels"] = [7,4,3]
+                agent_config["cnn_encoder_strides"] = [4,3,2]
             else:
                 agent_config["cnn_encoder_kernels"] = [4,4,4]
-            agent_config["cnn_encoder_strides"] = [2,2,2]
+                agent_config["cnn_encoder_strides"] = [2,2,2]
             agent_config["cnn_encoder_paddings"] = [1,1,1]
             agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
             # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
