@@ -642,7 +642,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 agent_config["cnn_encoder_strides"] = [2,2,2]
             elif "7x4x3" in agent_config["architecture"]:
                 agent_config["cnn_encoder_kernels"] = [7,4,3]
-                agent_config["cnn_encoder_strides"] = [4,3,2]
+                agent_config["cnn_encoder_strides"] = [4,2,1]
             else:
                 agent_config["cnn_encoder_kernels"] = [4,4,4]
                 agent_config["cnn_encoder_strides"] = [2,2,2]

@@ -499,7 +499,7 @@ agents:
                 max_sentence_length: *ELA_rg_max_sentence_length
                 caption_feature_dim: &caption_feature_dim 256 #256 #64
                 feature_dim: &feature_dim 512 #256 #64
-                lstm_input_dim: &lstm_input_dim 1088 #576 #577 #321 #769 #512 #128
+                lstm_input_dim: &lstm_input_dim 768 #1088 #576 #577 #321 #769 #512 #128
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 1024 #512
                 action_dim: &action_dim 6 #7
@@ -584,60 +584,60 @@ agents:
                 #        input: "inputs:RGObsEncoder:processed_input"
                 #    use_cuda: True
     
-                'CommEncoder':
-                    type: EmbeddingRNNModule 
-                    vocab_size: *THER_vocab_size
-                    feature_dim: *feature_dim 
-                    embedding_size: *feature_dim 
-                    hidden_units: *hidden_dim
-                    num_layers: 1
-                    gate: None #F.relu, 
-                    dropout: 0.0 
-                    rnn_fn: "GRU"
-                    padding_idx: 0
-                    config: None
-                    input_stream_ids:
-                        #input: "inputs:phi_body:extra_inputs:dialog"
-                        input: "inputs:phi_body:extra_inputs:desired_goal"
-                    output_stream_ids:
-                        input: "inputs:CommEncoder:processed_input"
-                    use_cuda: True
+                #'CommEncoder':
+                #    type: EmbeddingRNNModule 
+                #    vocab_size: *THER_vocab_size
+                #    feature_dim: *feature_dim 
+                #    embedding_size: *feature_dim 
+                #    hidden_units: *hidden_dim
+                #    num_layers: 1
+                #    gate: None #F.relu, 
+                #    dropout: 0.0 
+                #    rnn_fn: "GRU"
+                #    padding_idx: 0
+                #    config: None
+                #    input_stream_ids:
+                #        #input: "inputs:phi_body:extra_inputs:dialog"
+                #        input: "inputs:phi_body:extra_inputs:desired_goal"
+                #    output_stream_ids:
+                #        input: "inputs:CommEncoder:processed_input"
+                #    use_cuda: True
 
-                'FiLMedBlock1':
-                    type: FiLMedModule
-                    config:
-                        nbr_input_channels: 64
-                        nbr_input_features: *feature_dim
-                        nbr_output_channels: 64
-                        kernel_sizes: [1, 3]
-                        strides: [1, 1]
-                        paddings: [0, 1]
-                        use_coordconv: True
-                        use_residual_connection: True
-                    input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
-                        modulation_input: "inputs:CommEncoder:processed_input"
-                    output_stream_ids:
-                        input: "inputs:FiLMedBlock1:processed_input"
-                    use_cuda: True
-                    
-                'FiLMedBlock2':
-                    type: FiLMedModule
-                    config:
-                        nbr_input_channels: 64
-                        nbr_input_features: *feature_dim
-                        nbr_output_channels: 64
-                        kernel_sizes: [1, 3]
-                        strides: [1, 1]
-                        paddings: [0, 1]
-                        use_coordconv: True
-                        use_residual_connection: True
-                    input_stream_ids:
-                        input: "inputs:FiLMedBlock1:processed_input"
-                        modulation_input: "inputs:CommEncoder:processed_input"
-                    output_stream_ids:
-                        input: "inputs:FiLMedBlock2:processed_input"
-                    use_cuda: True
+                #'FiLMedBlock1':
+                #    type: FiLMedModule
+                #    config:
+                #        nbr_input_channels: 64
+                #        nbr_input_features: *feature_dim
+                #        nbr_output_channels: 64
+                #        kernel_sizes: [1, 3]
+                #        strides: [1, 1]
+                #        paddings: [0, 1]
+                #        use_coordconv: True
+                #        use_residual_connection: True
+                #    input_stream_ids:
+                #        input: "inputs:SharedObsEncoder:processed_input"
+                #        modulation_input: "inputs:CommEncoder:processed_input"
+                #    output_stream_ids:
+                #        input: "inputs:FiLMedBlock1:processed_input"
+                #    use_cuda: True
+                #    
+                #'FiLMedBlock2':
+                #    type: FiLMedModule
+                #    config:
+                #        nbr_input_channels: 64
+                #        nbr_input_features: *feature_dim
+                #        nbr_output_channels: 64
+                #        kernel_sizes: [1, 3]
+                #        strides: [1, 1]
+                #        paddings: [0, 1]
+                #        use_coordconv: True
+                #        use_residual_connection: True
+                #    input_stream_ids:
+                #        input: "inputs:FiLMedBlock1:processed_input"
+                #        modulation_input: "inputs:CommEncoder:processed_input"
+                #    output_stream_ids:
+                #        input: "inputs:FiLMedBlock2:processed_input"
+                #    use_cuda: True
                     
                 'CaptionGeneratorMLP':
                     type: FullyConnectedNetworkModule
@@ -656,12 +656,14 @@ agents:
                 'MLP':
                     type: FullyConnectedNetworkModule
                     state_dim: *mlp_input_dim #3136
-                    hidden_units: ['BN256', 'BN128', 'BN64']
+                    #hidden_units: ['BN256', 'BN128', 'BN64']
+                    hidden_units: ['BN512', 'BN256', 'BN256']
                     non_linearities: ['ReLU']
                     dropout: 0.0
                     config: None
                     input_stream_ids:
-                        input: "inputs:FiLMedBlock2:processed_input"
+                        input: "inputs:SharedObsEncoder:processed_input"
+                        #input: "inputs:FiLMedBlock2:processed_input"
                     output_stream_ids:
                         input: "inputs:MLP:processed_input"
                     use_cuda: True
@@ -674,7 +676,7 @@ agents:
                     #max_norm: None
                     config: None
                     input_stream_ids:
-                        input: "inputs:critic_body:extra_inputs:previous_action_int"
+                        input: "inputs:phi_body:extra_inputs:previous_action_int"
                     output_stream_ids:
                         input: "inputs:ActionEmbeddor:processed_input"
                     use_cuda: True
@@ -687,7 +689,7 @@ agents:
                         'output_dim': *lstm_input_dim #321
                     input_stream_ids:
                         #input0: "inputs:SharedObsEncoder:processed_input"
-                        input0: "inputs:CommEncoder:processed_input"
+                        #input0: "inputs:CommEncoder:processed_input"
                         input1: "inputs:MLP:processed_input"
                         input2: "inputs:ActionEmbeddor:processed_input"
                         # WARNING: no longer giving the previous reward because it is different and modified by the algorithm wrapper ELA...
@@ -701,13 +703,16 @@ agents:
                     #use_intrinsic_critic: False
                     noisy: False
                     dueling: True
-                    config: None
+                    config: None 
+                    #config:  
+                    #    mlp_nbr_layers: 2
+                    #    with_batchnorm: True
                     input_stream_ids: 
                         #input0: "inputs:CoreLSTM:lstm_output"
                         input0: "inputs:CoreLSTM:output"
                         # WARNING: no longer giving previous reward as it is going to be modified by algo wrapper ELA...
                         #input1: "inputs:critic_body:extra_inputs:previous_reward"
-                        input2: "inputs:critic_body:extra_inputs:previous_action"
+                        input2: "inputs:phi_body:extra_inputs:previous_action"
                         #input3: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         #legal_actions: "inputs:legal_actions"
@@ -735,18 +740,18 @@ agents:
                         input0: "inputs:CaptionGenerator:processed_input0"
                     use_cuda: True 
 
-                'RewardPredictionMLP':
-                    type: FullyConnectedNetworkModule
-                    state_dim: *hidden_dim 
-                    hidden_units: [3] #[256, 3]
-                    non_linearities: ['None'] #['ReLU', 'None']
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "inputs:CoreLSTM:output"
-                    output_stream_ids:
-                        input: "inputs:RewardPredictionMLP:processed_input"
-                    use_cuda: True
+                #'RewardPredictionMLP':
+                #     type: FullyConnectedNetworkModule
+                #     state_dim: *hidden_dim 
+                #     hidden_units: [3] #[256, 3]
+                #     non_linearities: ['None'] #['ReLU', 'None']
+                #     dropout: 0.0
+                #     config: None
+                #     input_stream_ids:
+                #         input: "inputs:CoreLSTM:output"
+                #     output_stream_ids:
+                #         input: "inputs:RewardPredictionMLP:processed_input"
+                #     use_cuda: True
 
                 #'OracleTHER':
                 #    type: OracleTHERModule
@@ -781,15 +786,16 @@ agents:
             features_id: 
                 caption_generator: "inputs:CaptionGenerator:processed_input0"
                 torso: "inputs:ConcatenationOperation:output"
-                reward_prediction: "inputs:RewardPredictionMLP:processed_input"
+                #reward_prediction: "inputs:RewardPredictionMLP:processed_input"
             
             pipelines:
-                torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
+                #torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
+                torso: ['SharedObsEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
                 caption_generator: ['SharedObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
                 #caption_generator: ['RGObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
-                reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
+                #reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
         
         extra_inputs_infos: {
             # WARNING: no longer giving previous reward as it is going to be modified by algo wrapper ELA...
@@ -799,19 +805,19 @@ agents:
             #},
             'previous_action':{
                 shape: ['task.action_dim',], 
-                target_location: ['critic_body', 'extra_inputs']
+                target_location: ['phi_body', 'extra_inputs']
             },
             'previous_action_int':{
                 shape: [1,], 
-                target_location: ['critic_body', 'extra_inputs']
+                target_location: ['phi_body', 'extra_inputs']
             },
 
             #'dialog':{
-            'desired_goal':{
-                #shape: [28], #[63,], 
-                shape: [*ELA_rg_max_sentence_length], 
-                target_location: ['phi_body', 'extra_inputs']
-            },
+            #'desired_goal':{
+            #    #shape: [28], #[63,], 
+            #    shape: [*ELA_rg_max_sentence_length], 
+            #    target_location: ['phi_body', 'extra_inputs']
+            #},
             
             # Uncomment the following if using THER_observe_achieved_goal
             #'achieved_goal':{
