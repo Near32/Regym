@@ -1,6 +1,7 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --seed=10 \
 --project=ETHER-BitsSwap \
+--with_early_stopping=False \
 --success_threshold=0.001 \
 --use_cuda=True \
 --config=3bitsswap_benchmark_oracles_ffether_config.yaml \

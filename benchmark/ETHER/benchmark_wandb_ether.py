@@ -455,6 +455,7 @@ def train_and_evaluate(
     
     config['seed'] = task_config['seed']
     import ipdb; ipdb.set_trace()
+    config['with_early_stopping'] = task_config['with_early_stopping']
     config['publish_trajectories'] = True #False 
     config['training'] = True
     config['env_configs'] = {'return_info': True} #None
@@ -838,8 +839,9 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--with_early_stopping", type=str2bool, default=False) 
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
-    parser.add_argument("--nbr_frame_stacking", type=int, default=4) 
+    parser.add_argument("--nbr_frame_stacking", type=int, default=1) 
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,

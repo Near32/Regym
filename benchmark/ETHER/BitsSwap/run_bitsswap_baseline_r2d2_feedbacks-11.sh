@@ -2,6 +2,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --seed=10 \
 --project=ETHER-BitsSwap \
 --success_threshold=0.001 \
+--with_early_stopping=False \
 --use_cuda=True \
 --config=bitsswap_benchmark_ether_config.yaml \
 --language_guided_curiosity=False \
