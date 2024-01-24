@@ -245,6 +245,7 @@ def train_and_evaluate(
       "pipelines": {},
     }
 
+    config['with_early_stopping'] = task_config['with_early_stopping']
     config['publish_trajectories'] = False 
     config['training'] = True
     config['seed'] = task_config['seed'] 
@@ -630,9 +631,9 @@ def intOrNone(instr):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger('Emergent Textual HER Benchmark')
+    logger = logging.getLogger('EReLELA Benchmark')
 
-    parser = argparse.ArgumentParser(description="ETHER - Test.")
+    parser = argparse.ArgumentParser(description="EReLELA - Test.")
     parser.add_argument("--config", 
         type=str, 
         default="./babyAI_wandb_benchmark_ETHER_config.yaml",
@@ -646,6 +647,7 @@ def main():
         type=int, 
         default=20,
     )
+    parser.add_argument("--with_early_stopping", type=str2bool, default=False) 
     parser.add_argument("--static_envs", type=str2bool, default=False) 
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
     parser.add_argument("--benchmarking_interval", type=float, default=5.0e4)

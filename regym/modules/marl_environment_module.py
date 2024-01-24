@@ -622,7 +622,8 @@ class MARLEnvironmentModule(Module):
         outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch
 
         if self.obs_count >= self.config["max_obs_count"] \
-        or mean_episode_successes >= 0.999 :
+        or (self.config.get("with_early_stopping", False) and \
+        self.mean_episode_successes >= 0.999) :
             outputs_stream_dict["signals:done_training"] = True 
             outputs_stream_dict["signals:trained_agents"] = self.agents 
             

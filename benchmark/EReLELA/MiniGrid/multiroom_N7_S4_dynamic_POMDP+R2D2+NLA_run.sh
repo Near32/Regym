@@ -1,5 +1,6 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=20 --env_seed=12 --static_envs=False \
+--seed=50 --env_seed=12 --static_envs=False \
+--with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-MultiRoom-Benchmark \
 --success_threshold=0.999 \
@@ -117,7 +118,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --time_limit=0 \
 --benchmarking_record_episode_interval=4 \
 --benchmarking_interval=1.0e4 \
---train_observation_budget=2.0e6
+--train_observation_budget=1.0e6
 
 #--train_observation_budget=300000 
 
