@@ -346,6 +346,10 @@ class DQNAlgorithm(Algorithm):
             self.eps = self.epsend + max(0, (self.epsstart-self.epsend)/((float(nbr_steps)/self.epsdecay)+1))
 
         """
+        log_dict = {}
+        for actor_i, eps_i in enumerate(self.eps):
+            log_dict[f'Training/Eps_Actor_{actor_i}'] = eps_i
+        wandb.log(log_dict, commit=False)
         if self.summary_writer is not None:
             for actor_i in range(self.eps.shape[0]):
                 self.summary_writer.add_scalar(f'Training/Eps_Actor_{actor_i}', self.eps[actor_i], nbr_steps)
@@ -390,7 +394,8 @@ class DQNAlgorithm(Algorithm):
                     beta_increase_interval=beta_increase_interval,
                     keys=keys,
                     circular_keys=circular_keys,                 
-                    circular_offsets=circular_offsets
+                    circular_offsets=circular_offsets,
+                    use_rewards_in_priority=self.kwargs.get('PER_use_rewards_in_priority', False),
                 )
             else:
                 rp = ReplayStorage(
@@ -648,7 +653,8 @@ class DQNAlgorithm(Algorithm):
             array_batch_indices = np.concatenate(list_batch_indices, axis=0)
         sampled_batch_indices = []
         sampled_losses_per_item = []
-        
+        list_sampled_samples = []
+
         self.optimizer.zero_grad()
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
@@ -705,6 +711,7 @@ class DQNAlgorithm(Algorithm):
 
             if self.use_PER:
                 sampled_losses_per_item.append(loss_per_item)
+                list_sampled_samples.append(sampled_samples)
                 #wandb_data = copy.deepcopy(wandb.run.history._data)
                 #wandb.run.history._data = {}
                 wandb.log({
@@ -734,6 +741,7 @@ class DQNAlgorithm(Algorithm):
             self._update_replay_buffer_priorities(
                 sampled_losses_per_item=sampled_losses_per_item, 
                 array_batch_indices=array_batch_indices,
+                list_sampled_samples=list_sampled_samples,
                 minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
             )
 
@@ -751,6 +759,8 @@ class DQNAlgorithm(Algorithm):
         self.model.train(False)
         
         beta = 1.0
+        kwargs = copy.deepcopy(self.kwargs)
+        kwargs['use_PER'] = False 
         
         batch_indices = torch.arange(samples['s'].shape[0])
         sampled_samples = {}
@@ -776,7 +786,7 @@ class DQNAlgorithm(Algorithm):
             
             sampled_samples[out_k] = v
             # (batch_size, unroll_dim, ...)
-         
+        
         loss, loss_per_item = self.loss_fn(
             samples=sampled_samples,
             models=self.get_models(),
@@ -785,7 +795,7 @@ class DQNAlgorithm(Algorithm):
             
             gamma=self.GAMMA,
             PER_running_beta=beta,
-            **self.kwargs,
+            **kwargs,
         )
             
         '''
@@ -824,10 +834,13 @@ class DQNAlgorithm(Algorithm):
         sampled_next_rnn_states = _extract_rnn_states_from_batch_indices(next_rnn_states, batch_indices, use_cuda=self.kwargs['use_cuda'])
         return sampled_rnn_states, sampled_next_rnn_states
 
-    def _update_replay_buffer_priorities(self, 
-                                         sampled_losses_per_item: List[torch.Tensor], 
-                                         array_batch_indices: List,
-                                         minibatch_size: int):
+    def _update_replay_buffer_priorities(
+            self, 
+            sampled_losses_per_item: List[torch.Tensor], 
+            array_batch_indices: List,
+            list_sampled_samples: List[Dict[str, torch.Tensor]],
+            minibatch_size: int
+        ):
         '''
         Updates the priorities of each sampled elements from their respective storages.
 

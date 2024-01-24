@@ -395,7 +395,7 @@ def batched_unrolled_inferences(
         
         begin = time.time()
         if vdn:
-            torso_input = states[:,:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length*num_players, *states.shape[3:]))
+            torso_input = states[:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length*num_players, *states.shape[3:]))
         else:
             torso_input = states[:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length, *states.shape[2:]))
 
@@ -404,7 +404,7 @@ def batched_unrolled_inferences(
                 if vdn:
                     #batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length*num_players, *x.shape[3:])))
                     batching_time_dim_lambda_fn = (lambda x: x[:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length*num_players, *x.shape[3:])))
-                    unbatching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, eff_unroll_length, num_players, *x.shape[2:])))
+                    unbatching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, eff_unroll_length, num_players, *x.shape[1:])))
                 else:
                     #batching_time_dim_lambda_fn = (lambda x: x[:,:unroll_length,...].clone().reshape((batch_size*unroll_length, *x.shape[2:])))
                     batching_time_dim_lambda_fn = (lambda x: x[:,:eff_unroll_length,...].reshape((batch_size*eff_unroll_length, *x.shape[2:])))
@@ -494,7 +494,6 @@ def batched_unrolled_inferences(
     assign_fn = None
     if isinstance(model, ArchiModel):
         assign_fn = archi_assign_fn
-    
     with torch.set_grad_enabled(grad_enabler):
         for unroll_id in range(unroll_length):
             inputs = head_input[:, unroll_id,...]
@@ -575,13 +574,19 @@ def batched_unrolled_inferences(
     # Reshaping to put the player dimension in second position:
     if vdn:
         #head_input = head_input.transpose(1,2).reshape(-1, unroll_length, *head_input.shape[3:])
+        # The following does not regularise the num_players: 
+        #unbatching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, eff_unroll_length, *x.shape[1:])))
+        # The following does so, but it does not take unrolled inputs:
+        #unbatching_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, eff_unroll_length, num_players, *x.shape[1:])))
+        # Finally, we reset as unrolled input, while removing time dim:
+        #unbatching_unroll_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, -1, num_players, *x.shape[1:])))
+        unbatching_unroll_time_dim_lambda_fn = (lambda x: x.reshape((batch_size, num_players, *x.shape[1:])))
         def reshape_fn(x):
             return x[:,:unroll_length,...].reshape((batch_size, num_players, unroll_length, *x.shape[2:])).transpose(1,2)
-        import ipdb; ipdb.set_trace()
-        #TODO : assert that the reshaping is properly done.
         burned_in_rnn_states_inputs = apply_on_hdict(
             hdict=burned_in_rnn_states_inputs,
-            fn=batching_time_dim_lambda_fn,
+            fn=unbatching_unroll_time_dim_lambda_fn,
+            #fn=batching_time_dim_lambda_fn,
         )
 
         for k, t in burn_in_predictions.items():
@@ -855,7 +860,7 @@ def compute_loss(
     weights_entropy_reg_alpha = float(kwargs.get('weights_entropy_reg_alpha', 0.0))
     use_PER = kwargs['use_PER']
     PER_beta = kwargs['PER_running_beta']
-    HER_target_clamping = kwargs['HER_target_clamping']
+    HER_target_clamping = kwargs.get('HER_target_clamping', False)
     
     #torch.autograd.set_detect_anomaly(True)
     batch_size = states.shape[0]
@@ -1286,8 +1291,9 @@ def compute_loss(
     wandb.log({'Training/EntropyVal':  training_predictions['ent'].mean().cpu().item(), "training_step":iteration_count}, commit=False)
     #wandb.log({'Training/TotalLoss':  loss.cpu().item(), "training_step":iteration_count}, commit=False)
     if use_PER:
-        wandb.log({'Training/ImportanceSamplingMean':  importanceSamplingWeights.cpu().mean().item(), "training_step":iteration_count}, commit=False)
-        wandb.log({'Training/ImportanceSamplingStd':  importanceSamplingWeights.cpu().std().item(), "training_step":iteration_count}, commit=False)
+        if importanceSamplingWeights is not None:
+            wandb.log({'Training/ImportanceSamplingMean':  importanceSamplingWeights.cpu().mean().item(), "training_step":iteration_count}, commit=False)
+            wandb.log({'Training/ImportanceSamplingStd':  importanceSamplingWeights.cpu().std().item(), "training_step":iteration_count}, commit=False)
         wandb.log({'Training/PER_Beta':  PER_beta, "training_step":iteration_count}, commit=False)
     
     wandb.log({}, commit=True)

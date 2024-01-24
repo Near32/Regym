@@ -42,7 +42,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         )
         
         self.hook_fns = []
-        self.nbr_episode_success_range = 256
+        self.nbr_episode_success_range = 32 #256
         self.feedbacks = feedbacks 
         
         self.extrinsic_weight = extrinsic_weight
@@ -215,6 +215,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         
         # Logging new values over actor list :
         wandb_dict = {}
+        '''
         for k in metrics.keys():
             hist = [self.per_actor_metrics[actor_index][i][k] 
                     for i in range(len(self.per_actor_metrics[actor_index]))]
@@ -231,6 +232,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             wandb_dict,
             commit=False,
         )
+        '''
         if len(self.per_actor_metrics[actor_index]) >= 32:
             self.per_actor_metrics[actor_index].pop(0)
         
@@ -245,7 +247,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         
         wandb.log(
             wandb_dict,
-            commit=True,
+            commit=False,#True,
         )
         return 
     
@@ -389,6 +391,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.update_predictor(successful_traj=successful_traj)
 	   
     def init_referential_game(self):
+        ReferentialGym.datasets.dataset.DSS_version = self.kwargs["ELA_rg_distractor_sampling_scheme_version"]
         ReferentialGym.datasets.dataset.OC_version = self.kwargs["ELA_rg_object_centric_version"]
         print(f"OC_version = {ReferentialGym.datasets.dataset.OC_version}.")
         ReferentialGym.datasets.dataset.DC_version = self.kwargs["ELA_rg_descriptive_version"]
@@ -531,6 +534,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "descriptive_target_ratio": descriptive_ratio,
             
             "object_centric":           self.kwargs["ELA_rg_object_centric"],
+            "object_centric_type":      self.kwargs["ELA_rg_object_centric_type"],
             "nbr_stimulus":             1,
             
             "graphtype":                self.kwargs["ELA_rg_graphtype"],
@@ -635,11 +639,13 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
          
             if "3x3" in agent_config["architecture"]:
                 agent_config["cnn_encoder_kernels"] = [3,3,3]
+                agent_config["cnn_encoder_strides"] = [2,2,2]
             elif "7x4x3" in agent_config["architecture"]:
                 agent_config["cnn_encoder_kernels"] = [7,4,3]
+                agent_config["cnn_encoder_strides"] = [4,2,1]
             else:
                 agent_config["cnn_encoder_kernels"] = [4,4,4]
-            agent_config["cnn_encoder_strides"] = [2,2,2]
+                agent_config["cnn_encoder_strides"] = [2,2,2]
             agent_config["cnn_encoder_paddings"] = [1,1,1]
             agent_config["cnn_encoder_fc_hidden_units"] = []#[128,] 
             # the last FC layer is provided by the cnn_encoder_feature_dim parameter below...
@@ -1306,8 +1312,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "nbr_distractors":          self.rg_config["nbr_distractors"],
             "observability":            self.rg_config["observability"],
             "object_centric":           self.rg_config["object_centric"],
+            "object_centric_type":      self.rg_config["object_centric_type"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ELA_rg_distractor_sampling_with_replacement'],
         }
         dataset_args["test"] = {
             "dataset_class":            "DualLabeledDataset",
@@ -1321,8 +1329,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "nbr_distractors":          self.rg_config["nbr_distractors"],
             "observability":            self.rg_config["observability"],
             "object_centric":           self.rg_config["object_centric"],
+            "object_centric_type":      self.rg_config["object_centric_type"],
             "descriptive":              self.rg_config["descriptive"],
             "descriptive_target_ratio": self.rg_config["descriptive_target_ratio"],
+            'with_replacement':         self.kwargs['ELA_rg_distractor_sampling_with_replacement'],
         }
 
         self.dataset_args = dataset_args

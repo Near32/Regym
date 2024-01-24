@@ -685,7 +685,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "nbr_stimulus":             1,
             
             "graphtype":                self.kwargs["ETHER_rg_graphtype"],
-            "tau0":                     0.2,
+            "tau0":                     self.kwargs.get("ETHER_rg_tau0", 0.2),
             "gumbel_softmax_eps":       1e-6,
             "vocab_size":               self.kwargs["ETHER_rg_vocab_size"],
             "force_eos":                self.kwargs["ETHER_rg_force_eos"],
@@ -1352,6 +1352,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
+                "sanity_check_shuffling": self.kwargs.get("ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric", False),
                 'sanity_check_shuffling': False,
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
@@ -1639,14 +1640,14 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             '''
             wandb.watch(
                 self.speaker, 
-                log='gradients',
-                log_freq=32,
+                log='all', #'gradients',
+                log_freq=8,
                 log_graph=False,
             )
             wandb.watch(
                 self.listener, 
-                log='gradients',
-                log_freq=32,
+                log='all', #'gradients',
+                log_freq=8,
                 log_graph=False,
             )
             '''

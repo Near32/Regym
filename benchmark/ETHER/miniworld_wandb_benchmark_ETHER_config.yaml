@@ -70,7 +70,8 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
         'key', 'ball', 'red', 'green', 'blue', 'purple', 
         'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
         'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
-        'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box'
+        'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.',
     ]
     
     THER_use_PER: True 
@@ -96,7 +97,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_filter_predicate_fn: False
     THER_filter_out_timed_out_episode: False
     THER_timing_out_episode_length_threshold: 40
-    THER_vocab_size: &THER_vocab_size 64 #1024 
+    THER_vocab_size: &THER_vocab_size 128 #64 #1024 
     THER_episode_length_reward_shaping: False 
     THER_train_contrastively: False
     THER_observe_achieved_goal: False
@@ -286,7 +287,9 @@ experiment:
         'env-id': 'MiniWorld-ConditionalPickUpObject-v0',
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
-        'env-config': {},
+        'env-config': {
+                'num_objs':10,
+        },
 
         'run-id': 'final-1/Seed10_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau100_GradClip1_THER1p1/EnvReward0p1_PredicateEps1e0_NoTargetClamping/SentL7_40MaxTrainPerUpdate_AccGoal70_THERPredTrainPeriodOnBufferedPeriodAndOnSuccess_MaxEntr1m1',
          

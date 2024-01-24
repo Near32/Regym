@@ -245,8 +245,11 @@ def train_and_evaluate(
       "pipelines": {},
     }
 
+    config['with_early_stopping'] = task_config['with_early_stopping']
     config['publish_trajectories'] = False 
     config['training'] = True
+    config['seed'] = task_config['seed'] 
+    config['static_envs'] = task_config.get('static_envs', False)
     config['env_configs'] = {'return_info': True} #None
     config['task'] = task 
     
@@ -307,6 +310,7 @@ def training_process(
     base_path: str = './',
     video_recording_episode_period: int = None,
     seed: int = 0,
+    env_seed: int = 0,
     ):
     
     test_only = task_config.get('test_only', False)
@@ -407,15 +411,25 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=False, #('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_discrete_depth=task_config['MiniWorld_entity_visibility_oracle_include_discrete_depth'],
+      miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
+      miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
+      miniworld_entity_visibility_oracle_too_far_threshold=task_config['MiniWorld_entity_visibility_oracle_too_far_threshold'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
+      language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
+      language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
+      language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
+      descr_type=task_config['language_guided_curiosity_descr_type'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -436,15 +450,25 @@ def training_process(
       add_rgb_wrapper=task_config['add_rgb_wrapper'],
       full_obs=task_config['full_obs'],
       single_pick_episode=task_config['single_pick_episode'],
-      observe_achieved_goal=task_config['THER_observe_achieved_goal'],
+      observe_achieved_pickup_goal=task_config['THER_observe_achieved_goal'],
+      use_visible_entities=False, #('visible-entities' in task_config['ETHER_with_Oracle_type']),
       babyai_mission=task_config['BabyAI_Bot_action_override'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_discrete_depth=task_config['MiniWorld_entity_visibility_oracle_include_discrete_depth'],
+      miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
+      miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
+      miniworld_entity_visibility_oracle_too_far_threshold=task_config['MiniWorld_entity_visibility_oracle_too_far_threshold'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
+      language_guided_curiosity_extrinsic_weight=task_config['language_guided_curiosity_extrinsic_weight'],
+      language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
+      language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
+      descr_type=task_config['language_guided_curiosity_descr_type'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -459,8 +483,9 @@ def training_process(
       test_wrapping_fn=test_pixel_wrapping_fn,
       env_config=task_config.get('env-config', {}),
       test_env_config=task_config.get('env-config', {}),
-      seed=seed,
-      test_seed=100+seed,
+      seed=env_seed,
+      test_seed=env_seed if task_config['static_envs'] else 100+env_seed,
+      static=task_config.get('static_envs', False),
       gathering=True,
       train_video_recording_episode_period=benchmarking_record_episode_interval,
       train_video_recording_dirpath=video_recording_dirpath,
@@ -606,9 +631,9 @@ def intOrNone(instr):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger('Emergent Textual HER Benchmark')
+    logger = logging.getLogger('EReLELA Benchmark')
 
-    parser = argparse.ArgumentParser(description="ETHER - Test.")
+    parser = argparse.ArgumentParser(description="EReLELA - Test.")
     parser.add_argument("--config", 
         type=str, 
         default="./babyAI_wandb_benchmark_ETHER_config.yaml",
@@ -618,7 +643,15 @@ def main():
         type=int, 
         default=10,
     )
+    parser.add_argument("--env_seed", 
+        type=int, 
+        default=20,
+    )
+    parser.add_argument("--with_early_stopping", type=str2bool, default=False) 
+    parser.add_argument("--static_envs", type=str2bool, default=False) 
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
+    parser.add_argument("--benchmarking_interval", type=float, default=5.0e4)
+    parser.add_argument("--benchmarking_record_episode_interval", type=int, default=40)
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
@@ -650,6 +683,11 @@ def main():
     #)
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
     
+    parser.add_argument("--PER_use_rewards_in_priority", type=str2bool, default="False")
+    parser.add_argument("--PER_alpha", type=float, default=0.9)
+    parser.add_argument("--PER_beta", type=float, default=0.6)
+    parser.add_argument("--sequence_replay_PER_eta", type=float, default=0.9)
+    parser.add_argument("--PER_compute_initial_priority", type=str2bool, default="False")
     parser.add_argument("--learning_rate", 
         type=float, 
         help="learning rate",
@@ -690,10 +728,10 @@ def main():
         type=float, 
         default=0.0,
     )
-    parser.add_argument("--eps_greedy_alpha", 
-        type=float, 
-        default=2.0,
-    )
+    parser.add_argument("--eps_greedy_alpha", type=float, default=7.0)
+    parser.add_argument("--epsstart", type=float, default=1.0)
+    parser.add_argument("--epsend", type=float, default=0.1)
+    parser.add_argument("--epsdecay", type=int, default=10000)
     parser.add_argument("--n_step", 
         type=int, 
         default=3,
@@ -831,6 +869,8 @@ def main():
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
     parser.add_argument("--THER_observe_achieved_goal", type=str2bool, default="False",)
     parser.add_argument("--single_pick_episode", type=str2bool, default="False",)
+    parser.add_argument("--terminate_on_completion", type=str2bool, default="True",)
+    parser.add_argument("--allow_carrying", type=str2bool, default="True",)
     parser.add_argument("--THER_train_contrastively", type=str2bool, default="False",)
     parser.add_argument("--THER_contrastive_training_nbr_neg_examples", type=int, default=0,)
     parser.add_argument("--THER_feedbacks_failure_reward", type=int, default=-1,)
@@ -844,8 +884,17 @@ def main():
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_symbolic_image", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_language_specs", type=str, default="NONE",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_discrete_depth", type=str2bool, default=False)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth", type=str2bool, default=False)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_too_far_threshold", type=float, default=-1)
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_descr_type", type=str, default="pickup_only",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_extrinsic_weight", type=float, default=1.0)
+    parser.add_argument("--language_guided_curiosity_intrinsic_weight", type=float, default=1.0)
+    parser.add_argument("--language_guided_curiosity_binary_reward", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_densify", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_non_episodic_dampening_rate", type=float, default=0.0,)
     parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
@@ -898,6 +947,8 @@ def main():
     parser.add_argument("--ETHER_rg_observability", type=str, default='partial')
     parser.add_argument("--ETHER_rg_max_sentence_length", type=int, default=10)
     parser.add_argument("--ETHER_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ETHER_rg_distractor_sampling_scheme_version", type=int, default=1)
+    parser.add_argument("--ETHER_rg_distractor_sampling_with_replacement", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_object_centric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
     parser.add_argument("--ETHER_rg_vocab_size", type=int, default=32)
@@ -1005,7 +1056,10 @@ def main():
     parser.add_argument("--ELA_rg_observability", type=str, default='partial')
     parser.add_argument("--ELA_rg_max_sentence_length", type=int, default=10)
     parser.add_argument("--ELA_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ELA_rg_distractor_sampling_scheme_version", type=int, default=1)
+    parser.add_argument("--ELA_rg_distractor_sampling_with_replacement", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_object_centric", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_object_centric_type", type=str, default='hard')
     parser.add_argument("--ELA_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
     parser.add_argument("--ELA_rg_vocab_size", type=int, default=32)
     # TODO : integrate this feature in ArchiPredictorSpeaker ...
@@ -1134,7 +1188,8 @@ def main():
 
     if dargs['language_guided_curiosity']:
         dargs['coverage_manipulation_metric'] = True
-        dargs["MiniWorld_entity_visibility_oracle"] = True
+        if 'descr' not in dargs['language_guided_curiosity_descr_type']:
+            dargs["MiniWorld_entity_visibility_oracle"] = True
     
     print(dargs)
 
@@ -1234,7 +1289,21 @@ def main():
             ),
             base_path=path,
             seed=experiment_config['seed'],
+            env_seed=experiment_config['env_seed'],
         )
 
 if __name__ == '__main__':
+    if False: #True:
+      #torch.multiprocessing.freeze_support()
+      torch.multiprocessing.set_start_method("forkserver")#, force=True)
+      #torch.multiprocessing.set_start_method("spawn", force=True)
+      #ray.init() #local_mode=True)
+      #ray.init(local_mode=True)
+      
+      #from regym import CustomManager as Manager
+      #from multiprocessing.managers import SyncManager, MakeProxyType, public_methods
+      #regym.RegymManager = Manager()
+      regym.AlgoManager = mp.Manager()
+      #regym.AlgoManager.start()
+    
     main()

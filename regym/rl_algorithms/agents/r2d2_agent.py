@@ -15,6 +15,7 @@ from regym.rl_algorithms.networks import PreprocessFunction, ResizeCNNPreprocess
 from regym.rl_algorithms.algorithms.wrappers import HERAlgorithmWrapper2, THERAlgorithmWrapper2, predictor_based_goal_predicated_reward_fn2
 from regym.rl_algorithms.algorithms.wrappers import (
     ETHERAlgorithmWrapper,
+    OnlineReferentialGameAlgorithmWrapper,
     ELAAlgorithmWrapper,
     RewardPredictionAlgorithmWrapper,
 )
@@ -256,7 +257,11 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                 else:
                     print("WARNING : R2D2 Agent with THER : THER predictor does NOT predict PAD tokens.")
                 if kwargs.get("use_ETHER", False):
-                    predictor = ArchiPredictorSpeaker(model=model, **kwargs["ArchiModel"])
+                    predictor = ArchiPredictorSpeaker(
+                        model=model, 
+                        trainable=not(kwargs.get("ETHER_rg_freeze_speaker", False)),
+                        **kwargs["ArchiModel"],
+                    )
                 else:
                     predictor = ArchiPredictor(model=model, **kwargs["ArchiModel"])
             else:
@@ -321,7 +326,26 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                 "success":kwargs['ELA_feedbacks_success_reward'],
             },
         )
-
+    
+    if kwargs.get("use_ORG", False):
+        predictor = ArchiPredictorSpeaker(
+            model=model, 
+            **kwargs["ArchiModel"],
+            pipeline_name="instruction_generator" if kwargs["ORG_with_Oracle"] else "caption_generator",
+            generator_name="InstructionGenerator" if kwargs["ORG_with_Oracle"] else "CaptionGenerator",
+            trainable=False,
+        )
+        algorithm = OnlineReferentialGameAlgorithmWrapper(
+          algorithm=algorithm,
+          predictor=predictor,
+        )
+        if not kwargs["ORG_with_Oracle"]:
+            predictor.set_postprocess_fn(
+                partial(kwargs.get("ORG_postprocess_fn", None),
+                    algorithm=algorithm,
+                )
+            )
+            
     agent = R2D2Agent(
         name=agent_name,
         algorithm=algorithm,

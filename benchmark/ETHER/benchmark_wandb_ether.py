@@ -452,7 +452,8 @@ def train_and_evaluate(
       "modules": {},
       "pipelines": {},
     }
-
+    
+    config['seed'] = task_config['seed']
     import ipdb; ipdb.set_trace()
     config['publish_trajectories'] = True #False 
     config['training'] = True
@@ -597,7 +598,7 @@ def training_process(
     if hasattr(torch.backends, "cudnn"):
       torch.backends.cudnn.deterministic = True
       torch.backends.cudnn.benchmark = False
-
+    
     pixel_wrapping_fn = partial(
       baseline_ther_wrapper,
       size=task_config['observation_resize_dim'], 
@@ -623,6 +624,9 @@ def training_process(
       bespoke_env_oracle=task_config['bespoke_env_oracle'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
+      miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
@@ -653,6 +657,9 @@ def training_process(
       bespoke_env_oracle=task_config['bespoke_env_oracle'],
       miniworld_symbolic_image=task_config['MiniWorld_symbolic_image'],
       miniworld_entity_visibility_oracle=task_config['MiniWorld_entity_visibility_oracle'],
+      miniworld_entity_visibility_oracle_language_specs=task_config['MiniWorld_entity_visibility_oracle_language_specs'],
+      miniworld_entity_visibility_oracle_include_depth=task_config['MiniWorld_entity_visibility_oracle_include_depth'],
+      miniworld_entity_visibility_oracle_include_depth_precision=task_config['MiniWorld_entity_visibility_oracle_include_depth_precision'],
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
@@ -832,6 +839,7 @@ def main():
         default=10,
     )
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
+    parser.add_argument("--nbr_frame_stacking", type=int, default=4) 
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
@@ -1068,6 +1076,9 @@ def main():
     parser.add_argument("--BabyAI_Bot_action_override", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_symbolic_image", type=str2bool, default="False",)
     parser.add_argument("--MiniWorld_entity_visibility_oracle", type=str2bool, default="False",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_language_specs", type=str, default="NONE",)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth", type=str2bool, default=False)
+    parser.add_argument("--MiniWorld_entity_visibility_oracle_include_depth_precision", type=int, default='-1')
     parser.add_argument("--MiniWorld_entity_visibility_oracle_top_view", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity", type=str2bool, default="False",)
     parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
@@ -1086,7 +1097,9 @@ def main():
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
     parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
+    parser.add_argument("--ETHER_rg_freeze_speaker", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
@@ -1142,6 +1155,7 @@ def main():
     parser.add_argument("--ETHER_rg_normalize_features", type=str2bool, default=False, 
         #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
     )
+    parser.add_argument("--ETHER_rg_tau0", type=float, default=0.2)
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
     parser.add_argument("--ETHER_rg_use_aita_sampling", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_aita_update_epoch_period", type=int, default=32)
@@ -1342,7 +1356,9 @@ def main():
         dargs['THER_train_contrastively'] = True
 
     if dargs["ETHER_rg_sanity_check_compactness_ambiguity_metric"]:
-        import ipdb; ipdb.set_trace()
+        if dargs["MiniWorld_entity_visibility_oracle_include_depth_precision"] >= 0 :
+            dargs["MiniWorld_entity_visibility_oracle_include_depth"] = True
+
         dargs["ETHER_grounding_signal_key"] = "info:visible_entities_widx"
         dargs["MiniWorld_entity_visibility_oracle"] = True
         dargs["ETHER_rg_use_semantic_cooccurrence_grounding"] = False

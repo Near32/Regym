@@ -293,6 +293,7 @@ def _extract_rnn_states_from_seq_indices(
     seq_indices: torch.Tensor,
     use_cuda: bool=False,
     map_keys: Optional[List]=None,
+    filter_fn: Callable=None,
 ): 
     if rnn_states_batched is None:  return None
 
@@ -310,7 +311,11 @@ def _extract_rnn_states_from_seq_indices(
                         if value.is_sparse:
                             sparse_v = True
                             value = value.to_dense()
-                        new_value = value[:, seq_indices,...]
+                        if filter_fn is not None \
+                        and filter_fn(value):
+                            new_value = value[:, seq_indices,...]
+                        else:
+                            new_value = value
                         if len(seq_indices) == 1:
                             new_value = new_value.squeeze(1)
                         if use_cuda: new_value = new_value.cuda()
@@ -539,3 +544,4 @@ def apply_on_hdict(
                 else:
                     out_pointer[k] = fn(pointer[k])
     return out_hd
+

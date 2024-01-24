@@ -52,7 +52,8 @@ def build_MARLEnvironmentModule(
 
 
 class MARLEnvironmentModule(Module):
-    def __init__(self,
+    def __init__(
+        self,
                  id:str,
                  config:Dict[str,object],
                  input_stream_ids:Dict[str,str]=None):
@@ -122,6 +123,10 @@ class MARLEnvironmentModule(Module):
         self.info = None 
 
         self.agents = input_streams_dict["current_agents"].agents
+        for agent in self.agents:
+            if hasattr(agent, 'algorithm') \
+            and hasattr(agent.algorithm, 'set_venv'):
+                agent.algorithm.set_venv(self.env)
         self.sad = self.config.get('sad', False)
         self.vdn = self.config.get('vdn', False)
         self.saving_obs_period = self.config.get('saving_obs_period', 1e6) 
@@ -146,6 +151,10 @@ class MARLEnvironmentModule(Module):
 
         self.nbr_actors = self.env.get_nbr_envs()
         self.nbr_players = self.config['nbr_players']
+
+        initial_env_config = self.config.get('env_configs', {})
+        if 'seed' in initial_env_config:    del initial_env_config['seed']
+        self.env_configs = [copy.deepcopy(initial_env_config) for _ in range(self.nbr_actors)]
 
         self.done = [False]*self.nbr_actors
         
@@ -193,9 +202,12 @@ class MARLEnvironmentModule(Module):
 
         if not self.init:
             self.initialisation(input_streams_dict)
+        mean_episode_successes = 0.0 
 
         if self.observations is None:
-            env_reset_output_dict = self.env.reset(env_configs=self.config.get('env_configs', None))
+            env_reset_output_dict = self.env.reset(
+                env_configs=self.env_configs,
+            )
             self.observations = env_reset_output_dict[self.obs_key]
             self.info = env_reset_output_dict[self.info_key]
             if self.vdn:
@@ -272,7 +284,7 @@ class MARLEnvironmentModule(Module):
                 a["action"]
                 for a in actions
             ]
-        
+       
         for hook in self.config['step_hooks']:
             hook(
                 None, #self.sum_writer,
@@ -355,37 +367,17 @@ class MARLEnvironmentModule(Module):
                             pa_int_r = agent.get_intrinsic_reward(actor_index)
                     """    
                     # Logging:
-                    if self.config.get('publish_trajectories', False):
-                        self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                            pa_obs, 
-                            pa_a, 
-                            pa_r, 
-                            pa_int_r, 
-                            pa_succ_obs, 
-                            pa_done, 
-                            pa_info, 
-                            pa_succ_info,
-                        ))
-                    else:
-                        previous_r = 0
-                        previous_int_r = 0
-                        if len(self.per_actor_per_player_trajectories[actor_index][player_index]):
-                            previous_int_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][3]
-                            previous_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][2]
-                        self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                            None, 
-                            None, 
-                            pa_r+previous_r, 
-                            pa_int_r+previous_int_r, 
-                            None, 
-                            None, 
-                            None, 
-                            None,
-                        ))
-                        if len(self.per_actor_per_player_trajectories[actor_index][player_index]) > 1:
-                            del self.per_actor_per_player_trajectories[actor_index][player_index][0] 
+                    self.per_actor_per_player_trajectories[actor_index][player_index].append((
+                        pa_obs, 
+                        pa_a, 
+                        pa_r, 
+                        pa_int_r, 
+                        pa_succ_obs, 
+                        pa_done, 
+                        pa_info, 
+                        pa_succ_info,
+                    ))
                     
-
                 self.update_count = self.agents[0].get_update_count()
                 self.episode_count += 1
                 self.episode_count_record += 1
@@ -403,6 +395,11 @@ class MARLEnvironmentModule(Module):
                 traj = self.per_actor_per_player_trajectories[actor_index][player_id] #self.trajectories[-1][player_id]
                 # assumes HER-typed reward: i.e. 0== success, -1 otherwise:
                 self.total_successes.append(float((traj[-1][2].item() > self.success_threshold)))
+                if 'success' in traj[-1][7]:
+                    if traj[-1][7]['success']:
+                        self.total_successes[-1] = 1.0
+                    else:
+                        self.total_successes[-1] = 0.0
                 self.total_returns.append(sum([ exp[2] for exp in traj]))
                 self.positive_total_returns.append(sum([ exp[2] if exp[2]>0 else 0.0 for exp in traj]))
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))
@@ -507,36 +504,17 @@ class MARLEnvironmentModule(Module):
                 pa_info = info[player_index][actor_index]
                 pa_succ_info = succ_info[player_index][actor_index]
 
-                if self.config.get('publish_trajectories', False):
-                    self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                        pa_obs, 
-                        pa_a, 
-                        pa_r, 
-                        pa_int_r, 
-                        pa_succ_obs, 
-                        pa_done, 
-                        pa_info, 
-                        pa_succ_info,
-                    ))
-                else:
-                    previous_r = 0
-                    previous_int_r = 0
-                    if len(self.per_actor_per_player_trajectories[actor_index][player_index]):
-                        previous_int_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][3]
-                        previous_r = self.per_actor_per_player_trajectories[actor_index][player_index][-1][2]
-                    self.per_actor_per_player_trajectories[actor_index][player_index].append((
-                        None, 
-                        None, 
-                        pa_r+previous_r, 
-                        pa_int_r+previous_int_r, 
-                        None, 
-                        None, 
-                        None, 
-                        None,
-                    ))
-                    if len(self.per_actor_per_player_trajectories[actor_index][player_index]) > 1:
-                        del self.per_actor_per_player_trajectories[actor_index][player_index][0] 
-                
+                self.per_actor_per_player_trajectories[actor_index][player_index].append((
+                    pa_obs, 
+                    pa_a, 
+                    pa_r, 
+                    pa_int_r, 
+                    pa_succ_obs, 
+                    pa_done, 
+                    pa_info, 
+                    pa_succ_info,
+                ))
+            
             if self.config['test_nbr_episode'] != 0 \
             and self.obs_count % self.config['test_obs_interval'] == 0:
                 save_traj = False
@@ -568,6 +546,7 @@ class MARLEnvironmentModule(Module):
                     done_key=self.done_key,
                     info_key=self.info_key,
                     succ_info_key=self.succ_info_key,
+                    success_threshold=self.config['success_threshold'],
                 )
 
             #if self.obs_count % 1e4 == 0\
@@ -673,7 +652,9 @@ class MARLEnvironmentModule(Module):
         outputs_stream_dict["signals:mode"] = 'train'
         outputs_stream_dict["signals:marl_epoch"] = self.marl_epoch
 
-        if self.obs_count >= self.config["max_obs_count"]:
+        if self.obs_count >= self.config["max_obs_count"] \
+        or (self.config.get("with_early_stopping", False) and \
+        self.mean_episode_successes >= 0.999) :
             outputs_stream_dict["signals:done_training"] = True 
             outputs_stream_dict["signals:trained_agents"] = self.agents 
             

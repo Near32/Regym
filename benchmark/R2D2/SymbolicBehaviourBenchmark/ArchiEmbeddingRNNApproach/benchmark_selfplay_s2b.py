@@ -41,6 +41,8 @@ from rl_hiddenstate_policy import RLHiddenStatePolicy
 
 from regym.pubsub_manager import PubSubManager
 
+from regym.rl_algorithms.algorithms.wrappers.org_wrapper import S2B_postprocess_fn
+
 import wandb
 import argparse
 
@@ -131,6 +133,7 @@ def make_rl_pubsubmanager(
             input_stream_ids=rlam_input_stream_ids,
         )
 
+      config['success_threshold'] = task_config['success_threshold'] # 0.0 
       modules[envm_id] = MARLEnvironmentModule(
           id=envm_id,
           config=config,
@@ -224,8 +227,12 @@ def make_rl_pubsubmanager(
       "reconstruction_loss":"MSE",
       "signal_to_reconstruct_dim": (env_config_hp.get('nbr_distractors', 3)+1)*env_config_hp.get('nbr_latents', 3),
       'sampling_period':task_config['speaker_rec_period'],
+      'adaptive_sampling_period':task_config['speaker_rec_adaptive_period'],
+      'max_sampling_period':task_config['speaker_rec_max_adaptive_period'],
+      'loss_lambda_weight':task_config['speaker_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[0],
+          player_idx=0,
           node_id_to_extract=node_id_to_extract,
       ),
       "build_signal_to_reconstruct_from_trajectory_fn": build_signal_to_reconstruct_from_trajectory_fn,
@@ -271,6 +278,7 @@ def make_rl_pubsubmanager(
       'loss_lambda_weight':task_config['listener_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
+          player_idx=1,
           node_id_to_extract=node_id_to_extract,
       ),
       "build_signal_to_reconstruct_from_trajectory_fn": build_signal_to_reconstruct_from_trajectory_fn,
@@ -355,6 +363,7 @@ def make_rl_pubsubmanager(
       'loss_lambda_weight':task_config['listener_comm_rec_lambda'],
       "hiddenstate_policy": RLHiddenStatePolicy(
           agent=agents[-1],
+          player_idx=1,
           node_id_to_extract=node_id_to_extract, 
       ),
       "build_signal_to_reconstruct_from_trajectory_fn": build_comm_to_reconstruct_from_trajectory_fn,
@@ -393,6 +402,7 @@ def make_rl_pubsubmanager(
                 "use_cuda":USE_CUDA,
                 "hiddenstate_policy":RLHiddenStatePolicy(
                     agent=agents[-1],
+                    player_idx=1,
                     node_id_to_extract=node_id_to_extract,
                 ),
                 "rec_dicts": rec_dicts,
@@ -546,8 +556,11 @@ def train_and_evaluate(agents: List[object],
         "pipelines": {},
       }
 
+      config['seed'] = task_config['seed']
+      config['publish_trajectories'] = True #False
       config['training'] = True
-      config['env_configs'] = None
+      config['env_configs'] = {'return_info': True} #None
+      #config['env_configs'] = None
       config['task'] = task 
       
       sum_writer_path = os.path.join(sum_writer, 'actor.log')
@@ -1003,6 +1016,13 @@ def str2bool(instr):
     else:
         raise NotImplementedError
 
+
+def intOrNone(instr):
+    if instr is None:
+        return None
+    return int(instr)
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger('Symbolic Behaviour Benchmark')
@@ -1019,12 +1039,13 @@ def main():
         type=float, 
         default=5e-2,
     )
-    #parser.add_argument("--speaker_rec", type=str, default="False",)
+    parser.add_argument("--speaker_rec", type=str, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
+    parser.add_argument("--speaker_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_lambda", type=float, default=1.0,)
-    #parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
+    parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
@@ -1036,6 +1057,8 @@ def main():
             \rAnd 'value_memory' being used for ESBN architecture.\n\
             \rIt is automatically toggled to 'memory' if 'config' path contains 'dnc', and vice-versa.") #"memory"
     #parser.add_argument("--player2_harvest", type=str, default="False",)
+    parser.add_argument("--vdn", type=str2bool, default="False ",)
+    parser.add_argument("--sad", type=str2bool, default="False ",)
     parser.add_argument("--use_rule_based_agent", type=str2bool, default="False ",)
     parser.add_argument("--use_speaker_rule_based_agent", type=str2bool, default="False",)
     
@@ -1049,6 +1072,11 @@ def main():
         default="META_RG_S2B",
     )
 
+    parser.add_argument("--success_threshold", 
+        type=float, 
+        default=0.0,
+    )
+ 
     parser.add_argument("--test_only", type=str2bool, default="False")
     parser.add_argument("--reload_wandb_run_path", 
         type=str, 
@@ -1070,7 +1098,7 @@ def main():
     )
     parser.add_argument("--saving_interval", 
         type=float, 
-        default=5e5,
+        default=1e15,
     )
     parser.add_argument("--learning_rate", 
         type=float, 
@@ -1105,6 +1133,12 @@ def main():
         type=float, 
         default=0.0,
     )
+    parser.add_argument("--speaker_rec_max_adaptive_period", type=int, default=1000,)
+    parser.add_argument("--speaker_rec_adaptive_period", type=str2bool, default="False",)
+    parser.add_argument("--speaker_rec_period", 
+        type=int, 
+        default=10,
+    )
     parser.add_argument("--listener_rec_max_adaptive_period", type=int, default=1000,)
     parser.add_argument("--listener_rec_adaptive_period", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_period", 
@@ -1116,13 +1150,13 @@ def main():
         type=int, 
         default=10,
     )
-    parser.add_argument("--speaker_rec_period", 
-        type=int, 
-        default=10,
-    )
     parser.add_argument("--min_capacity", 
         type=float, 
         default=1.5e4,
+    )
+    parser.add_argument("--min_handled_experiences", 
+        type=float, 
+        default=1,
     )
     parser.add_argument("--replay_capacity", 
         type=float, 
@@ -1225,7 +1259,134 @@ def main():
     parser.add_argument("--provide_listener_feedback", type=str2bool, default="False")
     parser.add_argument("--use_cuda", type=str2bool, default="False")
 
+    parser.add_argument("--use_ORG", type=str2bool, default="True",)
+    parser.add_argument("--ORG_rg_tau0", type=float, default=0.2,)
+    parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
+    parser.add_argument("--ORG_use_predictor", type=str2bool, default="True",)
+    parser.add_argument("--ORG_with_Oracle", type=str2bool, default="False",)
+    parser.add_argument("--ORG_with_Oracle_type", type=str, default="visible-entities",)
+    parser.add_argument("--ORG_with_Oracle_listener", type=str2bool, default="False",)
+    parser.add_argument("--ORG_use_ORG", type=str2bool, default="True",)
+    parser.add_argument("--ORG_use_supervised_training", type=str2bool, default="True",)
+    parser.add_argument("--ORG_use_continuous_feedback", type=str2bool, default=False,)
+    parser.add_argument("--ORG_listener_based_predicated_reward_fn", type=str2bool, default=False,)
+    parser.add_argument("--ORG_with_compactness_ambiguity_metric", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_training_period", type=int, default=1024)
+    parser.add_argument("--ORG_rg_accuracy_threshold", type=float, default=75)
+    parser.add_argument("--ORG_rg_verbose", type=str2bool, default="True",)
+    parser.add_argument("--ORG_rg_use_cuda", type=str2bool, default="True",)
+    parser.add_argument("--ORG_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--semantic_embedding_init", type=str, default="none",)
+    parser.add_argument("--semantic_prior_mixing", type=str, default="multiplicative",)
+    parser.add_argument("--semantic_prior_mixing_with_detach", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_with_semantic_grounding_metric", type=str2bool, default="False",)
+    parser.add_argument("--ORG_rg_use_semantic_cooccurrence_grounding", type=str2bool, default="False",)
+    parser.add_argument("--ORG_grounding_signal_key", type=str, default="info:desired_goal",)
+    parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
+    parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
+    parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_semantic_level", type=str2bool, default="False",)
+    parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding", type=str2bool, default="False",)
+    parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level", type=str2bool, default="True",)
+    parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
+    parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
+    parser.add_argument("--ORG_split_strategy", type=str, default="divider-1-offset-0",)
+    parser.add_argument("--ORG_replay_capacity", type=int, default=1024)
+    parser.add_argument("--ORG_rg_filter_out_non_unique", type=str2bool, default=False)
+    parser.add_argument("--ORG_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--ORG_test_replay_capacity", type=int, default=512)
+    parser.add_argument("--ORG_test_train_split_interval",type=int, default=5)
+    parser.add_argument("--ORG_train_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ORG_test_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ORG_rg_object_centric_version", type=int, default=1)
+    parser.add_argument("--ORG_rg_distractor_sampling_scheme_version", type=int, default=1)
+    parser.add_argument("--ORG_rg_descriptive_version", type=int, default=2)
+    parser.add_argument("--ORG_rg_with_color_jitter_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_color_jitter_prob", type=float, default=0)
+    parser.add_argument("--ORG_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_gaussian_blur_prob", type=float, default=0)
+    parser.add_argument("--ORG_rg_egocentric_tr_degrees", type=float, default=30)
+    parser.add_argument("--ORG_rg_egocentric_tr_xy", type=float, default=10)
+    parser.add_argument("--ORG_rg_egocentric", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_egocentric_prob", type=float, default=0)
+    parser.add_argument("--ORG_rg_nbr_train_distractors", type=int, default=7)
+    parser.add_argument("--ORG_rg_nbr_test_distractors", type=int, default=7)
+    parser.add_argument("--ORG_rg_descriptive", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_descriptive_ratio", type=float, default=0.0)
+    parser.add_argument("--ORG_rg_observability", type=str, default='partial')
+    parser.add_argument("--ORG_rg_max_sentence_length", type=int, default=10)
+    parser.add_argument("--ORG_rg_distractor_sampling", type=str, default='uniform')
+    parser.add_argument("--ORG_rg_object_centric", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_object_centric_type", type=str, default="hard")
+    parser.add_argument("--ORG_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
+    parser.add_argument("--ORG_rg_vocab_size", type=int, default=32)
+    # TODO : integrate this feature in ArchiPredictorSpeaker ...
+    parser.add_argument("--ORG_rg_force_eos", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_symbol_embedding_size", type=int, default=64)
+    parser.add_argument("--ORG_rg_arch", type=str, default='BN+MLP')#'BN+7x4x3xCNN')
+    parser.add_argument("--ORG_rg_shared_architecture", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_normalize_features", type=str2bool, default=False, 
+        #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
+    )
+    parser.add_argument("--ORG_rg_agent_loss_type", type=str, default='Hinge')
+    parser.add_argument("--ORG_rg_use_aita_sampling", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_aita_update_epoch_period", type=int, default=32)
+    parser.add_argument("--ORG_rg_aita_levenshtein_comprange", type=float, default=1.0)
 
+    parser.add_argument("--ORG_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ORG_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
+    
+    parser.add_argument("--ORG_rg_cultural_pressure_it_period", type=int, default=0)
+    parser.add_argument("--ORG_rg_cultural_speaker_substrate_size", type=int, default=1)
+    parser.add_argument("--ORG_rg_cultural_listener_substrate_size", type=int, default=1)
+    parser.add_argument("--ORG_rg_cultural_reset_strategy", type=str, default='uniformSL')
+    #"oldestL", # "uniformSL" #"meta-oldestL-SGD"
+    parser.add_argument("--ORG_rg_cultural_pressure_meta_learning_rate", type=float, default=1.0e-3)
+    parser.add_argument("--ORG_rg_iterated_learning_scheme", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_iterated_learning_period", type=int, default=5)
+    parser.add_argument("--ORG_rg_iterated_learning_rehearse_MDL", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
+    
+    parser.add_argument("--ORG_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
+    parser.add_argument("--ORG_rg_obverter_nbr_games_per_round", type=int, default=20)
+    parser.add_argument("--ORG_rg_use_obverter_sampling", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
+    
+    parser.add_argument("--ORG_rg_batch_size", type=int, default=32)
+    parser.add_argument("--ORG_rg_dataloader_num_worker", type=int, default=8)
+    parser.add_argument("--ORG_rg_learning_rate", type=float, default=3.0e-4)
+    parser.add_argument("--ORG_rg_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ORG_rg_l1_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ORG_rg_l2_weight_decay", type=float, default=0.0)
+    parser.add_argument("--ORG_rg_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ORG_rg_emb_dropout_prob", type=float, default=0.0)
+    parser.add_argument("--ORG_rg_homoscedastic_multitasks_loss", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_use_feat_converter", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_distractor_sampling_with_replacement", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_use_curriculum_nbr_distractors", type=str2bool, default=False)
+    parser.add_argument("--ORG_rg_init_curriculum_nbr_distractors", type=int, default=1)
+    parser.add_argument("--ORG_rg_nbr_experience_repetition", type=int, default=1)
+    parser.add_argument("--ORG_rg_agent_nbr_latent_dim", type=int, default=32)
+    parser.add_argument("--ORG_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
+    
+    parser.add_argument("--ORG_rg_mini_batch_size", type=int, default=32)
+    parser.add_argument("--ORG_rg_optimizer_type", type=str, default='adam')
+    parser.add_argument("--ORG_rg_nbr_epoch_per_update", type=int, default=3)
+
+    parser.add_argument("--ORG_rg_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ORG_rg_dis_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ORG_rg_metric_batch_size", type=int, default=16)
+    parser.add_argument("--ORG_rg_metric_fast", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_parallel_TS_worker", type=int, default=8)
+    parser.add_argument("--ORG_rg_nbr_train_points", type=int, default=1024)
+    parser.add_argument("--ORG_rg_nbr_eval_points", type=int, default=512)
+    parser.add_argument("--ORG_rg_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_dis_metric_resampling", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_seed", type=int, default=1)
+    parser.add_argument("--ORG_rg_metric_active_factors_only", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_with_ortho_metric", type=str2bool, default=False)
+    
     args = parser.parse_args()
     
     if args.max_sentence_length is not None:
@@ -1282,6 +1443,9 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    if args.use_ORG:
+        dargs['preprocessed_observation_shape'] = [args.nbr_latents]
+        dargs['ORG_postprocess_fn'] = S2B_postprocess_fn
     print(dargs)
 
     #from gpuutils import GpuUtils

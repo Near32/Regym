@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Dict, Any, Optional, List, Callable, Union
 import os
 import copy
+import re
 from functools import partial 
 from collections.abc import Iterable
 from collections import deque, OrderedDict
@@ -80,7 +81,17 @@ def _concatenate_list_hdict(
                     out_pointer[k] = concat_fn(concat_list)
     return out_hd
 
-class VDNVecEnvWrapper(object):
+
+class VecEnvWrapper(object):
+    def __init__(self, env):
+        self.env = env
+    
+    @property
+    def unwrapped(self):
+        return self.env.unwrapped
+
+
+class VDNVecEnvWrapper(VecEnvWrapper):
     def __init__(self, env, nbr_players):
         '''
         Value-Decomposition Network-purposed wrapper expects the action argument to
@@ -93,7 +104,7 @@ class VDNVecEnvWrapper(object):
         into a singleton list whose element contains an extra dimension as the player
         dimension.
         '''
-        self.env = env
+        VecEnvWrapper.__init__(self, env)
         self.nbr_players = nbr_players
 
     def get_nbr_envs(self):
@@ -2048,7 +2059,7 @@ class SADVecEnvWrapper_depr(object):
 
         return next_obs, reward, done, next_infos
 
-class SADVecEnvWrapper(object):
+class SADVecEnvWrapper(VecEnvWrapper):
     def __init__(self, env, nbr_actions, otherplay=False):
         """
         Simplified Action Decoder wrapper expects the action argument for
@@ -2061,7 +2072,7 @@ class SADVecEnvWrapper(object):
         of the CURRENT PLAYER into the next_info dictionnary of ALL players with
         an extra player_offset tensor.
         """
-        self.env = env
+        VecEnvWrapper.__init__(self, env)
         self.otherplay=otherplay
         self.nbr_actions = nbr_actions
         self.nbr_players = None
@@ -2378,6 +2389,9 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         #self.vocabulary = ['PAD', 'SoS', 'EoS'] + list(self.vocabulary)
         self.vocabulary = list(self.vocabulary)
         #########################################
+        
+        #for steps in range(20):
+        #    self.vocabulary.append( f"{steps}")
 
         while len(self.vocabulary) < self.vocab_size-2:
             self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
@@ -2410,7 +2424,8 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         """
         for obs_key, map_key in self.observation_keys_mapping.items():
             #t_goal = [w.lower() for w in observation[obs_key].split(' ')]
-            t_goal = [w for w in observation[obs_key].split(' ')]
+            #t_goal = [w for w in observation[obs_key].split(' ')]
+            t_goal = [w for w in re.findall(r'\d|\w+|\.', observation[obs_key])]
             for w in t_goal:
                 if w not in self.vocabulary:
                     import ipdb; ipdb.set_trace()
@@ -2435,8 +2450,17 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             
         return observation
 
+
+from minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
+
 class BehaviourDescriptionWrapper(gym.ObservationWrapper):
-    def __init__(self, env, max_sentence_length=10, use_visible_entities=False):
+    def __init__(
+        self, 
+        env, 
+        max_sentence_length=10, 
+        use_visible_entities=False,
+        descr_type='pickup_only',
+    ):
         """
         Add an observation string that describe the achieved goal for a PickUp-based env.
         'EoS' most of the time, unless, by order of priority:
@@ -2444,14 +2468,25 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
             - 'visible_entities' is among the observations, then we use this description sentence. 
         """
         gym.ObservationWrapper.__init__(self, env)
+        self.descr_type = descr_type
         self.max_sentence_length = max_sentence_length
         self.use_visible_entities = use_visible_entities
         
         self.observation_space = copy.deepcopy(env.observation_space)
-        self.observation_space.spaces["behaviour_description"] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
+        self.observation_space_name = 'behaviour_description'
+        if 'descr' in self.descr_type:
+            self.observation_space_name = 'visible_entities'
+        self.observation_space.spaces[self.observation_space_name] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
 
     def observation( self, observation):
+        need_to_return_info = False
+        if isinstance(observation, tuple):
+            observation, info = observation
+            need_to_return_info = True
+        
+        # TODO : regularise self.descr_type if self.language=='french'
         achieved_goal = "EoS"
+        list_textual_descriptions = []
         color = None
         shape = None
         if hasattr(self.unwrapped, "carrying"):
@@ -2466,10 +2501,189 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         
         if color is not None and shape is not None:
             achieved_goal = f"pick up the {color} {shape}".lower()
+            list_textual_descriptions.append(achieved_goal)
         elif self.use_visible_entities \
         and 'visible_entities' in observation.keys():
             achieved_goal = copy.deepcopy(observation['visible_entities'])
-        observation['behaviour_description'] = achieved_goal
+            list_textual_descriptions.append(achieved_goal)
+        
+        if self.descr_type == 'pickup_only':
+            observation['behaviour_description'] = achieved_goal
+            if need_to_return_info:
+                return observation,info
+            return observation
+
+        # ELSE : let us add more information:
+        # Adapted from :
+        # https://github.com/flowersteam/Grounding_LLMs_with_online_RL/blob/2958ccd5f90f22323acfd8690b8053c4d18c5197/babyai-text/gym-minigrid/gym_minigrid/minigrid.py#L1326
+        
+        assert hasattr(self.unwrapped, 'gen_obs_grid')
+        grid, vis_mask = self.unwrapped.gen_obs_grid()
+        image = grid.encode(vis_mask)
+
+        self.language = 'english'
+        IDX_TO_STATE = {0: 'open', 1:'closed', 2:'locked'}
+        global IDX_TO_COLOR #IDX_TO_COLOR = dict(zip(COLOR_TO_IDX.values(), COLOR_TO_IDX.keys()))
+        global IDX_TO_OBJECT #IDX_TO_OBJECT = dict(zip(OBJECT_TO_IDX.values(), OBJECT_TO_IDX.keys()))
+        
+        self.agent_pos = self.unwrapped.agent_pos
+        agent_pos_vx, agent_pos_vy = self.unwrapped.get_view_coords(self.agent_pos[0], self.agent_pos[1])
+        
+        view_field_dictionary = {}
+        
+        for i in range(image.shape[0]):
+            for j in range(image.shape[1]):
+                if image[i][j][0] != 0 and image[i][j][0] != 1 and image[i][j][0] != 2:
+                    if i not in view_field_dictionary.keys():
+                        view_field_dictionary[i] = dict()
+                        view_field_dictionary[i][j] = image[i][j]
+                    else:
+                        view_field_dictionary[i][j] = image[i][j]
+        
+        # Find the wall if any
+        #  We describe a wall only if there is no objects between the agent and the wall in straight line
+        
+        # Find wall in front
+        j = agent_pos_vy - 1
+        object_seen = False
+        while j >= 0 and not object_seen:
+            if image[agent_pos_vx][j][0] != 0 and image[agent_pos_vx][j][0] != 1:
+                if image[agent_pos_vx][j][0] == 2:
+                    if self.language == 'english':
+                        descr = f"You see a wall" 
+                        if 'precise' in self.descr_type:
+                            descr += f" {agent_pos_vy - j} step{'s' if agent_pos_vy - j > 1 else ''} forward"
+                        else:
+                            descr += " in front"
+                        list_textual_descriptions.append(descr)
+                    elif self.language == 'french':
+                        list_textual_descriptions.append("Tu vois un mur à {} pas devant".format(agent_pos_vy - j))
+                    object_seen = True
+                else:
+                    object_seen = True
+            j -= 1
+        # Find wall left 
+        i = agent_pos_vx - 1
+        object_seen = False
+        while i >= 0 and not object_seen:
+            if image[i][agent_pos_vy][0] != 0 and image[i][agent_pos_vy][0] != 1:
+                if image[i][agent_pos_vy][0] == 2:
+                    if self.language == 'english':
+                        descr = f"You see a wall" 
+                        if 'precise' in self.descr_type:
+                            descr += f" {agent_pos_vx - i} step{'s' if agent_pos_vx - i > 1 else ''} left"
+                        else:
+                            descr += " on the left"
+                        list_textual_descriptions.append(descr)
+                    elif self.language == 'french':
+                        list_textual_descriptions.append("Tu vois un mur à {} pas à gauche".format(agent_pos_vx - i))
+                    object_seen = True
+                else:
+                    object_seen = True
+            i -= 1
+        # Find wall right
+        i = agent_pos_vx + 1
+        object_seen = False
+        while i < image.shape[0] and not object_seen:
+            if image[i][agent_pos_vy][0] != 0 and image[i][agent_pos_vy][0] != 1:
+                if image[i][agent_pos_vy][0] == 2:
+                    if self.language == 'english':
+                        descr = f"You see a wall" 
+                        if 'precise' in self.descr_type:
+                            descr += f" {i - agent_pos_vx} step{'s' if i - agent_pos_vx > 1 else ''} right"
+                        else:
+                            descr += " on the right"
+                        list_textual_descriptions.append(descr)
+                    elif self.language == 'french':
+                         list_textual_descriptions.append("Tu vois un mur à {} pas à droite".format(i - agent_pos_vx))
+                    object_seen = True
+                else:
+                    object_seen = True
+            i += 1
+
+        # returns the position of seen objects relative to you
+        for i in view_field_dictionary.keys():
+            for j in view_field_dictionary[i].keys():
+                if i != agent_pos_vx or j != agent_pos_vy:
+                    object = view_field_dictionary[i][j]
+                    relative_position = dict()
+
+                    if i - agent_pos_vx > 0:
+                        if self.language == 'english':
+                            relative_position["x_axis"] = ("right", i - agent_pos_vx)
+                        elif self.language == 'french':
+                             relative_position["x_axis"] = ("à droite", i - agent_pos_vx)
+                    elif i - agent_pos_vx == 0:
+                        if self.language == 'english':
+                            relative_position["x_axis"] = ("face", 0)
+                        elif self.language == 'french':
+                            relative_position["x_axis"] = ("en face", 0)
+                    else:
+                        if self.language == 'english':
+                            relative_position["x_axis"] = ("left", agent_pos_vx - i)
+                        elif self.language == 'french':
+                            relative_position["x_axis"] = ("à gauche", agent_pos_vx - i)
+                    if agent_pos_vy - j > 0:
+                        if self.language == 'english':
+                            relative_position["y_axis"] = ("forward", agent_pos_vy - j)
+                        elif self.language == 'french':
+                            relative_position["y_axis"] = ("devant", agent_pos_vy - j)
+                    elif agent_pos_vy - j == 0:
+                        if self.language == 'english':
+                            relative_position["y_axis"] = ("forward", 0)
+                        elif self.language == 'french':
+                            relative_position["y_axis"] = ("devant", 0)
+
+                    distances = []
+                    if relative_position["x_axis"][0] in ["face", "en face"]:
+                        distances.append((relative_position["y_axis"][1], relative_position["y_axis"][0]))
+                    elif relative_position["y_axis"][1] == 0:
+                        distances.append((relative_position["x_axis"][1], relative_position["x_axis"][0]))
+                    else:
+                        distances.append((relative_position["x_axis"][1], relative_position["x_axis"][0]))
+                        distances.append((relative_position["y_axis"][1], relative_position["y_axis"][0]))
+
+                    description = ""
+                    if object[0] != 4:  # if it is not a door
+                        if self.language == 'english':
+                            description = f"You see a {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]} "
+                        elif self.language == 'french':
+                            description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} "
+
+                    else:
+                        if IDX_TO_STATE[object[2]] != 0:  # if it is not open
+                            if self.language == 'english':
+                                description = f"You see a {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]}"
+                            elif self.language == 'french':
+                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]}"
+
+                        else:
+                            if self.language == 'english':
+                                description = f"You see an {IDX_TO_STATE[object[2]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_OBJECT[object[0]]}"
+                            elif self.language == 'french':
+                                description = f"Tu vois une {IDX_TO_OBJECT[object[0]]} {IDX_TO_COLOR[object[1]]} {IDX_TO_STATE[object[2]]}"
+
+                    for _i, _distance in enumerate(distances):
+                        if _i > 0:
+                            if self.language == 'english':
+                                description += " and "
+                            elif self.language == 'french':
+                                description += " et "
+
+                        if self.language == 'english':
+                            if 'precise' in self.descr_type:
+                                description += f" {_distance[0]} step{'s' if _distance[0] > 1 else ''} {_distance[1]}"
+                            else:
+                                description += f" {_distance[1]}"
+                        elif self.language == 'french':
+                            description += f" {_distance[0]} pas {_distance[1]}"
+
+                    list_textual_descriptions.append(description)
+
+        observation[self.observation_space_name] = " SEP ".join(list_textual_descriptions).lower()
+        
+        if need_to_return_info:
+            return observation, info
         return observation
 
 
@@ -2814,41 +3028,42 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
     def reset(self, **kwargs):
         env_output = super(PeriodicVideoRecorderWrapper, self).reset(**kwargs)
 
+        if self.is_video_enabled:
+            frame = None
+            if self.record_obs:
+                frame = env_output
+                while isinstance(frame, list) or isinstance(frame, tuple):
+                    frame = frame[0]
+                #if frame.shape[-1] != 3:
+                #    frame = frame.transpose(2,1,0)
+                frame = frame.transpose(0,2,1)
+            #self.video_recorder.capture_frame(frame=frame)
+            self.frames.append(frame)
+            #self.video_recorder.close()
+            #del self.video_recorder
+            self.frames = np.stack(self.frames,0)
+            wandb_video = wandb.Video(
+                #data_or_path=self.current_video_path,
+                data_or_path=self.frames,
+                fps=2,
+                format='mp4',
+            )
+            wandb.log({
+                "Video":wandb_video,
+                },
+                commit=False,
+            )
+            del wandb_video
+            del self.frames
+            self.is_video_enabled = False
+
+        self.episode_idx += 1
+        
         if self.episode_idx % self.video_recording_episode_period == 0:
             self.current_video_path = path = os.path.join(self.base_dirpath, f'video_{self.episode_idx}.mp4')
             self._init_video_recorder(env=self.env, path=path) 
             self.is_video_enabled = True
-        else:
-            if self.is_video_enabled:
-                frame = None
-                if self.record_obs:
-                    frame = env_output
-                    while isinstance(frame, list) or isinstance(frame, tuple):
-                        frame = frame[0]
-                    #if frame.shape[-1] != 3:
-                    #    frame = frame.transpose(2,1,0)
-                    frame = frame.transpose(0,2,1)
-                #self.video_recorder.capture_frame(frame=frame)
-                self.frames.append(frame)
-                #self.video_recorder.close()
-                #del self.video_recorder
-                self.frames = np.stack(self.frames,0)
-                wandb_video = wandb.Video(
-                    #data_or_path=self.current_video_path,
-                    data_or_path=self.frames,
-                    fps=2,
-                    format='mp4',
-                )
-                wandb.log({
-                    "Video":wandb_video,
-                    },
-                    commit=False,
-                )
-                del wandb_video
-                del self.frames
-                self.is_video_enabled = False
-
-        self.episode_idx += 1
+        
         return env_output
 
     def step(self, action):
@@ -3300,7 +3515,7 @@ class Gymnasium2GymWrapper(gym.Wrapper):
                     )
                 elif 'discrete' in type(space).__name__.lower():
                     obs_space[key] = gym.spaces.Discrete(n=space.n)
-                elif 'babyaimission' in type(space).__name__.lower():
+                elif 'mission' in type(space).__name__.lower():
                     #obs_space[key] = copy.deepcopy(space)
                     obs_space[key] = GymBabyAIMissionSpace()
                 elif 'multibinary' in type(space).__name__.lower():
@@ -3310,6 +3525,17 @@ class Gymnasium2GymWrapper(gym.Wrapper):
                 else:
                     raise NotImplementedError
             self.observation_space = gym.spaces.Dict(**obs_space)
+    
+    def reset(self, **kwargs):
+        if 'return_info' in kwargs:
+            kwargs.pop("return_info")
+        ret = self.env.reset(**kwargs)
+        if isinstance(ret, tuple):
+            obs, info = ret
+        else:
+            obs = ret 
+            info = {}
+        return obs, info
 
     def reset(self, **kwargs):
         if self.remove_return_info:
@@ -3328,6 +3554,7 @@ class Gymnasium2GymWrapper(gym.Wrapper):
             next_observations, reward, done, next_infos = step_output
         else:
             next_observations, reward, done, truncated, next_infos = step_output
+            done = truncated or done
         return next_observations, reward, done, next_infos
 
 
@@ -3355,14 +3582,28 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         
         self.coverage_count = 0
         self.coverage_points = []
-        x = self.min_x = self.env.unwrapped.min_x
-        z = self.min_z = self.env.unwrapped.min_z
-        self.max_x = self.env.unwrapped.max_x
-        self.max_z = self.env.unwrapped.max_z
+        self.env_type = ''
+        if hasattr(self.env.unwrapped, 'min_x'):
+            # MiniWorld environment
+            self.env_type = 'miniworld'
+            x = self.min_x = self.env.unwrapped.min_x
+            z = self.min_z = self.env.unwrapped.min_z
+            self.max_x = self.env.unwrapped.max_x
+            self.max_z = self.env.unwrapped.max_z
+        elif hasattr(self.env.unwrapped, 'size'):
+            # MiniGrid environment
+            self.env_type = 'minigrid'
+            x = self.min_x = z = self.min_z = 0
+            self.max_x = self.max_z = self.env.unwrapped.size
+            self.coverage_precision = 1.0
+            self.coverage_epsilon = 0.5 
         while x < self.max_x:
             z = self.min_z
             while z < self.max_z:
-                self.coverage_points.append(np.array([x, 0.0, z]))
+                if self.env_type=='miniworld':
+                    self.coverage_points.append(np.array([x, 0.0, z]))
+                elif self.env_type=='minigrid':
+                    self.coverage_points.append(np.array([x, z]))
                 z += self.coverage_precision
             x += self.coverage_precision
         self.nbr_coverage_points = len(self.coverage_points)
@@ -3377,11 +3618,10 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
 
     def compute_coverage(self, agent_poses):
         coverage_count = 0
+        poses = np.stack(agent_poses, axis=0)
         for cov_point in self.coverage_points:
-            distances = [
-                np.linalg.norm(cov_point-pose, 2)
-                for pose in agent_poses
-            ]
+            cov_point = np.expand_dims(cov_point, 0)
+            distances = np.linalg.norm(cov_point-poses, 2, axis=-1)
             min_dist = min(distances)
             if min_dist < self.coverage_epsilon:
                 coverage_count += 1
@@ -3403,17 +3643,17 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         ManipulationRatio = float(self.manipulation_count)/self.episode_length
         PickupRatio = float(self.pickup_count)/self.episode_length
         wandb.log({
-            f"Wrappers/LanguageGuidedCuriosity/CoverageRatio":CoverageRatio,
-            f"Wrappers/LanguageGuidedCuriosity/CoverageCount":self.coverage_count,
-            f"Wrappers/LanguageGuidedCuriosity/ManipulationCount":self.manipulation_count,
-            f"Wrappers/LanguageGuidedCuriosity/ManipulationRatio":ManipulationRatio,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/EpisodeLength": self.episode_length,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogramIndex": self.episode_idx,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/RewardHistogram": reward_hist,
-            f"Wrappers/LanguageGuidedCuriosity/PerEpisode/ManipulationHistogram": manipulation_hist,
-            f"Wrappers/LanguageGuidedCuriosity/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
-            f"Wrappers/LanguageGuidedCuriosity/PickupCount": self.pickup_count,
-            f"Wrappers/LanguageGuidedCuriosity/PickupRatio": PickupRatio,
+            f"Wrappers/CoverageManipulationMetric/CoverageRatio":CoverageRatio,
+            f"Wrappers/CoverageManipulationMetric/CoverageCount":self.coverage_count,
+            f"Wrappers/CoverageManipulationMetric/ManipulationCount":self.manipulation_count,
+            f"Wrappers/CoverageManipulationMetric/ManipulationRatio":ManipulationRatio,
+            f"Wrappers/CoverageManipulationMetric/EpisodeLength": self.episode_length,
+            f"Wrappers/CoverageManipulationMetric/ManipulationHistogramIndex": self.episode_idx,
+            f"Wrappers/CoverageManipulationMetric/RewardHistogram": reward_hist,
+            f"Wrappers/CoverageManipulationMetric/ManipulationHistogram": manipulation_hist,
+            f"Wrappers/CoverageManipulationMetric/CoverageAndManipulationRatio": (CoverageRatio+ManipulationRatio)/2,
+            f"Wrappers/CoverageManipulationMetric/PickupCount": self.pickup_count,
+            f"Wrappers/CoverageManipulationMetric/PickupRatio": PickupRatio,
             },
             commit=False,
         )
@@ -3425,14 +3665,20 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         self.episode_idx += 1
         self.pickup_count = 0
 
-        self.agent_poses = [self.env.unwrapped.agent.pos]
+        if hasattr(self.unwrapped, 'agent'):
+            self.agent_poses = [self.env.unwrapped.agent.pos]
+        else:
+            self.agent_poses = [self.env.unwrapped.agent_pos]
 
         return obs, infos 
     
     def step(self, action):
         next_observation, reward, done, next_infos = self.env.step(action)
         
-        self.agent_poses.append(self.env.unwrapped.agent.pos)
+        if hasattr(self.unwrapped, 'agent'):
+            self.agent_poses.append(self.unwrapped.agent.pos)
+        else:
+            self.agent_poses.append(self.unwrapped.agent_pos)
 
         self.episode_length += 1
         if reward > 0 :
@@ -3467,6 +3713,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             next_infos['metrics']['pickup_count'] = self.pickup_count
             PickupRatio = float(self.pickup_count)/self.episode_length
             next_infos['metrics']['pickup_ratio'] = PickupRatio
+            next_infos['metrics']['episode_length'] = self.episode_length
 
         return next_observation, reward, done, next_infos
 
@@ -3485,6 +3732,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         extrinsic_weight=1.0, #1.0, #0.01,
         ne_dampening_rate=0.1,
         ne_damp_min=1e-4,
+        binary_reward=False,
         densify=True,
     ):
         super(LanguageGuidedCuriosityWrapper, self).__init__(env)
@@ -3493,6 +3741,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         self.extrinsic_weight = extrinsic_weight
         self.intrinsic_return = 0
         self.extrinsic_return = 0
+        self.binary_reward = binary_reward
         self.episode_idx = 0 
         self.ne_dampening_rate = ne_dampening_rate
         if self.ne_dampening_rate > 0.0:
@@ -3513,8 +3762,11 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         else:
             obs = reset_output
             infos = [{}]
-
-        if len(infos):
+        
+        #if isinstance(infos, dict):
+        #    infos = [infos]
+        #if len(infos):
+        if isinstance(infos, list):
             for info_idx in range(len(infos)):
                 infos[info_idx]['language_guided_reward'] = 0.0
                 infos[info_idx]['extrinsic_reward'] = 0.0
@@ -3569,6 +3821,10 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
                 self.ne_damps.append(ne_damp)
                 self.intrinsic_reward *= ne_damp
 
+        # Making reward binary:
+        if self.binary_reward:
+            reward = float(int(reward > 0))
+
         self.intrinsic_return += self.intrinsic_reward
         self.extrinsic_return += reward 
 
@@ -3604,11 +3860,20 @@ def baseline_ther_wrapper(
     bespoke_env_oracle=False,
     miniworld_symbolic_image=False,
     miniworld_entity_visibility_oracle=False,
+    miniworld_entity_visibility_oracle_language_specs='none',
+    miniworld_entity_visibility_oracle_include_discrete_depth=False,
+    miniworld_entity_visibility_oracle_include_depth=False,
+    miniworld_entity_visibility_oracle_too_far_threshold=-1,
+    miniworld_entity_visibility_oracle_include_depth_precision=0,
     miniworld_entity_visibility_oracle_top_view=False,
     language_guided_curiosity=False,
+    language_guided_curiosity_extrinsic_weight=1.0,
+    language_guided_curiosity_intrinsic_weight=1.0,
     ne_dampening_rate=0.0,
+    language_guided_curiosity_binary_reward=False,
     language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
+    descr_type='pickup_only', #'precise-descr',
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3619,6 +3884,11 @@ def baseline_ther_wrapper(
             qualifying_area_ratio=0.15,
             qualifying_screen_ratio=0.025,
             as_obs=True,
+            language_specs=miniworld_entity_visibility_oracle_language_specs,
+            include_discrete_depth=miniworld_entity_visibility_oracle_include_discrete_depth,
+            include_depth=miniworld_entity_visibility_oracle_include_depth,
+            include_depth_precision=miniworld_entity_visibility_oracle_include_depth_precision,
+            too_far_threshold=miniworld_entity_visibility_oracle_too_far_threshold,
             with_top_view=miniworld_entity_visibility_oracle_top_view,
             verbose=False,
         )
@@ -3636,6 +3906,8 @@ def baseline_ther_wrapper(
     )
     if time_limit>0:
         env = TimeLimit(env, max_episode_steps=time_limit)
+    #if hasattr(env.unwrapped, 'max_steps'):
+    #    env.unwrapped.max_steps = time_limit
 
     if add_rgb_wrapper:
         if full_obs:
@@ -3673,18 +3945,6 @@ def baseline_ther_wrapper(
             concatenate_keys_with_obs=concatenate_keys_with_obs,
         )
     
-    if language_guided_curiosity:
-        env = LanguageGuidedCuriosityWrapper(
-            env=env,
-            ne_dampening_rate=ne_dampening_rate,
-            densify=language_guided_curiosity_densify,
-        )
-    if coverage_manipulation_metric:
-        env = CoverageManipulationMetricWrapper(
-            env=env,
-            pick_idx=env.actions.pickup,
-        )
-
     if clip_reward:
         env = ClipRewardEnv(env)
     
@@ -3693,14 +3953,17 @@ def baseline_ther_wrapper(
     else:
         observation_keys_mapping={'desired_goal':'desired_goal'}
 
-    if describe_achieved_pickup_goal:
+    if describe_achieved_pickup_goal \
+    or (language_guided_curiosity and 'descr' in descr_type):
         env = BehaviourDescriptionWrapper(
             env=env, 
             max_sentence_length=max_sentence_length,
             use_visible_entities=use_visible_entities,
+            descr_type=descr_type,
         )
-        observation_keys_mapping['behaviour_description'] = 'achieved_goal'
-    if miniworld_entity_visibility_oracle:
+        observation_keys_mapping[env.observation_space_name] = 'achieved_goal'
+    if miniworld_entity_visibility_oracle \
+    or (language_guided_curiosity and 'descr' in descr_type):
         observation_keys_mapping['visible_entities'] = "visible_entities_widx"
     if bespoke_env_oracle:
         observation_keys_mapping['achieved_goal'] = 'achieved_goal'
@@ -3712,6 +3975,21 @@ def baseline_ther_wrapper(
         vocab_size=vocab_size,
         observation_keys_mapping=observation_keys_mapping,
     )
+
+    if language_guided_curiosity:
+        env = LanguageGuidedCuriosityWrapper(
+            env=env,
+            extrinsic_weight=language_guided_curiosity_extrinsic_weight,
+            intrinsic_weight=language_guided_curiosity_intrinsic_weight,
+            ne_dampening_rate=ne_dampening_rate,
+            binary_reward=language_guided_curiosity_binary_reward,
+            densify=language_guided_curiosity_densify,
+        )
+    if coverage_manipulation_metric:
+        env = CoverageManipulationMetricWrapper(
+            env=env,
+            pick_idx=env.actions.pickup,
+        )
 
     #env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})
     if observation_key is not None:

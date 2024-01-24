@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c benchmark_wandb_erelela.py \
---seed=20 \
+--seed=20 --static_envs=False \
 --use_cuda=True \
 --project=EReLELA \
 --success_threshold=0.999 \
@@ -8,7 +8,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --language_guided_curiosity_densify=False \
 --language_guided_curiosity_non_episodic_dampening_rate=0.001 \
 --coverage_manipulation_metric=True \
---MiniWorld_entity_visibility_oracle=False \
+--MiniWorld_entity_visibility_oracle=True \
+--MiniWorld_entity_visibility_oracle_language_specs='none' \
+--MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \
 --use_ETHER=False --use_THER=False \
 --use_RP=False --RP_use_RP=True \

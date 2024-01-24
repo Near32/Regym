@@ -19,6 +19,8 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         model,
         pipeline_name="instruction_generator",
         generator_name="InstructionGenerator",
+        trainable=True,
+        postprocess_fn=None,
         **kwargs,
     ):
         ArchiPredictor.__init__(
@@ -29,6 +31,9 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             **kwargs,
         )
         self.logger = None
+        self.trainable = trainable
+        self.postprocess_fn = postprocess_fn
+         
         '''
         Speaker.__init__(
             self,
@@ -41,9 +46,35 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         )
         '''
     
-    def clone(self):
+    def set_postprocess_fn(self, postprocess_fn):
+        self.postprocess_fn = postprocess_fn
+            
+    def save(self, path, filename=None):
+        postprocess_fn = self.postprocess_fn
+        self.postprocess_fn = None 
+        
+        logger = self.logger
+        self.logger = None
+        
+        if filename is None:
+            filepath = path+self.id+".agent"
+        else:
+            filepath = os.path.join(path, filename)
+        torch.save(self, filepath)
+        
+        self.logger = logger 
+        self.postprocess_fn = postprocess_fn
+        return 
+
+    def clone(self, clone_proxies=False, minimal=False):
         self.reset()
-        return Speaker.clone(self)
+        postprocess_fn = self.postprocess_fn
+        self.postprocess_fn = None
+        cloned = Speaker.clone(self)
+        if clone_proxies:
+            cloned.postprocess_fn = postprocess_fn
+        self.postprocess_fn = postprocess_fn
+        return cloned
 
     def speaker_init(
         self,
@@ -108,16 +139,26 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
   
     def parameters(self):
         params = []
-        for km, module in self.model.modules.items():
-            if km in self.model.pipelines[self.pipeline_name]: #["instruction_generator"]:
-                params += module.parameters()
+        
+        if not self.trainable:
+            return params
+        
         if hasattr(self, 'tau_fc'):
             #print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
             params += self.tau_fc.parameters()
+        
+        for km, module in self.model.modules.items():
+            if km in self.model.pipelines[self.pipeline_name]: #["instruction_generator"]:
+                params += module.parameters()
+        
         return params
 
     def _compute_tau(self, tau0, h):
-        tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        batch_size = h.shape[0]
+        if self.trainable:
+            tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        else:
+            tau = tau0*torch.ones(batch_size, 1).to(h.device)
         return tau
     
     def _utter(self, features, sentences=None, rnn_states=None):
@@ -133,8 +174,19 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
+        batch_size = features.shape[0]
+        extra_rnn_states = self.model.get_reset_states({
+            'repeat':batch_size,
+            'cuda':self.kwargs['use_cuda'],
+            }
+        )
         if rnn_states is None:
-            rnn_states = self.model.get_reset_states()
+            rnn_states = extra_rnn_states
+        else:
+            for k,v in extra_rnn_states.items():
+                if k in rnn_states: continue
+                rnn_states[k] = v
+				
         input_dict = {
             'obs':features,
             'rnn_states': rnn_states,
@@ -150,6 +202,12 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             },
             return_feature_only=return_feature_only,
         )
+        
+        if self.postprocess_fn is not None:
+            output = self.postprocess_fn(
+                output=output,
+                predictor=self,
+            )
         
         sentences_widx = output["next_rnn_states"][self.generator_name]["processed_input0"][0].unsqueeze(-1)
         sentences_logits = output["next_rnn_states"][self.generator_name]["input0_prediction_logits"][0]
@@ -181,9 +239,18 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         gt_sentences=None,
         rnn_states=None,
     ):
+        batch_size = x.shape[0]
         if rnn_states is None:
-            rnn_states = self.model.get_reset_states()
-
+            rnn_states = self.model.get_reset_states({
+                'repeat':batch_size,
+                'cuda':self.kwargs['use_cuda'],
+                }
+            )
+        else:
+            for k,v in self.model.get_reset_states().items():
+                if k in rnn_states: continue
+                rnn_states[k] = v
+				
         input_dict = {
             'obs':x,
             'rnn_states': rnn_states,
@@ -249,7 +316,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             next_sentences_hidden_states = None
             next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
         
-        if self.training:
+        if self.training and self.trainable:
             if "gumbel_softmax" in graphtype:    
                 if next_sentences_hidden_states is None: 
                     self.tau = self._compute_tau(tau0=tau0)

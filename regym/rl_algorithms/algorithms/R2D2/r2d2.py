@@ -16,10 +16,50 @@ from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
 from regym.rl_algorithms.algorithms.DQN import DQNAlgorithm
 from regym.rl_algorithms.replay_buffers import ReplayStorage, PrioritizedReplayStorage, SharedPrioritizedReplayStorage
-from regym.rl_algorithms.utils import archi_concat_fn, concat_fn, _concatenate_hdict, _concatenate_list_hdict
+from regym.rl_algorithms.utils import (
+    archi_concat_fn, 
+    concat_fn, 
+    _concatenate_hdict, 
+    _concatenate_list_hdict,
+    _extract_rnn_states_from_batch_indices,
+)
 
 import wandb
 sum_writer = None
+
+
+def _extract_from_hdict(
+    samples: Dict,
+    batch_indices: List,
+    use_cuda: bool=False,
+    post_process_fn: Callable=None,
+):
+    sampled_samples = {}
+    for k in samples:
+        out_k = k
+        v = samples[k]
+        if v is None:   
+            sampled_samples[out_k] = None
+            continue
+        if 'rnn' in k:
+            v = _extract_rnn_states_from_batch_indices(
+                v, 
+                batch_indices, 
+                use_cuda=use_cuda,
+            )
+        elif use_cuda:
+            v = v[batch_indices].cuda() 
+        else: 
+            v = v[batch_indices]
+        
+        if post_process_fn is not None:
+            v = post_process_fn(v)
+
+        sampled_samples[out_k] = v
+        # (batch_size, unroll_dim, ...)
+    
+    return sampled_samples
+
 
 
 
@@ -173,7 +213,8 @@ class R2D2Algorithm(DQNAlgorithm):
                         eta=self.kwargs['sequence_replay_PER_eta'],
                         keys=self.keys,
                         circular_keys=self.circular_keys,                 
-                        circular_offsets=self.circular_offsets
+                        circular_offsets=self.circular_offsets,
+                        use_rewards_in_priority=self.kwargs.get('PER_use_rewards_in_priority', False),
                     )
                 else:
                     if self.use_mp:
@@ -189,6 +230,7 @@ class R2D2Algorithm(DQNAlgorithm):
                             keys=self.keys,
                             circular_keys=self.circular_keys,
                             circular_offsets=self.circular_offsets,
+                            use_rewards_in_priority=self.kwargs.get('PER_use_rewards_in_priority', False),
                         )
                 self.storages.append(storage)
             else:
@@ -312,12 +354,14 @@ class R2D2Algorithm(DQNAlgorithm):
                         if isinstance(self.storages[0], ray.actor.ActorHandle):
                             new_priority = ray.get(
                                 self.storages[cs_storage_idx].sequence_priority.remote(
-                                    td_error_per_item[exp_dict_idx].reshape(unroll_length,)
+                                    td_error_per_item[exp_dict_idx].reshape(unroll_length,),
+                                    csed,
                                 )
                             )
                         else:
                             new_priority = self.storages[cs_storage_idx].sequence_priority(
-                                td_error_per_item[exp_dict_idx].reshape(unroll_length,)
+                                td_error_per_item[exp_dict_idx].reshape(unroll_length,),
+                                csed,
                             )
                         
                         if isinstance(self.storages[cs_storage_idx], ray.actor.ActorHandle):
@@ -443,10 +487,13 @@ class R2D2Algorithm(DQNAlgorithm):
             self.sequence_replay_buffers_count[actor_index] = 0
 
     # NOTE: we are overriding this function from DQNAlgorithm
-    def _update_replay_buffer_priorities(self, 
-                                         sampled_losses_per_item: List[torch.Tensor], 
-                                         array_batch_indices: List,
-                                         minibatch_size: int):
+    def _update_replay_buffer_priorities(
+            self, 
+            sampled_losses_per_item: List[torch.Tensor], 
+            array_batch_indices: List,
+            list_sampled_samples: List[Dict[str, torch.Tensor]],
+            minibatch_size: int,
+        ):
         '''
         Updates the priorities of each sampled elements from their respective storages.
 
@@ -464,7 +511,17 @@ class R2D2Algorithm(DQNAlgorithm):
         else:
             ps_tree_indices = [storage.get_tree_indices() if len(storage) else [] for storage in self.storages]
         
-        for sloss, arr_bidx in zip(sampled_losses_per_item, array_batch_indices):
+        for slidx, (sloss, arr_bidx) in enumerate(zip(sampled_losses_per_item, array_batch_indices)):
+            idx_lss = slidx//minibatch_size
+            ssamples_dict = list_sampled_samples[idx_lss]
+            idx_ss = slidx % minibatch_size
+            ssamples_dict = _extract_from_hdict(
+                samples=ssamples_dict,
+                batch_indices=[idx_ss],
+                use_cuda=False,
+                post_process_fn=None,
+            )
+ 
             storage_idx = arr_bidx//minibatch_size
             el_idx_in_batch = arr_bidx%minibatch_size
 
@@ -474,9 +531,15 @@ class R2D2Algorithm(DQNAlgorithm):
             
             # (unroll_dim,)
             if isinstance(self.storages[0], ray.actor.ActorHandle):
-                new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(sloss.reshape(unroll_length,)))
+                new_priority = ray.get(self.storages[storage_idx].sequence_priority.remote(
+                    sloss.reshape(unroll_length,),
+                    ssamples_dict,
+                ))
                 ray.get(self.storages[storage_idx].update.remote(idx=el_idx_in_storage, priority=new_priority))
             else:
-                new_priority = self.storages[storage_idx].sequence_priority(sloss.reshape(unroll_length,))
+                new_priority = self.storages[storage_idx].sequence_priority(
+                    sloss.reshape(unroll_length,),
+                    ssamples_dict,
+                )
                 self.storages[storage_idx].update(idx=el_idx_in_storage, priority=new_priority)
 

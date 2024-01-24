@@ -30,7 +30,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ETHER_rg_descriptive=False --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=1 --ETHER_rg_accuracy_threshold=99 \
 --ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=7 \
---ETHER_replay_capacity=2048 --ETHER_test_replay_capacity=512 \
+--ETHER_replay_capacity=1024 --ETHER_test_replay_capacity=512 \
 --ETHER_rg_distractor_sampling=similarity-90 \
 --THER_use_PER=True --THER_observe_achieved_goal=False \
 --THER_lock_test_storage=True \
@@ -47,7 +47,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=400 \
 --BabyAI_Bot_action_override=False \
---train_observation_budget=80000
+--train_observation_budget=6144 
 
 #--ETHER_train_dataset_length=1024 --ETHER_test_dataset_length=512 \
 #3072

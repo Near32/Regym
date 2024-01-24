@@ -18,6 +18,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_use_THER=True \
 --THER_use_THER_predictor_supervised_training=False \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
+--ETHER_rg_freeze_speaker=False \
 --ETHER_with_Oracle=False \
 --ETHER_with_Oracle_type='goal-only' \
 --ETHER_with_Oracle_listener=False \
@@ -51,7 +52,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --ETHER_lock_test_storage=True --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_color_jitter_prob=0.0 \
 --ETHER_rg_gaussian_blur_prob=0.5 \
---ETHER_rg_egocentric_prob=0.5 \
+--ETHER_rg_egocentric_prob=0.0 \
+--ETHER_rg_tau0=0.2 \
 --ETHER_rg_egocentric_tr_degrees=30 --ETHER_rg_egocentric_tr_xy=10 \
 --ETHER_rg_object_centric_version=2 \
 --ETHER_rg_distractor_sampling_scheme_version=2 \
@@ -87,6 +89,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
+--nbr_frame_stacking=4 \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
