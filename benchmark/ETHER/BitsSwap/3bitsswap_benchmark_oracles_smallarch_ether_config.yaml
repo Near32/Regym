@@ -619,7 +619,7 @@ agents:
                     dueling: True
                     config:
                         mlp_nbr_layers: 2
-			with_batchnorm: True
+                        with_batchnorm: True
                     input_stream_ids: 
                         #input0: "inputs:CoreLSTM:lstm_output"
                         input0: "inputs:CoreLSTM:output"

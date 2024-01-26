@@ -296,8 +296,8 @@ experiment:
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
         #'env-id': '5BitsSwap-v0',
-        'env-id': '3BitsSwap-v0',
-        'env-config': {},
+        'env-id': '10BitsSwap-v0',
+        'env-config': {'max_steps':20, },
         'run-id': 'testNBitsSwap',
         'agent-id': 'archi_r2d2_ETH3R',
         
@@ -409,18 +409,21 @@ agents:
         ArchiModel:
             model_id: 'RL_FiLMedETHERModel'
             hyperparameters:
-                obs_dim: &obs_dim 3 #5 
+                obs_dim: &obs_dim 10 
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
                 encoder_final_depth_dim: &encoder_final_depth_dim 256 #64
                 caption_feature_dim: &caption_feature_dim 256 #64
-                feature_dim: &feature_dim 512 #256 #64
-                lstm_input_dim: &lstm_input_dim 1088 #576 #513 #321 #769 #512 #128
+                feature_dim: &feature_dim 64 #512 #256 #64
+                #lstm_input_dim: &lstm_input_dim 1088 #576 #513 #321 #769 #512 #128
+                lstm_input_dim: &lstm_input_dim 192 #576 #1088 #576 #513 #321 #769 #512 #128
                 mlp_input_dim: &mlp_input_dim 32 #2304 #10816 #3136
-                comm_state_dim: &comm_state_dim 256
-                hidden_dim: &hidden_dim 1024 #512
-                action_dim: &action_dim 3 #5
-                rlhead_state_dim: &rlhead_state_dim 1091 #1027 #1032 #520
+                comm_state_dim: &comm_state_dim 64 #256
+                #hidden_dim: &hidden_dim 512 #1024 #512
+                hidden_dim: &hidden_dim 128 #1024 #512
+                action_dim: &action_dim 10
+                #rlhead_state_dim: &rlhead_state_dim 1027 #1032 #520
+                rlhead_state_dim: &rlhead_state_dim 202 #195 #1539 #1032 #520
                 temporal_dim: &temporal_dim 4
                 #instruction_generator_input_dim: &instruction_generator_input_dim *feature_dim #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
                 
@@ -429,27 +432,28 @@ agents:
                 "inputs:legal_actions" : "frame_states:legal_actions"
                 
             modules:
-                #'CoreLSTM':
-                #    type: LSTMModule
-                #    state_dim: *lstm_input_dim #"{{key_dim}+1}"
-                #    hidden_units: 
-                #        - *hidden_dim 
-                #    non_linearities: [None]
-                #    config: None
-                #    input_stream_ids:
-                #        lstm_input: "inputs:ConcatenationOperation:output"
-                #        #lstm_input: "inputs:Encoder:processed_input"
-                #        lstm_hidden: "inputs:CoreLSTM:hidden"
-                #        lstm_cell: "inputs:CoreLSTM:cell"
-                #        iteration: "inputs:CoreLSTM:iteration"
-                #    #output_stream_ids:
-                #    #    output: "inputs:CoreLSTM:lstm_output"
-                #    use_cuda: True
+                'CoreLSTM':
+                    type: LSTMModule
+                    state_dim: *lstm_input_dim #"{{key_dim}+1}"
+                    hidden_units: 
+                        - *hidden_dim 
+                    non_linearities: [None]
+                    config: None
+                    input_stream_ids:
+                        lstm_input: "inputs:ConcatenationOperation:output"
+                        #lstm_input: "inputs:Encoder:processed_input"
+                        lstm_hidden: "inputs:CoreLSTM:hidden"
+                        lstm_cell: "inputs:CoreLSTM:cell"
+                        iteration: "inputs:CoreLSTM:iteration"
+                    #output_stream_ids:
+                    #    output: "inputs:CoreLSTM:lstm_output"
+                    use_cuda: True
 
                 'SharedObsEncoder':
                     type: FullyConnectedNetworkModule
                     state_dim: *obs_dim
-                    hidden_units: ['BN128', 'BN64', 'BN32']
+                    #hidden_units: ['BN128', 'BN64', 'BN32']
+                    hidden_units: ['BN128', 'BN128', 'BN128']
                     non_linearities: ['ReLU']
                     dropout: 0.0
                     config: None
@@ -565,21 +569,21 @@ agents:
                 #        input: "inputs:FiLMedBlock2:processed_input"
                 #    use_cuda: True
                     
-                'MLP':
-                    type: FullyConnectedNetworkModule
-                    state_dim: *mlp_input_dim #3136
-                    hidden_units: ['BN256', 'BN128', 'BN64']
-                    #hidden_units: ['BN512', 'BN256']
-                    #hidden_units: ['BN1024', 'BN512', 'BN256']
-                    non_linearities: ['ReLU']
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
-                        #input: "inputs:FiLMedBlock2:processed_input"
-                    output_stream_ids:
-                        input: "inputs:MLP:processed_input"
-                    use_cuda: True
+                #'MLP':
+                #    type: FullyConnectedNetworkModule
+                #    state_dim: *mlp_input_dim #3136
+                #    hidden_units: ['BN256', 'BN128', 'BN64']
+                #    #hidden_units: ['BN512', 'BN256']
+                #    #hidden_units: ['BN1024', 'BN512', 'BN256']
+                #    non_linearities: ['ReLU']
+                #    dropout: 0.0
+                #    config: None
+                #    input_stream_ids:
+                #        input: "inputs:SharedObsEncoder:processed_input"
+                #        #input: "inputs:FiLMedBlock2:processed_input"
+                #    output_stream_ids:
+                #        input: "inputs:MLP:processed_input"
+                #    use_cuda: True
                     
                 'ActionEmbeddor':
                     type: EmbeddingModule 
@@ -601,8 +605,9 @@ agents:
                         'use_cuda': True
                         'output_dim': *lstm_input_dim #321
                     input_stream_ids:
-                        input0: "inputs:CommEncoder:processed_input"
-                        input1: "inputs:MLP:processed_input"
+                        #input0: "inputs:CommEncoder:processed_input"
+                        #input1: "inputs:MLP:processed_input"
+                        input1: "inputs:SharedObsEncoder:processed_input"
                         input2: "inputs:ActionEmbeddor:processed_input"
                         #input3: "inputs:critic_body:extra_inputs:previous_reward"
 
@@ -616,12 +621,12 @@ agents:
                         mlp_nbr_layers: 2
                         with_batchnorm: True
                     input_stream_ids: 
-                        input0: "inputs:ConcatenationOperation:output"
                         #input0: "inputs:CoreLSTM:lstm_output"
-                        #input0: "inputs:CoreLSTM:output"
+                        input0: "inputs:CoreLSTM:output"
                         #input1: "inputs:critic_body:extra_inputs:previous_reward"
                         input2: "inputs:critic_body:extra_inputs:previous_action"
                         #input3: "inputs:critic_body:extra_inputs:action_mask"
+                        input4: "inputs:CommEncoder:processed_input"
                         action: "inputs:action"
                         #legal_actions: "inputs:legal_actions"
                     use_cuda: True
@@ -660,9 +665,11 @@ agents:
             
             pipelines:
                 #torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
-                torso: ['SharedObsEncoder', 'CommEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
+                #torso: ['SharedObsEncoder', 'CommEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
+                #torso: ['SharedObsEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
+                torso: ['SharedObsEncoder', 'ActionEmbeddor', 'ConcatenationOperation']
                 #head: ['CoreLSTM', 'RLHead']
-                head: [ 'RLHead']
+                head: ['CoreLSTM', 'CommEncoder', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
                 #instruction_generator: ['SharedObsEncoder', 'InstructionGeneratorMLP', 'InstructionGenerator']
                 instruction_generator: ['SharedObsEncoder', 'InstructionGenerator']

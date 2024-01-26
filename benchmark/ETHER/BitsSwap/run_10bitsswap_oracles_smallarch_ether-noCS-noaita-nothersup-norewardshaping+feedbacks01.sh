@@ -1,10 +1,10 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
---seed=30 \
+--seed=20 \
 --project=ETHER-BitsSwap \
 --success_threshold=0.001 \
 --with_early_stopping=False \
 --use_cuda=True \
---config=3bitsswap_benchmark_oracles_smallarch_ether_config.yaml \
+--config=10bitsswap_benchmark_oracles_smallarch_ether_config.yaml \
 --language_guided_curiosity=False \
 --coverage_manipulation_metric=False \
 --MiniWorld_entity_visibility_oracle=False \
@@ -89,7 +89,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=False \
 --THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \
---THER_store_only_relabelled_episode=False \
+--THER_store_only_relabelled_episode=True \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
