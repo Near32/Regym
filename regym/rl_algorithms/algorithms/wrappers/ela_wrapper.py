@@ -1342,7 +1342,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         period_check = self.kwargs['ELA_rg_training_period']
         period_count_check = self.nbr_buffered_predictor_experience
         can_rg_train = False
-        if len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
+        if self.kwargs["ELA_with_rg_training"] \
+        and len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
             can_rg_train = True
         quotient = period_count_check // period_check
         previous_quotient = getattr(self, 'previous_ELA_quotient', -1)

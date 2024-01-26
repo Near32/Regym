@@ -60,6 +60,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --RP_test_min_capacity=32 --RP_replay_period=1024 \
 --RP_nbr_training_iteration_per_update=8 \
 --RP_predictor_accuracy_threshold=90 \
+--ELA_with_rg_training=False \
 --ELA_rg_use_cuda=True \
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=False \
