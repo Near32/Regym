@@ -4,6 +4,7 @@ import logging
 import yaml
 import os
 import sys
+import time 
 
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -1021,6 +1022,7 @@ def main():
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
+    parser.add_argument("--ELA_rg_compactness_ambiguity_metric_language_specs", type=str, default="emergent")
     parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
     parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
@@ -1178,6 +1180,11 @@ def main():
         print("WARNING :: sanity check in progress for compactness ambiguity metric.")
         print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
     
+    if "natural" in dargs["ELA_rg_compactness_ambiguity_metric_language_specs"]:
+        dargs["THER_observe_achieved_goal"] = True
+        print(f"WARNING: ELA_rg_compactness_ambiguity_metric_language_specs contains 'natural'. Thus, THER_observed_achieved_goal is set to True. Necessary for the MultiRoom envs to have BehaviouralDescriptions in NL.")
+        time.sleep(10)
+
     if dargs["ETHER_listener_based_predicated_reward_fn"]:
         print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
         #if dargs["ETHER_use_continuous_feedback"] \

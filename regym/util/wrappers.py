@@ -6,6 +6,7 @@ import re
 from functools import partial 
 from collections.abc import Iterable
 from collections import deque, OrderedDict
+from ordered_set import OrderedSet
 
 import cv2
 #cv2.setNumThreads(0)
@@ -2376,11 +2377,11 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
 
         self.vocab_size = vocab_size
         if vocabulary is None:
-            vocabulary = set('key ball red green blue purple \
+            vocabulary = OrderedSet('key ball red green blue purple \
             yellow grey verydark dark neutral light verylight \
             tiny small medium large giant get go fetch go get \
             a fetch a you must fetch a'.split(' '))
-        self.vocabulary = set([w.lower() for w in vocabulary])
+        self.vocabulary = OrderedSet([w.lower() for w in vocabulary])
         
 
         #########################################
@@ -2395,7 +2396,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
 
         while len(self.vocabulary) < self.vocab_size-2:
             self.vocabulary.append( f"DUMMY{len(self.vocabulary)}")
-        self.vocabulary = list(set(self.vocabulary))
+        self.vocabulary = list(OrderedSet(self.vocabulary))
         #########################################
         #MODIF1: padding with EoS and making sure EoS is index 0 of vocabulary!
         self.vocabulary = ['EoS', 'SoS'] + self.vocabulary
@@ -2407,6 +2408,9 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             self.w2idx[w] = idx
             self.idx2w[idx] = w 
         
+        print(type(self))
+        print(self.idx2w)
+
         self.observation_space = copy.deepcopy(env.observation_space)
         
         for obs_key, map_key in self.observation_keys_mapping.items():

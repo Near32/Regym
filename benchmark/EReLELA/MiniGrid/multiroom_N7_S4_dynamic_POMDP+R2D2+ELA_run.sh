@@ -1,9 +1,9 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=10 --env_seed=12 --static_envs=False \
+--seed=20 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-MultiRoom-Benchmark \
---success_threshold=0.999 \
+--success_threshold=0.01 \
 --config=multiroom_N7_S4_minigrid_wandb_benchmark_POMDPERELELA_config.yaml \
 --language_guided_curiosity=False \
 --language_guided_curiosity_descr_type='descr' \
@@ -62,6 +62,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --RP_predictor_accuracy_threshold=90 \
 --ELA_with_rg_training=True \
 --ELA_rg_use_cuda=True \
+--ELA_rg_compactness_ambiguity_metric_language_specs=emergent+natural+color+shape+shuffled-emergent+shuffled-natural+shuffled-color+shuffled-shape \
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=True \
 --ELA_rg_with_logits_mdl_principle=True \
@@ -81,9 +82,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
 --ELA_rg_training_period=32768 \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=8 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=65 \
 --ELA_rg_nbr_train_distractors=3 --ELA_rg_nbr_test_distractors=3 \
---ELA_replay_capacity=4096 --ELA_test_replay_capacity=1024 \
+--ELA_replay_capacity=16384 --ELA_test_replay_capacity=4096 \
 --ELA_rg_distractor_sampling=uniform \
 --ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \

@@ -1129,7 +1129,9 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "current_dataloader:sample:speaker_grounding_signal"
             compactness_ambiguity_metric_input_stream_ids["top_view"] = "current_dataloader:sample:speaker_top_view" 
             compactness_ambiguity_metric_input_stream_ids["agent_pos_in_top_view"] = "current_dataloader:sample:speaker_agent_pos_in_top_view" 
-            
+        if "natural" in self.kwargs.get("ELA_rg_compactness_ambiguity_metric_language_specs", "emergent"):
+            compactness_ambiguity_metric_input_stream_ids["natural_representations"] = "current_dataloader:sample:speaker_natural_language_sentences_widx"        
+        
         compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
@@ -1145,8 +1147,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "resample": False, #self.kwargs["ELA_rg_metric_resampling"],
                 "threshold":5e-2,#0.0,#1.0,
                 "random_state_seed":self.kwargs["ELA_rg_seed"],
+                "nbr_shuffled_entities":4,
                 "verbose":False,
                 "idx2w": self.idx2w,
+                "language_specs_to_compute":self.kwargs["ELA_rg_compactness_ambiguity_metric_language_specs"].split('+'),
                 "kwargs": self.kwargs,
             }
         )
@@ -1274,7 +1278,11 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             extra_keys_dict.update({
                 "semantic_signal":"info:symbolic_image",
             })
-         
+        if "natural" in self.kwargs.get("ELA_rg_compactness_ambiguity_metric_language_specs","emergent"):
+            extra_keys_dict.update({
+                "natural_language_sentences_widx":"info:achieved_goal",
+            })
+
         self.rg_train_dataset = DemonstrationDataset(
             replay_storage=self.rg_storages[0],
             train=True,
