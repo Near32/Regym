@@ -80,9 +80,9 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_learning_rate=3e-4 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
---ELA_rg_training_period=32768 \
+--ELA_rg_training_period=8192 \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=65 \
+--ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=70 \
 --ELA_rg_nbr_train_distractors=3 --ELA_rg_nbr_test_distractors=3 \
 --ELA_replay_capacity=16384 --ELA_test_replay_capacity=4096 \
 --ELA_rg_distractor_sampling=uniform \
