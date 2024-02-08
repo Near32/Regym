@@ -262,14 +262,26 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             return_feature_only = None 
             input_dict['rnn_states']['gt_sentences'] = gt_sentences
             
-        output = self.model.forward(
-            **input_dict,
-            pipelines={
-                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
-            },
-            return_feature_only=return_feature_only,
-        )
-
+        if return_feature_only is None:
+            output = self.model.forward(
+                **input_dict,
+                pipelines={
+                    self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
+                },
+                return_feature_only=return_feature_only,
+            )
+        else:
+            prediction = self.model.forward(
+                **input_dict,
+                pipelines={
+                    self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
+                },
+                return_feature_only=None, #return_feature_only,
+            )
+            output = self.model.stream_handler[return_feature_only]
+            prediction['output'] = output
+            return prediction
+             
         return output
     
     def speaker_forward(

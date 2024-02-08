@@ -184,11 +184,35 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         with torch.no_grad():
             training = self.predictor.training
             self.predictor.train(False)
-            captions = self.predictor(
+            prediction = self.predictor(
                 x=state, 
                 rnn_states=rnn_states,
-            ).cpu()
+            )
+            captions = prediction['output'][0].cpu()
             self.predictor.train(training)
+        
+        ## Logging perplexity:
+        wandb_dict = {}
+        metrics = {
+            'caption_perplexity': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_perplexities'][0].cpu().numpy(),
+            'caption_likelihood': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_likelihoods'][0].cpu().numpy(),
+        }
+        for k in metrics.keys():
+            hist = metrics[k]
+            median = np.median(hist)
+            mean = np.mean(hist)
+            std = np.std(hist)
+            minv = np.min(hist)
+            maxv = np.max(hist)
+            wandb_dict[f"PerEpisode/{k}/Max"] = maxv
+            wandb_dict[f"PerEpisode/{k}/Min"] = minv
+            wandb_dict[f"PerEpisode/{k}/Median"] = median
+            wandb_dict[f"PerEpisode/{k}/Mean"] = mean
+            wandb_dict[f"PerEpisode/{k}/Std"] = std
+        wandb.log(
+            wandb_dict,
+            commit=False,
+        )
         
         visited_captions = []
         reward_mask = torch.zeros(episode_length)
