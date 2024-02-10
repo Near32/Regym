@@ -403,7 +403,7 @@ def training_process(
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=task_config['clip_reward'],
       time_limit=task_config['time_limit'],
-      max_sentence_length=agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
+      max_sentence_length=128, #agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
@@ -442,7 +442,7 @@ def training_process(
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=False,
       time_limit=task_config['time_limit'],
-      max_sentence_length=agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
+      max_sentence_length=128, #agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
@@ -1151,6 +1151,9 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    if dargs["ELA_rg_logits_mdl_principle_factor"] > 0.0:
+        dargs["ELA_rg_with_logits_mdl_principle_factor"] = True
+
     if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :
         dargs['ETHER_rg_with_gaussian_blur_augmentation'] = True
 
