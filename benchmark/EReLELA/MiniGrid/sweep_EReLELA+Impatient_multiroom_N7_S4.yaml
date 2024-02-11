@@ -154,10 +154,10 @@ parameters:
         values: [0.0, 1.0e-2, 1.0e-3, 1.0e-4]
 
     ELA_rg_logits_mdl_principle_accuracy_threshold:
-        values: [20.0, 50.0, 60.0, 100.0]
+        values: [20.0, 50.0, 60.0]
 
     ELA_rg_agent_loss_type:
-        values: [Impatient+Hinge]
+        values: [Impatient+Hinge, Hinge]
 
     ELA_rg_use_semantic_cooccurrence_grounding:
         values: [False]
@@ -175,7 +175,7 @@ parameters:
         values: [0.0]
 
     ELA_rg_gaussian_blur_prob:
-        values: [0.5]
+        values: [0.5, 1.0]
 
     ELA_rg_egocentric_prob:
         values: [0.0]
@@ -198,7 +198,7 @@ parameters:
     ELA_rg_vocab_size:
         values: [32, 64] 
     ELA_rg_max_sentence_length:
-        values: [32, 128]
+        values: [64, 128]
 
     ELA_rg_training_period:
         values: [32768]
@@ -211,7 +211,7 @@ parameters:
     ELA_rg_nbr_epoch_per_update:
         values: [32]
     ELA_rg_accuracy_threshold:
-        values: [60, 65, 70]
+        values: [50, 60, 65, 70]
 
     ELA_rg_nbr_train_distractors:
         values: [0, 1, 2, 3]
