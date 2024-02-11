@@ -191,9 +191,9 @@ parameters:
         values: [0.0]
 
     ELA_rg_l1_weight_decay:
-        values: [0.0]
+        values: [0.0, 1e-3, 1e-4]
     ELA_rg_l2_weight_decay:
-        values: [0.0, 1e-2, 1e-3, 1e-4]
+        values: [0.0]
 
     ELA_rg_vocab_size:
         values: [32, 64] 

@@ -213,7 +213,7 @@ ELA_extra_hyperparameters: &ELA_extra_hyperparameters
     ELA_rg_accuracy_threshold: 75
     ELA_split_strategy: None 
 
-    ELA_vocab_size: &ELA_vocab_size 64 #1024 
+    ELA_rg_vocab_size: &ELA_rg_vocab_size 64 #1024 
     ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 128 #64 #10 
     ELA_vocabulary: &ELA_vocabulary [
         'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
@@ -495,7 +495,7 @@ agents:
         ArchiModel:
             model_id: 'RL_FiLMedELAModel'
             hyperparameters:
-                vocab_size: *ELA_vocab_size
+                vocab_size: *ELA_rg_vocab_size
                 max_sentence_length: *ELA_rg_max_sentence_length
                 caption_feature_dim: &caption_feature_dim 256 #256 #64
                 feature_dim: &feature_dim 128 #512 #256 #64
@@ -719,7 +719,7 @@ agents:
                 'CaptionGenerator':
                     type: CaptionRNNModule
                     vocabulary: *ELA_vocabulary 
-                    vocab_size: *ELA_vocab_size 
+                    vocab_size: *ELA_rg_vocab_size 
                     max_sentence_length: *ELA_rg_max_sentence_length 
                     input_dim: *caption_feature_dim #*instruction_generator_input_dim
                     embedding_size: *caption_feature_dim

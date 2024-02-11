@@ -601,8 +601,27 @@ def training_process(
     return trained_agent, task 
 
 
-def load_configs(config_file_path: str):
-    all_configs = yaml.safe_load(open(config_file_path))
+def parse_and_update(config_file_path: str, kwargs: Dict[str, Any]):
+    config_file = open(config_file_path, 'r')
+    lines = config_file.readlines()
+    config = ""
+    for line in lines:
+        if '&' in line:
+            key, value = line.split(': ')[:2]
+            key = key.strip()
+            value = value.strip()
+            if key in kwargs:
+                if '&' in value:
+                    value = value.split('&')[1].split(' ')[1]
+                value = value.strip()
+                line = line.replace(value, str(kwargs[key]))
+        config += line 
+    return config
+
+
+def load_configs(config_file_path: str, kwargs: Dict[str, Any]):
+    yaml_str = parse_and_update(config_file_path, kwargs)
+    all_configs = yaml.safe_load(yaml_str)
 
     agents_config = all_configs['agents']
     experiment_config = all_configs['experiment']
@@ -1186,7 +1205,7 @@ def main():
     if "natural" in dargs["ELA_rg_compactness_ambiguity_metric_language_specs"]:
         dargs["THER_observe_achieved_goal"] = True
         print(f"WARNING: ELA_rg_compactness_ambiguity_metric_language_specs contains 'natural'. Thus, THER_observed_achieved_goal is set to True. Necessary for the MultiRoom envs to have BehaviouralDescriptions in NL.")
-        time.sleep(10)
+        time.sleep(1)
 
     if dargs["ETHER_listener_based_predicated_reward_fn"]:
         print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
@@ -1208,7 +1227,10 @@ def main():
     #GpuUtils.allocate(required_memory=6000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
-    experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
+    experiment_config, agents_config, tasks_configs = load_configs(
+        config_file_path,
+        kwargs=dargs,
+    )
     
     for k,v in dargs.items():
         experiment_config[k] = v
