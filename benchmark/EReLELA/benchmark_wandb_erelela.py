@@ -1171,7 +1171,7 @@ def main():
     dargs['seed'] = int(dargs['seed'])
     
     if dargs["ELA_rg_logits_mdl_principle_factor"] > 0.0:
-        dargs["ELA_rg_with_logits_mdl_principle_factor"] = True
+        dargs["ELA_rg_with_logits_mdl_principle"] = True
 
     if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :
         dargs['ETHER_rg_with_gaussian_blur_augmentation'] = True
