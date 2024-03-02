@@ -1286,9 +1286,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.logger.flush()
  
     def update_datasets(self):
-        kwargs = {'same_episode_target': False}
-        if 'similarity' in self.rg_config['distractor_sampling']:
-            kwargs['same_episode_target'] = True 
+        kwargs = {'same_episode_target': self.kwargs.get('ELA_rg_same_episode_target', False)}
+        #TODO: investigate what type of target we want with similarity:
+        #if 'similarity' in self.rg_config['distractor_sampling']:
+        #    kwargs['same_episode_target'] = True 
+        if 'episodic-dissimilarity' in self.rg_config['distractor_sampling']:
+            assert self.kwargs['ELA_rg_same_episode_target']
 
         extra_keys_dict = {
             "grounding_signal":self.kwargs.get("ELA_grounding_signal_key", None),

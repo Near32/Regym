@@ -114,7 +114,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             nn.Softplus(),
         )
         
-        self.reset()
+        self.reset_weights(reset_language_model=True)
 
     def _tidyup(self):
         """
@@ -127,7 +127,13 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             self.compactness_losses.clear()
             self.buffer_cnn_output_dict = dict()
 
-    def reset(self, reset_language_model=False):
+    def reset(self):
+        self.features = None
+        if hasattr(self, 'tau'):
+            self.tau = None
+        self._reset_rnn_states()
+
+    def reset_weights(self, reset_language_model=False): 
         # TODO: implement language model reset if
         # wanting to use iterated learning or cultural pressures...
         self.features = None

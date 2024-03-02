@@ -3578,13 +3578,20 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             z = self.min_z = self.env.unwrapped.min_z
             self.max_x = self.env.unwrapped.max_x
             self.max_z = self.env.unwrapped.max_z
-        elif hasattr(self.env.unwrapped, 'size'):
+        elif hasattr(self.env.unwrapped, 'size') \
+        or hasattr(self.env.unwrapped, 'grid'):
             # MiniGrid environment
             self.env_type = 'minigrid'
             x = self.min_x = z = self.min_z = 0
-            self.max_x = self.max_z = self.env.unwrapped.size
+            if hasattr(self.env.unwrapped, 'size'):
+                self.max_x = self.max_z = self.env.unwrapped.size
+            else:
+                self.max_x = self.max_z = max(self.env.unwrapped.grid.height, self.env.unwrapped.grid.width)
             self.coverage_precision = 1.0
             self.coverage_epsilon = 0.5 
+        else:
+            raise NotImplementedError
+
         while x < self.max_x:
             z = self.min_z
             while z < self.max_z:

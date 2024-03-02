@@ -951,7 +951,7 @@ def main():
     parser.add_argument("--ETHER_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
-    parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ETHER_rg_descriptive_version", type=int, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_color_jitter_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
@@ -1057,12 +1057,13 @@ def main():
     parser.add_argument("--ELA_rg_filter_out_non_unique", type=str2bool, default=False)
     parser.add_argument("--ELA_replay_capacity", type=int, default=1024)
     parser.add_argument("--ELA_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_same_episode_target", type=str2bool, default=False)
     parser.add_argument("--ELA_test_replay_capacity", type=int, default=512)
     parser.add_argument("--ELA_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ELA_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ELA_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ELA_rg_object_centric_version", type=int, default=1)
-    parser.add_argument("--ELA_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ELA_rg_descriptive_version", type=int, default=2)
     parser.add_argument("--ELA_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_color_jitter_prob", type=float, default=0.0)
     parser.add_argument("--ELA_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
@@ -1172,6 +1173,9 @@ def main():
     
     if dargs["ELA_rg_logits_mdl_principle_factor"] > 0.0:
         dargs["ELA_rg_with_logits_mdl_principle"] = True
+
+    if 'episodic-dissimilarity' in dargs['ELA_rg_distractor_sampling']:
+        dargs['ELA_rg_same_episode_target'] = True 
 
     if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :
         dargs['ETHER_rg_with_gaussian_blur_augmentation'] = True
