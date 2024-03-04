@@ -3725,6 +3725,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         env, 
         intrinsic_weight=1.0, #1.0, #0.01,
         extrinsic_weight=1.0, #1.0, #0.01,
+        ne_count_based_exploration='none',
         ne_dampening_rate=0.1,
         ne_damp_min=1e-4,
         binary_reward=False,
@@ -3738,6 +3739,11 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         self.extrinsic_return = 0
         self.binary_reward = binary_reward
         self.episode_idx = 0 
+        self.ne_count_based_exploration = ne_count_based_exploration
+        self.cbe_coeff = 1.0
+        if '-' in self.ne_count_based_exploration:
+            self.cbe_coeff = float(self.ne_count_based_exploration.split('-')[-1])
+        self.cbe_values = []
         self.ne_dampening_rate = ne_dampening_rate
         if self.ne_dampening_rate > 0.0:
             self.non_episodic_dampening = True
@@ -3769,21 +3775,30 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
             infos['language_guided_reward'] = 0.0
             infos['extrinsic_reward'] = 0.0
         
+        wandb_dict = {}
         ne_damps_hist = wandb.Histogram(self.ne_damps)
+        if self.ne_count_based_exploration != 'none':
+            cbe_values_hist = wandb.Histogram(self.cbe_values)
+            wandb_dict[f"Wrappers/LanguageGuidedCuriosity/NonEpisodicCountBasedBonus"] = cbe_values_hist
+
         visitation_count_hist = wandb.Histogram(list(self.ne_descriptions_count.values()))
-        wandb.log({
+        wandb_dict.update({
             f"Wrappers/LanguageGuidedCuriosity/IntrinsicReturn":self.intrinsic_return,
             f"Wrappers/LanguageGuidedCuriosity/ExtrinsicReturn":self.extrinsic_return,
             f"Wrappers/LanguageGuidedCuriosity/NonEpisodicDampeningHistogram":ne_damps_hist,
             f"Wrappers/LanguageGuidedCuriosity/NonEpisodicDampeningRate":self.ne_dampening_rate,
             f"Wrappers/LanguageGuidedCuriosity/VisitationCountHistogram":visitation_count_hist,
             },
+        )
+        wandb.log(
+            wandb_dict,
             #step=self.episode_idx,
             commit=False,
         )
         self.intrinsic_return = 0
         self.extrinsic_return = 0
         self.episode_idx += 1
+        self.cbe_values = []
         self.ne_damps = []
 
         return obs, infos 
@@ -3815,7 +3830,27 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
                 ne_damp = max(ne_damp, self.ne_damp_min)
                 self.ne_damps.append(ne_damp)
                 self.intrinsic_reward *= ne_damp
+        elif new_description \
+        and self.ne_count_based_exploration != 'none':
+            # We only reward or update on the first encounter:
+            # otherwise, if we updated at every encounter, then the bonus would ran out
+            # way faster than the RL agent can record it...
+            if next_state_description in self.ne_descriptions_count:
+                self.ne_descriptions_count[next_state_description] += 1
+            else:
+                self.ne_descriptions_count[next_state_description] = 1
 
+        if new_description \
+        and self.ne_count_based_exploration != 'none':
+            count_based_bonus = self.cbe_coeff/np.sqrt(1e-4+self.ne_descriptions_count[next_state_description])
+            self.cbe_values.append(count_based_bonus)
+            if 'bonus' in self.ne_count_based_exploration:
+                self.intrinsic_reward += count_based_bonus
+            elif 'only' in self.ne_count_based_exploration:
+                self.intrinsic_reward = count_based_bonus
+            else:
+                raise NotImplementedError
+        
         # Making reward binary:
         if self.binary_reward:
             reward = float(int(reward > 0))
@@ -3863,6 +3898,7 @@ def baseline_ther_wrapper(
     language_guided_curiosity=False,
     language_guided_curiosity_extrinsic_weight=1.0,
     language_guided_curiosity_intrinsic_weight=1.0,
+    ne_count_based_exploration='none',
     ne_dampening_rate=0.0,
     language_guided_curiosity_binary_reward=False,
     language_guided_curiosity_densify=False,
@@ -3968,6 +4004,7 @@ def baseline_ther_wrapper(
             env=env,
             extrinsic_weight=language_guided_curiosity_extrinsic_weight,
             intrinsic_weight=language_guided_curiosity_intrinsic_weight,
+            ne_count_based_exploration=ne_count_based_exploration,
             ne_dampening_rate=ne_dampening_rate,
             binary_reward=language_guided_curiosity_binary_reward,
             densify=language_guided_curiosity_densify,

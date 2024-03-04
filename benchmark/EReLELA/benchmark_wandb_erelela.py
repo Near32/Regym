@@ -428,6 +428,7 @@ def training_process(
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
       language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
+      ne_count_based_exploration=task_config['language_guided_curiosity_non_episodic_count_based_exploration'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
       descr_type=task_config['language_guided_curiosity_descr_type'],
@@ -467,6 +468,7 @@ def training_process(
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
       language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
+      ne_count_based_exploration=task_config['language_guided_curiosity_non_episodic_count_based_exploration'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
       descr_type=task_config['language_guided_curiosity_descr_type'],
@@ -916,6 +918,9 @@ def main():
     parser.add_argument("--language_guided_curiosity_intrinsic_weight", type=float, default=1.0)
     parser.add_argument("--language_guided_curiosity_binary_reward", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_densify", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_non_episodic_count_based_exploration", type=str, default='none', 
+        #choices=['none','bonus','only'],
+    )
     parser.add_argument("--language_guided_curiosity_non_episodic_dampening_rate", type=float, default=0.0,)
     parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
