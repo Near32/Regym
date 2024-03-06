@@ -988,7 +988,7 @@ def main():
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
@@ -1099,7 +1099,7 @@ def main():
     parser.add_argument("--ELA_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ELA_rg_with_logits_mdl_principle", type=str2bool, default=False)
-    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ELA_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ELA_rg_cultural_pressure_it_period", type=int, default=0)
@@ -1176,8 +1176,22 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
-    if dargs["ELA_rg_logits_mdl_principle_factor"] > 0.0:
+    factor = dargs["ELA_rg_logits_mdl_principle_factor"]
+    if isinstance(factor, str):
+        if '-' in factor:
+            betas = [float(beta) for beta in factor.split('-')]
+            assert len(betas) == 2
+        else:
+            betas = None 
+            factor = float(factor)
+    else:
+        betas = None 
+        factor = float(factor)
+
+    if betas is not None or factor > 0.0:
         dargs["ELA_rg_with_logits_mdl_principle"] = True
+        if betas is not None:
+            dargs["ELA_rg_logits_mdl_principle_accuracy_threshold"] = 0.0
 
     if 'episodic-dissimilarity' in dargs['ELA_rg_distractor_sampling']:
         dargs['ELA_rg_same_episode_target'] = True 

@@ -3816,6 +3816,7 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
             self.intrinsic_reward = 1.0
         
         if self.non_episodic_dampening:
+            assert self.ne_count_based_exploration == 'none'
             if next_state_description in self.ne_descriptions_count:
                 self.ne_descriptions_count[next_state_description] += 1
             else:
