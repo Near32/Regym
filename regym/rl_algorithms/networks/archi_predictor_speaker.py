@@ -114,7 +114,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             nn.Softplus(),
         )
         
-        self.reset()
+        self.reset_weights(reset_language_model=True)
 
     def _tidyup(self):
         """
@@ -127,7 +127,13 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             self.compactness_losses.clear()
             self.buffer_cnn_output_dict = dict()
 
-    def reset(self, reset_language_model=False):
+    def reset(self):
+        self.features = None
+        if hasattr(self, 'tau'):
+            self.tau = None
+        self._reset_rnn_states()
+
+    def reset_weights(self, reset_language_model=False):
         # TODO: implement language model reset if
         # wanting to use iterated learning or cultural pressures...
         self.features = None
@@ -300,14 +306,6 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         if sample is not None \
         and hasattr(sample, 'speaker_rnn_states'):
             rnn_states = sample.speaker_rnn_states
-            '''
-            rnn_states = _concatenate_list_hdict(
-                lhds=[rnn_states[idx][0][0] for idx in range(batch_size)],
-                concat_fn=partial(torch.cat, dim=0),
-                #preprocess_fn=(lambda x:
-                #    torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x                   ),
-            )
-            '''
             rnn_states = {'InstructionGenerator':{'achieved_goal':rnn_states}}
         utter_outputs = self._utter(features=features, sentences=None, rnn_states=rnn_states)
         if len(utter_outputs) == 5:

@@ -127,6 +127,9 @@ ETHER_extra_hyperparameters: &ETHER_extra_hyperparameters
     ETHER_rg_accuracy_threshold: 75
     ETHER_split_strategy: None 
 
+    ETHER_rg_obverter_BN_in_decision_head: &ETHER_rg_obverter_BN_in_decision_head False 
+    ETHER_rg_obverter_DP_in_decision_head: &ETHER_rg_obverter_DP_in_decision_head 0.25 
+    ETHER_rg_obverter_threshold_to_stop_message_generation: &ETHER_rg_obverter_threshold_to_stop_message_generation 0.8
     THER_predictor_learning_rate: 3.0e-4 #1e-3
     THER_predictor_batch_size: 128 #128 #32
     THER_predictor_nbr_minibatches: 10 #128 #32
@@ -316,13 +319,14 @@ experiment:
         'previous_reward_action': True,
         'observation_key': 'image',
         'nbr_frame_skipping': 0,
-        'nbr_frame_stacking': 4, #1,
+        'nbr_frame_stacking': 1,
         'frame_depth': 3,
         # The following requires a wrapper that provides direction,
         # as it is no always available...
         #'concatenate_keys_with_obs': ['direction', 'action'],
         'concatenate_keys_with_obs': [], #'action'],
         'add_rgb_wrapper': True,
+        'remove_return_info_wrapper':True,
         'full_obs': False,
         'single_pick_episode': False,
         'reload': 'None',
@@ -330,7 +334,7 @@ experiment:
     
     experiment_id: 'ETHER_BabyAI_Benchmark'
     benchmarking_episodes: 10
-    benchmarking_interval: 5.0e3
+    benchmarking_interval: 5.0e7
     benchmarking_record_episode_interval: None #1.0e8
     train_observation_budget: 1.0e7
     seed: 1
@@ -413,8 +417,10 @@ agents:
                 vocab_size: *THER_vocab_size
                 max_sentence_length: *THER_max_sentence_length
                 feature_dim: &feature_dim 256 #64
+                encoder_final_depth_dim: &encoder_final_depth_dim 128
                 lstm_input_dim: &lstm_input_dim 321 #769 #512 #128
                 comm_state_dim: &comm_state_dim 256
+                mlp_input_dim: &mlp_input_dim 4608
                 hidden_dim: &hidden_dim 1024 #512
                 action_dim: &action_dim 7
                 rlhead_state_dim: &rlhead_state_dim 1032 #520
@@ -446,11 +452,11 @@ agents:
                 'SharedObsEncoder':
                     type: ConvolutionalNetworkModule
                     #input_shape: [16, 56, 56]
-                    input_shape: [12, 56, 56]
+                    input_shape: [3, 56, 56]
                     feature_dim: -1 #*feature_dim #"{{value_dim}}"
-                    channels: ['BN32', 'BN32', 'BN64']
-                    kernel_sizes: [3, 3, 3]
-                    strides: [2, 2, 2]
+                    channels: ['BN32', 'BN64', 'BN128']
+                    kernel_sizes: [8, 4, 3] #[3, 3, 3]
+                    strides: [4, 2, 1] #[2, 2, 2]
                     paddings: [1, 1, 1]
                     fc_hidden_units: [] #[128] #[256, 128]
                     non_linearities: ['ReLU']
@@ -485,9 +491,9 @@ agents:
                 'FiLMedBlock1':
                     type: FiLMedModule
                     config:
-                        nbr_input_channels: 64
+                        nbr_input_channels: *encoder_final_depth_dim
                         nbr_input_features: *feature_dim
-                        nbr_output_channels: 64
+                        nbr_output_channels: *encoder_final_depth_dim
                         kernel_sizes: [1, 3]
                         strides: [1, 1]
                         paddings: [0, 1]
@@ -503,9 +509,9 @@ agents:
                 'FiLMedBlock2':
                     type: FiLMedModule
                     config:
-                        nbr_input_channels: 64
+                        nbr_input_channels: *encoder_final_depth_dim
                         nbr_input_features: *feature_dim
-                        nbr_output_channels: 64
+                        nbr_output_channels: *encoder_final_depth_dim
                         kernel_sizes: [1, 3]
                         strides: [1, 1]
                         paddings: [0, 1]
@@ -520,7 +526,7 @@ agents:
                     
                 'InstructionGeneratorMLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: 3136
+                    state_dim: *mlp_input_dim
                     hidden_units: ['BN1024', 'BN512', 'BN256']
                     non_linearities: ['ReLU']
                     dropout: 0.25
@@ -533,10 +539,10 @@ agents:
                 
                 'DecisionGeneratorMLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: 3136
+                    state_dim: *mlp_input_dim
                     hidden_units: ['BN1024', 'BN512', 'BN256']
                     non_linearities: ['ReLU']
-                    dropout: 0.25
+                    dropout: 0.0
                     config: None
                     input_stream_ids:
                         input: "inputs:SharedObsEncoder:processed_input"
@@ -546,7 +552,7 @@ agents:
                 
                 'MLP':
                     type: FullyConnectedNetworkModule
-                    state_dim: 3136
+                    state_dim: *mlp_input_dim
                     hidden_units: ['BN256', 'BN128', 'BN64']
                     non_linearities: ['ReLU']
                     dropout: 0.0
@@ -627,11 +633,12 @@ agents:
                 'OracleTHER':
                     type: OracleTHERModule
                     vocabulary: *THER_vocabulary 
-                    vocab_size: *THER_vocab_size 
-                    max_sentence_length: *THER_max_sentence_length 
-                    config: None
+                    _vocab_size: *THER_vocab_size 
+                    _max_sentence_length: *THER_max_sentence_length 
+                    config: 
+                        hidden_units: *hidden_dim
                     input_stream_ids:
-                        input0: "inputs:OracleTHER:achieved_goal"
+                        input0: "inputs:InstructionGenerator:achieved_goal"
                         input0_gt_sentences: "inputs:gt_sentences"
                     output_stream_ids:
                         input0: "inputs:InstructionGenerator:processed_input0"
@@ -643,21 +650,20 @@ agents:
                     vocab_size: *THER_vocab_size
                     max_sentence_length: *THER_max_sentence_length
                     config:
-                        'confidence_threshold': 0.9
+                        'confidence_threshold': *ETHER_rg_obverter_threshold_to_stop_message_generation #0.9
                         'graphtype': 'obverter'
-                        'force_eos': True
+                        'force_eos': False
                         'tau0': 1.0
-                        'use_decision_head': True
-                        'learn_not_target_logit': True
+                        'use_decision_head': True 
+                        'learn_not_target_logit': False
                         'use_residual_connections': False
                         'use_sentences_one_hot_vectors': False
-                        'with_BN_in_decision_head': True
-                        'with_DP_in_decision_head': True
-                        'DP_in_decision_head': 0.5
+                        'with_BN_in_decision_head': *ETHER_rg_obverter_BN_in_decision_head
+                        'DP_in_decision_head': *ETHER_rg_obverter_DP_in_decision_head 
                         'with_DP_in_listener_decision_head_only': False
-                        'with_descriptive_not_target_logit_language_conditioning': True
-                        'symbol_embedding_size': 128
-                        'symbol_processing_nbr_hidden_units': 512
+                        'with_descriptive_not_target_logit_language_conditioning': False 
+                        'symbol_embedding_size': 64
+                        'symbol_processing_nbr_hidden_units': 64
                         'symbol_processing_nbr_rnn_layers': 1
                         'embedding_dropout_prob': 0.0
                         'dropout_prob': 0.0
@@ -665,8 +671,10 @@ agents:
                     input_stream_ids:
                         experiences: 'inputs:DecisionGeneratorMLP:processed_input'
                         sentences_widx: 'inputs:sentences_widx'
-                    #output_stream_ids:
-                    #    output: "inputs:Obv_0:output"
+                    output_stream_ids:
+                        sentences_widx: "inputs:DecisionGenerator:sentences_widx"
+                        sentences_logits: "inputs:DecisionGenerator:sentences_logits"
+                        decision: "inputs:DecisionGenerator:decision"
 
             output_mappings:
                 head:
@@ -683,7 +691,8 @@ agents:
                         "inputs:obs": "inputs:ConcatenationOperation:output"
             features_id: 
                 decision_generator: "inputs:DecisionGenerator:decision"
-                instruction_generator: "inputs:InstructionGenerator:processed_input0"
+                instruction_generator: "inputs:DecisionGenerator:sentences_widx"
+                #instruction_generator: "inputs:InstructionGenerator:processed_input0"
                 torso: "inputs:ConcatenationOperation:output"
             
             pipelines:
@@ -691,7 +700,8 @@ agents:
                 head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
                 decision_generator: ['SharedObsEncoder', 'DecisionGeneratorMLP', 'DecisionGenerator']
-                instruction_generator: ['SharedObsEncoder', 'InstructionGeneratorMLP', 'InstructionGenerator']
+                instruction_generator: ['SharedObsEncoder', 'DecisionGeneratorMLP', 'DecisionGenerator']
+                #instruction_generator: ['SharedObsEncoder', 'InstructionGeneratorMLP', 'InstructionGenerator']
         
         extra_inputs_infos: {
             'previous_reward':{
@@ -710,7 +720,7 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [*THER_max_sentence_length], #10], #20], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             
@@ -718,7 +728,7 @@ agents:
             #'achieved_goal':{
             #    #shape: [28], #[63,], 
             #    shape: [10], #20], 
-            #    target_location: ['OracleTHER']
+            #    target_location: ['InstructionGenerator']
             #},
             
  

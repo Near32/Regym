@@ -6,6 +6,7 @@ from collections import deque
 from functools import partial 
 
 import ray
+from tqdm import tqdm 
 
 import numpy as np
 import torch
@@ -656,6 +657,7 @@ class DQNAlgorithm(Algorithm):
         list_sampled_samples = []
 
         self.optimizer.zero_grad()
+        #for batch_indices in tqdm(sampler, desc="Mode Optimization",):
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
             sampled_batch_indices.append(batch_indices)

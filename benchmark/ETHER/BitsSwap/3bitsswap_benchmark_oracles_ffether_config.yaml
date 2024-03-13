@@ -685,14 +685,14 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [20], #10], 
+                shape: [*THER_max_sentence_length], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             
             # Uncomment the following if using THER_describe_achieved_goal
             'achieved_goal':{
                 #shape: [28], #[63,], 
-                shape: [20], #10], 
+                shape: [*THER_max_sentence_length], 
                 #target_location: ['OracleTHER']
                 target_location: ['InstructionGenerator']
             },

@@ -139,10 +139,14 @@ class ListenerWrapper(nn.Module):
         sentences_lengths = lengths.clamp(max=self.listener_agent.max_sentence_length)
         #(batch_size, )
     
-        sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
+        while len(sentences_lengths.shape) < len(decision_probs.shape):
+            sentences_lengths = sentences_lengths.unsqueeze(-1)
+
+        #sentences_lengths = sentences_lengths.reshape(-1,1,1).expand(
+        sentences_lengths = sentences_lengths.expand(
             decision_probs.shape[0],
             1,
-            decision_probs.shape[2]
+            *decision_probs.shape[2:]
         )
     
         final_decision_probs = decision_probs.gather(
@@ -220,9 +224,11 @@ class ListenerWrapper(nn.Module):
             )
         
         decision_probs = output_dict['decision']
+        if len(decision_probs.shape)==4:    decision_probs = decision_probs.squeeze(2)
+        
         if self.listener_agent.kwargs['descriptive']:
             decision_probs = decision_probs.softmax(dim=-1)
-        # (batch_size x max_sentence_length x nbr_distractors+2)
+            # (batch_size x max_sentence_length x nbr_distractors+2)
         elif self.listener_agent.kwargs['normalize_features']:
             # if not descriptive then we need to assert that we have normalized the features
             # and therefore the probs are between -1 and 1 and we can format them between 0 and 1:
@@ -239,8 +245,8 @@ class ListenerWrapper(nn.Module):
             decision_probs=decision_probs,
         )
        
-        decision = final_decision_probs[:, 0]
-        
+        decision = final_decision_probs[..., 0].reshape((batch_size,))
+
         #################################
         try:
             wandb.log({f"ListenerWrapper/PredicateThresholdDecisionProbs": self.predicate_threshold}, commit=False)
@@ -879,6 +885,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 agent_id='l0',
                 logger=None,
             )
+            listener.input_stream_ids['listener']['sentences_one_hot'] += '.detach'
+            listener.input_stream_ids['listener']['sentences_widx'] += '.detach'
         elif 'MLP' in agent_config['architecture']:
             listener = LSTMObsListener(
                 kwargs=listener_config, 
@@ -1065,6 +1073,19 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "indices":"current_dataloader:sample:speaker_indices", 
         }
         
+        listener_topo_sim_metric_id = f"{listener.id}_topo_sim2_metric"
+        listener_topo_sim_metric_input_stream_ids = {
+            #"model":"modules:current_listener:ref:ref_agent",
+            "model":f"modules:{listener.id}:ref:_utter",
+            "features":"modules:current_speaker:ref:ref_agent:features",
+            "representations":"modules:current_speaker:sentences_widx",
+            "experiences":"current_dataloader:sample:speaker_experiences", 
+            "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+            "latent_representations_values":"current_dataloader:sample:speaker_exp_latents_values", 
+            "latent_representations_one_hot_encoded":"current_dataloader:sample:speaker_exp_latents_one_hot_encoded", 
+            "indices":"current_dataloader:sample:speaker_indices", 
+        }
+        
         def agent_preprocess_fn(x):
             if self.kwargs["ETHER_rg_use_cuda"]:
                 x = x.cuda()
@@ -1112,6 +1133,37 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             input_stream_ids=speaker_topo_sim_metric_input_stream_ids,
         )
         modules[speaker_topo_sim_metric_id] = speaker_topo_sim_metric_module
+        
+        listener_topo_sim_metric_module = rg_modules.build_TopographicSimilarityMetricModule2(
+            id=listener_topo_sim_metric_id,
+            config = {
+                "metric_fast": self.kwargs["ETHER_rg_metric_fast"],
+                "pvalue_significance_threshold": 0.05,
+                "parallel_TS_computation_max_workers":self.kwargs["ETHER_rg_parallel_TS_worker"],
+                "filtering_fn":(lambda kwargs: listener.role=="speaker"),
+                #"postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                # cf outputs of _utter:
+                "postprocess_fn": agent_postprocess_fn, #(lambda x: x[1].cpu().detach().numpy()),
+                # not necessary if providing a preprocess_fn, 
+                # that computes the features/_sense output, but here it is in order to deal with shapes:
+                "features_postprocess_fn": agent_features_postprocess_fn, #(lambda x: x[-1].cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
+                # cf _sense:
+                "preprocess_fn": (lambda x: listener._sense(agent_preprocess_fn(x))),
+                #"epoch_period":args.epoch-1, 
+                "epoch_period": self.kwargs["ETHER_rg_metric_epoch_period"],
+                "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
+                "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
+                "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
+                "resample": self.kwargs["ETHER_rg_metric_resampling"],
+                "threshold":5e-2,#0.0,#1.0,
+                "random_state_seed":self.kwargs["ETHER_rg_seed"],
+                "verbose":False,
+                "active_factors_only":self.kwargs["ETHER_rg_metric_active_factors_only"],
+            },
+            input_stream_ids=listener_topo_sim_metric_input_stream_ids,
+        )
+        modules[listener_topo_sim_metric_id] = listener_topo_sim_metric_module
         
         # Modularity: Speaker
         speaker_modularity_disentanglement_metric_id = f"{speaker.id}_modularity_disentanglement_metric"
@@ -1175,6 +1227,15 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         )
         modules[listener_modularity_disentanglement_metric_id] = listener_modularity_disentanglement_metric_module
         
+        if 'obverter' in self.kwargs['ETHER_rg_graphtype']:
+            jaccard_sim_metric_id = f"jaccard_sim_metric"
+            jaccard_sim_metric_module = rg_modules.JaccardSimilarityMetricModule(
+                id=jaccard_sim_metric_id,
+                config = {
+                },
+            )
+            modules[jaccard_sim_metric_id] = jaccard_sim_metric_module
+    
         inst_coord_metric_id = f"inst_coord_metric"
         inst_coord_input_stream_ids = {
             "logger":"modules:logger:ref",
@@ -1366,6 +1427,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "random_state_seed":self.kwargs["ETHER_rg_seed"],
                 "verbose":False,
                 "idx2w": self.idx2w,
+                "language_specs_to_compute":self.kwargs["ETHER_rg_compactness_ambiguity_metric_language_specs"].split('+'),
                 "kwargs": self.kwargs,
             }
         )
@@ -1401,6 +1463,36 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         )
         modules[speaker_posbosdis_metric_id] = speaker_posbosdis_metric_module
 
+        listener_posbosdis_metric_id = "listener_posbosdis_metric"
+        listener_posbosdis_metric_input_stream_ids = {
+            #"model":"modules:current_speaker:ref:ref_agent",
+            "model":"modules:current_speaker:ref:ref_agent:_utter",
+            "representations":"modules:current_speaker:sentences_widx",
+            "experiences":"current_dataloader:sample:speaker_experiences", 
+            "latent_representations":"current_dataloader:sample:speaker_exp_latents", 
+            #"latent_values_representations":"current_dataloader:sample:speaker_exp_latents_values",
+            "indices":"current_dataloader:sample:speaker_indices", 
+        }
+
+        listener_posbosdis_metric_module = rg_modules.build_PositionalBagOfSymbolsDisentanglementMetricModule(
+            id=listener_posbosdis_metric_id,
+            input_stream_ids=listener_posbosdis_metric_input_stream_ids,
+            config = {
+                "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
+                "epoch_period":self.kwargs["ETHER_rg_metric_epoch_period"],
+                "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
+                "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
+                "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
+                "resample":self.kwargs["ETHER_rg_metric_resampling"],
+                "threshold":5e-2,#0.0,#1.0,
+                "random_state_seed":self.kwargs["ETHER_rg_seed"],
+                "verbose":False,
+                "active_factors_only":self.kwargs["ETHER_rg_metric_active_factors_only"],
+            }
+        )
+        modules[listener_posbosdis_metric_id] = listener_posbosdis_metric_module
+
         logger_id = "per_epoch_logger"
         logger_module = rg_modules.build_PerEpochLoggerModule(id=logger_id)
         modules[logger_id] = logger_module
@@ -1430,10 +1522,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         if self.kwargs["ETHER_rg_homoscedastic_multitasks_loss"]:
             pipelines[optim_id].append(homo_id)
         pipelines[optim_id].append(optim_id)
-        """
         # Add gradient recorder module for debugging purposes:
-        pipelines[optim_id].append(grad_recorder_id)
-        """
+        #pipelines[optim_id].append(grad_recorder_id)
+        
         if self.kwargs["ETHER_rg_dis_metric_epoch_period"] != 0:
             if not(self.kwargs["ETHER_rg_shared_architecture"]):
                 pipelines[optim_id].append(listener_factor_vae_disentanglement_metric_id)
@@ -1449,6 +1540,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         if "obverter" in self.kwargs["ETHER_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
+            pipelines[optim_id].append(jaccard_sim_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
         if self.kwargs["ETHER_rg_use_aita_sampling"]:
             pipelines[optim_id].append(aita_sampling_id)
@@ -1479,9 +1571,12 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
  
     def update_datasets(self):
         assert len(self.predictor_storages)==1
-        kwargs = {'same_episode_target': False}
-        if 'similarity' in self.rg_config['distractor_sampling']:
-            kwargs['same_episode_target'] = True 
+        kwargs = {'same_episode_target': self.kwargs.get('ETHER_rg_same_episode_target', False)}
+        #TODO: investigate what type of target we want with similarity:
+        #if 'similarity' in self.rg_config['distractor_sampling']:
+        #    kwargs['same_episode_target'] = True 
+        if 'episodic-dissimilarity' in self.rg_config['distractor_sampling']:
+            assert self.kwargs['ETHER_rg_same_episode_target']
 
         extra_keys_dict = {
             #"rnn_states":"rnn_states",

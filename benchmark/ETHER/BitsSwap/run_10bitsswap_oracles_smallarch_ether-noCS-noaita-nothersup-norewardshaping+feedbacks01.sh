@@ -9,6 +9,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --coverage_manipulation_metric=False \
 --MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_top_view=False \
+--THER_max_sentence_length=20 --THER_vocab_size=64 \
 --use_ETHER=True --use_THER=True \
 --use_RP=False --RP_use_RP=False \
 --use_ELA=False --ELA_use_ELA=False \
@@ -89,14 +90,15 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.95 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.0 --THER_filter_predicate_fn=False \
 --THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \
---THER_store_only_relabelled_episode=True \
+--THER_store_only_relabelled_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
 --eps_greedy_alpha=2.0 --epsend=0.1 --epsdecay=100000 \
 --nbr_minibatches=1 --batch_size=64 \
 --r2d2_nbr_categorized_storages=1 \
---min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 \
+--tau=0.0004 --inverted_tau=None --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
@@ -105,6 +107,6 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=40 \
 --time_limit=0 \
---train_observation_budget=2000000
+--train_observation_budget=5000000
 
 

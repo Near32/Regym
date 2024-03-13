@@ -2423,8 +2423,6 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         or at position max_sentence_length if the sentence is too long.
         """
         for obs_key, map_key in self.observation_keys_mapping.items():
-            #t_goal = [w.lower() for w in observation[obs_key].split(' ')]
-            #t_goal = [w for w in observation[obs_key].split(' ')]
             t_goal = [w for w in re.findall(r'\d|\w+|\.', observation[obs_key])]
             for w in t_goal:
                 if w not in self.vocabulary:
@@ -2433,19 +2431,9 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
                     self.w2idx[w] = len(self.vocabulary)-1
                     self.idx2w[len(self.vocabulary)-1] = w 
             
-            #########################################
-            #MODIF1: padding with EoS :
-            #idx_goal = self.w2idx['PAD']*np.ones(shape=(1,self.max_sentence_length)).astype(int)
             idx_goal = self.w2idx['EoS']*np.ones(shape=(1,self.max_sentence_length)).astype(int)
-            #########################################
-            final_idx = min(self.max_sentence_length, len(t_goal))
-            for idx in range(final_idx):
+            for idx in range(len(t_goal)):
                 idx_goal[...,idx] = self.w2idx[t_goal[idx]]
-            # Add 'EoS' token:
-            idx_goal[...,final_idx] = self.w2idx['EoS']
-            #padded_idx_goal = nn.utils.rnn.pad_sequence(idx_goal, padding_value=self.w2idx["PAD"])
-            #observation[map_key] = padded_idx_goal
-            
             observation[map_key] = idx_goal
             
         return observation

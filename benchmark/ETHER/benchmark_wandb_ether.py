@@ -749,7 +749,12 @@ def training_process(
         'seed': seed,
     }
     project_name = task_config['project']
-    wandb.init(project=project_name, config=config)
+    wandb.init(
+        project=project_name, 
+        config=config,
+        #sync_tensorboard=True,
+        settings=wandb.Settings(start_method="thread"),
+    )
     '''
     wandb.tensorboard.patch(
         save=True, 
@@ -796,8 +801,33 @@ def training_process(
     return trained_agent, task 
 
 
-def load_configs(config_file_path: str):
-    all_configs = yaml.safe_load(open(config_file_path))
+def parse_and_update(config_file_path: str, kwargs: Dict[str, Any]):
+    config_file = open(config_file_path, 'r')
+    lines = config_file.readlines()
+    config = ""
+    for line in lines:
+        if '&' in line:
+            print('Possible replacement:')
+            print(line)
+            key, value = line.split(': ')[:2]
+            key = key.strip()
+            value = value.strip()
+            if key in kwargs:
+                if '&' in value:
+                    value = value.split('&')[1].split(' ')[1]
+                value = value.strip()
+                line = line.replace(value, str(kwargs[key]))
+                print('Replaced into -->')
+                print(line)
+            else:
+                print('REPLACEMENT ABORTED')
+        config += line
+    return config
+
+
+def load_configs(config_file_path: str, kwargs: Dict[str, Any]):
+    yaml_str = parse_and_update(config_file_path, kwargs)
+    all_configs = yaml.safe_load(yaml_str)
 
     agents_config = all_configs['agents']
     experiment_config = all_configs['experiment']
@@ -924,9 +954,10 @@ def main():
         default=3,
     )
     parser.add_argument("--tau", 
-        type=float, 
-        default=4e-4,
+        type=str, 
+        default='0.0004',
     )
+    parser.add_argument("--inverted_tau", type=str, default=2500)
     parser.add_argument("--nbr_actor", 
         type=int, 
         default=4,
@@ -1056,6 +1087,8 @@ def main():
     parser.add_argument("--THER_use_THER", type=str2bool, default="True",)
     parser.add_argument("--THER_use_THER_predictor_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--THER_use_THER_predictor_supervised_training_data_collection", type=str2bool, default="True",)
+    parser.add_argument("--THER_max_sentence_length", type=int, default=10,)
+    parser.add_argument("--THER_vocab_size", type=int, default=32,)
     parser.add_argument("--THER_use_PER", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping", type=str2bool, default="False",)
     parser.add_argument("--THER_episode_length_reward_shaping_type", type=str, default="new",)
@@ -1101,10 +1134,11 @@ def main():
     parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
     parser.add_argument("--ETHER_rg_freeze_speaker", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_compactness_ambiguity_metric_language_specs", type=str, default="emergent")
     parser.add_argument("--ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_training_period", type=int, default=1024)
     parser.add_argument("--ETHER_rg_accuracy_threshold", type=float, default=75)
-    parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="True",)
+    parser.add_argument("--ETHER_rg_verbose", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_use_cuda", type=str2bool, default="True",)
     parser.add_argument("--ETHER_exp_key", type=str, default="succ_s",)
     parser.add_argument("--semantic_embedding_init", type=str, default="none",)
@@ -1128,9 +1162,10 @@ def main():
     parser.add_argument("--ETHER_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ETHER_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_test_dataset_length", type=intOrNone, default=None)
+    parser.add_argument("--ETHER_rg_same_episode_target", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ETHER_rg_distractor_sampling_scheme_version", type=int, default=1)
-    parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ETHER_rg_descriptive_version", type=int, default=1)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_color_jitter_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
@@ -1178,10 +1213,13 @@ def main():
     parser.add_argument("--ETHER_rg_iterated_learning_rehearse_MDL", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_iterated_learning_rehearse_MDL_factor", type=float, default=1.0)
     
+    parser.add_argument("--ETHER_rg_obverter_BN_in_decision_head", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_obverter_DP_in_decision_head", type=float, default=0.0)
     parser.add_argument("--ETHER_rg_obverter_threshold_to_stop_message_generation", type=float, default=0.9)
     parser.add_argument("--ETHER_rg_obverter_nbr_games_per_round", type=int, default=20)
     parser.add_argument("--ETHER_rg_use_obverter_sampling", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_obverter_sampling_repeat_experiences", type=str2bool, default=False)
     
     parser.add_argument("--ETHER_rg_batch_size", type=int, default=32)
     parser.add_argument("--ETHER_rg_dataloader_num_worker", type=int, default=8)
@@ -1345,6 +1383,10 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    if 'episodic-dissimilarity' in dargs['ETHER_rg_distractor_sampling']:
+        import ipdb; ipdb.set_trace()
+        dargs['ETHER_rg_same_episode_target'] = True 
+
     if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :
         dargs['ETHER_rg_with_gaussian_blur_augmentation'] = True
 
@@ -1368,7 +1410,8 @@ def main():
         print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
     
     if dargs["ETHER_listener_based_predicated_reward_fn"]:
-        print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
+        assert dargs['ETHER_rg_descriptive'] 
+        print("WARNING: Listener-based predicated reward fn CHECK DESCRIPTIVE RG: OK.")
         #if dargs["ETHER_use_continuous_feedback"] \
         #and dargs["ETHER_rg_descriptive"]:
         #    dargs["ETHER_rg_normalize_features"] = True
@@ -1380,13 +1423,26 @@ def main():
         dargs['coverage_manipulation_metric'] = True
         dargs["MiniWorld_entity_visibility_oracle"] = True
     
+    if args.use_ETHER \
+    and args.ETHER_rg_max_sentence_length != args.THER_max_sentence_length:
+        dargs['THER_max_sentence_length'] = dargs['ETHER_rg_max_sentence_length'] 
+        print(f"WARNING: ETHER rg max sentence length is different ({args.ETHER_rg_max_sentence_length}) than config THER max sentence length value, thus, updating the later to: {dargs['ETHER_rg_max_sentence_length']}")
+        import ipdb; ipdb.set_trace()
+    if args.use_ETHER \
+    and args.ETHER_rg_vocab_size != args.THER_vocab_size:
+        dargs['THER_vocab_size'] = dargs['ETHER_rg_vocab_size']
+        print(f"WARNING: ETHER rg vocab size is lower ({args.ETHER_rg_vocab_size}) than necessary, updating the later to: {dargs['ETHER_rg_vocab_size']}")
+        import ipdb; ipdb.set_trace()
     print(dargs)
 
     #from gpuutils import GpuUtils
     #GpuUtils.allocate(required_memory=6000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
-    experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
+    experiment_config, agents_config, tasks_configs = load_configs(
+        config_file_path,
+        kwargs=dargs,
+    )
     
     for k,v in dargs.items():
         experiment_config[k] = v
@@ -1405,16 +1461,6 @@ def main():
         path = f'{base_path}/{env_name}/{run_name}/{agent_name}'
         print(f"Tentative Path: -- {path} --")
         agent_config =agents_config[task_config['agent-id']] 
-        if args.use_ETHER \
-	and args.ETHER_rg_max_sentence_length != agent_config['THER_max_sentence_length']:
-            dargs['ETHER_rg_max_sentence_length'] = agent_config['THER_max_sentence_length']
-            print(f"WARNING: ETHER rg max sentence length is different ({args.ETHER_rg_max_sentence_length}) than config THER max sentence length value, thus, updating it to: {dargs['ETHER_rg_max_sentence_length']}")
-            import ipdb; ipdb.set_trace()
-        if args.use_ETHER \
-	and args.ETHER_rg_vocab_size < agent_config['THER_vocab_size']:
-            dargs['ETHER_rg_vocab_size'] = agent_config['THER_vocab_size']
-            print(f"WARNING: ETHER rg vocab size is lower ({args.ETHER_rg_vocab_size}) than necessary, updating to: {dargs['ETHER_rg_vocab_size']}")
-            import ipdb; ipdb.set_trace()
         for k,v in dargs.items():
             task_config[k] = v
             agent_config[k] = v

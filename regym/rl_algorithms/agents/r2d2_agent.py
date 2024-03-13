@@ -22,6 +22,7 @@ from regym.rl_algorithms.algorithms.wrappers import (
 from regym.rl_algorithms.networks import (
     ArchiPredictor, 
     ArchiPredictorSpeaker,
+    ArchiPredictorListener,
     ArchiRewardPredictor,
 )
 
@@ -257,11 +258,29 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
                 else:
                     print("WARNING : R2D2 Agent with THER : THER predictor does NOT predict PAD tokens.")
                 if kwargs.get("use_ETHER", False):
-                    predictor = ArchiPredictorSpeaker(
-                        model=model, 
-                        trainable=not(kwargs.get("ETHER_rg_freeze_speaker", False)),
-                        **kwargs["ArchiModel"],
-                    )
+                    if 'obverter' in kwargs['ETHER_rg_graphtype']:
+                        predictor = ArchiPredictorListener(
+                            model=model, 
+                            trainable=not(kwargs.get("ETHER_rg_freeze_speaker", False)),
+                            **kwargs["ArchiModel"],
+                            pipeline_name={
+                                "speaker":"instruction_generator",
+                                "listener":"decision_generator",
+                            },
+                            generator_name={
+                                "speaker":"DecisionGenerator",
+                                "listener":"DecisionGenerator",
+                            },
+                        )
+                    else:
+                        predictor = ArchiPredictorSpeaker(
+                            model=model, 
+                            trainable=not(kwargs.get("ETHER_rg_freeze_speaker", False)),
+                            **kwargs["ArchiModel"],
+                            # TODO: maybe provide hyperparameter 
+                            pipeline_name="instruction_generator", #"caption_generator",
+                            generator_name="InstructionGenerator", #"CaptionGenerator",
+                        )
                 else:
                     predictor = ArchiPredictor(model=model, **kwargs["ArchiModel"])
             else:

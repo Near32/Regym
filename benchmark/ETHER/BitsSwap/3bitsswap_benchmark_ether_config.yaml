@@ -693,7 +693,7 @@ agents:
             #'dialog':{
             'desired_goal':{
                 #shape: [28], #[63,], 
-                shape: [10], #20], 
+                shape: [*THER_max_sentence_length], 
                 target_location: ['phi_body', 'extra_inputs']
             },
             

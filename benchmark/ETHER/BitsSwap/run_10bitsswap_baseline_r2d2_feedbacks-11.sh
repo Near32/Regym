@@ -9,6 +9,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --coverage_manipulation_metric=False \
 --MiniWorld_entity_visibility_oracle=False \
 --MiniWorld_entity_visibility_oracle_top_view=False \
+--THER_max_sentence_length=20 --THER_vocab_size=64 \
 --use_ETHER=False --use_THER=True \
 --use_RP=False --RP_use_RP=False \
 --use_ELA=False --ELA_use_ELA=False \
@@ -76,7 +77,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_use_PER=True --THER_describe_achieved_goal=False \
 --bespoke_env_oracle=False \
 --THER_lock_test_storage=True \
---THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
+--THER_real_reward_scaler=1.0 --THER_hindsight_reward_scaler=1.0 \
+--THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=0 \
 --THER_episode_length_reward_shaping=False \
 --THER_episode_length_reward_shaping_type='old' \
 --THER_replay_capacity=1024 --THER_min_capacity=12 \
@@ -90,15 +92,16 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
---nbr_minibatches=1 --batch_size=64 \
+--nbr_minibatches=1 --batch_size=128 \
 --r2d2_nbr_categorized_storages=1 \
---min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 \
+--tau=None --inverted_tau=160 --learning_rate=1.0e-3 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---nbr_training_iteration_per_cycle=4 --nbr_episode_per_cycle=0 \
+--nbr_training_iteration_per_cycle=40 --nbr_episode_per_cycle=16 \
 --single_pick_episode=False --THER_timing_out_episode_length_threshold=40 \
 --time_limit=0 \
 --train_observation_budget=2000000
