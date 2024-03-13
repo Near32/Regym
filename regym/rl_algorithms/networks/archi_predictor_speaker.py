@@ -133,7 +133,7 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             self.tau = None
         self._reset_rnn_states()
 
-    def reset_weights(self, reset_language_model=False):
+    def reset_weights(self, reset_language_model=False): 
         # TODO: implement language model reset if
         # wanting to use iterated learning or cultural pressures...
         self.features = None
@@ -268,14 +268,26 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
             return_feature_only = None 
             input_dict['rnn_states']['gt_sentences'] = gt_sentences
             
-        output = self.model.forward(
-            **input_dict,
-            pipelines={
-                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
-            },
-            return_feature_only=return_feature_only,
-        )
-
+        if return_feature_only is None:
+            output = self.model.forward(
+                **input_dict,
+                pipelines={
+                    self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
+                },
+                return_feature_only=return_feature_only,
+            )
+        else:
+            prediction = self.model.forward(
+                **input_dict,
+                pipelines={
+                    self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
+                },
+                return_feature_only=None, #return_feature_only,
+            )
+            output = self.model.stream_handler[return_feature_only]
+            prediction['output'] = output
+            return prediction
+             
         return output
     
     def speaker_forward(

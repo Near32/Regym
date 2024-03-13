@@ -4,6 +4,7 @@ import logging
 import yaml
 import os
 import sys
+import time 
 
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -402,7 +403,7 @@ def training_process(
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=task_config['clip_reward'],
       time_limit=task_config['time_limit'],
-      max_sentence_length=agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
+      max_sentence_length=128, #agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
@@ -427,6 +428,7 @@ def training_process(
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
       language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
+      ne_count_based_exploration=task_config['language_guided_curiosity_non_episodic_count_based_exploration'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
       descr_type=task_config['language_guided_curiosity_descr_type'],
@@ -441,7 +443,7 @@ def training_process(
       nbr_max_random_steps=task_config['nbr_max_random_steps'],
       clip_reward=False,
       time_limit=task_config['time_limit'],
-      max_sentence_length=agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
+      max_sentence_length=128, #agent_config['THER_max_sentence_length'] if agent_config['use_THER'] else agent_config['ELA_rg_max_sentence_length'],
       vocabulary=agent_config['THER_vocabulary'],
       vocab_size=agent_config['THER_vocab_size'],
       previous_reward_action=task_config['previous_reward_action'],
@@ -466,6 +468,7 @@ def training_process(
       language_guided_curiosity_intrinsic_weight=task_config['language_guided_curiosity_intrinsic_weight'],
       language_guided_curiosity_binary_reward=task_config['language_guided_curiosity_binary_reward'],
       language_guided_curiosity_densify=task_config['language_guided_curiosity_densify'],
+      ne_count_based_exploration=task_config['language_guided_curiosity_non_episodic_count_based_exploration'],
       ne_dampening_rate=task_config['language_guided_curiosity_non_episodic_dampening_rate'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
       descr_type=task_config['language_guided_curiosity_descr_type'],
@@ -600,8 +603,27 @@ def training_process(
     return trained_agent, task 
 
 
-def load_configs(config_file_path: str):
-    all_configs = yaml.safe_load(open(config_file_path))
+def parse_and_update(config_file_path: str, kwargs: Dict[str, Any]):
+    config_file = open(config_file_path, 'r')
+    lines = config_file.readlines()
+    config = ""
+    for line in lines:
+        if '&' in line:
+            key, value = line.split(': ')[:2]
+            key = key.strip()
+            value = value.strip()
+            if key in kwargs:
+                if '&' in value:
+                    value = value.split('&')[1].split(' ')[1]
+                value = value.strip()
+                line = line.replace(value, str(kwargs[key]))
+        config += line 
+    return config
+
+
+def load_configs(config_file_path: str, kwargs: Dict[str, Any]):
+    yaml_str = parse_and_update(config_file_path, kwargs)
+    all_configs = yaml.safe_load(yaml_str)
 
     agents_config = all_configs['agents']
     experiment_config = all_configs['experiment']
@@ -896,6 +918,9 @@ def main():
     parser.add_argument("--language_guided_curiosity_intrinsic_weight", type=float, default=1.0)
     parser.add_argument("--language_guided_curiosity_binary_reward", type=str2bool, default="False",)
     parser.add_argument("--language_guided_curiosity_densify", type=str2bool, default="False",)
+    parser.add_argument("--language_guided_curiosity_non_episodic_count_based_exploration", type=str, default='none', 
+        #choices=['none','bonus','only'],
+    )
     parser.add_argument("--language_guided_curiosity_non_episodic_dampening_rate", type=float, default=0.0,)
     parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
@@ -931,7 +956,7 @@ def main():
     parser.add_argument("--ETHER_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ETHER_rg_object_centric_version", type=int, default=1)
-    parser.add_argument("--ETHER_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ETHER_rg_descriptive_version", type=int, default=2)
     parser.add_argument("--ETHER_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_color_jitter_prob", type=float, default=0)
     parser.add_argument("--ETHER_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
@@ -963,7 +988,7 @@ def main():
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
@@ -1016,10 +1041,12 @@ def main():
     
     parser.add_argument("--use_ELA", type=str2bool, default="False",)
     parser.add_argument("--ELA_use_ELA", type=str2bool, default="False",)
+    parser.add_argument("--ELA_with_rg_training", type=str2bool, default="True",)
     parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
+    parser.add_argument("--ELA_rg_compactness_ambiguity_metric_language_specs", type=str, default="emergent")
     parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
     parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
@@ -1035,12 +1062,13 @@ def main():
     parser.add_argument("--ELA_rg_filter_out_non_unique", type=str2bool, default=False)
     parser.add_argument("--ELA_replay_capacity", type=int, default=1024)
     parser.add_argument("--ELA_lock_test_storage", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_same_episode_target", type=str2bool, default=False)
     parser.add_argument("--ELA_test_replay_capacity", type=int, default=512)
     parser.add_argument("--ELA_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ELA_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ELA_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ELA_rg_object_centric_version", type=int, default=1)
-    parser.add_argument("--ELA_rg_descriptive_version", type=str, default=2)
+    parser.add_argument("--ELA_rg_descriptive_version", type=int, default=2)
     parser.add_argument("--ELA_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_color_jitter_prob", type=float, default=0.0)
     parser.add_argument("--ELA_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
@@ -1071,7 +1099,7 @@ def main():
     parser.add_argument("--ELA_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ELA_rg_with_logits_mdl_principle", type=str2bool, default=False)
-    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ELA_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ELA_rg_cultural_pressure_it_period", type=int, default=0)
@@ -1148,6 +1176,26 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    factor = dargs["ELA_rg_logits_mdl_principle_factor"]
+    if isinstance(factor, str):
+        if '-' in factor:
+            betas = [float(beta) for beta in factor.split('-')]
+            assert len(betas) == 2
+        else:
+            betas = None 
+            factor = float(factor)
+    else:
+        betas = None 
+        factor = float(factor)
+
+    if betas is not None or factor > 0.0:
+        dargs["ELA_rg_with_logits_mdl_principle"] = True
+        if betas is not None:
+            dargs["ELA_rg_logits_mdl_principle_accuracy_threshold"] = 0.0
+
+    if 'episodic-dissimilarity' in dargs['ELA_rg_distractor_sampling']:
+        dargs['ELA_rg_same_episode_target'] = True 
+
     if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :
         dargs['ETHER_rg_with_gaussian_blur_augmentation'] = True
 
@@ -1177,6 +1225,11 @@ def main():
         print("WARNING :: sanity check in progress for compactness ambiguity metric.")
         print("WARNING :: therefore DISABLING the semantic cooccurrence grounding.")
     
+    if "natural" in dargs["ELA_rg_compactness_ambiguity_metric_language_specs"]:
+        dargs["THER_observe_achieved_goal"] = True
+        print(f"WARNING: ELA_rg_compactness_ambiguity_metric_language_specs contains 'natural'. Thus, THER_observed_achieved_goal is set to True. Necessary for the MultiRoom envs to have BehaviouralDescriptions in NL.")
+        time.sleep(1)
+
     if dargs["ETHER_listener_based_predicated_reward_fn"]:
         print("WARNING: Listener-based predicated reward fn but NO DESCRIPTIVE RG.")
         #if dargs["ETHER_use_continuous_feedback"] \
@@ -1197,7 +1250,10 @@ def main():
     #GpuUtils.allocate(required_memory=6000, framework="torch")
     
     config_file_path = args.config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
-    experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
+    experiment_config, agents_config, tasks_configs = load_configs(
+        config_file_path,
+        kwargs=dargs,
+    )
     
     for k,v in dargs.items():
         experiment_config[k] = v

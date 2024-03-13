@@ -2,15 +2,16 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --seed=50 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
---project=EReLELA-MultiRoom-Benchmark \
+--project=EReLELA-KeyCorridor-Benchmark \
 --success_threshold=0.999 \
---config=multiroom_N7_S4_minigrid_wandb_benchmark_POMDPERELELA_config.yaml \
+--config=keycorridor_S3_R2_minigrid_wandb_benchmark_POMDPERELELA_config.yaml \
 --language_guided_curiosity=True \
 --language_guided_curiosity_descr_type='descr' \
 --language_guided_curiosity_extrinsic_weight=10.0 \
 --language_guided_curiosity_intrinsic_weight=0.1 \
 --language_guided_curiosity_binary_reward=False \
 --language_guided_curiosity_densify=False \
+--language_guided_curiosity_non_episodic_count_based_exploration='bonus-1.0' \
 --language_guided_curiosity_non_episodic_dampening_rate=0.0 \
 --coverage_manipulation_metric=True \
 --MiniWorld_entity_visibility_oracle=False \
@@ -119,7 +120,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --time_limit=0 \
 --benchmarking_record_episode_interval=4 \
 --benchmarking_interval=1.0e4 \
---train_observation_budget=1.0e6
+--train_observation_budget=3.0e6
 
 #--train_observation_budget=300000 
 

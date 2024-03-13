@@ -77,7 +77,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_use_PER=True --THER_describe_achieved_goal=False \
 --bespoke_env_oracle=True \
 --THER_lock_test_storage=True \
---THER_real_reward_scaler=0.5 --THER_hindsight_reward_scaler=2.0 \
+--THER_real_reward_scaler=1.0 --THER_hindsight_reward_scaler=1.0 \
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=False \
 --THER_episode_length_reward_shaping_type='old' \
@@ -93,7 +93,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../benchmark_wandb_ether.py \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
---eps_greedy_alpha=2.0 --epsend=0.1 --epsdecay=100000 \
+--eps_greedy_alpha=2.0 --epsend=0.01 --epsdecay=100000 \
 --nbr_minibatches=1 --batch_size=64 \
 --r2d2_nbr_categorized_storages=1 \
 --min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \

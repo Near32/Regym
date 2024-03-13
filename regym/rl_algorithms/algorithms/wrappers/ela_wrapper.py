@@ -184,11 +184,35 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         with torch.no_grad():
             training = self.predictor.training
             self.predictor.train(False)
-            captions = self.predictor(
+            prediction = self.predictor(
                 x=state, 
                 rnn_states=rnn_states,
-            ).cpu()
+            )
+            captions = prediction['output'][0].cpu()
             self.predictor.train(training)
+        
+        ## Logging perplexity:
+        wandb_dict = {}
+        metrics = {
+            'caption_perplexity': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_perplexities'][0].cpu().numpy(),
+            'caption_likelihood': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_likelihoods'][0].cpu().numpy(),
+        }
+        for k in metrics.keys():
+            hist = metrics[k]
+            median = np.median(hist)
+            mean = np.mean(hist)
+            std = np.std(hist)
+            minv = np.min(hist)
+            maxv = np.max(hist)
+            wandb_dict[f"PerEpisode/{k}/Max"] = maxv
+            wandb_dict[f"PerEpisode/{k}/Min"] = minv
+            wandb_dict[f"PerEpisode/{k}/Median"] = median
+            wandb_dict[f"PerEpisode/{k}/Mean"] = mean
+            wandb_dict[f"PerEpisode/{k}/Std"] = std
+        wandb.log(
+            wandb_dict,
+            commit=False,
+        )
         
         visited_captions = []
         reward_mask = torch.zeros(episode_length)
@@ -1129,7 +1153,9 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "current_dataloader:sample:speaker_grounding_signal"
             compactness_ambiguity_metric_input_stream_ids["top_view"] = "current_dataloader:sample:speaker_top_view" 
             compactness_ambiguity_metric_input_stream_ids["agent_pos_in_top_view"] = "current_dataloader:sample:speaker_agent_pos_in_top_view" 
-            
+        if "natural" in self.kwargs.get("ELA_rg_compactness_ambiguity_metric_language_specs", "emergent"):
+            compactness_ambiguity_metric_input_stream_ids["natural_representations"] = "current_dataloader:sample:speaker_natural_language_sentences_widx"        
+        
         compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
@@ -1145,8 +1171,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "resample": False, #self.kwargs["ELA_rg_metric_resampling"],
                 "threshold":5e-2,#0.0,#1.0,
                 "random_state_seed":self.kwargs["ELA_rg_seed"],
+                "nbr_shuffled_entities":4,
                 "verbose":False,
                 "idx2w": self.idx2w,
+                "language_specs_to_compute":self.kwargs["ELA_rg_compactness_ambiguity_metric_language_specs"].split('+'),
                 "kwargs": self.kwargs,
             }
         )
@@ -1258,9 +1286,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.logger.flush()
  
     def update_datasets(self):
-        kwargs = {'same_episode_target': False}
-        if 'similarity' in self.rg_config['distractor_sampling']:
-            kwargs['same_episode_target'] = True 
+        kwargs = {'same_episode_target': self.kwargs.get('ELA_rg_same_episode_target', False)}
+        #TODO: investigate what type of target we want with similarity:
+        #if 'similarity' in self.rg_config['distractor_sampling']:
+        #    kwargs['same_episode_target'] = True 
+        if 'episodic-dissimilarity' in self.rg_config['distractor_sampling']:
+            assert self.kwargs['ELA_rg_same_episode_target']
 
         extra_keys_dict = {
             "grounding_signal":self.kwargs.get("ELA_grounding_signal_key", None),
@@ -1274,7 +1305,11 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             extra_keys_dict.update({
                 "semantic_signal":"info:symbolic_image",
             })
-         
+        if "natural" in self.kwargs.get("ELA_rg_compactness_ambiguity_metric_language_specs","emergent"):
+            extra_keys_dict.update({
+                "natural_language_sentences_widx":"info:achieved_goal",
+            })
+
         self.rg_train_dataset = DemonstrationDataset(
             replay_storage=self.rg_storages[0],
             train=True,
@@ -1342,7 +1377,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         period_check = self.kwargs['ELA_rg_training_period']
         period_count_check = self.nbr_buffered_predictor_experience
         can_rg_train = False
-        if len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
+        if self.kwargs["ELA_with_rg_training"] \
+        and len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
             can_rg_train = True
         quotient = period_count_check // period_check
         previous_quotient = getattr(self, 'previous_ELA_quotient', -1)

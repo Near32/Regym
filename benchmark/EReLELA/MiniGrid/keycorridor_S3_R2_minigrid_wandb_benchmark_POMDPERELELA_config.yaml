@@ -138,7 +138,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
     THER_vocabulary: &THER_vocabulary [
         'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
-        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'forward',  
+        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'locked', 'forward',  
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
@@ -217,7 +217,7 @@ ELA_extra_hyperparameters: &ELA_extra_hyperparameters
     ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 128 #64 #10 
     ELA_vocabulary: &ELA_vocabulary [
         'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
-        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'forward',  
+        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'locked', 'forward',  
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
@@ -384,10 +384,11 @@ experiment:
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
         #'env-id': 'MiniGrid-MultiRoom-N4-S5-v0',
-        'env-id': 'MiniGrid-MultiRoom-N2-S4-v0',
+        #'env-id': 'MiniGrid-MultiRoom-N2-S4-v0',
+        'env-id': 'MiniGrid-KeyCorridorS3R2-v0',
         'env-config': {
-                "minNumRooms": 7, 
-                "maxNumRooms": 7,
+                #"minNumRooms": 7, 
+                #"maxNumRooms": 7,
                 #'num_objs':8,
                 #'room_size':2,
                 #'num_cols':3,
@@ -425,11 +426,11 @@ experiment:
         'reload': 'None',
     },]
     
-    experiment_id: 'EReLELA_MiniGrid_MultiRoom_Benchmark'
+    experiment_id: 'EReLELA_MiniGrid_KeyCorridor_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 40 #None #1.0e8
-    train_observation_budget: 1.0e7
+    train_observation_budget: 2.0e7
     seed: 1
 
 agents:    
@@ -502,7 +503,7 @@ agents:
                 lstm_input_dim: &lstm_input_dim 192 #576 #1088 #576 #577 #321 #769 #512 #128
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 128 #1024 #512
-                action_dim: &action_dim 6 #7
+                action_dim: &action_dim 7
                 rlhead_state_dim: &rlhead_state_dim 135 #1543 #1031 #1030 #1032 #520
                 temporal_dim: &temporal_dim 4
                 mlp_input_dim: &mlp_input_dim 2304 #6400 #3136

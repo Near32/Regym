@@ -318,10 +318,12 @@ def batched_listener_based_goal_predicated_reward_fn(
         listener_training = listener.training
         listener.train(False)
 
-        target_pred_goal = predictor(
+        target_pred_goal_dict = predictor(
             x=target_state, 
             rnn_states=target_rnn_states,
         )
+        target_pred_goal = target_pred_goal_dict['output'][0]
+
         target_descriptive_probs = listener(
             x=target_state, 
             rnn_states=target_rnn_states, 

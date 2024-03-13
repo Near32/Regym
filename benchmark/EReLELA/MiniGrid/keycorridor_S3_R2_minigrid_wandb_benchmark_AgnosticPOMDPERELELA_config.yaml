@@ -138,7 +138,7 @@ THER_extra_hyperparameters: &THER_extra_hyperparameters
     THER_max_sentence_length: &THER_max_sentence_length 10 # 20 
     THER_vocabulary: &THER_vocabulary [
         'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
-        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'forward',  
+        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'locked', 'forward',  
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
@@ -217,7 +217,7 @@ ELA_extra_hyperparameters: &ELA_extra_hyperparameters
     ELA_rg_max_sentence_length: &ELA_rg_max_sentence_length 128 #64 #10 
     ELA_vocabulary: &ELA_vocabulary [
         'You', 'see', 'a', 'on', 'the', 'in', 'front', 'step', 'steps', 'SEP',
-        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'forward',  
+        'traverse', 'room', 'rooms', 'goal', 'wall', 'open', 'closed', 'locked', 'forward',  
         'then', 'after', 'you', 'and', 'go', 'to', 'pick', 'up', 'open', 'put', 
         'next', 'to', 'door', 'ball', 'box', 'key', 'on', 'your', 'left', 'right',
         'in', 'front', 'of', 'behind', 'red', 'green', 'blue', 'purple', 
@@ -384,10 +384,11 @@ experiment:
         #'env-id': 'BabyAI-PickupLoc-v0',
         #'env-id': 'BabyAI-PutNextLocal-v0',
         #'env-id': 'MiniGrid-MultiRoom-N4-S5-v0',
-        'env-id': 'MiniGrid-MultiRoom-N2-S4-v0',
+        #'env-id': 'MiniGrid-MultiRoom-N2-S4-v0',
+        'env-id': 'MiniGrid-KeyCorridorS3R2-v0',
         'env-config': {
-                "minNumRooms": 7, 
-                "maxNumRooms": 7,
+                #"minNumRooms": 7, 
+                #"maxNumRooms": 7,
                 #'num_objs':8,
                 #'room_size':2,
                 #'num_cols':3,
@@ -425,7 +426,7 @@ experiment:
         'reload': 'None',
     },]
     
-    experiment_id: 'EReLELA_MiniGrid_MultiRoom_Benchmark'
+    experiment_id: 'EReLELA_MiniGrid_KeyCorridor_Benchmark'
     benchmarking_episodes: 10
     benchmarking_interval: 1.0e4
     benchmarking_record_episode_interval: 40 #None #1.0e8
@@ -502,7 +503,7 @@ agents:
                 lstm_input_dim: &lstm_input_dim 192 #576 #1088 #576 #577 #321 #769 #512 #128
                 comm_state_dim: &comm_state_dim 256
                 hidden_dim: &hidden_dim 128 #1024 #512
-                action_dim: &action_dim 6 #7
+                action_dim: &action_dim 7
                 rlhead_state_dim: &rlhead_state_dim 135 #1543 #1031 #1030 #1032 #520
                 temporal_dim: &temporal_dim 4
                 mlp_input_dim: &mlp_input_dim 2304 #6400 #3136
@@ -530,7 +531,7 @@ agents:
                     #    output: "inputs:CoreLSTM:lstm_output"
                     use_cuda: True
 
-                'SharedObsEncoder':
+                'ObsEncoder':
                     type: ConvolutionalNetworkModule
                     #input_shape: [16, 56, 56]
                     #input_shape: [12, 56, 56]
@@ -554,35 +555,35 @@ agents:
                     input_stream_ids:
                         input: "inputs:obs"
                     output_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
+                        input: "inputs:ObsEncoder:processed_input"
                     use_cuda: True
     
-                #'RGObsEncoder':
-                #    type: ConvolutionalNetworkModule
-                #    #input_shape: [16, 56, 56]
-                #    #input_shape: [12, 56, 56]
-                #    #input_shape: [3, 56, 56]
-                #    input_shape: [3, 84, 84]
-                #    feature_dim: -1 #*feature_dim #"{{value_dim}}"
-                #    #feature_dim: *feature_dim #"{{value_dim}}"
-                #    #channels: ['BN32', 'BN32', 'BN64']
-                #    channels: [32, 64, 64]
-                #    #kernel_sizes: [3, 3, 3]
-                #    kernel_sizes: [8, 4, 3]
-                #    #strides: [2, 2, 2]
-                #    strides: [4, 2, 1]
-                #    #paddings: [1, 1, 1]
-                #    paddings: [0, 1, 1]
-                #    fc_hidden_units: [] #[128] #[256, 128]
-                #    non_linearities: ['ReLU']
-                #    dropout: 0.0
-                #    use_coordconv: False #True
-                #    config: None
-                #    input_stream_ids:
-                #        input: "inputs:obs"
-                #    output_stream_ids:
-                #        input: "inputs:RGObsEncoder:processed_input"
-                #    use_cuda: True
+                'RGObsEncoder':
+                    type: ConvolutionalNetworkModule
+                    #input_shape: [16, 56, 56]
+                    #input_shape: [12, 56, 56]
+                    input_shape: [3, 56, 56]
+                    #input_shape: [3, 84, 84]
+                    feature_dim: -1 #*feature_dim #"{{value_dim}}"
+                    #feature_dim: *feature_dim #"{{value_dim}}"
+                    #channels: ['BN32', 'BN32', 'BN64']
+                    channels: [32, 64, 64]
+                    #kernel_sizes: [3, 3, 3]
+                    kernel_sizes: [8, 4, 3]
+                    #strides: [2, 2, 2]
+                    strides: [4, 2, 1]
+                    #paddings: [1, 1, 1]
+                    paddings: [0, 1, 1]
+                    fc_hidden_units: [] #[128] #[256, 128]
+                    non_linearities: ['ReLU']
+                    dropout: 0.0
+                    use_coordconv: False #True
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:obs"
+                    output_stream_ids:
+                        input: "inputs:RGObsEncoder:processed_input"
+                    use_cuda: True
     
                 #'CommEncoder':
                 #    type: EmbeddingRNNModule 
@@ -647,8 +648,7 @@ agents:
                     dropout: 0.25
                     config: None
                     input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
-                        #input: "inputs:RGObsEncoder:processed_input"
+                        input: "inputs:RGObsEncoder:processed_input"
                     output_stream_ids:
                         input: "inputs:CaptionGeneratorMLP:processed_input"
                     use_cuda: True
@@ -661,7 +661,7 @@ agents:
                     dropout: 0.0
                     config: None
                     input_stream_ids:
-                        input: "inputs:SharedObsEncoder:processed_input"
+                        input: "inputs:ObsEncoder:processed_input"
                         #input: "inputs:FiLMedBlock2:processed_input"
                     output_stream_ids:
                         input: "inputs:MLP:processed_input"
@@ -789,12 +789,11 @@ agents:
             pipelines:
                 #torso: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 #head: ['CoreLSTM', 'RLHead']
-                torso: ['SharedObsEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
+                torso: ['ObsEncoder', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation']
                 #head: ['CommEncoder', 'CoreLSTM', 'RLHead']
                 head: ['CoreLSTM', 'RLHead']
                 #instruction_generator: ['OracleTHER'] 
-                caption_generator: ['SharedObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
-                #caption_generator: ['RGObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
+                caption_generator: ['RGObsEncoder', 'CaptionGeneratorMLP', 'CaptionGenerator']
                 #reward_prediction: ['SharedObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP', 'ActionEmbeddor', 'ConcatenationOperation', 'CoreLSTM', 'RewardPredictionMLP']
         
         extra_inputs_infos: {
