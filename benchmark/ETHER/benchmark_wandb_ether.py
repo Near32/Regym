@@ -631,6 +631,7 @@ def training_process(
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
+      descr_type=task_config['ETHER_with_Oracle_type'],
     )
 
     test_pixel_wrapping_fn = partial(
@@ -664,6 +665,7 @@ def training_process(
       miniworld_entity_visibility_oracle_top_view=task_config['MiniWorld_entity_visibility_oracle_top_view'],
       language_guided_curiosity=task_config['language_guided_curiosity'],
       coverage_manipulation_metric=task_config['coverage_manipulation_metric'],
+      descr_type=task_config['ETHER_with_Oracle_type'],
     )
     
     video_recording_dirpath = os.path.join(base_path,'videos')
@@ -1126,7 +1128,9 @@ def main():
     
     parser.add_argument("--use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_with_Oracle", type=str2bool, default="False",)
-    parser.add_argument("--ETHER_with_Oracle_type", type=str, default="visible-entities",)
+    parser.add_argument("--ETHER_with_Oracle_type", type=str, default="pickup-only",
+        choices=['pickup-only','pickup+descr', 'pickup+precise-descr'],
+    )
     parser.add_argument("--ETHER_with_Oracle_listener", type=str2bool, default="False",)
     parser.add_argument("--ETHER_use_ETHER", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
@@ -1199,7 +1203,7 @@ def main():
     parser.add_argument("--ETHER_rg_aita_levenshtein_comprange", type=float, default=1.0)
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
-    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
@@ -1305,7 +1309,7 @@ def main():
     parser.add_argument("--ELA_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ELA_rg_with_logits_mdl_principle", type=str2bool, default=False)
-    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=float, default=1.0e-3)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ELA_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ELA_rg_cultural_pressure_it_period", type=int, default=0)
@@ -1383,8 +1387,27 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    factor = dargs["ETHER_rg_logits_mdl_principle_factor"]
+    if isinstance(factor, str):
+        if '-' in factor and 'e-' not in factor:
+            betas = [float(beta) for beta in factor.split('-')]
+            assert len(betas) == 2
+        else:
+            betas = None 
+            factor = float(factor)
+    else:
+        betas = None 
+        factor = float(factor)
+
+    if betas is not None or factor > 0.0:
+        dargs["ETHER_rg_with_logits_mdl_principle"] = True
+        if betas is not None:
+            dargs["ETHER_rg_logits_mdl_principle_accuracy_threshold"] = 0.0
+
+    if 'episodic-dissimilarity' in dargs['ELA_rg_distractor_sampling']:
+        dargs['ELA_rg_same_episode_target'] = True 
+
     if 'episodic-dissimilarity' in dargs['ETHER_rg_distractor_sampling']:
-        import ipdb; ipdb.set_trace()
         dargs['ETHER_rg_same_episode_target'] = True 
 
     if dargs['ETHER_rg_gaussian_blur_prob'] > 0.0 :

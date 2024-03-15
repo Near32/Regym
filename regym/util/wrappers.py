@@ -2451,7 +2451,7 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
         env, 
         max_sentence_length=10, 
         use_visible_entities=False,
-        descr_type='pickup_only',
+        descr_type='pickup-only',
     ):
         """
         Add an observation string that describe the achieved goal for a PickUp-based env.
@@ -2499,11 +2499,13 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
             achieved_goal = copy.deepcopy(observation['visible_entities'])
             list_textual_descriptions.append(achieved_goal)
         
-        if self.descr_type == 'pickup_only':
+        if self.descr_type == 'pickup-only':
             observation['behaviour_description'] = achieved_goal
             if need_to_return_info:
                 return observation,info
             return observation
+        else:
+            observation['behaviour_description'] = achieved_goal
 
         # ELSE : let us add more information:
         # Adapted from :
@@ -2673,7 +2675,15 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
                     list_textual_descriptions.append(description)
 
         observation[self.observation_space_name] = " SEP ".join(list_textual_descriptions).lower()
-        
+        if observation.get('behaviour_description', False) == 'EoS':
+            observation['behaviour_description'] = observation[self.observation_space_name].replace(
+                'you see a', '',
+            ).replace(
+                'and', '',
+            ).replace(
+                'sep', '',
+            )
+
         if need_to_return_info:
             return observation, info
         return observation
@@ -3890,7 +3900,7 @@ def baseline_ther_wrapper(
     full_obs=False,
     single_pick_episode=False,
     describe_achieved_pickup_goal=False,
-    use_visible_entities=False,
+    use_visible_entities=False, 
     babyai_mission=False,
     bespoke_env_oracle=False,
     miniworld_symbolic_image=False,
@@ -3909,7 +3919,7 @@ def baseline_ther_wrapper(
     language_guided_curiosity_binary_reward=False,
     language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
-    descr_type='pickup_only', #'precise-descr',
+    descr_type='pickup-only', #'pickup+descr' #'precise-descr',
     ):
     
     if miniworld_entity_visibility_oracle:
@@ -3997,7 +4007,12 @@ def baseline_ther_wrapper(
             use_visible_entities=use_visible_entities,
             descr_type=descr_type,
         )
-        observation_keys_mapping[env.observation_space_name] = 'achieved_goal'
+        if 'pickup' in descr_type:
+            # i.e. ETHER ...
+            observation_keys_mapping['behaviour_description'] = 'achieved_goal'
+        else:
+            # i.e. EReLELA
+            observation_keys_mapping[env.observation_space_name] = 'achieved_goal'
     if miniworld_entity_visibility_oracle \
     or (language_guided_curiosity and 'descr' in descr_type):
         observation_keys_mapping['visible_entities'] = "visible_entities_widx"
