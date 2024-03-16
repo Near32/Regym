@@ -58,7 +58,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=8192 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=32768 \
 --ETHER_rg_descriptive=True --ETHER_rg_object_centric=False \
 --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=8 --ETHER_rg_accuracy_threshold=95 \
