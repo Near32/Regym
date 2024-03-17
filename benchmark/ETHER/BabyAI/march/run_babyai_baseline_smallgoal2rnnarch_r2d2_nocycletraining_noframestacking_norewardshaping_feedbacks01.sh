@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.py \
---seed=10 \
+--seed=20 \
 --project=ETHER \
 --success_threshold=0.001 \
 --use_cuda=True \
@@ -91,7 +91,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=4e-3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
@@ -100,6 +100,6 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --nbr_training_iteration_per_cycle=1 --nbr_episode_per_cycle=0 \
 --single_pick_episode=True --THER_timing_out_episode_length_threshold=40 \
 --time_limit=40 \
---train_observation_budget=2000000
+--train_observation_budget=5000000
 
 

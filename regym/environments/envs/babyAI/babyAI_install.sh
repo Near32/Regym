@@ -6,5 +6,5 @@ git clone https://github.com/Near32/babyai
 cd babyai
 git checkout patch-1
 pip install blosc==1.5.1
-pip install -e .
+pip install --cache-dir=./pip_cache -e .
 export BABYAI_STORAGE=`pwd`
