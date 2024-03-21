@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.py \
---seed=20 \
+--seed=10 \
 --project=ETHER \
 --success_threshold=0.001 \
 --use_cuda=True \
