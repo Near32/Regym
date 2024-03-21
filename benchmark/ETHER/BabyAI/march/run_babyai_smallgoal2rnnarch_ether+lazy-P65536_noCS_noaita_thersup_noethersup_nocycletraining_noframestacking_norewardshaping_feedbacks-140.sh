@@ -79,13 +79,13 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --THER_feedbacks_failure_reward=-1 --THER_feedbacks_success_reward=40 \
 --THER_episode_length_reward_shaping=False \
 --THER_episode_length_reward_shaping_type='old' \
---THER_replay_capacity=1024 --THER_min_capacity=12 \
+--THER_replay_capacity=2048 --THER_min_capacity=12 \
 --THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
---THER_predictor_test_train_split_interval=5 --THER_test_replay_capacity=256 \
---THER_test_min_capacity=4 --THER_replay_period=16384 \
+--THER_predictor_test_train_split_interval=3 --THER_test_replay_capacity=1024 \
+--THER_test_min_capacity=4 --THER_replay_period=1024 \
 --THER_train_on_success=False --THER_nbr_training_iteration_per_update=32 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.8 \
---THER_predictor_accuracy_safe_to_relabel_threshold=0.01 --THER_filter_predicate_fn=False \
+--THER_predictor_accuracy_safe_to_relabel_threshold=0.4 --THER_filter_predicate_fn=False \
 --THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \
 --THER_store_only_relabelled_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
@@ -93,7 +93,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --r2d2_nbr_categorized_storages=1 \
---min_capacity=4e3 --min_handled_experiences=1.7e4 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=5 \
 --sequence_replay_use_online_states=False --sequence_replay_use_zero_initial_states=False \
