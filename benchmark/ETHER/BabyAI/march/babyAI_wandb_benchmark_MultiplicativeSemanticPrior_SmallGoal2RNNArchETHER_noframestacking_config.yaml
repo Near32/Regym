@@ -669,6 +669,7 @@ agents:
                         diversity_loss_weighting: False #True
                         rectify_contrastive_imbalance: False
                         semantic_embeddings_prior: *semantic_embeddings_prior
+                        semantic_embeddings_detach_visual_features: False
                         semantic_prior_mixing: "multiplicative"
                         semantic_prior_mixing_with_detach: True
                         input_mm_projector_BN: False

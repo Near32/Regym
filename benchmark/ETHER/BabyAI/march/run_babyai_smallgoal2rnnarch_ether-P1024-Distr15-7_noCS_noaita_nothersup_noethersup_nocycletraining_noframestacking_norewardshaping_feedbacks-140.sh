@@ -41,13 +41,15 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --semantic_embedding_init='none' \
 --semantic_prior_mixing='multiplicative' \
 --semantic_prior_mixing_with_detach=False \
+--semantic_embeddings_detach_visual_features=True \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
 --ETHER_rg_semantic_cooccurrence_grounding_semantic_level=False \
 --ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding=False \
 --ETHER_rg_semantic_cooccurrence_grounding_sentence_level=True \
---ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding=True \
+--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding=False \
 --ETHER_rg_semantic_cooccurrence_grounding_lambda=1000.0 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
+--ETHER_rg_semantic_cooccurrence_grounding_aggregation_type="max" \
 --ETHER_lock_test_storage=False --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_color_jitter_prob=0.0 \
 --ETHER_rg_gaussian_blur_prob=0.5 \

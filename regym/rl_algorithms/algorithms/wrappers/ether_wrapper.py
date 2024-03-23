@@ -1011,6 +1011,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "semantic_level_ungrounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding", False),
                 "sentence_level_grounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level", False),
                 "sentence_level_ungrounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", False),
+                "aggregation_type": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_aggregation_type", "max"),
             }
             modules[sem_cooc_grounding_id] = rg_modules.build_CoOccurrenceSemanticGroundingLossModule(
                 id=sem_cooc_grounding_id,
@@ -1420,7 +1421,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ETHER_rg_use_cuda"] else x),
-                "epoch_period":1,#self.kwargs["ETHER_rg_metric_epoch_period"],
+                "epoch_period":self.kwargs["ETHER_rg_compactness_ambiguity_metric_epoch_period"],
                 "batch_size":self.kwargs["ETHER_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ETHER_rg_nbr_train_points"],#3000,
                 "nbr_eval_points":self.kwargs["ETHER_rg_nbr_eval_points"],#2000,
