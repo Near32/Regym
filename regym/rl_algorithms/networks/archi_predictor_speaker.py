@@ -108,9 +108,12 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
 
         feature_module = self.model.pipelines[self.pipeline_name][0]
         self.cnn_encoder = self.model.modules[feature_module]
-
+	
+        tau_fc_input_dim = self.archi_kwargs['hyperparameters']['hidden_dim']
+        if 'caption_hidden_dim' in self.archi_kwargs['hyperparameters']:
+            tau_fc_input_dim = self.archi_kwargs['hyperparameters']['caption_hidden_dim']
         self.tau_fc = nn.Sequential(
-            nn.Linear(self.archi_kwargs['hyperparameters']['hidden_dim'], 1,bias=False),
+            nn.Linear(tau_fc_input_dim, 1,bias=False),
             nn.Softplus(),
         )
         

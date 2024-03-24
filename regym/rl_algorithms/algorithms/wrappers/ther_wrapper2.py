@@ -578,7 +578,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             self.sample_table = wandb.Table(columns=columns) 
                     
                         for bidx in range(1):
-                            if self.nbr_handled_predictor_experience % 16 != 0: continue
+                            #if self.nbr_handled_predictor_experience % 16 != 0: continue
                             gt_word_sentence = [idx2w[token.item()] for token in goals[bidx]] 
                             nbr_frames = self.kwargs['task_config']['nbr_frame_stacking'] #succ_s[bidx].shape[0]//4
                             frame_depth = self.kwargs['task_config']['frame_depth']
@@ -1248,6 +1248,27 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             self.predictor_storages[actor_index].add(exp_dict, priority=init_sampling_priority, test_set=test_set)
         else:
             self.predictor_storages[actor_index].add(exp_dict, test_set=test_set)
+        # Logging:
+        goal_idxs = exp_dict['rnn_states']['phi_body']['extra_inputs']['desired_goal'][0]
+        idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
+        goal_tokens = [idx2w[token.item()] for token in goal_idxs[0]]
+        goal = ' '.join([idx2w[token.item()] for token in goal_idxs[0]])
+        #
+        if not hasattr(self, 'predictor_goal_histogram'):
+            self.predictor_goal_histogram = {}
+        if goal not in self.predictor_goal_histogram:
+            self.predictor_goal_histogram[goal] = 0
+        self.predictor_goal_histogram[goal] += 1
+        #
+        if sum(self.predictor_goal_histogram.values()) % 128:
+            goal_dict = {
+                "goal_descr":list(self.predictor_goal_histogram.keys()),
+                "goal_count":list(self.predictor_goal_histogram.values()),
+            }
+            for tidx in range(len(goal_tokens)):
+                goal_dict[f"token{tidx}"] = [g.split(' ')[tidx] for g in self.predictor_goal_histogram.keys()]
+            goal_df = pd.DataFrame(goal_dict)
+            wandb.log({f"Training/THER/GoalHistogramTable":wandb.Table(data=goal_df),}, commit=False)
 
     def update_predictor(self, successful_traj=False):
         period_check = self.kwargs['THER_replay_period']
@@ -1304,7 +1325,8 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             updated_acc = 0.0
             best_acc = 0.0
         
-        successful_update = int(updated_acc >= best_acc)
+        #successful_update = int(updated_acc >= best_acc)
+        successful_update = int(updated_acc >= 0.75*best_acc)
         wandb.log({f"Training/THER_Predictor/SuccessfulUpdate":successful_update}, commit=False)
         if not successful_update:
             self.predictor.load_state_dict(self.best_predictor.state_dict(), strict=False)

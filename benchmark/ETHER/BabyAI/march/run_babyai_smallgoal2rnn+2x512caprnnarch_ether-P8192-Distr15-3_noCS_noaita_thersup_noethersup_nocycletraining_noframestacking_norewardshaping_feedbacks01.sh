@@ -3,7 +3,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --project=ETHER \
 --success_threshold=0.001 \
 --use_cuda=True \
---config=babyAI_wandb_benchmark_MultiplicativeSemanticPrior_SmallGoal2RNNArchETHER_noframestacking_config.yaml \
+--config=babyAI_wandb_benchmark_MultiplicativeSemanticPrior_SmallGoal2RNN+2LCapRNNArchETHER_noframestacking_config.yaml \
 --language_guided_curiosity=False \
 --coverage_manipulation_metric=False \
 --MiniWorld_entity_visibility_oracle=False \
@@ -16,7 +16,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --HER_target_clamping=False \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
---THER_use_THER_predictor_supervised_training=False \
+--THER_use_THER_predictor_supervised_training=True \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_with_Oracle=False \
 --ETHER_with_Oracle_type='pickup-only' \
@@ -29,8 +29,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=True \
 --ETHER_rg_with_logits_mdl_principle=False \
---ETHER_rg_logits_mdl_principle_factor=0.0 \
---ETHER_rg_logits_mdl_principle_accuracy_threshold=60.0 \
+--ETHER_rg_logits_mdl_principle_factor='0.0' \
+--ETHER_rg_logits_mdl_principle_accuracy_threshold=0.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_continuous_feedback=False \
 --ETHER_rg_agent_nbr_latent_dim=1024 \
@@ -62,7 +62,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_descriptive=True --ETHER_rg_object_centric=False \
 --ETHER_rg_use_curriculum_nbr_distractors=False \
 --ETHER_rg_nbr_epoch_per_update=16 --ETHER_rg_accuracy_threshold=80 \
---ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=3 \
+--ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=3 \
 --ETHER_replay_capacity=2048 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling='episodic-dissimilarity' \
 --ETHER_rg_use_cuda=True \
@@ -80,11 +80,11 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=False \
 --THER_episode_length_reward_shaping_type='old' \
---THER_replay_capacity=2048 --THER_min_capacity=12 \
---THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
+--THER_replay_capacity=2048 --THER_min_capacity=128 \
+--THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=128 \
 --THER_predictor_test_train_split_interval=3 --THER_test_replay_capacity=1024 \
---THER_test_min_capacity=4 --THER_replay_period=1024 \
---THER_train_on_success=False --THER_nbr_training_iteration_per_update=32 \
+--THER_test_min_capacity=32 --THER_replay_period=1024 \
+--THER_train_on_success=False --THER_nbr_training_iteration_per_update=128 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.8 \
 --THER_predictor_accuracy_safe_to_relabel_threshold=0.4 --THER_filter_predicate_fn=False \
 --THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \

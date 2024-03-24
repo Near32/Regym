@@ -3,7 +3,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --project=ETHER \
 --success_threshold=0.001 \
 --use_cuda=True \
---config=babyAI_wandb_benchmark_MultiplicativeSemanticPrior_SmallGoal2RNNArchETHER_noframestacking_config.yaml \
+--config=babyAI_wandb_benchmark_MultiplicativeSemanticPrior_SmallGoal2RNN+2LCapRNNArchETHER_noframestacking_config.yaml \
 --language_guided_curiosity=False \
 --coverage_manipulation_metric=False \
 --MiniWorld_entity_visibility_oracle=False \
@@ -16,7 +16,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --HER_target_clamping=False \
 --ETHER_use_ETHER=True \
 --THER_use_THER=True \
---THER_use_THER_predictor_supervised_training=False \
+--THER_log_samples=True \
+--THER_use_THER_predictor_supervised_training=True \
 --THER_use_THER_predictor_supervised_training_data_collection=True \
 --ETHER_with_Oracle=False \
 --ETHER_with_Oracle_type='pickup-only' \
@@ -28,9 +29,9 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_use_supervised_training=False \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=True \
---ETHER_rg_with_logits_mdl_principle=False \
---ETHER_rg_logits_mdl_principle_factor=0.0 \
---ETHER_rg_logits_mdl_principle_accuracy_threshold=60.0 \
+--ETHER_rg_with_logits_mdl_principle=True \
+--ETHER_rg_logits_mdl_principle_factor='45-10' \
+--ETHER_rg_logits_mdl_principle_accuracy_threshold=0.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_continuous_feedback=False \
 --ETHER_rg_agent_nbr_latent_dim=1024 \
@@ -40,13 +41,14 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_homoscedastic_multitasks_loss=False \
 --semantic_embedding_init='none' \
 --semantic_prior_mixing='multiplicative' \
---semantic_prior_mixing_with_detach=False \
+--semantic_prior_mixing_with_detach=True \
+--diversity_loss_weighting=True \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
 --ETHER_rg_semantic_cooccurrence_grounding_semantic_level=False \
 --ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding=False \
 --ETHER_rg_semantic_cooccurrence_grounding_sentence_level=True \
 --ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding=False \
---ETHER_rg_semantic_cooccurrence_grounding_lambda=100.0 \
+--ETHER_rg_semantic_cooccurrence_grounding_lambda=1000.0 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_lock_test_storage=False --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_color_jitter_prob=0.0 \
@@ -58,17 +60,17 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_descriptive_version=1 \
 --ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
---ETHER_rg_vocab_size=64 --ETHER_rg_training_period=8192 \
+--ETHER_rg_vocab_size=64 --ETHER_rg_training_period=16384 \
 --ETHER_rg_descriptive=True --ETHER_rg_object_centric=False \
 --ETHER_rg_use_curriculum_nbr_distractors=False \
---ETHER_rg_nbr_epoch_per_update=16 --ETHER_rg_accuracy_threshold=80 \
---ETHER_rg_nbr_train_distractors=7 --ETHER_rg_nbr_test_distractors=3 \
---ETHER_replay_capacity=2048 --ETHER_test_replay_capacity=1024 \
+--ETHER_rg_nbr_epoch_per_update=8 --ETHER_rg_accuracy_threshold=80 \
+--ETHER_rg_nbr_train_distractors=15 --ETHER_rg_nbr_test_distractors=3 \
+--ETHER_replay_capacity=4096 --ETHER_test_replay_capacity=1024 \
 --ETHER_rg_distractor_sampling='episodic-dissimilarity' \
 --ETHER_rg_use_cuda=True \
 --ETHER_rg_metric_fast=True --ETHER_rg_parallel_TS_worker=8 \
 --ETHER_rg_metric_epoch_period=8 --ETHER_rg_dis_metric_epoch_period=8 \
---ETHER_rg_batch_size=128 \
+--ETHER_rg_batch_size=256 \
 --ETHER_rg_metric_batch_size=32 \
 --ETHER_rg_nbr_train_points=2048 --ETHER_rg_nbr_eval_points=1024 \
 --ETHER_rg_metric_resampling=False --ETHER_rg_dis_metric_resampling=False \
@@ -80,13 +82,13 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --THER_feedbacks_failure_reward=0 --THER_feedbacks_success_reward=1 \
 --THER_episode_length_reward_shaping=False \
 --THER_episode_length_reward_shaping_type='old' \
---THER_replay_capacity=2048 --THER_min_capacity=12 \
---THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=32 \
+--THER_replay_capacity=2048 --THER_min_capacity=512 \
+--THER_predictor_nbr_minibatches=1 --THER_predictor_batch_size=128 \
 --THER_predictor_test_train_split_interval=3 --THER_test_replay_capacity=1024 \
---THER_test_min_capacity=4 --THER_replay_period=1024 \
---THER_train_on_success=False --THER_nbr_training_iteration_per_update=32 \
+--THER_test_min_capacity=32 --THER_replay_period=1024 \
+--THER_train_on_success=False --THER_nbr_training_iteration_per_update=1024 \
 --THER_predict_PADs=False --THER_predictor_accuracy_threshold=0.8 \
---THER_predictor_accuracy_safe_to_relabel_threshold=0.4 --THER_filter_predicate_fn=False \
+--THER_predictor_accuracy_safe_to_relabel_threshold=0.9 --THER_filter_predicate_fn=False \
 --THER_relabel_terminal=True --THER_filter_out_timed_out_episode=False \
 --THER_store_only_relabelled_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
@@ -94,7 +96,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --r2d2_nbr_categorized_storages=1 \
---min_capacity=4e3 --min_handled_experiences=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=334e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.0 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=5 \
 --sequence_replay_use_online_states=False --sequence_replay_use_zero_initial_states=False \
