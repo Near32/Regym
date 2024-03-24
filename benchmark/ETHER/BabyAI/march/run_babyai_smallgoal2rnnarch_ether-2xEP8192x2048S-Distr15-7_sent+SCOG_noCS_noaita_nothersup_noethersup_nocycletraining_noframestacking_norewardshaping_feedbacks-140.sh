@@ -40,7 +40,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_with_semantic_grounding_metric=True --MiniWorld_symbolic_image=False \
 --ETHER_rg_homoscedastic_multitasks_loss=False \
 --semantic_embedding_init='none' \
---semantic_prior_mixing='multiplicative' \
+--semantic_prior_mixing='additive' \
 --semantic_prior_mixing_with_detach=False \
 --semantic_embeddings_detach_visual_features=True \
 --ETHER_rg_use_semantic_cooccurrence_grounding=True \
@@ -94,8 +94,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --THER_store_only_relabelled_episode=False \
 --THER_train_contrastively=False --THER_contrastive_training_nbr_neg_examples=0 \
 --BabyAI_Bot_action_override=False \
---n_step=3 --nbr_actor=32 \
---epsdecay=100000 --epsend=0.1 --eps_greedy_alpha=2.0 \
+--n_step=3 --nbr_actor=32 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --r2d2_nbr_categorized_storages=1 \
 --min_capacity=4e3 --min_handled_experiences=4e3 --replay_capacity=5e3 --learning_rate=6.25e-5 \
