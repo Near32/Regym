@@ -1161,6 +1161,8 @@ def main():
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
     parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_aggregation_type", type=str, default="max")
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_semantic_level_entropy_reg_lambda", type=float, default=0.0)
+    parser.add_argument("--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_entropy_reg_lambda", type=float, default=0.0)
     parser.add_argument("--ETHER_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ETHER_replay_capacity", type=int, default=1024)
     parser.add_argument("--ETHER_rg_filter_out_non_unique", type=str2bool, default=False)

@@ -1006,6 +1006,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             sem_cooc_grounding_config = {
                 "lambda_factor": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_lambda", 1.0),
                 "sentence_level_lambda_factor": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda", 1.0),
+                "semantic_level_entropy_reg_lambda_factor":self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level_entropy_reg_lambda", 0.0),
+                "sentence_level_entropy_reg_lambda_factor":self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_sentence_level_entropy_reg_lambda", 0.0),
                 "noise_magnitude": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude", 0.0),
                 "semantic_level_grounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level", False),
                 "semantic_level_ungrounding": self.kwargs.get("ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding", False),
