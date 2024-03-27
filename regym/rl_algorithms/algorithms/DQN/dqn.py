@@ -569,13 +569,15 @@ class DQNAlgorithm(Algorithm):
                 storage_size = len(storage)
                 
             if storage_size <= 1: continue
+            replace = (storage_size < minibatch_size*2)
+
             if self.use_PER:
                 if using_ray:
                     sample, importanceSamplingWeights = ray.get(
-                        storage.sample.remote(batch_size=minibatch_size, keys=keys)
+                        storage.sample.remote(batch_size=minibatch_size, keys=keys, replace=replace)
                     )
                 else:
-                    sample, importanceSamplingWeights = storage.sample(batch_size=minibatch_size, keys=keys)
+                    sample, importanceSamplingWeights = storage.sample(batch_size=minibatch_size, keys=keys, replace=replace)
                 importanceSamplingWeights = torch.from_numpy(importanceSamplingWeights)
                 fulls['importanceSamplingWeights'].append(importanceSamplingWeights)
                 array_batch_offset = minibatch_size*storage_idx
@@ -583,7 +585,7 @@ class DQNAlgorithm(Algorithm):
                 array_batch_indices = torch.from_numpy(array_batch_indices)
                 fulls['array_batch_indices'].append(array_batch_indices)
             else:
-                sample = storage.sample(batch_size=minibatch_size, keys=keys)
+                sample = storage.sample(batch_size=minibatch_size, keys=keys, replace=replace)
             
             values = {}
             for key, value in zip(keys, sample):

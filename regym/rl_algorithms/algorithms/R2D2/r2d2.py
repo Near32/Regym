@@ -295,11 +295,13 @@ class R2D2Algorithm(DQNAlgorithm):
     ):
         if storage_index is not None :
             assert self.nbr_categorized_storages>1
-            storage_index = actor_index
-        
-        if self.nbr_categorized_storages==1 \
+        elif self.nbr_categorized_storages==1 \
         and self.single_storage:
             storage_index = 0
+        else:
+            assert self.nbr_categorized_storages > actor_index
+            storage_index = actor_index
+        
             
         # Can we add the current sequence buffer to the replay storage?
         if not override and len(self.sequence_replay_buffers[actor_index]) < self.sequence_replay_unroll_length:
