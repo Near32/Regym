@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.py \
---seed=30 \
+--seed=10 \
 --project=ETHER \
 --success_threshold=0.001 \
 --use_cuda=True \
@@ -51,8 +51,8 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_semantic_cooccurrence_grounding_lambda=1000.0 \
 --ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude=0.2 \
 --ETHER_rg_semantic_cooccurrence_grounding_aggregation_type="max" \
---ETHER_rg_semantic_cooccurrence_grounding_semantic_level_entropy_reg_lambda=1e-3 \
---ETHER_rg_semantic_cooccurrence_grounding_sentence_level_entropy_reg_lambda=0.0 \
+--ETHER_rg_semantic_cooccurrence_grounding_semantic_level_entropy_reg_lambda=0.0 \
+--ETHER_rg_semantic_cooccurrence_grounding_sentence_level_entropy_reg_lambda=1e-1 \
 --ETHER_lock_test_storage=False --ETHER_rg_filter_out_non_unique=False\
 --ETHER_rg_color_jitter_prob=0.0 \
 --ETHER_rg_gaussian_blur_prob=0.5 \
