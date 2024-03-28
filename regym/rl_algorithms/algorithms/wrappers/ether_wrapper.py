@@ -175,6 +175,8 @@ class ListenerWrapper(nn.Module):
         # (batch_size x max_sentence_length)
         
         match_value = (sentences == descriptions).float().mean(-1, keepdim=True)
+        # WARNING: Listener entropy-based bonus requires binary matches :
+        match_value = (match_value >= 1).float()
         decision_probs = match_value.reshape((batch_size, 1, 1)).repeat(1, max_sentence_length, 1)
         if self.listener_agent.kwargs['descriptive']:
             not_probs = 1-decision_probs
@@ -226,18 +228,22 @@ class ListenerWrapper(nn.Module):
         decision_probs = output_dict['decision']
         if len(decision_probs.shape)==4:    decision_probs = decision_probs.squeeze(2)
         
-        if self.listener_agent.kwargs['descriptive']:
+        if self.listener_agent.kwargs['descriptive'] \
+        and not (decision_probs.sum(dim=-1) == 1).all().item():
             decision_probs = decision_probs.softmax(dim=-1)
             # (batch_size x max_sentence_length x nbr_distractors+2)
-        elif self.listener_agent.kwargs['normalize_features']:
+        elif self.listener_agent.kwargs['normalize_features'] \
+        and (decision_probs<0.0).any().item():
             # if not descriptive then we need to assert that we have normalized the features
             # and therefore the probs are between -1 and 1 and we can format them between 0 and 1:
             decision_probs = (decision_probs+1)/2
         # (batch_size x max_sentence_length x nbr_distractors+1)
+        '''
         else:
             # since we do not know what are the possible values, we propose to apply tanh to squash the values:
             # it is applied inside the listener : decision_probs = torch.Tanh(decision_probs)
             decision_probs = (decision_probs+1)/2
+        '''
         # (batch_size x max_sentence_length x nbr_distractors+1)
         
         final_decision_probs = self.get_final_decision(
@@ -353,6 +359,124 @@ def batched_listener_based_goal_predicated_reward_fn(
     return reward, target_pred_goal, target_latent_goal
 
 
+def batched_listener_based_goal_predicated_reward_with_bonus_fn(
+    predictor, 
+    achieved_exp:List[Dict[str,object]], 
+    target_exp:List[Dict[str,object]], 
+    _extract_goal_from_info_fn=None, 
+    goal_key:str="achieved_goal",
+    latent_goal_key:str=None,
+    epsilon:float=1e0,
+    feedbacks:Dict[str,float]={"failure":-1, "success":0},
+    reward_shape:List[int]=[1,1],
+    **kwargs:Dict[str,object],
+    ):
+    '''
+    Relabelling an unsuccessful trajectory, so the desired_exp's goal is not achieved.
+    We want to know whether the goal that is achieved on the :param target_exp:'s succ_s
+    is achieved on the :param achieved_exp:'s succ_s.
+    
+    :param kwargs: must contain an entry 'listener' whose value is the listener agent to
+    query to evaluate the alignement between the previously-mentioned goal and achieved succ_s.
+    
+    Returns :param feedbacks['failure']: for failure and :param feedbacks['success']: for success,
+    unless :param kwargs['use_continuous_feedback']: is provided and True, then an interpolation
+    between the previously mentioned values is performed.
+    '''
+    listener = kwargs['listener']
+
+    target_latent_goal = None 
+
+    state = torch.stack(
+        [exp['succ_s'] for exp in achieved_exp],
+        dim=0,
+    )
+    target_state = torch.stack(
+        [exp['succ_s'] for exp in target_exp],
+        dim=0,
+    )
+    
+    rnn_states = _concatenate_list_hdict(
+        lhds=[exp['next_rnn_states'] for exp in achieved_exp], 
+        concat_fn=archi_concat_fn,
+        preprocess_fn=(lambda x:x),
+    )
+    
+    target_rnn_states = _concatenate_list_hdict(
+        lhds=[exp['next_rnn_states'] for exp in target_exp], 
+        concat_fn=archi_concat_fn,
+        preprocess_fn=(lambda x:x),
+    )
+    
+    with torch.no_grad():
+        training = predictor.training
+        predictor.train(False)
+        listener_training = listener.training
+        listener.train(False)
+
+        target_pred_goal_dict = predictor(
+            x=target_state, 
+            rnn_states=target_rnn_states,
+        )
+        target_pred_goal = target_pred_goal_dict['output'][0]
+
+        target_descriptive_probs = listener(
+            x=target_state, 
+            rnn_states=target_rnn_states, 
+            goal=target_pred_goal,
+        ).cpu()
+        
+        #achieved_pred_goal = predictor(x=state, rnn_states=rnn_states).cpu()
+        descriptive_probs = listener(x=state, rnn_states=rnn_states, goal=target_pred_goal).cpu()
+        
+        predictor.train(training)
+        listener.train(listener_training)
+    
+    target_pred_goal = target_pred_goal.cpu()
+    listener.predicate_threshold = target_descriptive_probs.item()-1.0e-4
+    wandb.log({f"ListenerWrapper/TargerPredicateDecisionProbs": target_descriptive_probs.item()}, commit=False)
+    
+    nt_descr_probs = (1.0-descriptive_probs)
+    descriptive_entropies = -1*(
+        descriptive_probs*torch.log(1e-8+descriptive_probs) \
+        + nt_descr_probs*torch.log(1e-8+nt_descr_probs) \
+    ) / np.log(2)
+    wandb.log({f"ListenerWrapper/DescriptiveDistrEntropy/Mean": descriptive_entropies.mean().item()}, commit=False)
+    wandb.log({f"ListenerWrapper/DescriptiveDistrEntropy/Std": descriptive_entropies.std().item()}, commit=False)
+    wandb.log({f"ListenerWrapper/DescriptiveDistrEntropy/Min": descriptive_entropies.min().item()}, commit=False)
+    wandb.log({f"ListenerWrapper/DescriptiveDistrEntropy/Max": descriptive_entropies.max().item()}, commit=False)
+
+    if kwargs.get("use_continuous_feedback", False):
+        reward_range = feedbacks['success']-feedbacks['failure']
+        # (batch_size, )
+        reward = descriptive_probs.unsqueeze(-1)*reward_range + feedbacks['failure']
+        # (batch_size, 1)
+    else:
+        reward_mask = descriptive_probs > listener.predicate_threshold
+        reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+        reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
+    
+    # Listener's Entropy-based Bonus:
+    '''
+    if (descriptive_entropies>0).any().item():
+        # LEGACY CHECK:
+        # with listener oracles, it should never be positive
+        # because it enforce binary matching of the input sentence and the achieved goal.
+        # With normal agents though, it should be showing positive entropies almost all the time
+        import ipdb; ipdb.set_trace()
+    '''
+    reward_bonus = descriptive_entropies.unsqueeze(-1)*feedbacks["success"]
+    # (batch_size, 1)
+    reward += reward_bonus
+    wandb.log({f"ListenerWrapper/ListenerEntrRewardBonus/Mean": reward_bonus.mean().item()}, commit=False)
+    wandb.log({f"ListenerWrapper/ListenerEntrRewardBonus/Std": reward_bonus.std().item()}, commit=False)
+    wandb.log({f"ListenerWrapper/ListenerEntrRewardBonus/Min": reward_bonus.min().item()}, commit=False)
+    wandb.log({f"ListenerWrapper/ListenerEntrRewardBonus/Max": reward_bonus.max().item()}, commit=False)
+
+
+    return reward, target_pred_goal, target_latent_goal
+
+
 class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
     def __init__(
         self, 
@@ -432,8 +556,13 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
         }
         
         if self.kwargs.get("ETHER_listener_based_predicated_reward_fn", False):
-            self.goal_predicated_reward_fn = partial(
-                    #batched_predictor_based_goal_predicated_reward_fn2, 
+            if self.kwargs.get("ETHER_listener_entropy_based_reward_bonus", False):
+                self.goal_predicated_reward_fn = partial(
+                    batched_listener_based_goal_predicated_reward_with_bonus_fn,
+                    predictor=self.predictor,
+                )
+            else:
+                self.goal_predicated_reward_fn = partial(
                     batched_listener_based_goal_predicated_reward_fn,
                     predictor=self.predictor,
                 )

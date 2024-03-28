@@ -629,7 +629,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         **self.goal_predicated_reward_fn_kwargs,
                     )
                     
-                    positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_mask = (batched_new_r.detach() >= self.feedbacks['success']).cpu().reshape(-1)
                     positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
                     positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
 
@@ -717,7 +717,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         **self.goal_predicated_reward_fn_kwargs,
                     )
                     
-                    positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_mask = (batched_new_r.detach() >= self.feedbacks['success']).cpu().reshape(-1)
                     positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
                     positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
                     
@@ -884,7 +884,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         **self.goal_predicated_reward_fn_kwargs,
                     )
                     
-                    positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
+                    positive_new_r_mask = (batched_new_r.detach() >= self.feedbacks['success']).cpu().reshape(-1)
                     positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
                     positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
                     
@@ -1085,7 +1085,7 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                             **self.goal_predicated_reward_fn_kwargs,
                        )
                         
-                        positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
+                        positive_new_r_mask = (batched_new_r.detach() >= self.feedbacks['success']).cpu().reshape(-1)
                         positive_new_r_step_positions = torch.arange(eff_episode_length).masked_select(positive_new_r_mask)
                         positive_new_r_step_histogram = wandb.Histogram(positive_new_r_step_positions)
                         

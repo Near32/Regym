@@ -1136,6 +1136,7 @@ def main():
     parser.add_argument("--ETHER_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ETHER_use_continuous_feedback", type=str2bool, default=False,)
     parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
+    parser.add_argument("--ETHER_listener_entropy_based_reward_bonus", type=str2bool, default=False,)
     parser.add_argument("--ETHER_rg_freeze_speaker", type=str2bool, default="False",)
     parser.add_argument("--ETHER_rg_compactness_ambiguity_metric_epoch_period", type=int, default=32)
     parser.add_argument("--ETHER_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
