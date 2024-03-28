@@ -465,7 +465,7 @@ def batched_listener_based_goal_predicated_reward_with_bonus_fn(
         # With normal agents though, it should be showing positive entropies almost all the time
         import ipdb; ipdb.set_trace()
     '''
-    reward_bonus = descriptive_entropies.unsqueeze(-1)*feedbacks["success"]
+    reward_bonus = descriptive_entropies.unsqueeze(-1)#*feedbacks["success"]
     # (batch_size, 1)
     reward += reward_bonus
     wandb.log({f"ListenerWrapper/ListenerEntrRewardBonus/Mean": reward_bonus.mean().item()}, commit=False)
