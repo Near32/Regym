@@ -838,6 +838,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "optimizer_type":self.kwargs["ELA_rg_optimizer_type"],
             "with_gradient_clip":rg_config["with_gradient_clip"],
             "adam_eps":rg_config["adam_eps"],
+            "optimize":self.kwargs.get("ELA_with_rg_optimize", True),
         }
         
         optim_module = rg_modules.build_OptimizationModule(
