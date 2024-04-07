@@ -1,6 +1,7 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --project=EReLELA-MultiRoom-Benchmark \
 --BabyAI_Bot_action_override=False \
+--ELA_rg_compactness_ambiguity_metric_with_ordering=True \
 --ELA_feedbacks_failure_reward=0 \
 --ELA_feedbacks_success_reward=1 \
 --ELA_lock_test_storage=False \

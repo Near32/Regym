@@ -1161,6 +1161,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
+                "with_ordering": self.kwargs["ELA_rg_compactness_ambiguity_metric_with_ordering"],
                 'sanity_check_shuffling': False,
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
