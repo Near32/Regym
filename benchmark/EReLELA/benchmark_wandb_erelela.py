@@ -1045,6 +1045,7 @@ def main():
     parser.add_argument("--ELA_with_rg_optimize", type=str2bool, default="True",)
     parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
+    parser.add_argument("--ELA_feedbacks_type", type=str, default='normal', choices=['normal','hurry-140'],)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_with_ordering", type=str2bool, default=False)

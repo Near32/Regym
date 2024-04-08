@@ -221,7 +221,19 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 visited_captions.append(caption.tolist())
                 reward_mask[idx] = 1
         reward_mask = reward_mask.bool()
-        reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+        feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
+        if 'hurry' in feedbacks_type:
+            assert '-' in feedbacks_type
+            max_episode_length = int(feedbacks_type.split('-')[-1])
+            feedbacks_type = 'hurry'
+        if feedbacks_type == 'normal':
+            reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+        elif feedbacks_type == 'hurry':
+            assert feedbacks['success'] > 0.0
+            reward = (1.0-torch.arange(episode_length).float()/max_episode_length).clamp(min=0.1).unsqueeze(-1)
+            reward *= reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+        else:
+            raise NotImplementedError
         reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
         return reward, captions
     
