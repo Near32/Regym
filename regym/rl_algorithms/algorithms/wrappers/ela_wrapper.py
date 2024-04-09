@@ -331,8 +331,21 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 batched_r = torch.cat([
                     self.episode_buffer[actor_index][idx]['r']
                     for idx in range(episode_length)],
-                    dim=-1,
+                    dim=0,
                 )
+                feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
+                if 'hurry' in feedbacks_type:
+                    assert '-' in feedbacks_type
+                    max_episode_length = int(feedbacks_type.split('-')[-1])
+                    feedbacks_type = 'hurry'
+                
+                if feedbacks_type == 'normal':
+                    pass #reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+                elif feedbacks_type == 'hurry':
+                    reward_scaler = (1.0-torch.arange(episode_length).float()/max_episode_length).clamp(min=0.1).unsqueeze(-1)
+                    batched_r *= reward_scaler
+                else:
+                    raise NotImplementedError
                 positive_new_r_mask = (batched_r > 0.0).reshape(-1)
                 
             positive_new_r_step_positions = torch.arange(episode_length).masked_select(positive_new_r_mask)
@@ -360,6 +373,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                     new_r += self.intrinsic_weight*batched_new_r[idx:idx+1]
                 else:
                     assert self.extrinsic_weight > 0
+                    if feedbacks_type == 'normal':
+                        pass
+                    elif feedbacks_type == 'hurry':
+                        new_r *= reward_scaler[idx].item()
+                    else:
+                        raise NotImplementedError
                 new_rs.append(new_r)
 
                 succ_s = self.episode_buffer[actor_index][idx]['succ_s']
