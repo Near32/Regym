@@ -256,6 +256,10 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
         self.nbr_successfull_traj = 0
         self.nbr_categorized_storages = self.kwargs.get('r2d2_nbr_categorized_storages', 1)
 
+        self.original_goals_hist = {}
+        columns = ["obs", "original_goal", "relabelling_goal"]
+        self.relabelled_goals_table = wandb.Table(columns=columns)
+
     def check_safe_relabelling(self):
         self.safe_relabelling = self.test_acc >= self.kwargs['THER_predictor_accuracy_safe_to_relabel_threshold']
         return self.safe_relabelling
@@ -449,6 +453,13 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             self.episode_count += 1
             episode_length = len(self.episode_buffer[actor_index])
 
+            goals = self.episode_buffer[actor_index][-1]['rnn_states']['phi_body']['extra_inputs']['desired_goal'][0]
+            idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
+            goals_expr = " ".join([idx2w[tidx] for tidx in goals[0]]
+            if goals_expr not in self.original_goals_hist:
+                self.original_goals_hist[goals_expr] = 0
+            self.original_goals_hist[goals_expr] += 1
+
             # Assumes non-successful rewards are non-positive:
             successful_traj = all(self.episode_buffer[actor_index][-1]['r']>self.kwargs['success_threshold'])
             if successful_traj: self.nbr_successfull_traj += 1
@@ -569,7 +580,11 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                    
                     goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
                     idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
-                    
+                    goals_expr = " ".join([idx2w[tidx] for tidx in goals[0]]
+                    if goals_expr not in self.original_goals_hist:
+                        self.original_goals_hist[goals_expr] = 0
+                    self.original_goals_hist[goals_expr] += 1
+
                     if self.kwargs.get('THER_log_samples', False):
                         if not hasattr(self, "sample_table"):
                             columns = [f"gt_token{idx}" for idx in range(goals.shape[1])]
