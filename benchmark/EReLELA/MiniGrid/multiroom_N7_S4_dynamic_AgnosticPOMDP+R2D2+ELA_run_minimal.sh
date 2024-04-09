@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=50 --env_seed=12 --static_envs=False \
+--seed=20 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-MultiRoom-Benchmark \
@@ -29,6 +29,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=False --THER_use_THER=False \
 --ELA_with_rg_training=True \
+--ELA_with_rg_optimize=True \
 --ELA_rg_use_cuda=True \
 --ELA_rg_graphtype='straight_through_gumbel_softmax' \
 --ELA_rg_obverter_threshold_to_stop_message_generation=0.9 \
@@ -38,7 +39,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=True \
 --ELA_rg_with_logits_mdl_principle=False \
---ELA_rg_logits_mdl_principle_factor=1.0e-3 \
+--ELA_rg_logits_mdl_principle_factor=0.0 \
 --ELA_rg_logits_mdl_principle_accuracy_threshold=60.0 \
 --ELA_rg_agent_loss_type=Impatient+Hinge \
 --ELA_rg_use_semantic_cooccurrence_grounding=False \
