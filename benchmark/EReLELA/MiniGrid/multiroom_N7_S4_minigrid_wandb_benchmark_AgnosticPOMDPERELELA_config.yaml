@@ -642,7 +642,8 @@ agents:
                 'CaptionGeneratorMLP':
                     type: FullyConnectedNetworkModule
                     state_dim: *mlp_input_dim #3136
-                    hidden_units: ['BN512', 'BN256', 'BN256']
+                    #hidden_units: ['BN512', 'BN256', 'BN256']
+                    hidden_units: ['BN1024', 'BN512', 'BN256']
                     non_linearities: ['ReLU']
                     dropout: 0.25
                     config: None

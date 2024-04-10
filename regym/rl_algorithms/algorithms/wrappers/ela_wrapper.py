@@ -25,6 +25,24 @@ from ReferentialGym.datasets import DemonstrationDataset
 from ReferentialGym.agents import DiscriminativeListener, LSTMCNNListener
 
 
+# Adapted from: 
+# https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L37
+def ht(t):
+    if isinstance(t, tuple):
+        return t
+    if isinstance(t, int):
+        return t
+    if isinstance(t, list):
+        return tuple(t)
+
+    try:
+        t = t.item()
+    except:
+        t = tuple(t.reshape(-1).tolist())
+    
+    return t
+
+
 class ELAAlgorithmWrapper(AlgorithmWrapper):
     def __init__(
         self, 
@@ -144,14 +162,71 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         wandb.log({f"Training/ELA/NbrData":self.nbr_data}, commit=False)
          
         if "symbolic_image" in exp_dict['info']:
+            if not hasattr(self, 'uniqueObs2Hist'): self.uniqueObs2Hist = {}
             unique = True
-            for idx in range(len(self.rg_storages[actor_index])):
-                if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == exp_dict['info']['symbolic_image']).reshape(-1)):
+            symbolicRepr = ht(exp_dict['info']['symbolic_image'])
+            lastSymbolicRepr = self.rg_storages[actor_index].info[0][-1]
+            if isinstance(lastSymbolicRepr, dict):
+                lastSymbolicRepr = lastSymbolicRepr.get('symbolic_image', None)
+            else:
+                lastSymbolicRepr = None
+            #for idx in range(len(self.rg_storages[actor_index])):
+            for otherRepr in self.uniqueObs2Hist.keys():
+                #if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == symbolicRepr).reshape(-1)):
+                if otherRepr == symbolicRepr:
                     self.non_unique_data += 1
                     #self.nbr_data = self.rg_storages[actor_index].get_size()+self.rg_storages[actor_index].get_size(test=True)
                     unique = False
                     break
-        
+            if unique:
+                self.uniqueObs2Hist[symbolicRepr] = 1
+            else:
+                self.uniqueObs2Hist[symbolicRepr] += 1
+            if lastSymbolicRepr is not None:
+                self.uniqueObs2Hist[ht(lastSymbolicRepr)] -= 1
+            nonNullOcc = [val for val in self.uniqueObs2Hist.values() if val > 0]
+            values = np.asarray(nonNullOcc)
+            max_value = values.max()
+            min_value = values.min()
+            averaged_value = values.mean()
+            std_value = values.std()
+            median_value = np.nanpercentile(
+              values,
+              q=50,
+              axis=None,
+              method="nearest"
+            )
+            q1_value = np.nanpercentile(
+              values,
+              q=25,
+              axis=None,
+              method="lower"
+            )
+            q3_value = np.nanpercentile(
+              values,
+              q=75,
+              axis=None,
+              method="higher"
+            )
+            iqr = q3_value-q1_value
+            
+            totalData = sum(values)
+            medianFreq = float(median_value)/totalData 
+            meanFreq = float(averaged_value)/totalData
+            maxFreq = float(max_value)/totalData
+            q3Freq = float(q3_value)/totalData
+            wandb.log({f"Training/ELA/NonNullOccurrences/Mean": averaged_value}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/FreqMean": meanFreq}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/FreqMedian": medianFreq}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/FreqMax": maxFreq}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/FreqQ3": q3Freq}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/Std": std_value}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/Median": median_value}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/Max": max_value}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/Min": min_value}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/Q1": q1_value}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/Q3": q3_value}, commit=False)
+            wandb.log({f"Training/ELA/NonNullOccurrences/IQR": iqr}, commit=False)
             wandb.log({f"Training/ELA/NonUniqueDataRatio":float(self.non_unique_data)/(self.nbr_data+1)}, commit=False)
             wandb.log({f"Training/ELA/NonUniqueDataNbr": self.non_unique_data}, commit=False)
         
