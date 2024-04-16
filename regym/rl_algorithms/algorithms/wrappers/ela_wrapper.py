@@ -165,11 +165,18 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             if not hasattr(self, 'uniqueObs2Hist'): self.uniqueObs2Hist = {}
             unique = True
             symbolicRepr = ht(exp_dict['info']['symbolic_image'])
-            lastSymbolicRepr = self.rg_storages[actor_index].info[0][-1]
+            currentReprPosition = self.rg_storages[actor_index].position['info']
+            lastSymbolicRepr = self.rg_storages[actor_index].info[0][currentReprPosition]
+            currentTestReprPosition = self.rg_storages[actor_index].test_storage.position['info']
+            lastTestSymbolicRepr = self.rg_storages[actor_index].test_storage.info[0][currentTestReprPosition]
             if isinstance(lastSymbolicRepr, dict):
                 lastSymbolicRepr = lastSymbolicRepr.get('symbolic_image', None)
             else:
                 lastSymbolicRepr = None
+            if isinstance(lastTestSymbolicRepr, dict):
+                lastTestSymbolicRepr = lastTestSymbolicRepr.get('symbolic_image', None)
+            else:
+                lastTestSymbolicRepr = None
             #for idx in range(len(self.rg_storages[actor_index])):
             for otherRepr in self.uniqueObs2Hist.keys():
                 #if all((self.rg_storages[actor_index].info[0][idx]['symbolic_image'] == symbolicRepr).reshape(-1)):
@@ -178,12 +185,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                     #self.nbr_data = self.rg_storages[actor_index].get_size()+self.rg_storages[actor_index].get_size(test=True)
                     unique = False
                     break
+            
             if unique:
                 self.uniqueObs2Hist[symbolicRepr] = 1
-            else:
+            elif not self.kwargs['ELA_rg_filter_out_non_unique']:
                 self.uniqueObs2Hist[symbolicRepr] += 1
-            if lastSymbolicRepr is not None:
-                self.uniqueObs2Hist[ht(lastSymbolicRepr)] -= 1
+            
             nonNullOcc = [val for val in self.uniqueObs2Hist.values() if val > 0]
             values = np.asarray(nonNullOcc)
             max_value = values.max()
@@ -235,7 +242,17 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 return
 
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
-    
+        
+        if "symbolic_image" in exp_dict['info']:
+            # Regularising:
+            if self.rg_storages[actor_index].latest_addition_to_test_set \
+            and lastTestSymbolicRepr is not None:
+                self.uniqueObs2Hist[ht(lastTestSymbolicRepr)] -= 1
+            elif lastSymbolicRepr is not None:
+                self.uniqueObs2Hist[ht(lastSymbolicRepr)] -= 1
+        
+        return
+             
     def compute_captions(
         self,
         exp:List[Dict[str,object]], 
@@ -653,7 +670,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "nbr_communication_round":  1,
             "nbr_distractors":          {"train":self.kwargs["ELA_rg_nbr_train_distractors"], "test":self.kwargs["ELA_rg_nbr_test_distractors"]},
             "distractor_sampling":      self.kwargs["ELA_rg_distractor_sampling"],
-            # Default: use "similarity-0.5"
+            # Default: use "similarity-50"
             # otherwise the emerging language 
             # will have very high ambiguity...
             # Speakers find the strategy of uttering
@@ -1395,12 +1412,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
  
     def update_datasets(self):
         kwargs = {'same_episode_target': self.kwargs.get('ELA_rg_same_episode_target', False)}
-        #TODO: investigate what type of target we want with similarity:
-        #if 'similarity' in self.rg_config['distractor_sampling']:
-        #    kwargs['same_episode_target'] = True 
         if 'episodic-dissimilarity' in self.rg_config['distractor_sampling']:
             assert self.kwargs['ELA_rg_same_episode_target']
-
+        #TODO: investigate what type of target we want with similarity:
+        elif 'similarity-' in self.rg_config['distractor_sampling']:
+            assert self.kwargs['ELA_rg_same_episode_target']
+        
         extra_keys_dict = {
             "grounding_signal":self.kwargs.get("ELA_grounding_signal_key", None),
         }

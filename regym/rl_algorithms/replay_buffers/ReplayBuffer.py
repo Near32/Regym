@@ -335,11 +335,13 @@ class SplitReplayStorage(ReplayStorage):
         )
 
     def add(self, data, test_set=None):
+        self.latest_addition_to_test_set = False
         if test_set is None:
             self.train_data_count += 1
             test_set = self.train_data_count % self.test_train_split_interval == 0
         if test_set:
             self.test_storage.add(data=data)
+            self.latest_addition_to_test_set = True
         else:
             super(SplitReplayStorage, self).add(data=data)
     
