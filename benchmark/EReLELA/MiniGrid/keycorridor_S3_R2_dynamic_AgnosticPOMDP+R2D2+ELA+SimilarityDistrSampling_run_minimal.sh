@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=10 --env_seed=12 --static_envs=False \
+--seed=20 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-KeyCorridor-Benchmark \
@@ -55,7 +55,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
 --ELA_rg_training_period=32768 \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=1024 --ELA_rg_accuracy_threshold=80 \
+--ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=90 \
 --ELA_rg_nbr_train_distractors=128 --ELA_rg_nbr_test_distractors=3 \
 --ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
 --ELA_rg_distractor_sampling_scheme_version=2 \
