@@ -1,10 +1,10 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=30 --env_seed=12 --static_envs=False \
+--seed=10 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-KeyCorridor-Benchmark \
 --success_threshold=0.01 \
---config=keycorridor_S3_R2_minigrid_wandb_benchmark_POMDPERELELA_config.yaml \
+--config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
 --language_guided_curiosity=False \
 --language_guided_curiosity_descr_type='descr' \
 --language_guided_curiosity_extrinsic_weight=10.0 \
@@ -81,7 +81,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --time_limit=0 \
 --benchmarking_record_episode_interval=4 \
 --benchmarking_interval=1.0e4 \
---train_observation_budget=1.0e6
+--train_observation_budget=1.0e7
 
 #--train_observation_budget=300000 
 #--project=EReLELA-MultiRoom-ELA-Test \
