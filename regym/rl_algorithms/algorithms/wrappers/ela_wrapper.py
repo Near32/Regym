@@ -753,6 +753,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "entropy_regularization_factor":    -1e-2,
             
             "with_logits_mdl_principle":       self.kwargs['ELA_rg_with_logits_mdl_principle'],
+            "logits_mdl_principle_normalization":     self.kwargs['ELA_rg_logits_mdl_principle_normalization'],
             "logits_mdl_principle_factor":     self.kwargs['ELA_rg_logits_mdl_principle_factor'],
             "logits_mdl_principle_accuracy_threshold":     self.kwargs['ELA_rg_logits_mdl_principle_accuracy_threshold'],
             
