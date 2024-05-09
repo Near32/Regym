@@ -1104,6 +1104,7 @@ def main():
 
     parser.add_argument("--ELA_rg_with_logits_mdl_principle", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_logits_mdl_principle_normalization", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_use_inst_accuracy", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ELA_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
