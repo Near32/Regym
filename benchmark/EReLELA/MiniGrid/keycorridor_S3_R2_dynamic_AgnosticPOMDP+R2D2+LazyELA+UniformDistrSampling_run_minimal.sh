@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=10 --env_seed=12 --static_envs=False \
+--seed=20 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-KeyCorridor-Benchmark \
@@ -39,7 +39,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=True \
 --ELA_rg_with_logits_mdl_principle=True \
---ELA_rg_logits_mdl_principle_factor='10-1' \
+--ELA_rg_logits_mdl_principle_factor='5-1' \
 --ELA_rg_logits_mdl_principle_normalization=True \
 --ELA_rg_logits_mdl_principle_use_inst_accuracy=True \
 --ELA_rg_logits_mdl_principle_accuracy_threshold=50.0 \
