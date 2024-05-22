@@ -1,0 +1,578 @@
+extra_hyperparameters: &extra_hyperparameters
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda: 0.0
+    weights_entropy_lambda: 0.0 #01
+    use_target_to_gather_data:    False
+
+    PER_compute_initial_priority: False
+    
+    vdn: False 
+    vdn_nbr_players: 2
+
+    sequence_replay_use_online_states: True
+    sequence_replay_use_zero_initial_states: False
+    sequence_replay_store_on_terminal: True
+    
+    r2d2_loss_masking: True
+    r2d2_loss_masking_n_step_regularisation: True
+    r2d2_bellman_target_SAD: False
+
+    burn_in: True 
+    sequence_replay_unroll_length: 80
+    sequence_replay_overlap_length: 40
+    sequence_replay_burn_in_length: 20
+
+    sequence_replay_PER_eta: 0.9
+    
+
+LargeLSTMCNN: &LargeLSTMCNN
+        phi_arch: 'CNN-LSTM-RNN' #-LSTM-RNN'
+        actor_arch: 'None'
+        critic_arch: 'None'
+        
+        # Phi Body:
+        phi_arch_channels: [32, 64, 64]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 1]
+        phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 512
+        phi_arch_hidden_units: [512,]
+
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['phi_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['phi_body', 'extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_feature_dim: None
+        critic_arch_hidden_units: []
+
+
+LargeCNNLSTM: &LargeCNNLSTM
+        phi_arch: 'CNN' #-LSTM-RNN'
+        actor_arch: 'None'
+        critic_arch: 'MLP-LSTM-RNN'
+        
+        # Phi Body:
+        phi_arch_channels: [32, 64, 64]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 1]
+        phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 512
+        phi_arch_hidden_units: []
+
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_feature_dim: 512
+        critic_arch_hidden_units: [512]
+
+
+LargeCNNMLP: &LargeCNNMLP
+        phi_arch: 'CNN' #-LSTM-RNN'
+        actor_arch: 'None'
+        #critic_arch: 'None' 
+        critic_arch: 'MLP-MLP-RNN'
+        
+        # Phi Body:
+        phi_arch_channels: [32, 64, 64]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 1]
+        phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 512
+        phi_arch_hidden_units: []
+
+        # With extra inputs:
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_feature_dim: 512
+        critic_arch_hidden_units: [512]
+
+        
+r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e3
+        replay_period: 1
+        # deprecated: actor_models_update_optimization_interval: 4
+        actor_models_update_steps_interval: 400 #considering only 1 actor's steps.
+
+        observation_resize_dim: 84
+        discount: 0.99 #0.997
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        eps_greedy_alpha: 0.0
+        
+        <<: *LargeLSTMCNN
+        <<: *extra_hyperparameters
+
+r2d2_LargeCNNLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeCNNLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e3
+        replay_period: 1
+        # deprecated: actor_models_update_optimization_interval: 4
+        actor_models_update_steps_interval: 400 #considering only 1 actor's steps.
+
+        observation_resize_dim: 84
+        discount: 0.99 #0.997
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        eps_greedy_alpha: 0.0
+
+        <<: *LargeCNNLSTM
+        <<: *extra_hyperparameters
+
+
+r2d2_LargeCNNMLP_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeCNNMLP_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e3
+        replay_period: 1
+        # deprecated: actor_models_update_optimization_interval: 4
+        actor_models_update_steps_interval: 400 #considering only 1 actor's steps.
+
+        observation_resize_dim: 84
+        discount: 0.99 #0.997
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        eps_greedy_alpha: 0.0
+
+        <<: *LargeCNNMLP
+        <<: *extra_hyperparameters
+
+
+experiment:
+    tasks: [{
+        'env-id': 'PongNoFrameskip-v4',
+        #'env-id': 'MovingDotDiscreteNoFrameskip-v0',
+        #'env-id': 'BreakoutNoFrameskip-v4',
+        #'env-id': 'BattleZoneNoFrameskip-v4',
+        #'env-id': 'EnduroNoFrameskip-v4',
+
+        #'run-id': 'Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m2_EntropyReg0_b16_RepP2_DEBUGNSTEP+ProperGammaLoss+CurrentActionLoss+DetachedRNNStates',
+
+        #'run-id': 'DEBUG_NOEXTRA_RNN_EXTRAINPUTS_InLossFn_Argmax_AlignedTargetActions_INM1Done_LossMasked/QReplayAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099+MinCap5e3/',
+        #'run-id': 'DEBUGGING/ActorUpdateInt4/QReplayAction/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997/',
+
+        #'run-id': 'DEBUGGING/NotSoft+TEnt/ClippingReward+TDError/InWrapper/CrossingEpisodeBarriers/ProperTDs4Priori/PrioritizationAlphaFixed/ActorUpdateInt4/NonZeroInitialStateRNNOptim/QReplayAction/ScalingFN/Seed100_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+Discount0997/',
+
+        #'run-id': 'test/async/CrossingEpisodeBarriers/ActorUpdateStepsInterval400/ScalingFN_EPS1m3/Seed100_venv32_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_NOSingleLife_NOClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+
+        ##################
+        # PREVIOUSLY:
+        ##################
+        # Not learning because of QOnlineActions:
+        # 'run-id': 'DEBUG6_Argmax_AlignedTargetActions_INM1Done_LossMasked/QOnlineAction/CNN/ScalingFN/Seed1_venv1_r2d2_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_SingleLife_ClipReward_Eps3p4End1m3_EntropyReg0_WeightDecayReg0+ProperGammaLoss+CurrentActionLoss+Discount099',
+        #'agent-id': '5step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L20_O10_B5',
+        #'agent-id': '5step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b2_L20_O10_B5',
+
+        #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L2_O1_B1',
+        #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L10_O5_B5',
+        #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L2_O1_B0',
+        #'agent-id': '1step_r2d2_LargeLSTMCNN_r1e5_beta4m1_tau1m3_RepP32_BURNIN_b1_L80_O40_B40',
+
+        #'agent-id': '1step_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e6_alpha9m1_beta4m1_tau25m4_RepP64_BURNIN_b1_L80_O40_B40',
+
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_NOBURNIN_b16_L2_O1_B0',
+        #'agent-id': '1step_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau25m4_RepP1_NOBURNIN_b16_L2_O1_B0',
+        #Gamma of 0.99 fail to learn, compared to 0.997 that does: 'agent-id': '1step_dueling_PER_r2d2_gamma999_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau25m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # Trying 0.999 to see if it leads to better data efficiency: does not work with cuda benchmark seed100
+        #'agent-id': '1step_dueling_PER_r2d2_gamma999_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau25m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        #cuda benchmark 0.997 seems stable, but not data-efficient: 
+        #'agent-id': '1step_dueling_PER_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau25m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # The following is slightly better without PER...
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau25m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # better data-efficiency with smaller tau :
+        #'agent-id': '1step_noisy_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau1m3_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # same data-efficiency with better stability, visibly:
+        #'agent-id': '1step_noisy_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # Is the noisy aspect necessary? Nope, same results:
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # longer sequences: nstable:
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP2_NOBURNIN_b16_L8_O1_B0',
+        # with longer rep period: adjusting batch size to yield an effective minibatch size of 32: not learning...
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP8_NOBURNIN_b4_L8_O1_B0',
+        # reducing values:
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP4_NOBURNIN_b8_L4_O1_B0',
+        # Comparing against using burnin:
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP4_BURNIN_b8_L4_O1_B1',
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP4_BURNIN_b8_L4_O1_B2',
+        # Doubling the burnin and length resulted in a doubled data-efficiency:
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP4_BURNIN_b8_L8_O4_B4',
+
+        # decreasing the repetition is not helping:
+        #'agent-id': '1step_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP8_BURNIN_b8_L8_O4_B4',
+        # what about using PER: apparently not useful...
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_tau5m4_RepP4_BURNIN_b8_L8_O4_B4',
+        # finetuning the beta hyperparam:
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_over1e5_tau5m4_RepP4_BURNIN_b8_L8_O4_B4',
+        # finetuning the beta hyperparam: reduicing alpha, beta, eta:
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha7m1_beta4m1_over1e4_eta9m1_tau5m4_RepP4_BURNIN_b8_L8_O4_B4',
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP8_BURNIN_b4_L8_O4_B4',
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha7m1_beta4m1_over1e4_eta9m1_tau5m4_RepP4_BURNIN_b8_L16_O8_B8',
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha7m1_beta4m1_over1e4_eta9m1_tau5m4_RepP4_BURNIN_b8_L32_O16_B16',
+
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP4_NOBURNIN_b8_L2_O1_B0',
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_GradClip4p1_r1e5Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP4_NOBURNIN_b8_L2_O1_B0',
+
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP4_BURNIN_b8_L8_O4_B4',
+        #'agent-id': '1step_noisy_PER_dueling_r2d2_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP4_BURNIN_b8_L8_O4_B4',
+        # increasing two folds the sequence length and burnin while keeping the number of obs per updates constant (i.e. dividing by two the batch size):
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP4_BURNIN_b4_L16_O8_B8',
+
+        #'agent-id': '1step_PER_dueling_r2d2_gamma997_LargeLSTMCNN_NoGradClip_r1e5Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP4_BURNIN_b8_L32_O16_B16',
+        ##################
+        
+        ##################
+        
+        #####
+        # Solves the simple env:
+        #'run-id': 'test/async/CrossingEpisodeBarriers/SingleStorage/GreedyTesting/ActorUpdateStepsInterval400/ScalingFN_EPS1m3/Seed100_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_NOSingleLife_NOClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        # changing tau: no effect...
+        #'run-id': 'test/async/CrossingEpisodeBarriers/NonTerminalProd/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NotCurrentAction/ScalingFN_EPS1m3/Seed1_venv16_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_NOSingleLife_NOClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        # Trying to solve pong:
+        # layer init allows for similar entropy behaviour than DQN implementation...
+        #'run-id': 'test/serial/WithoutExtraInputs/WithFCBodyLayerInit/CrossingEpisodeBarriers/NonTerminalProd/MixedNStepTarget+UnmaskedTDError/SingleStorage/GreedyTesting/ActorUpdateStepsInterval32/NewLoss/UnscaledTDError/ActualOnlineGreedyAction/ProperShaping/MaskedUnweightedLossPerItem/ScalingFN_EPS1m3/Seed1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        # Adding ExtraInputs back:
+        'run-id': 'test/async/debugBellmanSAD/ScalingFN_EPS1m3/SeedRep1_venv4_r2d2_Max+Sk4_St4_Obs84+Grayscale_RandNoOpStart30_SingleLife_ClipReward_EntropyReg0_WeightDecayReg0+Discount0997/',
+        
+        #####
+        #solves the simple env:
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b64_L2_O1_B0',
+        # changing sequences: but batchsize is left high
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b32_L10_O5_B0',
+        # changing batchsize to fit to the same number of elements than in the change of sequences above: complete failure: no learning at all
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b160_L2_O1_B0',
+        # what about normal batchsize then:
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b32_L2_O1_B0',
+        # DQN like: 
+        # -seed variation is stable
+        # -using actual current action is failing like DQN algo, while the r2d2 algo using training action is best performance.
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # Is noisy layer the main cause of good performance: 
+        # -sample-efficiency divided by 2, 
+        # -fairly less stable run, 
+        # -ends up converging onto noisy double DQN's perforamnce (no LSTM layer...)
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # Is it possible to remedy the lack of noisy layer with many APe-X-like actors: e.g. 16
+        # - yes, 16 Ape-X-like actors retrieve the performance of noisy agent: on a per-update basis, testing results are sensibly similar.
+        # - more importantly, the Q-function seems more informative as the bellman target has a far more expressive distribution, Max=16, mean=1.5, min=-7, whereas noisy agent Max=12, mean=1, min=-2.
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # How do the two perform together: i.e. no Ape-X-like eps-greedy policy, but noisy layers, with 16 actors in parallel.
+        # - increased sample-efficiency!
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # What happens when running asynchronously: tiny loss of sample-efficiency...  
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # What happens when running asynchronously when increasing learner-to-actors' model update frequency: 400 -> 32
+        # - sample-effiency retrieved!
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        
+        #####
+        # now trying to solve pong:
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # trying to get longer PER beta increase and min_capacity 1e3->1e4
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over1e5_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # trying to get the same weight sampling as DQN:
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta1m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0',
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta1m1_tau1m3_RepP1_NOBURNIN_b32_L2_O1_B0',
+        # trying with non-recurrent model:
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0',
+        # n=3 steps + 8 unroll lenght: greater sample-efficiency!
+        #'agent-id': 'paper_3step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        # increasing n=5 steps : increase sample-efficiency again! but once convergence is reached, there are some unstability signs...
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        # switching back to recurrent architecture reduces the observed unstability:
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        ## GOOD ONE above...
+        # let us increase the unroll length: l=8->20 (increase PER alpha 0.6 to 0.9, and gamme=0.99->0.997 like in r2d2 paper...)
+        
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0',
+        
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_NOTermStore_NOZeroInit_OnlineSt_RegMaskLoss',
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_NOTermStore_NOZeroInit_NOOnlineSt_RegMaskLoss',
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_TermStore_NOZeroInit_NOOnlineSt_RegMaskLoss_NOBsad',
+        # Using SAD's bellman target computation is part of the issue according to the following:
+        #'agent-id': '5step_PER_dueling_r2d2_LR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_TermStore_NOZeroInit_NOOnlineSt_RegMaskLoss_NOBsad_NOinitPER',
+        #'agent-id': '5step_PER_dueling_r2d2_LR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_TermStore_NOZeroInit_NOOnlineSt_RegMaskLoss_Bsad_NOinitPER',
+        
+        # GOOD ONE BELOW:
+        # Is using Online rnn state making any difference? Huge improvement of data-effiency:
+        'agent-id': '5step_PER_dueling_r2d2_LR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_TermStore_NOZeroInit_OnlineSt_RegMaskLoss_NOBsad_NOinitPER',
+
+        
+        #####
+        # (PREVIOUSLY)now trying to solve pong (breakout):
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau4m4_RepP1_BURNIN_b64_L20_O10_B10',
+        # maybe the tau interval is too large: maybe b64->16:
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_BURNIN_b16_L20_O10_B10',
+        # eps decay:
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER4p4_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_BURNIN_b16_L20_O10_B10',
+        # going back to dqn-like: increasing eps:
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy1m0_1m2OVER4p4_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b32_L10_O5_B0',
+        # Ape-X-like epsilon scheme:
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b16_L2_O1_B0',
+        
+        #'agent-id': '20step_prioritized_double_dqn_LargeCNN_r1e5_beta4m1_tau1m3_RepP2_b16_L80_O40_B20',
+
+        'nbr_actor': 4,
+        'nbr_frame_skipping': 4,
+        'nbr_frame_stacking': 4,
+        'grayscale': True,
+        'single_life_episode': True, #False,
+        'nbr_max_random_steps': 30,
+        'clip_reward': True, #False,
+        'previous_reward_action': True,
+        'observation_resize_dim': (84,84),
+        },
+    ]
+    experiment_id: 'r2d2_benchmark'
+    benchmarking_episodes: 10
+    benchmarking_interval: 5.0e3
+    benchmarking_record_episode_interval: 1.0e8
+    train_observation_budget: 1.0e7 #3.0e5 #1.0e7
+    seed: 1
+
+agents:
+    # The following solves the simple environment:
+    paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeCNNLSTM_GradClip4p1_r1e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau4m4_RepP1_BURNIN_b64_L20_O10_B10:
+        <<: *paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy4m1_1m3OVER1p7_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e4_alpha9m1_beta4m1_over1e4_eta9m1_tau4m4_RepP1_BURNIN_b64_L20_O10_B10
+        batch_size: 64
+        replay_capacity: 1e4
+        min_capacity: 1e3
+        tau: 4.0e-4 #1.0e-3
+        
+    # dqn-like :
+    paper_5step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedy1m0_1m2OVER4p4_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b32_L10_O5_B0:
+        <<: *r2d2_LargeCNNLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        learning_rate: 1e-4
+        adam_eps: 1e-3
+        discount: 0.997
+        gradient_clip: 40.0 
+        # ...not specified in r2d2 paper but in Ape-X,
+        # and r2d2 paper says that missing hyper-param
+        # are the same as ape-X
+        
+        #replay_capacity: 1e6
+        #min_capacity: 1e4
+        replay_capacity: 2e4
+        min_capacity: 1e3
+        
+        use_PER: True 
+        PER_alpha: 0.9
+        PER_beta: 0.4
+        PER_beta_increase_interval: 1e4
+        sequence_replay_PER_eta: 0.9
+        replay_period: 1
+        batch_size: 32
+        double: True
+        dueling: True 
+        noisy: False 
+        n_step: 5
+        tau: 1.0e-3 #2.5e-3
+        burn_in: False
+        sequence_replay_unroll_length: 10
+        sequence_replay_overlap_length: 5
+        sequence_replay_burn_in_length: 0
+        
+        epsstart: 1.0
+        epsend: 0.1 #0.1
+        epsdecay: 4e4 #1e4 
+        # ape-X and r2d2 keep it constant over each actor 
+        # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
+        # with base_eps=0.4 and \alpha = 7...
+        eps_greedy_alpha: 0.0
+    
+    # Ape-X-like :
+    paper_1step_PER_dueling_r2d2_AdamLR1m4_EPS1m3_EPSgreedyAPEX1m0_4m1OVER1p2_gamma997_LargeCNNLSTM_GradClip4p1_r2e4Min1e3_alpha9m1_beta4m1_over1e4_eta9m1_tau1m3_RepP1_NOBURNIN_b32_L2_O1_B0:
+        <<: *r2d2_LargeCNNLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        learning_rate: 1e-4
+        adam_eps: 1e-3
+        discount: 0.997
+        gradient_clip: 40.0 
+        # ...not specified in r2d2 paper but in Ape-X,
+        # and r2d2 paper says that missing hyper-param
+        # are the same as ape-X
+        
+        #replay_capacity: 1e6
+        #min_capacity: 1e4
+        replay_capacity: 2e4
+        min_capacity: 1e3
+        
+        use_PER: True 
+        PER_alpha: 0.9
+        PER_beta: 0.4
+        PER_beta_increase_interval: 1e4
+        sequence_replay_PER_eta: 0.9
+        replay_period: 1
+        batch_size: 32
+        double: True
+        dueling: True 
+        noisy: False 
+        n_step: 1
+        tau: 1.0e-3 #2.5e-3
+        burn_in: False
+        sequence_replay_unroll_length: 2
+        sequence_replay_overlap_length: 1
+        sequence_replay_burn_in_length: 0
+        
+        epsstart: 1.0
+        epsend: 0.4
+        epsdecay: 1e2
+        # ape-X and r2d2 keep it constant over each actor 
+        # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
+        # with base_eps=0.4 and \alpha = 7...
+        eps_greedy_alpha: 7.0
+
+    paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0: &paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0
+        <<: *r2d2_LargeCNNLSTM_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        actor_models_update_steps_interval: 32 #considering only 1 actor's steps.
+
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+        discount: 0.997
+        gradient_clip: 0.5 
+        # ...not specified in r2d2 paper but in Ape-X,
+        # and r2d2 paper says that missing hyper-param
+        # are the same as ape-X
+        
+        #replay_capacity: 1e6
+        #min_capacity: 1e4
+        replay_capacity: 2e4
+        min_capacity: 1e4
+        
+        use_PER: True 
+        PER_alpha: 0.9
+        PER_beta: 0.6
+        PER_beta_increase_interval: 2e5
+        sequence_replay_PER_eta: 0.9
+        replay_period: 1
+        batch_size: 32
+        double: True
+        dueling: True 
+        noisy: False
+        n_step: 5
+        tau: 1.0e-4 #2.5e-3
+        burn_in: False
+        sequence_replay_unroll_length: 20
+        sequence_replay_overlap_length: 10
+        sequence_replay_burn_in_length: 0
+        
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        
+        # ape-X and r2d2 keep it constant over each actor 
+        # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
+        # with base_eps=0.4 and \alpha = 7...
+        eps_greedy_alpha: 7.0
+
+    # the following solves Pong in 300k :
+    5step_PER_dueling_r2d2_LR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0_TermStore_NOZeroInit_OnlineSt_RegMaskLoss_Bsad_NOinitPER:
+        <<: *paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L20_O10_B0
+        # Crucial for data-efficiency and stability:
+        sequence_replay_use_online_states: True
+        #sequence_replay_use_online_states: False
+        
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: True 
+        
+        r2d2_loss_masking: True
+        r2d2_loss_masking_n_step_regularisation: True
+        # To set the following to True, nstep-returns need to be computed first:
+        r2d2_bellman_target_SAD: False
+
+        ###########
+        PER_compute_initial_priority: False
+        ###########
+
+        

@@ -1,0 +1,491 @@
+project: ETHER 
+entity: near3213 
+program: benchmark_wandb_ether.py
+command:
+    - ${env}
+    - ./venv/bin/python
+    - ${program}
+    - ${args}
+method: grid
+metric:
+    name: PerEpoch/test/repetition0/comm_round0/sem_grounding_metric_0/s0/Accuracy-any-shape/Mean
+    goal: maximize
+parameters:
+    seed:
+        values: [10, 20, 30]
+
+    project:
+        values: [ETHER]
+
+    success_threshold:
+        values: [0.5]
+
+    use_cuda:
+        values: [True]
+
+    config:
+        values: [room12x5Objs_miniworld_wandb_benchmark_ETHER+R2D2+RP+BN+NoSharedObsEncoder_config.yaml]
+
+    language_guided_curiosity:
+        values: [False]
+
+    coverage_manipulation_metric:
+        values: [True]
+
+    MiniWorld_entity_visibility_oracle:
+        values: [False]
+
+    MiniWorld_entity_visibility_oracle_top_view:
+        values: [False]
+
+    use_ETHER:
+        values: [True]
+    use_THER:
+        values: [True]
+
+    use_RP:
+        values: [False]
+    RP_use_RP:
+        values: [True]
+
+    use_ELA:
+        values: [False]
+    ELA_use_ELA:
+        values: [True]
+
+    use_HER:
+        values: [False]
+    goal_oriented:
+        values: [False]
+
+    ETHER_use_ETHER:
+        values: [True]
+
+    THER_use_THER:
+        values: [True]
+
+    THER_use_THER_predictor_supervised_training:
+        values: [False]
+
+    THER_use_THER_predictor_supervised_training_data_collection:
+        values: [True]
+
+    ETHER_use_supervised_training:
+        values: [False]
+
+    ETHER_rg_sanity_check_compactness_ambiguity_metric:
+        values: [False]
+
+    ETHER_rg_shared_architecture:
+        values: [False]
+
+    ETHER_rg_with_logits_mdl_principle:
+        values: [True]
+
+    ETHER_rg_logits_mdl_principle_factor:
+        values: [1.0e-4]
+
+    ETHER_rg_logits_mdl_principle_accuracy_threshold:
+        values: [40.0]
+
+    ETHER_rg_agent_loss_type:
+        values: [Impatient+Hinge]
+
+    ETHER_use_continuous_feedback:
+        values: [True, False]
+
+    ETHER_rg_normalize_features:
+        values: [False]
+
+    ETHER_listener_based_predicated_reward_fn:
+        values: [True]
+
+    ETHER_rg_with_semantic_grounding_metric:
+        values: [True]
+    MiniWorld_symbolic_image:
+        values: [True]
+
+    ETHER_rg_homoscedastic_multitasks_loss:
+        values: [False]
+
+    semantic_embedding_init:
+        values: ['none']
+
+    semantic_prior_mixing:
+        values: ['multiplicative']
+
+    semantic_prior_mixing_with_detach:
+        values: [False]
+
+    ETHER_rg_use_semantic_cooccurrence_grounding:
+        values: [False]
+
+    ETHER_rg_semantic_cooccurrence_grounding_semantic_level:
+        values: [False]
+
+    ETHER_rg_semantic_cooccurrence_grounding_semantic_level_ungrounding:
+        values: [False]
+
+    ETHER_rg_semantic_cooccurrence_grounding_sentence_level:
+        values: [True]
+
+    ETHER_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding:
+        values: [True]
+
+    ETHER_rg_semantic_cooccurrence_grounding_sentence_level_lambda:
+        values: [100.0]
+
+    ETHER_rg_semantic_cooccurrence_grounding_lambda:
+        values: [1.0]
+
+    ETHER_rg_semantic_cooccurrence_grounding_noise_magnitude:
+        values: [0.2]
+
+    ETHER_lock_test_storage:
+        values: [True]
+    ETHER_rg_filter_out_non_unique:
+        values: [False]
+
+    ETHER_rg_color_jitter_prob:
+        values: [0]
+
+    ETHER_rg_gaussian_blur_prob:
+        values: [0.5]
+
+    ETHER_rg_egocentric_prob:
+        values: [0.5]
+
+    ETHER_rg_egocentric_tr_degrees:
+        values: [30]
+    ETHER_rg_egocentric_tr_xy:
+        values: [10]
+
+    ETHER_rg_object_centric_version:
+        values: [2]
+    ETHER_rg_descriptive_version:
+        values: [1]
+
+    ETHER_rg_distractor_sampling_scheme_version:
+        values: [1]
+
+    ETHER_rg_learning_rate:
+        values: [6.25e-5]
+    ETHER_rg_weight_decay:
+        values: [0.0]
+
+    ETHER_rg_l2_weight_decay:
+        values: [0.0]
+    ETHER_rg_l1_weight_decay:
+        values: [0.0]
+
+    ETHER_rg_vocab_size:
+        values: [64]
+    ETHER_rg_training_period:
+        values: [16384]
+
+    ETHER_rg_descriptive:
+        values: [True]
+    ETHER_rg_use_curriculum_nbr_distractors:
+        values: [False]
+
+    ETHER_rg_nbr_epoch_per_update:
+        values: [64]
+    ETHER_rg_accuracy_threshold:
+        values: [80]
+
+    ETHER_rg_nbr_train_distractors:
+        values: [15]
+    ETHER_rg_nbr_test_distractors:
+        values: [7]
+
+    ETHER_replay_capacity:
+        values: [4096]
+    ETHER_test_replay_capacity:
+        values: [1024]
+
+    ETHER_rg_distractor_sampling:
+        values: [uniform]
+
+    ETHER_rg_use_cuda:
+        values: [True]
+
+    ETHER_rg_metric_fast:
+        values: [True]
+    ETHER_rg_parallel_TS_worker:
+        values: [8]
+
+    ETHER_rg_metric_epoch_period:
+        values: [4]
+    ETHER_rg_dis_metric_epoch_period:
+        values: [4]
+
+    ETHER_rg_metric_batch_size:
+        values: [64]
+
+    ETHER_rg_nbr_train_points:
+        values: [1024]
+    ETHER_rg_nbr_eval_points:
+        values: [256]
+
+    ETHER_rg_metric_resampling:
+        values: [False]
+    ETHER_rg_dis_metric_resampling:
+        values: [False]
+
+    ETHER_rg_metric_active_factors_only:
+        values: [True]
+
+    RP_use_PER:
+        values: [True]
+
+    RP_lock_test_storage:
+        values: [False]
+
+    RP_predictor_learning_rate:
+        values: [6.25e-5]
+
+    RP_gradient_clip:
+        values: [5.0]
+
+    RP_replay_capacity:
+        values: [16384]
+    RP_min_capacity:
+        values: [32]
+
+    RP_predictor_nbr_minibatches:
+        values: [4]
+    RP_predictor_batch_size:
+        values: [256]
+
+    RP_predictor_test_train_split_interval:
+        values: [3]
+    RP_test_replay_capacity:
+        values: [1024]
+
+    RP_test_min_capacity:
+        values: [32]
+    RP_replay_period:
+        values: [1024]
+
+    RP_nbr_training_iteration_per_update:
+        values: [128]
+
+    RP_predictor_accuracy_threshold:
+        values: [90]
+
+    ELA_rg_sanity_check_compactness_ambiguity_metric:
+        values: [False]
+
+    ELA_rg_shared_architecture:
+        values: [False]
+
+    ELA_rg_with_logits_mdl_principle:
+        values: [True]
+
+    ELA_rg_logits_mdl_principle_factor:
+        values: [1.0e-3]
+
+    ELA_rg_logits_mdl_principle_accuracy_threshold:
+        values: [10.0]
+
+    ELA_rg_agent_loss_type:
+        values: [Impatient+Hinge]
+
+    ELA_rg_use_semantic_cooccurrence_grounding:
+        values: [False]
+
+    ELA_rg_semantic_cooccurrence_grounding_lambda:
+        values: [1.0]
+
+    ELA_rg_semantic_cooccurrence_grounding_noise_magnitude:
+        values: [0.2]
+
+    ELA_lock_test_storage:
+        values: [True]
+
+    ELA_rg_with_color_jitter_augmentation:
+        values: [False]
+
+    ELA_rg_with_gaussian_blur_augmentation:
+        values: [True]
+
+    ELA_rg_egocentric:
+        values: [False]
+
+    ELA_rg_object_centric_version:
+        values: [2]
+    ELA_rg_descriptive_version:
+        values: [1]
+
+    ELA_rg_learning_rate:
+        values: [6.25e-5]
+    ELA_rg_weight_decay:
+        values: [0.0]
+
+    ELA_rg_vocab_size:
+        values: [64]
+    ELA_rg_training_period:
+        values: [4096]
+
+    ELA_rg_descriptive:
+        values: [False]
+    ELA_rg_use_curriculum_nbr_distractors:
+        values: [False]
+
+    ELA_rg_nbr_epoch_per_update:
+        values: [2]
+    ELA_rg_accuracy_threshold:
+        values: [90]
+
+    ELA_rg_nbr_train_distractors:
+        values: [7]
+    ELA_rg_nbr_test_distractors:
+        values: [7]
+
+    ELA_replay_capacity:
+        values: [8192]
+    ELA_test_replay_capacity:
+        values: [2048]
+
+    ELA_rg_distractor_sampling:
+        values: [uniform]
+
+    ELA_reward_extrinsic_weight:
+        values: [0.0]
+    ELA_reward_intrinsic_weight:
+        values: [1.0]
+
+    ELA_feedbacks_failure_reward:
+        values: [-0.1]
+    ELA_feedbacks_success_reward:
+        values: [1]
+
+    THER_use_PER:
+        values: [True]
+    THER_observe_achieved_goal:
+        values: [False]
+
+    THER_lock_test_storage:
+        values: [True]
+
+    THER_feedbacks_failure_reward:
+        values: [-1]
+    THER_feedbacks_success_reward:
+        values: [1]
+
+    THER_episode_length_reward_shaping:
+        values: [True]
+
+    THER_replay_capacity:
+        values: [1024]
+    THER_min_capacity:
+        values: [12]
+
+    THER_predictor_nbr_minibatches:
+        values: [1]
+    THER_predictor_batch_size:
+        values: [32]
+
+    THER_predictor_test_train_split_interval:
+        values: [5]
+    THER_test_replay_capacity:
+        values: [256]
+
+    THER_test_min_capacity:
+        values: [4]
+    THER_replay_period:
+        values: [16384]
+
+    THER_train_on_success:
+        values: [False]
+    THER_nbr_training_iteration_per_update:
+        values: [128]
+
+    THER_predict_PADs:
+        values: [False]
+    THER_predictor_accuracy_threshold:
+        values: [0.95]
+
+    THER_predictor_accuracy_safe_to_relabel_threshold:
+        values: [0.0]
+    THER_filter_predicate_fn:
+        values: [False]
+
+    THER_relabel_terminal:
+        values: [True]
+    THER_filter_out_timed_out_episode:
+        values: [False]
+
+    THER_train_contrastively:
+        values: [False]
+    THER_contrastive_training_nbr_neg_examples:
+        values: [0]
+
+    THER_timing_out_episode_length_threshold:
+        values: [40]
+
+    BabyAI_Bot_action_override:
+        values: [False]
+
+    n_step:
+        values: [3]
+    nbr_actor:
+        values: [32]
+    eps_greedy_alpha:
+        values: [2.0]
+
+    nbr_minibatches:
+        values: [1]
+    batch_size:
+        values: [64]
+
+    min_capacity:
+        values: [4e3]
+    min_handled_experiences:
+        values: [1.7e4]
+    replay_capacity:
+        values: [5e3]
+    learning_rate:
+        values: [6.25e-5]
+
+    sequence_replay_burn_in_ratio:
+        values: [0.5]
+    weights_entropy_lambda:
+        values: [0.0]
+
+    sequence_replay_unroll_length:
+        values: [20]
+    sequence_replay_overlap_length:
+        values: [10]
+
+    sequence_replay_use_online_states:
+        values: [True]
+    sequence_replay_use_zero_initial_states:
+        values: [False]
+
+    sequence_replay_store_on_terminal:
+        values: [False]
+    HER_target_clamping:
+        values: [False]
+
+    adam_weight_decay:
+        values: [0.0]
+    ther_adam_weight_decay:
+        values: [0.0]
+
+    nbr_training_iteration_per_cycle:
+        values: [128]
+    nbr_episode_per_cycle:
+        values: [16]
+
+    single_pick_episode:
+        values: [True]
+
+    time_limit:
+        values: [40]
+
+    train_observation_budget:
+        values: [5.0e5]
+
+
+

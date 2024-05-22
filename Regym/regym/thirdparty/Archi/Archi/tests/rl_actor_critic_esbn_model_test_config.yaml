@@ -1,0 +1,126 @@
+model_id: 'RLActorCritic_ESBNModel'
+
+hyperparameters:
+        value_dim: 64
+        key_dim: 64
+        hidden_dim: 512
+        output_dim: 256
+        action_dim: 8
+
+input_stream_ids:
+        "inputs:obs" : "observations:obs"
+        "inputs:legal_actions" : "frame_states:legal_actions"
+
+modules:
+        'CoreLSTM':
+                type: LSTMModule
+                state_dim: 65 #"{{key_dim}+1}"
+                hidden_units: [512] #["{{hidden_dim}}"]
+                non_linearities: [None]
+                config: None
+                input_stream_ids:
+                        lstm_input: "inputs:KeyValueMemory:read_key_plus_conf"
+                        lstm_hidden: "inputs:CoreLSTM:hidden"
+                        lstm_cell: "inputs:CoreLSTM:cell"
+                        iteration: "inputs:CoreLSTM:iteration"
+                output_stream_ids:
+                        lstm_output: "inputs:CoreLSTM:output"
+                use_cuda: True
+        
+        'KeyValueMemory':
+                type: KeyValueMemoryModule
+                key_dim: 64 #"{{key_dim}}"
+                value_dim: 64 #"{{value_dim}}"
+                config: None
+                input_stream_ids:
+                        iteration: "inputs:CoreLSTM:iteration"
+                        new_key: "inputs:ToKeyFCN:processed_input"
+                        new_value: "inputs:Encoder:processed_input"
+                        gate: "inputs:ToGateFCN:processed_input"
+                        key_memory: "inputs:KeyValueMemory:key_memory"
+                        value_memory: "inputs:KeyValueMemory:value_memory"
+                use_cuda: True
+
+        'ToGateFCN':
+                type: FullyConnectedNetworkModule
+                state_dim: 512 #"{{hidden_dim}}"
+                hidden_units: [1]
+                non_linearities: [None]
+                dropout: 0.0
+                config: None
+                input_stream_ids:
+                        input: "inputs:CoreLSTM:output"
+                output_stream_ids:
+                        input: "inputs:ToGateFCN:processed_input"
+                use_cuda: True
+       
+        'ToKeyFCN':
+                type: FullyConnectedNetworkModule
+                state_dim: 512 #"{{hidden_dim}}"
+                hidden_units: [64] #["{{key_dim}}"]
+                non_linearities: [None]
+                dropout: 0.0
+                config: None
+                input_stream_ids:
+                        input: "inputs:CoreLSTM:output"
+                output_stream_ids:
+                        input: "inputs:ToKeyFCN:processed_input"
+                use_cuda: True
+        
+        'ToOutputFCN':
+                type: FullyConnectedNetworkModule
+                state_dim: 512 #"{{hidden_dim}}"
+                hidden_units: [256] #["{{output_dim}}"]
+                non_linearities: [None]
+                dropout: 0.0
+                config: None
+                input_stream_ids:
+                        input: "inputs:CoreLSTM:output"
+                output_stream_ids:
+                        input: "inputs:ToOutputFCN:processed_input"
+                use_cuda: True
+        
+        'Encoder':
+                type: ConvolutionalNetworkModule
+                input_shape: [3, 64, 64]
+                feature_dim: 64 #"{{value_dim}}"
+                channels: [32, 32]
+                kernel_sizes: [3, 3]
+                strides: [2, 2]
+                paddings: [1, 1]
+                fc_hidden_units: [256, 128]
+                non_linearities: ['ReLU']
+                dropout: 0.5
+                use_coordconv: False #True
+                config: None
+                input_stream_ids:
+                        input: "inputs:obs"
+                output_stream_ids:
+                        input: "inputs:Encoder:processed_input"
+                use_cuda: True
+        
+        'RLActorCriticHead':
+                type: RLCategoricalActorCriticHeadModule
+                state_dim: 512 #"{{2*output_dim}}"
+                action_dim: 8 #"{{action_dim}}"
+                use_intrinsic_critic: False
+                config: None
+                input_stream_ids: 
+                        input0: "inputs:ToOutputFCN:processed_input"
+                        input1: "inputs:ToOutputFCN:processed_input"
+                        action: "inputs:action"
+                        legal_actions: "inputs:legal_actions"
+                use_cuda: True
+
+output_mappings:
+        "action" : "modules:RLActorCriticHead:a"
+        "greedy_action" : "modules:RLActorCriticHead:greedy_action"
+        "ent" : "modules:RLActorCriticHead:ent"
+        "v" : "modules:RLActorCriticHead:v"
+        "int_v" : "modules:RLActorCriticHead:int_v"
+        "log_pi_a" : "modules:RLActorCriticHead:log_pi_a"
+
+pipelines:
+        torso : ['Encoder',]
+        head: ['CoreLSTM', 'ToGateFCN', 'ToKeyFCN', 'ToOutputFCN', 'KeyValueMemory', 'RLActorCriticHead']
+

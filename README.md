@@ -1,59 +1,86 @@
-# Regym: Reinforcement learning Framework research framework
+# EReLELA : Exploration in Reinforcement Learning via Emergent Language Abstractions
 
-Framework to carry out both Single-Agent and Multi-Agent Reinforcement Learning experiments. Developed by PhD heros at the University of York. This framework has been in constant development since December 2018, and will continue to evolve to add new features and algorithms for many more years!
+Instruction-following from prompts in Natural Languages (NLs) is an important benchmark for Human-AI collaboration. 
+Training Embodied AI agents for instruction-following with Reinforcement Learning (RL) poses a strong exploration challenge.
+Previous works have shown that NL-based state abstractions can help address the exploitation versus exploration trade-off in RL. 
+However, NLs descriptions are not always readily available and are expensive to collect.
+We therefore propose to use the Emergent Communication paradigm, where artificial agents are free to learn an emergent language (EL) via referential games, to bridge this gap.  
+ELs constitute cheap and readily-available abstractions, as they are the result of an unsupervised learning approach.
+In this paper, we investigate (i) how EL-based state abstractions compare to NL-based ones for RL in hard-exploration, procedurally-generated environments, and (ii) how properties of the referential games used to learn ELs impact the quality of the RL exploration and learning.
+Results indicate that the EL-guided agent, namely EReLELA, achieves similar performance as its NL-based counterparts without its limitations.
+Our work shows that Embodied RL agents can leverage unsupervised emergent abstractions to greatly improve their exploration skills in sparse reward settings, thus opening new research avenues between Embodied AI and Emergent Communication.
 
-## Features
 
-+ PyTorch implementation of: [DQN](https://arxiv.org/abs/1312.5602),[Double DQN](https://arxiv.org/abs/1509.06461),[Double Dueling DQN](https://arxiv.org/abs/1511.06581),[A2C](https://hackernoon.com/intuitive-rl-intro-to-advantage-actor-critic-a2c-4ff545978752),[REINFORCE](https://danielhp95.github.io/policy-gradient-algorithms-a-review),[PPO](https://arxiv.org/abs/1707.06347)...
-+ Every implementation is compatible with [OpenAI gym](https://github.com/openai/gym) and [Unity](https://github.com/Unity-Technologies/ml-agents) environments.
-+ Self-Play training scheme for Multi-Agent environments, as introduced [here](https://danielhp95.github.io/assets/pdfs/COG-2019-submission.pdf).
-+ Emphasis on cross-compatibility and clear interfaces to add new algorithms. See [Adding a new algorithm](docs/adding-a-new-algorithm.md).
-+ (In development) Test suite to test and benchmark each algorithm on: compatibility on Discrete / Continuous observation / action spaces. Proof of learning, proof of reproducability.
-+ (In development) Parallel actors per algorithm.
+The following details how to reproduce the main experiments of the paper.
 
-## Documentation
 
-All relevant documentation can be found in the [docs](docs/readme.md). Refer to source code for more specific documentation.
+## Installation :
 
-## Installation
+### Regym :
 
-### Using `pip` 
-
-This project has not yet been uploaded to PyPi. This will change soon!
-
-<!--
-This project can be found in [PyPi](LINK TO PYPI project) (Python Package Index). It can be installed via
-`pip`:
-
-`pip install regym`
--->
-
-### Installing from source
-
-Firstly, clone this repository:
-
-```
-git clone https://github.com/Danielhp95/Generalized-RL-Self-Play-Framework
+```bash
+cd Regym; pip install -e .
 ```
 
-Secondly, install it locally using the `-e` flag in the `pip install` command:
+### ReferentialGym :
+
+```bash
+cd Regym/regym/thirdparty/ReferentialGym; pip install -e .
 ```
-cd Generalized-RL-Self-Play-Framework/
-pip install -e .
+
+### Archi :
+
+```bash
+cd Regym/regym/thirdparty/Archi; pip install -e .
 ```
 
-### Dependencies
+### MiniGrid :
 
-Python dependencies are listed in the file [`setup.py`](./setup.py). This package enforces Python version `3.6` or higher. 
+```bash
+cd Regym/regym/environments/envs/MiniGrid; ./MiniGrid_install.sh
+```
 
-If you would like Python `2.7` or other Python versions `<3.6` to work, feel free to open an issue.
+### Miscellianeous :
 
-### License
+```bash
+pip install wandb ipdb
+```
 
-Read [License](LICENSE)
+## Reproduce Experiments :
 
-### Papers
+The main experiments take place in the context of the KeyCorridor-S3-R2 environment from MiniGrid. 
+All related scripts can be found in the Experiments folder and start with the denomination `keycorridor_S3_R2_dynamic_`.
+Each script launchs a single agent for a 1M observation budget.
+Please update the `--seed` hyperparameter to run each agent with different random seeds.
 
-List of papers that used this framework.
+Logging is performed via Weights & Biases, thus you will be required to log in.
 
-+ [A Generalized Framework for Self-Play Training](https://danielhp95.github.io/assets/pdfs/COG-2019-submission.pdf)
+
+### RANDOM Agent :
+
+```bash
+cd Experiments/MiniGrid; ./keycorridor_S3_R2_dynamic_POMDP+R2D2+ELA_NOTRAINING_run.sh
+```
+
+### Natural Language Abstractions (NLA) Agent :
+
+```bash
+cd Experiments/MiniGrid; ./keycorridor_S3_R2_dynamic_POMDP+R2D2+NLA_run.sh
+```
+
+### EReLELA Agents :
+
+With Impatient-Only loss function:
+
+```bash
+cd Experiments/MiniGrid; ./keycorridor_S3_R2_dynamic_AgnosticPOMDP+R2D2+ELA+UniformDistrSampling_run_minimal.sh
+```
+
+With STGS-LazImpa loss function:
+
+```bash
+cd Experiments/MiniGrid; ./keycorridor_S3_R2_dynamic_AgnosticPOMDP+R2D2+LazyELA+UniformDistrSampling_run_minimal.sh
+```
+
+In order to change the value of the $\beta_1$ and $\beta_2$ hyperparameters, please update the `--ELA_rg_logits_mdl_principle_factor` hyperparameter. 
+

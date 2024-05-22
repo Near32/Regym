@@ -1,0 +1,85 @@
+model_id: 'TestModel'
+
+input_stream_ids:
+        "inputs:obs" : "observations:obs"
+        "inputs:y" : "infos:info_y"
+
+modules:
+        'SecondaryDNC':
+                type: DNCModule
+                input_dim: 16
+                hidden_units: [512, 512]
+                non_linearities: [None, None]
+                output_dim: 32
+                mem_nbr_slots: 128
+                mem_dim: 32
+                nbr_read_heads: 2
+                #nbr_write_heads: 1
+                clip: 20.0
+                sparse_K: 0
+                simplified: True
+                discount_factor: 0.99
+                config: None
+                input_stream_ids:
+                        dnc_input: 'inputs:CoreLSTM:output'
+                        #dnc_framestate: 'inputs:SecondaryDNC:dnc'
+                output_stream_ids:
+                        dnc_output: "inputs:SecondaryDNC:dnc_output"
+                use_cuda: True
+        'CoreLSTM':
+                type: LSTMModule
+                state_dim: 16
+                hidden_units: [16, 16]
+                non_linearities: [None, 'ReLU']
+                config: None
+                input_stream_ids:
+                        lstm_input: "inputs:FCNModule_0:processed_input"
+                        lstm_hidden: "inputs:CoreLSTM:hidden"
+                        #lstm_cell: "inputs:CoreLSTM:cell"
+                        #iteration: "inputs:CoreLSTM:iteration"
+                output_stream_ids:
+                        lstm_output: "inputs:CoreLSTM:output"
+                use_cuda: True
+
+        'FCNModule_0':
+                type: FullyConnectedNetworkModule
+                state_dim: 32
+                hidden_units: [32, 16]
+                non_linearities: ['ReLU']
+                dropout: 0.5
+                id: 'FCNModule_0'
+                config:
+                        test_entry: None
+                        test_entry2: None
+                input_stream_ids:
+                        input: "inputs:ConvNetModule_0:processed_input"
+                output_stream_ids:
+                        input: "inputs:FCNModule_0:processed_input"
+                use_cuda: True
+        
+        'ConvNetModule_0':
+                type: ConvolutionalNetworkModule
+                input_shape: [3, 64, 64]
+                feature_dim: 32
+                channels: [32, 32]
+                kernel_sizes: [3, 3]
+                strides: [2, 2]
+                paddings: [1, 1]
+                fc_hidden_units: [256, 128]
+                non_linearities: ['ReLU']
+                dropout: 0.5
+                use_coordconv: False #True
+                id: 'ConvNetModule_0'
+                config:
+                        test_entry: None
+                        test_entry2: None
+                input_stream_ids:
+                        input: "inputs:obs"
+                output_stream_ids:
+                        input: "inputs:ConvNetModule_0:processed_input"
+                use_cuda: True
+
+pipelines:
+        torso : ['ConvNetModule_0', 'FCNModule_0']
+        head: ['CoreLSTM', 'SecondaryDNC']
+

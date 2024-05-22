@@ -1,0 +1,122 @@
+extra_hyperparameters: &extra_hyperparameters
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda: 1.0
+
+LargeCNN: &LargeCNN
+        phi_arch: 'CNN'
+        actor_arch: 'None'
+        critic_arch: 'None'
+        
+        # Phi Body:
+        phi_arch_channels: [32, 64, 64]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 1]
+        phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 512
+        phi_arch_hidden_units: [512,]
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_hidden_units: []
+
+        
+dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5: &dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+        double: False
+        dueling: False
+        noisy: False 
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e4
+        replay_period: 1
+
+        observation_resize_dim: 84
+        discount: 0.99
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01
+        epsdecay: 30000
+
+        <<: *LargeCNN
+        <<: *extra_hyperparameters
+
+
+experiment:
+    tasks: [
+    #          {'env-id': 'QbertNoFrameskip-v4',
+             
+    #          'run-id': 'Seed13_venv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+    #          'agent-id': 'ppo_LargeCNN',
+             
+    #          'nbr_actor': 8,
+    #          'nbr_frame_skipping': 4,
+    #          'nbr_frame_stacking': 4,
+    #          'grayscale': True,
+    #          'single_life_episode': True,
+    #          'nbr_max_random_steps': 30,
+    #          'clip_reward': True,
+    #          'observation_resize_dim': 84
+    #          },
+
+            {'env-id': 'PongNoFrameskip-v4', #'FreewayNoFrameskip-v4',
+
+             'run-id': 'test/Seed1_venv_dqn_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30_Eps3p4_Tau1m2',
+             'agent-id': 'fastprioritizeddqn_LargeCNN_r1e5_beta4m1',
+             
+             'nbr_actor': 1,
+             'nbr_frame_skipping': 4,
+             'nbr_frame_stacking': 4,
+             'grayscale': True,
+             'single_life_episode': True,
+             'nbr_max_random_steps': 30,
+             'clip_reward': True,
+             'observation_resize_dim': 84
+             },
+
+            # {'env-id': 'BreakoutNoFrameskip-v4',
+
+            #  'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            #  'agent-id': 'ppo_LargeCNN',
+             
+            #  'nbr_actor': 8,
+            #  'nbr_frame_skipping': 4,
+            #  'nbr_frame_stacking': 4,
+            #  'grayscale': True,
+            #  'single_life_episode': True,
+            #  'nbr_max_random_steps': 30,
+            #  'clip_reward': True,
+            #  'observation_resize_dim': 84
+            #  },
+            ]
+    experiment_id: 'atari_10M_benchmark_dqn'
+    benchmarking_episodes: 0
+    benchmarking_interval: 1.0e4
+    benchmarking_record_episode_interval: 1.0e5
+    train_observation_budget: 3.0e5
+    seed: 1
+
+agents:    
+    fastprioritizeddqn_LargeCNN_r1e5_beta4m1:
+        <<: *dqn_LargeCNN_obs84_graclip5m1_b32_tau1m2_lr25m5
+        replay_capacity: 1e5
+        use_PER: True
+        PER_beta: 0.4
+        replay_period: 2    
+        batch_size: 16
+        # Paper: ratio = batch_size(=32) / replay_period(=4) = 8 ,
+        # but bottleneck on GPU batchsize gives a better trade-off 
+        # batch-regularization-effect / speed with a batch_size=16 
+        # using NVIDIA 1080 Ti... Expect ~90 it/sec, without update
+        # and ~84 it/sec with updates...
+        # Whereas 32 / 4 yielded ~25 it/sec....
+        

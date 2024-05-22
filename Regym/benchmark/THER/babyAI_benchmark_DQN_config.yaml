@@ -1,0 +1,158 @@
+extra_hyperparameters: &extra_hyperparameters
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda: 1.0 # 1e-6
+    use_target_to_gather_data:    False
+    goal_oriented: True 
+    goal_state_shared_arch:  False
+    goal_state_flattening: False    #True
+    nbr_training_iteration_per_cycle: 40
+    nbr_episode_per_cycle:  16
+    HER_use_latent: False   #True
+    
+THER_extra_hyperparameters: &THER_extra_hyperparameters
+    THER_use_THER:  True
+    THER_use_predictor:  True
+    THER_max_sentence_length: 14
+    THER_vocabulary: ['key', 'ball', 'red', 'green', 'blue', 'purple', 
+            'yellow', 'grey', 'verydark', 'dark', 'neutral', 'light', 'verylight',
+            'tiny', 'small', 'medium', 'large', 'giant', 'get', 'go', 'fetch', 'go', 'get',
+            'a', 'fetch', 'a', 'you', 'must', 'fetch', 'a', 'to', 'the', 'box']
+    THER_use_PER: False
+    THER_PER_alpha: 0.6
+    THER_PER_beta: 1.0
+
+    THER_replay_capacity: 50000
+    THER_min_capacity: 32 #1e4
+    THER_replay_period: 240 #240
+
+    THER_predictor_learning_rate: 1e-4
+    THER_predictor_batch_size: 128
+    THER_weights_decay_lambda: 1.0 # 1e-6
+    
+LargeCNN: &LargeCNN
+        phi_arch: 'CNN-LSTM-RNN'
+        goal_phi_arch: 'EmbedGRU'
+        critic_arch: 'None'
+        
+        
+        # Phi Body:
+        phi_arch_channels: [16, M, 32, 64]
+        phi_arch_kernels: [2, 2, 2, 2]
+        phi_arch_strides: [1, 1, 1, 1]
+        phi_arch_paddings: [1, 1, 1, 1]
+        phi_arch_feature_dim: 64        # LSTM inputs / CNN output dim: 64
+        phi_arch_hidden_units: [64,]    # LSTM hidden units: 64
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_hidden_units: []
+
+        # Goal Phi Body:
+        goal_phi_arch_channels: None
+        goal_phi_arch_kernels: None
+        goal_phi_arch_strides: None
+        goal_phi_arch_paddings: None
+        goal_phi_arch_feature_dim: None
+        goal_phi_arch_hidden_units: [128,]
+
+        goal_phi_arch_embedding_size: 32
+
+        # Critic architecture:
+        goal_critic_arch_hidden_units: []
+
+
+Predictor: &Predictor 
+        predictor_encoder_arch: 'CNN'
+        predictor_decoder_arch: 'CaptionGRU'
+        
+        # Encoder:
+        predictor_encoder_arch_channels: [16, M, 32, 256]
+        predictor_encoder_arch_kernels: [2, 2, 2, 2]
+        predictor_encoder_arch_strides: [1, 1, 1, 1]
+        predictor_encoder_arch_paddings: [1, 1, 1, 1]
+        predictor_encoder_arch_feature_dim: 256        # GRU inputs / CNN output dim
+        predictor_encoder_arch_hidden_units: [256,]    # GRU hidden units
+
+        # Decoder:
+        predictor_decoder_arch_channels: None
+        predictor_decoder_arch_kernels: None
+        predictor_decoder_arch_strides: None
+        predictor_decoder_arch_paddings: None
+        predictor_decoder_arch_feature_dim: None
+        predictor_decoder_arch_hidden_units: [256,]
+
+        predictor_decoder_embedding_size: 128
+
+
+THER_LargeCNN_Predictor: &THER_LargeCNN_Predictor
+        double: False
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 50000
+        min_capacity: 128 #1e4
+        replay_period: 240 #240
+
+        use_HER:    True 
+        HER_strategy:   'final-1'
+
+        observation_resize_dim: None
+        goal_resize_dim: None
+        
+        discount: 0.98 #0.99
+        use_cuda: True
+        gradient_clip: 1.0
+        batch_size: 128 #32
+        tau: 1.0e-3 #1.0e-2
+        learning_rate: 1.0e-5   # 1e-4 predictor while 1e-5 network...
+        adam_eps: 1.0e-8
+        # NEED RMSProp optimizer...
+
+        epsstart: 1.0
+        epsend: 0.05
+        epsdecay: 500000 
+        epsdecay_strategy:   'None'
+
+        <<: *LargeCNN
+        <<: *Predictor
+        <<: *extra_hyperparameters
+        <<: *THER_extra_hyperparameters
+
+experiment:
+    tasks: [
+            {'env-id': 'BabyAI-GoToObj-v0',
+
+             'run-id': 'B1M_EpPerCycle16_GSNotShared_final-1_lr1m4/Seed3_venv_Max+Sk0_St4_ObsNone_ClipReward_Eps5p5End5m2_tau1000_GradClip1_PredAchG_WrappedGEoS_Reward0p1',
+             'agent-id': '1step_double_NoTHER_LargeCNN',
+             
+             'nbr_actor': 1,
+             'nbr_frame_skipping': 0,
+             'nbr_frame_stacking': 4,
+             'single_life_episode': False,
+             'nbr_max_random_steps': 0,
+             'clip_reward': False,
+             'observation_resize_dim': None,
+             'goal_resize_dim': None,
+             },
+            ]
+    experiment_id: 'THER_Benchmark'
+    benchmarking_episodes: 1
+    benchmarking_interval: 1.0e10
+    benchmarking_record_episode_interval: 1.0e8
+    train_observation_budget: 1.0e6
+    seed: 3
+
+agents:    
+    1step_double_NoTHER_LargeCNN:
+        <<: *THER_LargeCNN_Predictor
+        THER_use_THER: False
+        double: True
+        #dueling: True 
+        #noisy: True 
+        n_step: 1

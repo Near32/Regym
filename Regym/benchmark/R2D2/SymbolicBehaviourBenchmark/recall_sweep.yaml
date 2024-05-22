@@ -1,0 +1,28 @@
+project: debug_dnc
+entity: near3213
+program: benchmark_test_recall.py
+command:
+        - ${env}
+        - /scratch/kyd500/rg_env/bin/python
+        - ${program}
+        - ${args}
+method: bayes
+metric:
+        name: S2B/Accuracy/Mean/train0
+        goal: maximize
+parameters:
+        learning_rate:
+                min: 0.00006
+                max: 0.001
+        batch_size:
+                values: [32,64,128,256]
+        n_step:
+                values: [3,5,7,9]
+        sequence_replay_unroll_length:
+                values: [20]
+        tau:
+                values: [0.002, 0.001, 0.0004]
+        nbr_actor:
+                values: [16, 32, 64, 128, 256]
+        critic_arch_feature_dim:
+                values: [64, 128, 256]

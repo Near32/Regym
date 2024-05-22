@@ -1,0 +1,45 @@
+vocab_size: &vocab_size 32
+max_sentence_length: &max_sentence_length 10
+
+model_id: 'ObverterETHERTestModel'
+
+input_stream_ids:
+    "inputs:obs" : "observations:obs"
+
+modules:
+    'ObverterLanguageModule':
+        type: ReferentialGym.agents.build_ObverterAgent
+        id: 'Obv_0'
+        obs_shape: [64,]
+        vocab_size: *vocab_size
+        max_sentence_length: *max_sentence_length
+        config:
+            'confidence_threshold': 0.9
+            'graphtype': 'obverter'
+            'force_eos': True
+            'tau0': 1.0
+            'use_decision_head': True
+            'learn_not_target_logit': True
+            'use_residual_connections': False
+            'use_sentences_one_hot_vectors': False
+            'with_BN_in_decision_head': True
+            'with_DP_in_decision_head': True
+            'DP_in_decision_head': 0.5
+            'with_DP_in_listener_decision_head_only': False
+            'with_descriptive_not_target_logit_language_conditioning': True
+            'symbol_embedding_size': 128
+            'symbol_processing_nbr_hidden_units': 512
+            'symbol_processing_nbr_rnn_layers': 1
+            'embedding_dropout_prob': 0.0
+            'dropout_prob': 0.0
+            'use_cuda': True
+        input_stream_ids:
+            experiences: 'inputs:obs'
+            sentences_widx: 'inputs:sentences_widx'
+        #output_stream_ids:
+        #    output: "inputs:Obv_0:output"
+
+pipelines:
+    torso: ['Obv_0']
+    head : []
+

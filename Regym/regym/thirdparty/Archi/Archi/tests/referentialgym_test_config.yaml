@@ -1,0 +1,28 @@
+model_id: 'ReferentialGymTestModel'
+
+input_stream_ids:
+        "inputs:obs" : "observations:obs"
+
+modules:
+        'LanguageModule':
+                type: ReferentialGym.modules.language_module.build_LanguageModule
+                id: 'LanguageModule_0'
+                config:
+                        use_sentences_one_hot_vectors : False
+                        vocab_size : 64
+                        symbol_embedding_size : 128
+                        embedding_dropout_prob: 0.0
+                        rnn_type: lstm
+                        symbol_processing_nbr_hidden_units: 512
+                        symbol_processing_nbr_rnn_layers: 1
+                        processing_dropout_prob: 0.0
+                        use_cuda: True
+                input_stream_ids:
+                        inputs: 'inputs:obs'
+                output_stream_ids:
+                        output: "inputs:LanguageModule_0:output"
+
+pipelines:
+        torso : []
+        head: ['LanguageModule']
+

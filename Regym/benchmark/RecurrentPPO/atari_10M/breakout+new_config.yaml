@@ -1,0 +1,426 @@
+PPO_extra_hyperparameters: &ppo_extra_hyperparameters
+    standardized_adv: True
+    lr_account_for_nbr_actor: False 
+    discount: 0.99
+    use_gae: True
+    gae_tau: 0.95
+    value_weight: 0.5
+    entropy_weight: 0.01
+    gradient_clip: 0.5
+    optimization_epochs: 4 #3
+    mini_batch_size: 256
+    ppo_ratio_clip: 0.1
+    horizon: 128
+    
+    # BetaVAE:
+    use_vae: False
+    vae_weight: 1e0
+    vae_nbr_latent_dim: 128
+    vae_decoder_nbr_layer: 3#4
+    vae_decoder_conv_dim: 128
+    
+    cnn_encoder_feature_dim: 128 #vae_nbr_latent_dim
+    
+    vae_beta: 1e2
+    vae_max_capacity: 1e2
+    vae_nbr_epoch_till_max_capacity: 20
+    vae_constrainedEncoding: False
+    vae_tc_discriminator_hidden_units: [256,256,256,256,2] #tuple([2*cnn_encoder_feature_dim']]*4+[2])
+    
+    # Random Network Distillation:
+    use_random_network_distillation: False
+    intrinsic_discount: 0.99
+    rnd_loss_int_ratio: 0.5
+    rnd_obs_clip: 5
+    rnd_non_episodic_int_r: True
+    rnd_update_period_running_meanstd_int_reward: 1.e5
+    rnd_update_period_running_meanstd_obs: 1.e5 #rnd_update_period_running_meanstd_int_reward
+    # RND Convolutional Architecture:
+    rnd_arch: 'CNN'
+    rnd_arch_channels: [32, 64, 64]
+    rnd_arch_kernels: [8, 4, 3]
+    rnd_arch_strides: [4, 2, 1]
+    rnd_arch_paddings: [0, 1, 1]
+    rnd_arch_feature_dim: 512
+    # RND Fully-Connected Architecture:
+    #rnd_feature_net_fc_arch_hidden_units: (128, 64)
+
+
+extra_hyperparameters: &extra_hyperparameters
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda: 0.0 # 0.0
+    weights_entropy_lambda: 0.0
+    use_target_to_gather_data:    False
+    
+    goal_oriented: True 
+    goal_state_shared_arch:  False
+    goal_state_flattening: False    #True
+    
+    #####################################
+    #####################################
+    # HER Hyperparameters:
+    #####################################
+    nbr_training_iteration_per_cycle: 10 # HER: 40
+    nbr_episode_per_cycle:  16  # HER: 16 DQN needs removal.
+    HER_use_latent: False   #True
+    HER_target_clamping: True 
+    use_HER:    False 
+    HER_strategy:   'final-1' #'future-4' #
+    # set to None if left unspecified:
+    # HER_extract_goal_from_info_fn: "None"
+    # specific to IGLU : HER_achieved_goal_key_from_info: "grid"
+    HER_target_goal_key_from_info: "desired_goal" # specific to MiniGrid, whereas IGLU:"target_grid"
+    HER_filtering_fn: "None"
+    
+#####################################
+    #####################################
+
+    ####################################
+    ####################################
+    # R2D2 Hyperparameters:
+    ####################################
+    PER_compute_initial_priority: False
+    #####################################
+    
+    burn_in: False
+    sequence_replay_PER_eta: 0.9
+    sequence_replay_use_online_states: True
+    sequence_replay_use_zero_initial_states: False
+    sequence_replay_store_on_terminal: False
+    
+    sequence_replay_unroll_length: 20
+    sequence_replay_overlap_length: 10
+    sequence_replay_burn_in_length: 0
+    
+    r2d2_loss_masking: True
+    r2d2_loss_masking_n_step_regularisation: True
+    r2d2_bellman_target_SAD: False
+
+    ####################################
+    vdn: False 
+    vdn_nbr_players: 2
+    ####################################
+    ####################################
+
+LargeCNN: &LargeCNN
+    sad: False 
+
+    phi_arch: 'CNN-LSTM-RNN'
+    goal_phi_arch: 'EmbedGRU'
+    critic_arch: 'None'
+    
+    
+    # Phi Body:
+    phi_arch_channels: [16, M, 32, 64]
+    phi_arch_kernels: [2, 2, 2, 2]
+    phi_arch_strides: [1, 1, 1, 1]
+    phi_arch_paddings: [1, 1, 1, 1]
+    
+    phi_arch_feature_dim: 64        # LSTM inputs / CNN output dim: 64
+    phi_arch_hidden_units: [64,]    # LSTM hidden units: 64
+
+    #phi_arch_feature_dim: 256 #Matching Predictor Decoder hidden size in shared arch        # LSTM inputs / CNN output dim: 64
+    #phi_arch_hidden_units: [256,] #[64,]    # LSTM hidden units: 64
+
+    # Actor architecture:
+    actor_arch_hidden_units: []
+    # Critic architecture:
+    critic_arch_hidden_units: []
+
+    # Goal Phi Body:
+    goal_phi_arch_channels: None
+    goal_phi_arch_kernels: None
+    goal_phi_arch_strides: None
+    goal_phi_arch_paddings: None
+    goal_phi_arch_feature_dim: None
+    goal_phi_arch_hidden_units: [128,]
+
+    goal_phi_arch_embedding_size: 32
+
+    # Critic architecture:
+    goal_critic_arch_hidden_units: []
+
+    extra_inputs_infos: {
+        #'previous_reward':{
+        #    shape: [1,], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+        #'previous_action':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+
+        #'action_mask':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+        #'legal_actions':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['head', 'extra_inputs']
+        #},
+
+        ########################
+        # WITH SAD:
+        ########################
+        #'greedy_action':{
+        #    shape: ['task.action_dim',], 
+        #    target_location: ['critic_body', 'extra_inputs']
+        #},
+        ########################
+        ########################
+           
+    }
+    
+    # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+    # Value is a tuple where the first element is the expected shape of the extra input,
+    # and the second item is the location where the input should be stored in the framestate.
+    # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+    epsstart: 1.0
+    epsend: 0.1 #0.05
+    epsdecay: 10000 #500000 
+
+    eps_greedy_alpha: 7.0
+
+    observation_resize_dim: 84
+    discount: 0.99
+    use_gae: True
+    use_cuda: True
+    gae_tau: 0.95
+    value_weight: 0.5
+    entropy_weight: 0.01
+    gradient_clip: 0.5
+    optimization_epochs: 4 #3
+    mini_batch_size: 256
+    ppo_ratio_clip: 0.1
+    horizon: 128
+    learning_rate: 2.5e-4
+    adam_eps: 1.0e-8
+        
+    <<: *extra_hyperparameters
+    <<: *ppo_extra_hyperparameters
+
+experiment:
+    tasks: [
+            #{'env-id': 'QbertNoFrameskip-v4',
+            # 
+            # 'run-id': 'Seed13_venv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            # 'agent-id': 'ppo_LargeCNN',
+            # 
+            # 'nbr_actor': 8,
+            # 'nbr_frame_skipping': 4,
+            # 'nbr_frame_stacking': 4,
+            # 'grayscale': True,
+            # 'single_life_episode': True,
+            # 'nbr_max_random_steps': 0,
+            # 'clip_reward': True,
+            # 'observation_resize_dim': 84
+            # },
+
+            #{'env-id': 'PongNoFrameskip-v4',
+            {'env-id': 'BreakoutNoFrameskip-v4',
+             'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+             'agent-id': 'archi_recurrent_ppo',
+             
+             'nbr_actor': 8,
+             'nbr_frame_skipping': 4,
+             'nbr_frame_stacking': 4,
+             'grayscale': True,
+             'single_life_episode': True,
+             'nbr_max_random_steps': 30,
+             'clip_reward': True,
+             'observation_resize_dim': 84
+             },
+
+            #{'env-id': 'BreakoutNoFrameskip-v4',
+            #
+            # 'run-id': 'Seed13_penv_ppo_8actors_Max+Sk4_St4_Obs84_Grayscale_RandNoOpStart30',
+            # 'agent-id': 'ppo_LargeCNN',
+            # 
+            # 'nbr_actor': 8,
+            # 'nbr_frame_skipping': 4,
+            # 'nbr_frame_stacking': 4,
+            # 'grayscale': True,
+            # 'single_life_episode': True,
+            # 'nbr_max_random_steps': 30,
+            # 'clip_reward': True,
+            # 'observation_resize_dim': 84
+            # },
+            ]
+    experiment_id: 'atari_10M_benchmark_ppo'
+    benchmarking_episodes: 10
+    benchmarking_interval: 5.0e5
+    benchmarking_record_episode_interval: None #1.0e8
+    train_observation_budget: 1.0e7
+    seed: 13
+
+agents:    
+    archi_recurrent_ppo:
+        <<: *LargeCNN
+        #DEBUG:
+        saving_interval: 1e10 #5e5
+
+        vdn: False
+        vdn_nbr_players: 2
+        sad: False 
+
+        learning_rate: 6.25e-5
+        adam_eps: 1.0e-12
+        adam_weight_decay: 0.0 #1.0e-8
+        replay_capacity: 2e4 #5e4 #5e5
+        n_step: 1
+        
+        ArchiModel:
+            model_id: 'RL_LSTM_PPOModel'
+            hyperparameters:
+                feature_dim: &feature_dim 512
+                lstm_input_dim: &lstm_input_dim 512 #128
+                hidden_dim: &hidden_dim 512
+                action_dim: &action_dim 4 #5 
+                rlhead_state_dim: &rlhead_state_dim 512
+                
+            input_stream_ids:
+                "inputs:obs" : "observations:obs"
+                "inputs:legal_actions" : "frame_states:legal_actions"
+                
+            modules:
+                #'CoreLSTM':
+                #    type: LSTMModule
+                #    state_dim: *lstm_input_dim #"{{key_dim}+1}"
+                #    hidden_units: 
+                #        - *hidden_dim 
+                #    non_linearities: [None]
+                #    config: None
+                #    input_stream_ids:
+                #        lstm_input: "inputs:ObsEncoder:processed_input"
+                #        lstm_hidden: "inputs:CoreLSTM:hidden"
+                #        lstm_cell: "inputs:CoreLSTM:cell"
+                #        iteration: "inputs:CoreLSTM:iteration"
+                #    #output_stream_ids:
+                #    #    output: "inputs:CoreLSTM:lstm_output"
+                #    use_cuda: True
+
+                'ObsEncoder':
+                    type: ConvolutionalNetworkModule
+                    input_shape: [4, 84, 84]
+                    feature_dim: *feature_dim
+                    channels: [32, 64, 64]
+                    kernel_sizes: [8, 4, 3]
+                    strides: [4, 2, 1] #[4,2,2]
+                    paddings: [0, 1, 1]
+                    fc_hidden_units: [] #[BN512, BN512]
+                    non_linearities: ['ReLU',] #'ReLU', 'ReLU']
+                    dropout: 0.0
+                    use_coordconv: False #True
+                    config: None
+                    input_stream_ids:
+                        input: "inputs:obs"
+                    output_stream_ids:
+                        input: "inputs:ObsEncoder:processed_input"
+                    use_cuda: True
+    
+                #'MLP':
+                #    type: FullyConnectedNetworkModule
+                #    state_dim: *feature_dim #3136
+                #    hidden_units: ['BN512', 'BN256', 'BN256']
+                #    non_linearities: ['ReLU', 'ReLU', 'ReLU']
+                #    dropout: 0.0
+                #    config: None
+                #    input_stream_ids:
+                #        input: "inputs:ObsEncoder:processed_input"
+                #    output_stream_ids:
+                #        input: "inputs:MLP:processed_input"
+                #    use_cuda: True
+                    
+                'RLHead':
+                    type: RLCategoricalActorCriticHeadModule
+                    #state_dim: *rlhead_state_dim 
+                    #state_dim: *hidden_dim 
+                    state_dim: 512 #256 #*hidden_dim 
+                    action_dim: *action_dim
+                    use_intrinsic_critic: False
+                    config: None
+                    input_stream_ids: 
+                        input0: "inputs:ObsEncoder:processed_input"
+                        #input0: "inputs:CoreLSTM:output"
+                        #input0: "inputs:MLP:processed_input"
+                        action: "inputs:action"
+                        #legal_actions: "inputs:legal_actions"
+                    use_cuda: True
+
+            output_mappings:
+                head:
+                    "a" : "modules:RLHead:a"
+                    "greedy_action" : "modules:RLHead:greedy_action"
+                    "ent" : "modules:RLHead:ent"
+                    #"legal_ent" : "modules:RLHead:legal_ent"
+                    "v" : "modules:RLHead:v"
+                    #"int_v" : "modules:RLHead:int_v"
+                    "log_pi_a" : "modules:RLHead:log_pi_a"
+                    #"qa" : "modules:RLHead:qa"
+                    #"log_a" : "modules:RLHead:log_a"
+                    #"unlegal_log_a" : "modules:RLHead:unlegal_log_a"
+            
+            input_mappings:
+                    # Remaps the features to there original stream when using head pipeline only:
+                    head:
+                        "inputs:obs": "inputs:ObsEncoder:processed_input"
+            features_id: 
+                torso: "inputs:ObsEncoder:processed_input"
+            
+            pipelines:
+                torso: ['ObsEncoder']
+                #head: ['CoreLSTM', 'RLHead']
+                head: ['RLHead',] #['MLP', 'RLHead']
+        
+        extra_inputs_infos: {
+            #'previous_reward':{
+            #    shape: [1,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            #'previous_action':{
+            #    shape: ['task.action_dim',], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            #'previous_action_int':{
+            #    shape: [1,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+
+            #'dialog':{
+            #'desired_goal':{
+            #    #shape: [28], #[63,], 
+            #    shape: [10], #20], 
+            #    target_location: ['phi_body', 'extra_inputs']
+            #},
+            
+            # Uncomment the following if using THER_observe_achieved_goal
+            #'achieved_goal':{
+            #    #shape: [28], #[63,], 
+            #    shape: [10], #20], 
+            #    target_location: ['OracleTHER']
+            #},
+            
+ 
+            #'action_mask':{
+            #    shape: ['task.action_dim',], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            #'legal_actions':{
+            #    shape: ['task.action_dim',], 
+            #    target_location: ['head', 'extra_inputs']
+            #},
+
+            ########################
+            # WITH SAD:
+            ########################
+            #'greedy_action':{
+            #    shape: [31,], #[6223,], 
+            #    target_location: ['critic_body', 'extra_inputs']
+            #},
+            ########################
+            ########################
+               
+        }
+   
+

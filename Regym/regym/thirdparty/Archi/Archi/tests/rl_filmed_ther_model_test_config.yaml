@@ -1,0 +1,171 @@
+model_id: 'RL_FiLMedTHERModel'
+
+hyperparameters:
+    vocab_size: &vocab_size 1024
+    max_sentence_length: &max_sentence_length 20
+    feature_dim: &feature_dim 8192 #64
+    gru_feature_dim: &gru_feature_dim 4096
+    embedding_dim: &embedding_dim 256
+    lstm_input_dim: &lstm_input_dim 128
+    comm_state_dim: &comm_state_dim 256
+    hidden_dim: &hidden_dim 4096 #512
+    action_dim: &action_dim 8
+    rlhead_state_dim: &rlhead_state_dim 4106 #522
+    temporal_dim: &temporal_dim 4
+    instruction_generator_input_dim: &instruction_generator_input_dim 32768 #!!python/object/apply:eval [ (*feature_dim) * (*temporal_dim) ]
+
+input_stream_ids:
+    "inputs:obs" : "observations:obs"
+    "inputs:legal_actions" : "frame_states:legal_actions"
+        
+modules:
+    'CoreLSTM':
+        type: LSTMModule
+        state_dim: *lstm_input_dim #"{{key_dim}+1}"
+        hidden_units: 
+                - *hidden_dim 
+        non_linearities: [None]
+        config: None
+        input_stream_ids:
+                lstm_input: "inputs:MLP:processed_input"
+                #lstm_input: "inputs:Encoder:processed_input"
+                lstm_hidden: "inputs:CoreLSTM:hidden"
+                lstm_cell: "inputs:CoreLSTM:cell"
+                iteration: "inputs:CoreLSTM:iteration"
+        output_stream_ids:
+            lstm_output: "inputs:CoreLSTM:output"
+        use_cuda: True
+
+    'ObsEncoder':
+        type: ConvolutionalNetworkModule
+        input_shape: [3, 64, 64]
+        feature_dim: -1 #*feature_dim #"{{value_dim}}"
+        channels: [32, 64, 128]
+        kernel_sizes: [3, 3, 3]
+        strides: [2, 2, 2]
+        paddings: [1, 1, 1]
+        fc_hidden_units: [] #[256, 128]
+        non_linearities: ['ReLU']
+        dropout: 0.0
+        use_coordconv: False #True
+        config: None
+        input_stream_ids:
+            input: "inputs:obs"
+        output_stream_ids:
+            input: "inputs:ObsEncoder:processed_input"
+        use_cuda: True
+    
+    'FiLMedBlock1':
+        type: FiLMedModule
+        config:
+            nbr_input_channels: 128
+            nbr_input_features: *gru_feature_dim
+            nbr_output_channels: 128
+            kernel_sizes: [1, 3]
+            strides: [1, 1]
+            paddings: [0, 1]
+            use_coordconv: True
+            use_residual_connection: True
+        input_stream_ids:
+            input: "inputs:ObsEncoder:processed_input"
+            modulation_input: "inputs:CommEncoder:processed_input"
+        output_stream_ids:
+            input: "inputs:FiLMedBlock1:processed_input"
+        use_cuda: True
+
+    'FiLMedBlock2':
+        type: FiLMedModule
+        config:
+            nbr_input_channels: 128
+            nbr_input_features: *gru_feature_dim
+            nbr_output_channels: 128
+            kernel_sizes: [1, 3]
+            strides: [1, 1]
+            paddings: [0, 1]
+            use_coordconv: True
+            use_residual_connection: True
+        input_stream_ids:
+            input: "inputs:FiLMedBlock1:processed_input"
+            modulation_input: "inputs:CommEncoder:processed_input"
+        output_stream_ids:
+            input: "inputs:FiLMedBlock2:processed_input"
+        use_cuda: True
+
+    'MLP':
+        type: FullyConnectedNetworkModule
+        state_dim: *feature_dim 
+        hidden_units: [256, 128]
+        non_linearities: ['ReLU']
+        dropout: 0.0
+        config: None
+        input_stream_ids:
+                input: "inputs:FiLMedBlock2:processed_input"
+        output_stream_ids:
+            input: "inputs:MLP:processed_input"
+        use_cuda: True
+    
+    'CommEncoder':
+        type: EmbeddingRNNModule 
+        vocab_size: *vocab_size
+        feature_dim: *gru_feature_dim 
+        embedding_size: *embedding_dim 
+        hidden_units: *hidden_dim
+        num_layers: 1
+        gate: None #F.relu, 
+        dropout: 0.0 
+        rnn_fn: "GRU"
+        padding_idx: 0
+        config: None
+        input_stream_ids:
+            input: "inputs:phi_body:extra_inputs:dialog"
+        output_stream_ids:
+            input: "inputs:CommEncoder:processed_input"
+        use_cuda: True
+    
+    'RLHead':
+        type: RLCategoricalHeadModule
+        state_dim: *rlhead_state_dim 
+        action_dim: *action_dim
+        noisy: False
+        dueling: True
+        config: None
+        input_stream_ids: 
+            input0: "inputs:CoreLSTM:output"
+            input1: "inputs:critic_body:extra_inputs:previous_reward"
+            input2: "inputs:critic_body:extra_inputs:previous_action"
+            input8: "inputs:critic_body:extra_inputs:action_mask"
+            action: "inputs:action"
+            legal_actions: "inputs:legal_actions"
+        use_cuda: True
+
+    'InstructionGenerator':
+        type: CaptionRNNModule
+        vocabulary: None
+        vocab_size: *vocab_size 
+        max_sentence_length: *max_sentence_length 
+        input_dim: *instruction_generator_input_dim
+        embedding_size: *embedding_dim
+        hidden_units: *hidden_dim 
+        num_layers: 1
+        gate: None #F.relu, 
+        dropout: 0.0 
+        rnn_fn: "GRU"
+        config:
+            predict_PADs: False
+            diversity_loss_weighting: False 
+        input_stream_ids:
+            input0: "inputs:ObsEncoder:processed_input"
+            input0_gt_sentences: "inputs:gt_sentences"
+        output_stream_ids:
+            input0: "inputs:InstructionGenerator:processed_input0"
+        use_cuda: True 
+
+output_mappings:
+    "ent" : "modules:RLHead:ent"
+    "qa" : "modules:RLHead:qa"
+    "log_a" : "modules:RLHead:log_a"
+
+pipelines:
+    torso: ['ObsEncoder', 'CommEncoder', 'FiLMedBlock1', 'FiLMedBlock2', 'MLP']
+    head: ['CoreLSTM', 'RLHead']
+    instruction_generator: ['ObsEncoder', 'InstructionGenerator']

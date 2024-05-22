@@ -1,0 +1,576 @@
+extra_hyperparameters: &extra_hyperparameters
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda: 0.0
+    weights_entropy_lambda: 0.0 #01
+    use_target_to_gather_data:    False
+
+    r2d2_loss_masking: False
+
+    sequence_replay_use_zero_initial_states: True
+    sequence_replay_store_on_terminal: False 
+
+    burn_in: True 
+    sequence_replay_unroll_length: 80
+    sequence_replay_overlap_length: 40
+    sequence_replay_burn_in_length: 20
+
+    sequence_replay_PER_eta: 0.9
+    
+
+LargeLSTMCNN: &LargeLSTMCNN
+        phi_arch: 'CNN-LSTM-RNN' #-LSTM-RNN'
+        actor_arch: 'None'
+        critic_arch: 'None'
+        
+        # Phi Body:
+        phi_arch_channels: [32, 64, 64]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 1]
+        phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 512
+        phi_arch_hidden_units: [512,]
+
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['phi_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['phi_body', 'extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_feature_dim: None
+        critic_arch_hidden_units: []
+
+
+LargeCNNLSTM: &LargeCNNLSTM
+        phi_arch: 'CNN' #-LSTM-RNN'
+        actor_arch: 'None'
+        critic_arch: 'LSTM-RNN'
+        
+        # Phi Body:
+        # phi_arch_channels: [32, 64, 64]
+        # phi_arch_kernels: [8, 4, 3]
+        # phi_arch_strides: [4, 2, 1]
+        # phi_arch_paddings: [1, 1, 1]
+        # phi_arch_feature_dim: 512
+        # phi_arch_hidden_units: []
+        #phi_arch_channels: ['BN16', 'BN16', 'BN16']
+        phi_arch_channels: [16, 16, 16]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 2]
+        phi_arch_paddings: [1, 1, 1]
+        
+        #phi_arch_feature_dim: 32
+        phi_arch_feature_dim: 256
+        phi_arch_hidden_units: []
+
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        # critic_arch_feature_dim: 512
+        # critic_arch_hidden_units: [512]        
+        
+        #critic_arch_feature_dim: 16
+        #critic_arch_hidden_units: [16]
+        
+        critic_arch_feature_dim: 256
+        #critic_arch_hidden_units: [256]
+        critic_arch_hidden_units: [256, 256]
+
+LargeCNNGRU: &LargeCNNGRU
+        phi_arch: 'CNN'
+        actor_arch: 'None'
+        critic_arch: 'GRU-RNN'
+        
+        # Phi Body:
+        # phi_arch_channels: [32, 64, 64]
+        # phi_arch_kernels: [8, 4, 3]
+        # phi_arch_strides: [4, 2, 1]
+        # phi_arch_paddings: [1, 1, 1]
+        # phi_arch_feature_dim: 512
+        # phi_arch_hidden_units: []
+        
+        #phi_arch_channels: ['BN16', 'BN16', 'BN16']
+        phi_arch_channels: [16, 16, 16]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 2]
+        phi_arch_paddings: [1, 1, 1]
+        
+        #phi_arch_feature_dim: 32
+        phi_arch_feature_dim: 256
+        phi_arch_hidden_units: []
+
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        # critic_arch_feature_dim: 512
+        # critic_arch_hidden_units: [512]        
+        
+        #critic_arch_feature_dim: 16
+        #critic_arch_hidden_units: [16]
+        
+        #critic_arch_feature_dim: 16
+        #critic_arch_hidden_units: [16, 16]
+        
+        critic_arch_feature_dim: 256
+        critic_arch_hidden_units: [256]
+
+
+LargeCNNMLP: &LargeCNNMLP
+        phi_arch: 'CNN' #-LSTM-RNN'
+        actor_arch: 'None'
+        #critic_arch: 'None' 
+        critic_arch: 'MLP-MLP-RNN'
+        
+        # Phi Body:
+        
+        phi_arch_channels: [32, 64, 64]
+        phi_arch_kernels: [8, 4, 3]
+        phi_arch_strides: [4, 2, 1]
+        phi_arch_paddings: [1, 1, 1]
+        phi_arch_feature_dim: 512
+        phi_arch_hidden_units: []
+        
+        
+        # With extra inputs:
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            }
+        }
+        # Dictionnaries of keys living inside the 'infos' OpenAI Gym's output.
+        # Value is a tuple where the first element is the expected shape of the extra input,
+        # and the second item is the location where the input should be stored in the framestate.
+        # Parsing of the shape will infer where to fetch the value when encountering a string.
+
+        # Actor architecture:
+        actor_arch_hidden_units: []
+        # Critic architecture:
+        critic_arch_feature_dim: 512
+        critic_arch_hidden_units: [512]
+        
+r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeLSTMCNN_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e3
+        replay_period: 1
+        # deprecated: actor_models_update_optimization_interval: 4
+        actor_models_update_steps_interval: 400 #considering only 1 actor's steps.
+
+        observation_resize_dim: 84
+        discount: 0.99 #0.997
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        eps_greedy_alpha: 0.0
+        
+        <<: *LargeLSTMCNN
+        <<: *extra_hyperparameters
+
+r2d2_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e3
+        replay_period: 1
+        # deprecated: actor_models_update_optimization_interval: 4
+        actor_models_update_steps_interval: 400 #considering only 1 actor's steps.
+
+        observation_resize_dim: 84
+        discount: 0.99 #0.997
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        eps_greedy_alpha: 0.0
+
+        <<: *extra_hyperparameters
+
+r2d2_LargeCNNGRU_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeCNNGRU_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e3
+        replay_period: 1
+        # deprecated: actor_models_update_optimization_interval: 4
+        actor_models_update_steps_interval: 400 #considering only 1 actor's steps.
+
+        observation_resize_dim: 84
+        discount: 0.99 #0.997
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        eps_greedy_alpha: 0.0
+
+        <<: *LargeCNNGRU
+        <<: *extra_hyperparameters
+
+
+r2d2_LargeCNNMLP_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20: &r2d2_LargeCNNMLP_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        dueling: False
+        noisy: False 
+        n_step: 1
+
+        use_PER: False
+        PER_alpha: 0.6
+        PER_beta: 1.0
+
+        replay_capacity: 1e6
+        min_capacity: 1e3
+        replay_period: 1
+        # deprecated: actor_models_update_optimization_interval: 4
+        actor_models_update_steps_interval: 400 #considering only 1 actor's steps.
+
+        observation_resize_dim: 84
+        discount: 0.99 #0.997
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 32
+        tau: 1.0e-2
+        learning_rate: 2.5e-4
+        adam_eps: 1.0e-8
+
+        epsstart: 1.0
+        epsend: 0.01    #0.1
+        epsdecay: 30000 #1000000
+        eps_greedy_alpha: 0.0
+
+        <<: *LargeCNNMLP
+        <<: *extra_hyperparameters
+
+
+experiment:
+    tasks: [{
+        #'env-id': 'PongNoFrameskip-v4',
+        'env-id': 'SimpleMemoryTestingEnv-v0',
+        #'env-id': 'SimpleMemoryTestingEnv-2Colors-v0',
+        #'env-id': 'SimpleMemoryTestingEnv-Easy-v0',
+        #'env-id': 'SimpleMemoryTestingEnv-Easy-2Colors-v0',
+
+        'run-id': 'test/serial/debugLSTMGRU/debugTinyArch-WithOutBN/debugNStepBellmanTargetFunction/ReplicateProperParam/Env-NoPenaltyTimeLimit-WithTimePenalty/ScalingFN_EPS1m3/Seed1_venv32_r2d2_Obs84_EntropyReg0_WeightDecayReg0/',
+        
+        #####
+        # now trying to solve pong:
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e3_alpha6m1_beta6m1_over1e4_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # trying to get longer PER beta increase and min_capacity 1e3->1e4
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over1e5_eta9m1_tau1m4_RepP2_NOBURNIN_b16_L2_O1_B0',
+        # trying to get the same weight sampling as DQN:
+        #'agent-id': 'paper_1step_noisy_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta1m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0',
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta1m1_tau1m3_RepP1_NOBURNIN_b32_L2_O1_B0',
+        # trying with non-recurrent model:
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L2_O1_B0',
+        # n=3 steps + 8 unroll lenght: greater sample-efficiency!
+        #'agent-id': 'paper_3step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        # increasing n=5 steps : increase sample-efficiency again! but once convergence is reached, there are some unstability signs...
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNMLP_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        # switching back to recurrent architecture reduces the observed unstability:
+        #'agent-id': 'paper_5step_PER_dueling_r2d2_AdamLR25m5_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_1m2OVER3p4_gamma99_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha6m1_beta6m1_over2e5_eta9m1_tau1m4_RepP1_NOBURNIN_b32_L8_O4_B0',
+        ## GOOD ONE above...
+        #####
+
+        # SMTE-Easy: replication:
+        # No storage on terminal:
+        #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates',
+        # Storage on terminal: more stable and converges faster
+        #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates',
+        # Store on terminal but without zero init state?
+        #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_NOZeroInitStates',
+
+        # With bigger replay_buffer:
+        #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates',
+        # ... and masked loss: complete failure?!
+        # multiplier by mask but ones...? not difference without multiplication
+        # new loss computation with n_step bellman_target function + masked loss: back to small replay buffer...
+        #'agent-id': '1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss',
+        # 3steps? more stable
+        #'agent-id': '3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss',
+        # 10steps? instability due to max bellman target explosion...
+        #'agent-id': '10step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss',
+        # Trying to regularise loss computation with regards to n_step:
+        'agent-id': '3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_RegMaskedLoss',
+        
+        # Both + n=5step? not okay cause the loss has an issue...
+        #'agent-id': '5step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates',
+
+        # With loss masking?
+
+
+        # Can LSTM help? before convergence, yes, and near convergence 2 lstms are more stable than one.
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR625m6_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L20_O10_B0',        
+        
+        # On normal env, though, it does not learn to use its memory so far.
+        #'agent-id': 'paper_1step_PER_dueling_r2d2_AdamLR625m6_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L20_O10_B0',        
+        
+        #####
+
+        'nbr_actor': 32,
+        'nbr_frame_skipping': 0, #4,
+        'nbr_frame_stacking': 0, #4,
+        'grayscale': False, #True,
+        'single_life_episode': False, #True, #False,
+        'nbr_max_random_steps': 0, #30,
+        'clip_reward': False,
+        'previous_reward_action': True,
+        'observation_resize_dim': (84,84),
+        },
+    ]
+    experiment_id: 'r2d2_benchmark'
+    benchmarking_episodes: 10
+    benchmarking_interval: 2.0e3
+    benchmarking_record_episode_interval: 2.0e2 # per actor...
+    train_observation_budget: 1.0e7 #3.0e5 #1.0e7
+    seed: 1
+
+agents:
+    ##########################################################################
+    ##########################################################################
+    # Length 20: optimal for most games so far...
+    ##########################################################################
+    ##########################################################################
+    1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates: &1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        <<: *r2d2_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        <<: *LargeCNNLSTM
+        actor_models_update_steps_interval: 32 #considering only 1 actor's steps.
+
+        learning_rate: 6.25e-4
+        adam_eps: 1.0e-8
+        discount: 0.997
+        gradient_clip: 0.5 
+        # ...not specified in r2d2 paper but in Ape-X,
+        # and r2d2 paper says that missing hyper-param
+        # are the same as ape-X
+        
+        #replay_capacity: 1e6
+        #min_capacity: 1e4
+        replay_capacity: 2e4
+        min_capacity: 1e4
+        
+        use_PER: True 
+        PER_alpha: 0.9
+        PER_beta: 0.6
+        PER_beta_increase_interval: 2e5
+        sequence_replay_PER_eta: 0.9
+        replay_period: 1
+        batch_size: 32
+        double: True
+        dueling: True 
+        noisy: False
+        n_step: 1 #5
+        tau: 4.0e-4 #2.5e-3
+        burn_in: False
+
+        # VERY IMPORTANT:
+        sequence_replay_use_zero_initial_states: True
+        sequence_replay_store_on_terminal: False 
+
+        sequence_replay_unroll_length: 20
+        sequence_replay_overlap_length: 10
+        sequence_replay_burn_in_length: 0
+        
+
+        epsstart: 1.0
+        epsend: 0.4    #0.1
+        epsdecay: 1000000
+        
+        # ape-X and r2d2 keep it constant over each actor 
+        # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
+        # with base_eps=0.4 and \alpha = 7...
+        eps_greedy_alpha: 7.0
+
+    1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+    
+    1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        replay_capacity: 5e4
+        min_capacity: 3e4 
+
+    #1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+    1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        #replay_capacity: 5e4
+        #min_capacity: 3e4 
+        r2d2_loss_masking: True
+        n_step: 1
+
+    #3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+    3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_MaskedLoss:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        #replay_capacity: 5e4
+        #min_capacity: 3e4 
+        r2d2_loss_masking: True
+        n_step: 3
+
+    3step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r5e4Min3e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates_RegMaskedLoss:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True 
+        sequence_replay_use_zero_initial_states: True 
+        replay_capacity: 5e4
+        min_capacity: 3e4 
+        r2d2_loss_masking: True
+        r2d2_loss_masking_n_step_regularisation: True
+        n_step: 3
+
+    5step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_ZeroInitStates:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True
+        sequence_replay_use_zero_initial_states: True 
+        n_step: 5 
+    
+    1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_TerminalStore_NOZeroInitStates:
+        <<: *1step_r2d2_AdamLR625m6_EPS1m8_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM2x256_GradClip5m1_r2e4Min1e4_a9m1_b6m1_over2e5_e9m1_tau4m4_RepP1_NOBURNIN_b32_L20O10B0_NOTerminalStore_ZeroInitStates
+        sequence_replay_store_on_terminal: True
+        sequence_replay_use_zero_initial_states: False 
+    
+    ##########################################################################
+    ##########################################################################
+    # BURNIN:
+    ##########################################################################
+    ##########################################################################
+    paper_1step_PER_dueling_r2d2_AdamLR625m6_EPS1m8_L2AModelUpdate32Steps_EPSgreedyAPEX1m0_4m1OVER1p6WithAlpha7_gamma997_LargeCNNLSTM_GradClip5m1_r2e4Min1e4_alpha9m1_beta6m1_over2e5_eta9m1_tau4m4_RepP1_BURNIN_b32_L20_O10_B10:
+        #<<: *r2d2_LargeCNNGRU_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        <<: *r2d2_obs84_graclip5m1_b32_tau1m2_lr25m5_L80_O40_B20
+        <<: *LargeCNNLSTM
+        actor_models_update_steps_interval: 32 #considering only 1 actor's steps.
+
+        learning_rate: 6.25e-4
+        adam_eps: 1.0e-8
+        discount: 0.997
+        gradient_clip: 0.5 
+        # ...not specified in r2d2 paper but in Ape-X,
+        # and r2d2 paper says that missing hyper-param
+        # are the same as ape-X
+        
+        #replay_capacity: 1e6
+        #min_capacity: 1e4
+        replay_capacity: 2e4 #5e4
+        min_capacity: 1e4 #2e4
+        
+        use_PER: True 
+        PER_alpha: 0.9 #0.7
+        PER_beta: 0.6
+        PER_beta_increase_interval: 2e5
+        sequence_replay_PER_eta: 0.9
+        replay_period: 1
+        batch_size: 32
+
+        double: True
+        dueling: True 
+        noisy: False
+        n_step: 1 #5
+        
+        tau: 4.0e-4 #2.5e-3
+        burn_in: True
+
+        # VERY IMPORTANT:
+        sequence_replay_use_zero_initial_states: True
+
+        sequence_replay_unroll_length: 20
+        sequence_replay_overlap_length: 10
+        sequence_replay_burn_in_length: 10
+        
+
+        epsstart: 1.0
+        epsend: 0.4    #0.1
+        epsdecay: 1.0e6 #1p6 ; 2p4 and 1p5 are too little
+        
+        # ape-X and r2d2 keep it constant over each actor 
+        # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
+        # with base_eps=0.4 and \alpha = 7...
+        eps_greedy_alpha: 7.0
+    ##########################################################################
+    ##########################################################################
+    
+        
