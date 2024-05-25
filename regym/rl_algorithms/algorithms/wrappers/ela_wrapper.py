@@ -1500,19 +1500,25 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.dataset_args = dataset_args
 
     def update_predictor(self, successful_traj=False):
+        '''
+        Every training_period:
+            - reset the previous period count check to the current count
+            - so that it is possible to update the training_period adaptively if needs be.
+        '''
         # RG Update:
         period_check = self.kwargs['ELA_rg_training_period']
-        period_count_check = self.nbr_buffered_predictor_experience
+        period_count_check = self.nbr_buffered_predictor_experience-getattr(self, 'previous_ELA_period_count_check',0)
         can_rg_train = False
         if self.kwargs["ELA_with_rg_training"] \
         and len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
             can_rg_train = True
         quotient = period_count_check // period_check
-        previous_quotient = getattr(self, 'previous_ELA_quotient', -1)
+        #previous_quotient = getattr(self, 'previous_ELA_quotient', -1)
         if can_rg_train \
-        and quotient != previous_quotient:
+        and quotient != 0: #previous_quotient:
         #and (period_count_check % period_check == 0):
-            self.previous_ELA_quotient = quotient
+            #self.previous_ELA_quotient = quotient
+            self.previous_ELA_period_count_check = self.nbr_buffered_predictor_experience
             if self.kwargs['ELA_use_ELA']:
                 self._rg_training()
         
@@ -1525,6 +1531,11 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold']:
                 full_update = False
                 break
+        # Update training period:
+        if self.kwargs['ELA_rg_training_adaptive_period']:
+            if full_update: self.kwargs['ELA_rg_training_period'] /= 2
+            else:   self.kwargs['ELA_rg_training_period'] *= 2
+        wandb.log({f"Training/ELA/RGTrainingPeriod":self.kwargs['ELA_rg_training_period']}, commit=False)
         wandb.log({f"Training/ELA/TestAccuracy":self.test_acc}, commit=False)
         wandb.log({f"Training/ELA/FullUpdate":int(full_update)}, commit=False)
 

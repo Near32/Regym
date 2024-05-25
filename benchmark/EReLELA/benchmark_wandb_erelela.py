@@ -1053,6 +1053,7 @@ def main():
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_language_specs", type=str, default="emergent")
     parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
+    parser.add_argument("--ELA_rg_training_adaptive_period", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ELA_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ELA_rg_use_cuda", type=str2bool, default="False",)
