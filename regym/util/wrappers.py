@@ -3907,7 +3907,8 @@ def baseline_ther_wrapper(
     descr_type='pickup_only', #'precise-descr',
     ):
     
-    if miniworld_entity_visibility_oracle:
+    if miniworld_entity_visibility_oracle \
+    or (observe_achieved_pickup_goal and 'MiniWorld' in env.unwrapped.spec.id):
         from miniworld.wrappers import EntityVisibilityOracleWrapper
         env = EntityVisibilityOracleWrapper(
             env=env,
@@ -3977,7 +3978,7 @@ def baseline_ther_wrapper(
         env = ClipRewardEnv(env)
     
     observation_keys_mapping={'mission':'desired_goal'}
-    if observe_achieved_pickup_goal \
+    if (observe_achieved_pickup_goal and 'MiniGrid' in env.unwrapped.spec.id)\
     or (language_guided_curiosity and 'descr' in descr_type):
         env = BehaviourDescriptionWrapper(
             env=env, 
@@ -3988,7 +3989,10 @@ def baseline_ther_wrapper(
         observation_keys_mapping[env.observation_space_name] = 'achieved_goal'
     if miniworld_entity_visibility_oracle \
     or (language_guided_curiosity and 'descr' in descr_type):
-        observation_keys_mapping['visible_entities'] = "visible_entities_widx"
+        if language_guided_curiosity:
+            observation_keys_mapping['visible_entities'] = "visible_entities_widx"
+        else:
+            observation_keys_mapping['visible_entities'] = "achieved_goal"
     if faceupobject_oracle:
         observation_keys_mapping['achieved_goal'] = 'achieved_goal'
 

@@ -1287,6 +1287,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
                 "with_ordering": self.kwargs["ELA_rg_compactness_ambiguity_metric_with_ordering"],
+                "use_cumulative_scores": self.kwargs["ELA_rg_compactness_ambiguity_metric_use_cumulative_scores"],
                 'sanity_check_shuffling': False,
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
@@ -1507,7 +1508,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         '''
         # RG Update:
         period_check = self.kwargs['ELA_rg_training_period']
-        period_count_check = self.nbr_buffered_predictor_experience-getattr(self, 'previous_ELA_period_count_check',0)
+        period_count_check = self.nbr_buffered_predictor_experience-getattr(self, 'previous_ELA_period_count_check',-self.kwargs['ELA_rg_training_period'])
         can_rg_train = False
         if self.kwargs["ELA_with_rg_training"] \
         and len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
