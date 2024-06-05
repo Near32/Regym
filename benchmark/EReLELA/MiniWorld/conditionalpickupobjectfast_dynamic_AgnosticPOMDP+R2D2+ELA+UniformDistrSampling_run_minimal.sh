@@ -1,5 +1,5 @@
 WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=40 --env_seed=12 --static_envs=False \
+--seed=50 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-ConditionalPickUpObjectFast-Benchmark \
@@ -66,7 +66,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
---ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
+--ELA_reward_extrinsic_weight=20.0 --ELA_reward_intrinsic_weight=0.1 \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
@@ -83,7 +83,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --single_pick_episode=False \
 --terminate_on_completion=True \
 --time_limit=0 \
---benchmarking_record_episode_interval=4 \
+--benchmarking_record_episode_interval=32 \
 --benchmarking_interval=1.0e8 \
 --train_observation_budget=1.0e7
 
