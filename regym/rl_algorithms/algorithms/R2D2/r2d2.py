@@ -510,10 +510,13 @@ class R2D2Algorithm(DQNAlgorithm):
             ps_tree_indices = [ray.get(storage.get_tree_indices.remote()) if len(storage) else [] for storage in self.storages]
         else:
             ps_tree_indices = [storage.get_tree_indices() if len(storage) else [] for storage in self.storages]
-        
+        eff_minibatch_size = minibatch_size*self.nbr_minibatches 
+        assert eff_minibatch_size == len(array_batch_indices)
         for slidx, (sloss, arr_bidx) in enumerate(zip(sampled_losses_per_item, array_batch_indices)):
+            #Which minibatch was it?
             idx_lss = slidx//minibatch_size
             ssamples_dict = list_sampled_samples[idx_lss]
+            #Which minibatch element was it?
             idx_ss = slidx % minibatch_size
             ssamples_dict = _extract_from_hdict(
                 samples=ssamples_dict,
@@ -522,8 +525,10 @@ class R2D2Algorithm(DQNAlgorithm):
                 post_process_fn=None,
             )
  
-            storage_idx = arr_bidx//minibatch_size
-            el_idx_in_batch = arr_bidx%minibatch_size
+            #Which storage does it come from?
+            storage_idx = arr_bidx//eff_minibatch_size
+            #Which storage element was it?
+            el_idx_in_batch = arr_bidx%eff_minibatch_size
 
             assert len(ps_tree_indices[storage_idx])
             el_idx_in_storage = ps_tree_indices[storage_idx][el_idx_in_batch]

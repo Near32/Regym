@@ -1039,13 +1039,13 @@ def main():
         type=float, 
         default=5e-2,
     )
-    parser.add_argument("--speaker_rec", type=str, default="False",)
+    parser.add_argument("--speaker_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
     parser.add_argument("--speaker_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_lambda", type=float, default=1.0,)
-    parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
+    parser.add_argument("--speaker_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
