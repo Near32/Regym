@@ -319,7 +319,11 @@ class DQNAgent(Agent):
             if self.async_learner\
             and (self.handled_experiences // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
                 self.previous_actor_models_update_quotient = self.handled_experiences // self.actor_models_update_steps_interval
-                new_models_cpu = {k:deepcopy(m).cpu() for k,m in self.algorithm.unwrapped.get_models().items()}
+                new_models_cpu = {}
+                for k,m in self.algorithm.unwrapped.get_models().items():
+                    m.reset()
+                    new_models_cpu[k] = deepcopy(m).cpu()
+                    #{k:deepcopy(m).cpu() for k,m in self.algorithm.unwrapped.get_models().items()}
                 
                 if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
                     actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())

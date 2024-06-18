@@ -742,7 +742,8 @@ class DQNAlgorithm(Algorithm):
                 sampled_losses_per_item=sampled_losses_per_item, 
                 array_batch_indices=array_batch_indices,
                 list_sampled_samples=list_sampled_samples,
-                minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
+                minibatch_size=minibatch_size,
+                #minibatch_size=nbr_sampled_element_per_storage,#minibatch_size,
             )
 
         end = time.time()

@@ -313,7 +313,10 @@ class ArchiPredictorSpeaker(ArchiPredictor, Speaker):
         """
         batch_size = experiences.size(0)
         #features = self._sense(experiences=experiences, sentences=sentences)
-        features = experiences.view(-1, *(experiences.size()[2:]))
+        if len(experiences.shape)==5:
+            features = experiences.reshape(-1, experiences.shape[-1])
+        else:
+            features = experiences.view(-1, *(experiences.size()[2:]))
         rnn_states = None
         if sample is not None \
         and hasattr(sample, 'speaker_rnn_states'):

@@ -160,7 +160,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
 
         ## Listener :
         if self.kwargs['ORG_rg_reset_listener_each_training']:
-            self.listener.reset(whole=True)
+            self.listener.reset_weights(whole=True)
         return 
     
     def regularise_agents(self):
@@ -281,14 +281,20 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         
         self.rg_transformation = T.Compose(transformations)
         
-        default_descriptive_ratio = 1-(1/(self.kwargs["ORG_rg_nbr_train_distractors"]+2))
+        #default_descriptive_ratio = 1-(1/(self.kwargs["ORG_rg_nbr_train_distractors"]+2))
+        default_descriptive_ratio = {mode:1-(1/(self.kwargs[f"ORG_rg_nbr_{mode}_distractors"]+2))
+            for mode in ['train', 'test']
+        }
         # Default: 1-(1/(nbr_distractors+2)), 
         # otherwise the agent find the local minimum
         # where it only predicts "no-target"...
         if self.kwargs["ORG_rg_descriptive_ratio"] <=0.001:
             descriptive_ratio = default_descriptive_ratio
         else:
-            descriptive_ratio = self.kwargs["ORG_rg_descriptive_ratio"]
+            #descriptive_ratio = self.kwargs["ORG_rg_descriptive_ratio"]
+            descriptive_ratio = {mode:self.kwargs["ORG_rg_descriptive_ratio"]
+                for mode in ['train','test']
+            }
 
         
         rg_config = {
@@ -505,7 +511,6 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 logger=None
             )
             print("Speaker:", speaker)
-            import ipdb; ipdb.set_trace()
             if self.kwargs["ORG_with_Oracle_listener"]:
                 speaker.input_stream_ids["speaker"]["experiences"] = "current_dataloader:sample:speaker_exp_latents_one_hot_encoded.float" 
          
@@ -559,7 +564,6 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             )
         listener.set_vocabulary(self.vocabulary)
         print("Listener:", listener)
-        import ipdb; ipdb.set_trace()
         if self.kwargs["ORG_with_Oracle_listener"]:
             #listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents" 
             listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents_one_hot_encoded" 

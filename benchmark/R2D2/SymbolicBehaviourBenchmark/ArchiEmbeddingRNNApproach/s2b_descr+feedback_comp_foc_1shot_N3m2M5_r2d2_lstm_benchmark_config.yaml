@@ -238,7 +238,7 @@ r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLP
 max_sentence_length: &max_sentence_length 3
 vocab_size: &vocab_size 6
 vocab_eos_size: &vocab_eos_size 7
-nbr_latents: &nbr_latents 2 
+nbr_latents: &nbr_latents 3 
 
 experiment:
     tasks: [{
@@ -450,118 +450,19 @@ agents:
         # critic_arch_feature_dim: 128
 
         ArchiModel:
-            model_id: 'RL_DC_ESBNModel'
+            model_id: 'RL_LSTM_Model'
             hyperparameters:
                 value_dim: 64
                 key_dim: 64
                 hidden_dim: 512
                 output_dim: 256
-                action_dim: 8
+                action_dim: &action_dim 519 #171 #8
+                lstm_input_dim: &lstm_input_dim 593 #245
+                rl_state_dim: &rl_state_dim 1031 
             input_stream_ids:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"
             modules:
-                'CoreLSTM':
-                    type: LSTMModule
-                    state_dim: 66 #130 #65 #"{{key_dim}+1}"
-                    hidden_units: [256,] #512] #["{{hidden_dim}}"]
-                    non_linearities: [None]
-                    config: None
-                    input_stream_ids:
-                        lstm_input: "modules:ConcatenationOperation:output"
-                        lstm_hidden: "inputs:CoreLSTM:hidden"
-                        lstm_cell: "inputs:CoreLSTM:cell"
-                        iteration: "inputs:CoreLSTM:iteration"
-                    use_cuda: True
-                'OutputLSTM':
-                    type: LSTMModule
-                    state_dim: 66 #130 #65 #"{{key_dim}+1}"
-                    hidden_units: [256,] #512] #["{{hidden_dim}}"]
-                    non_linearities: [None]
-                    config: None
-                    input_stream_ids:
-                        lstm_input: "modules:OutputConcatenationOperation:output"
-                        lstm_hidden: "inputs:OutputLSTM:hidden"
-                        lstm_cell: "inputs:OutputLSTM:cell"
-                        iteration: "inputs:OutputLSTM:iteration"
-                    use_cuda: True
-                'ObsKeyValueMemory':
-                    type: KeyValueMemoryModule
-                    key_dim: 32 #64 #"{{key_dim}}"
-                    value_dim: 32 #64 #"{{value_dim}}"
-                    config: None
-                    input_stream_ids:
-                        iteration: "modules:CoreLSTM:iteration"
-                        new_key: "modules:ObsToKeyFCN:processed_input"
-                        new_value: "inputs:ObsEncoderFCN:processed_input"
-                        gate: "modules:ObsToGateFCN:processed_input"
-                        key_memory: "inputs:ObsKeyValueMemory:key_memory"
-                        value_memory: "inputs:ObsKeyValueMemory:value_memory"
-                    use_cuda: True
-                'ObsToGateFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [1]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
-                'ObsToKeyFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [32,] #64] #["{{key_dim}}"]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
-                'CommKeyValueMemory':
-                    type: KeyValueMemoryModule
-                    key_dim: 32 #64 #"{{key_dim}}"
-                    value_dim: 32 #64 #"{{value_dim}}"
-                    config: None
-                    input_stream_ids:
-                        iteration: "modules:CoreLSTM:iteration"
-                        new_key: "modules:CommToKeyFCN:processed_input"
-                        new_value: "inputs:CommEncoder:processed_input"
-                        gate: "modules:CommToGateFCN:processed_input"
-                        key_memory: "inputs:CommKeyValueMemory:key_memory"
-                        value_memory: "inputs:CommKeyValueMemory:value_memory"
-                    use_cuda: True
-                'CommToGateFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [1]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
-                'CommToKeyFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [32,] #64] #["{{key_dim}}"]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
-                'ToOutputFCN':
-                    type: FullyConnectedNetworkModule
-                    state_dim: 256 #512 #"{{hidden_dim}}"
-                    hidden_units: [128,] #256] #["{{output_dim}}"]
-                    non_linearities: [None]
-                    dropout: 0.0
-                    config: None
-                    input_stream_ids:
-                        input: "modules:OutputLSTM:lstm_output"
-                        #input: "modules:CoreLSTM:lstm_output"
-                    use_cuda: True
                 'ObsEncoderFCN':
                     type: FullyConnectedNetworkModule
                     state_dim: *nbr_latents #"{{hidden_dim}}"
@@ -574,44 +475,45 @@ agents:
                     output_stream_ids:
                         input: "inputs:ObsEncoderFCN:processed_input"
                     use_cuda: True
+                #'CommEncoder':
+                 #   type: EmbeddingRNNModule 
+                 #   vocab_size: *vocab_size
+                 #   feature_dim: None #32 
+                 #   embedding_size: 32 
+                 #   hidden_units: 32
+                 #   num_layers: 1
+                 #   gate: None #F.relu, 
+                 #   dropout: 0.0 
+                 #   rnn_fn: "GRU"
+                 #   
+                 #   padding_idx: 0 
+                 #   #WARNING: it is very important that the grounded EoS symbol be the padding_idx...
+                 #   
+                 #   config: None
+                 #   input_stream_ids:
+                 #       input: "inputs:phi_body:extra_inputs:communication_channel"
+                 #   output_stream_ids:
+                 #       input: "inputs:CommEncoder:processed_input"
+                 #   use_cuda: True
                 'CommEncoder':
-                    type: EmbeddingRNNModule 
-                    vocab_size: *vocab_size
-                    feature_dim: None #32 
-                    embedding_size: 32 
-                    hidden_units: 32
-                    num_layers: 1
-                    gate: None #F.relu, 
-                    dropout: 0.0 
-                    rnn_fn: "GRU"
-                    
-                    padding_idx: 0 
-                    #WARNING: it is very important that the grounded EoS symbol be the padding_idx...
-                    
+                    type: FullyConnectedNetworkModule
+                    #state_dim: 30 
+                    state_dim: 21 #15  #"{{hidden_dim}}"
+                    hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
+                    non_linearities: ['ReLU']
+                    dropout: 0.0
                     config: None
                     input_stream_ids:
-                        input: "inputs:phi_body:extra_inputs:communication_channel"
+                        input: "inputs:phi_body:extra_inputs:multi_binary_communication_channel"
                     output_stream_ids:
                         input: "inputs:CommEncoder:processed_input"
                     use_cuda: True
-                #'CommEncoder':
-                #    type: FullyConnectedNetworkModule
-                #    state_dim: 15  #"{{hidden_dim}}"
-                #    hidden_units: [64, 32,] #64,] # 32] #["{{output_dim}}"]
-                #    non_linearities: ['ReLU']
-                #    dropout: 0.0
-                #    config: None
-                #    input_stream_ids:
-                #        input: "inputs:phi_body:extra_inputs:communication_channel"
-                #    output_stream_ids:
-                #        input: "inputs:CommEncoder:processed_input"
-                #    use_cuda: True
                 'ConcatenationOperation':
                     type: ConcatenationOperationModule
                     config:
                         'dim': -1
                         'use_cuda': True
-                        'output_dim': 593
+                        'output_dim': *lstm_input_dim #245 
                     input_stream_ids:
                         input0: "inputs:ObsEncoderFCN:processed_input"
                         input1: "inputs:CommEncoder:processed_input"
@@ -622,26 +524,27 @@ agents:
                         input6: "inputs:critic_body:extra_inputs:mode_id"
                         input7: "inputs:critic_body:extra_inputs:previous_game_result"
                         input8: "inputs:critic_body:extra_inputs:previous_game_reward"
-                'OutputConcatenationOperation':
-                    type: ConcatenationOperationModule
-                    config:
-                        'dim': -1
-                        'use_cuda': True
-                        'output_dim': 66
+                'CoreLSTM':
+                    type: LSTMModule
+                    state_dim: *lstm_input_dim #130 #65 #"{{key_dim}+1}"
+                    hidden_units: [512,] #["{{hidden_dim}}"]
+                    non_linearities: [None]
+                    config: None
                     input_stream_ids:
-                        input0: "inputs:ObsKeyValueMemory:read_key_plus_conf"
-                        input1: "inputs:CommKeyValueMemory:read_key_plus_conf"
-                        #input0: "modules:ObsEncoderFCN:processed_input"
-                        #input1: "modules:CommEncoder:processed_input"
+                        lstm_input: "modules:ConcatenationOperation:output"
+                        lstm_hidden: "inputs:CoreLSTM:hidden"
+                        lstm_cell: "inputs:CoreLSTM:cell"
+                        iteration: "inputs:CoreLSTM:iteration"
+                    use_cuda: True
                 'RLHead':
                     type: RLCategoricalHeadModule
-                    state_dim: 647 #264 #224 #480 
-                    action_dim: 519 #43 #171 #519 #"{{action_dim}}"
+                    state_dim: *rl_state_dim #683 
+                    action_dim: *action_dim #171 #519 #"{{action_dim}}"
                     noisy: False
                     dueling: True
                     config: None
                     input_stream_ids: 
-                        input0: "modules:ToOutputFCN:processed_input"
+                        input0: "modules:CoreLSTM:output"
                         input8: "inputs:critic_body:extra_inputs:action_mask"
                         action: "inputs:action"
                         legal_actions: "inputs:head:extra_inputs:legal_actions"
@@ -657,30 +560,18 @@ agents:
                     #"log_pi_a" : "modules:RLHead:log_pi_a"
                     "log_a" : "modules:RLHead:log_a"
                     "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
-                caption_generator:
-                    "a" : "modules:RLHead:a"
-                    #"a" : "inputs:InstructionGenerator:processed_input0"
- 
+            
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
-                    head:   
+                    head:
                         "inputs:obs": "modules:ConcatenationOperation:output"
             pipelines:
                 torso: 
                     - 'ObsEncoderFCN'
                     - 'CommEncoder' 
-                    - 'ConcatenationOperation' 
+                    - 'ConcatenationOperation'
                 head:
                     - 'CoreLSTM'
-                    - 'ObsToGateFCN'
-                    - 'ObsToKeyFCN' 
-                    - 'CommToGateFCN' 
-                    - 'CommToKeyFCN' 
-                    - 'ObsKeyValueMemory' 
-                    - 'CommKeyValueMemory' 
-                    - 'OutputConcatenationOperation'
-                    - 'OutputLSTM'
-                    - 'ToOutputFCN' 
                     - 'RLHead'
             features_id: 
                 torso: "modules:ConcatenationOperation:output"
@@ -696,14 +587,13 @@ agents:
             },
 
             'multi_binary_communication_channel':{
-                #shape: [28], #[63,], 
                 shape: [21], 
                 target_location: ['phi_body', 'extra_inputs']
             },
-            'communication_channel':{
-                shape: [*max_sentence_length], 
-                target_location: ['phi_body', 'extra_inputs']
-            },
+            #'communication_channel':{
+            #    shape: [*max_sentence_length], 
+            #    target_location: ['phi_body', 'extra_inputs']
+            #},
             'round_id':{
                 shape: [2,], 
                 target_location: ['critic_body', 'extra_inputs']
