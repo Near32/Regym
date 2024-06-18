@@ -20,7 +20,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \
 --PER_alpha=0.5 --PER_beta=1.0 \
---PER_use_rewards_in_priority=False \
+--PER_use_rewards_in_priority=True \
 --sequence_replay_PER_eta=0.9 \
 --PER_compute_initial_priority=True \
 --use_ETHER=False --use_THER=False \
@@ -52,12 +52,13 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_gaussian_blur_prob=0.5 \
 --ELA_rg_egocentric_prob=0.0 \
 --ELA_rg_object_centric_version=2 --ELA_rg_descriptive_version=1 \
+--ELA_rg_object_centric=False \
 --ELA_rg_learning_rate=3e-4 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
 --ELA_rg_training_period=32768 \
 --ELA_rg_batch_size=64 --ELA_rg_mini_batch_size=64 \
---ELA_rg_training_adaptive_period=True \
+--ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
 --ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=90 \
 --ELA_rg_nbr_train_distractors=31 --ELA_rg_nbr_test_distractors=3 \
@@ -65,8 +66,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_distractor_sampling_scheme_version=2 \
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
---ELA_rg_same_episode_target=True \
---ELA_reward_extrinsic_weight=20.0 --ELA_reward_intrinsic_weight=0.1 \
+--ELA_rg_same_episode_target=False \
+--ELA_reward_extrinsic_weight=20.0 --ELA_reward_intrinsic_weight=0.05 \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \

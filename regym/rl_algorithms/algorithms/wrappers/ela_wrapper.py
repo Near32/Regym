@@ -1130,6 +1130,15 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "decision_probs":"modules:current_listener:decision_probs",
             "listener_indices":"current_dataloader:sample:listener_indices",
         }
+        
+        language_dynamic_metric_id = f"language_dynamic_metric"
+        language_dynamic_metric_module = rg_modules.LanguageDynamicMetricModule(
+            id=language_dynamic_metric_id,
+            config = {
+            },
+        )
+        modules[language_dynamic_metric_id] = language_dynamic_metric_module
+        
         inst_coord_metric_module = rg_modules.build_InstantaneousCoordinationMetricModule(
             id=inst_coord_metric_id,
             config = {
@@ -1387,6 +1396,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
         '''
+        pipelines[optim_id].append(language_dynamic_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
         
         pipelines[optim_id].append(logger_id)
@@ -1534,8 +1544,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 break
         # Update training period:
         if self.kwargs['ELA_rg_training_adaptive_period']:
-            if full_update: self.kwargs['ELA_rg_training_period'] /= 2
-            else:   self.kwargs['ELA_rg_training_period'] *= 2
+            if full_update: self.kwargs['ELA_rg_training_period'] = int(0.75*self.kwargs['ELA_rg_training_period'])
+            else:   self.kwargs['ELA_rg_training_period'] = int(1.25*self.kwargs['ELA_rg_training_period'])
         wandb.log({f"Training/ELA/RGTrainingPeriod":self.kwargs['ELA_rg_training_period']}, commit=False)
         wandb.log({f"Training/ELA/TestAccuracy":self.test_acc}, commit=False)
         wandb.log({f"Training/ELA/FullUpdate":int(full_update)}, commit=False)
