@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List 
+from typing import Dict, Optional, List, Union 
 
 import os
 import time
@@ -59,6 +59,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             algorithm=algorithm,
         )
         
+        self.feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
+        self.visited_captions = []
+        if 'across-training' in self.feedbacks_type:    self.visited_captions = {}
+
         self.hook_fns = []
         self.nbr_episode_success_range = 32 #256
         self.feedbacks = feedbacks 
@@ -258,10 +262,19 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         exp:List[Dict[str,object]], 
         feedbacks:Dict[str,float]={"failure":-1, "success":0},
         reward_shape:List[int]=[1,1],
+        visited_captions:Union[Dict[List[int],int], List[List[int]]]=[],
         **kwargs:Dict[str,object],
     ):
         '''
         '''
+        wandb_dict = {}
+        feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
+        scaler= 1.0
+        if 'across-training' in feedbacks_type: 
+            scaler = float(feedbacks_type.split('-')[-1])
+            # Log the scaler value
+            wandb_dict[f'PerEpisode/EReLELA/AcrossTraining-Scaler'] = scaler
+        
         episode_length = len(exp)
         state = torch.stack(
             [e['succ_s'] for e in exp],
@@ -284,11 +297,50 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.predictor.train(training)
         
         ## Logging perplexity:
-        wandb_dict = {}
         metrics = {
-            'caption_perplexity': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_perplexities'][0].cpu().numpy(),
-            'caption_likelihood': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_likelihoods'][0].cpu().numpy(),
+            'EReLELA/caption_perplexity': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_perplexities'][0].cpu().numpy(),
+            'EReLELA/caption_likelihood': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_likelihoods'][0].cpu().numpy(),
         }
+        
+        reward_mask = torch.zeros(episode_length)
+        for idx, caption in enumerate(captions):
+            lcaption = ht(caption)
+            if 'across-training' in feedbacks_type:
+                assert isinstance(visited_captions, dict)
+                if lcaption not in visited_captions:    visited_captions[lcaption] = 0
+                visited_captions[lcaption] += 1
+                reward_mask[idx] = scaler/np.sqrt(visited_captions[lcaption])
+            elif lcaption not in visited_captions: #intra-life
+                visited_captions.append(lcaption)
+                reward_mask[idx] = 1
+        if 'across-training' in feedbacks_type:    
+            reward_mask = reward_mask.float()
+            reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+            failure_mask = (reward_mask==0).unsqueeze(-1)
+            reward += failure_mask*feedbacks["failure"]*torch.ones(reward_shape)
+            # Logging reward distribution :
+            metrics['EReLELA/AcrossTrainingRewards'] = reward.cpu().numpy(),
+            # Logging visitation counts and failures:
+            metrics['EReLELA/AcrossTrainingVisitCounts'] = np.asarray(list(visited_captions.values()))
+            metrics['EReLELA/AcrossTrainingEpisodeFailures'] = failure_mask.cpu().numpy()
+        else:
+            # Then it is intra-life and the reward_mask does not scale:
+            reward_mask = reward_mask.bool()
+            if 'hurry' in feedbacks_type:
+                assert '-' in feedbacks_type
+                max_episode_length = int(feedbacks_type.split('-')[-1])
+                feedbacks_type = 'hurry'
+            if feedbacks_type == 'normal':
+                reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+            elif feedbacks_type == 'hurry':
+                assert feedbacks['success'] > 0.0
+                reward = (1.0-torch.arange(episode_length).float()/max_episode_length).clamp(min=0.1).unsqueeze(-1)
+                reward *= reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+            else:
+                raise NotImplementedError
+            reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
+        
+        # Logging :
         for k in metrics.keys():
             hist = metrics[k]
             median = np.median(hist)
@@ -301,32 +353,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             wandb_dict[f"PerEpisode/{k}/Median"] = median
             wandb_dict[f"PerEpisode/{k}/Mean"] = mean
             wandb_dict[f"PerEpisode/{k}/Std"] = std
+        
         wandb.log(
             wandb_dict,
             commit=False,
         )
         
-        visited_captions = []
-        reward_mask = torch.zeros(episode_length)
-        for idx, caption in enumerate(captions):
-            if caption.tolist() not in visited_captions:
-                visited_captions.append(caption.tolist())
-                reward_mask[idx] = 1
-        reward_mask = reward_mask.bool()
-        feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
-        if 'hurry' in feedbacks_type:
-            assert '-' in feedbacks_type
-            max_episode_length = int(feedbacks_type.split('-')[-1])
-            feedbacks_type = 'hurry'
-        if feedbacks_type == 'normal':
-            reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
-        elif feedbacks_type == 'hurry':
-            assert feedbacks['success'] > 0.0
-            reward = (1.0-torch.arange(episode_length).float()/max_episode_length).clamp(min=0.1).unsqueeze(-1)
-            reward *= reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
-        else:
-            raise NotImplementedError
-        reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
         return reward, captions
     
     def record_metrics(self, exp_dict, actor_index=0):
@@ -411,12 +443,16 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
 
             self.nbr_relabelled_traj += 1
             if self.kwargs['ELA_use_ELA']:
+                feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
                 batched_exp = self.episode_buffer[actor_index]
                 batched_new_r, batched_captions = self.compute_captions(
                     exp=batched_exp, 
                     feedbacks=self.feedbacks,
                     reward_shape=self.reward_shape,
+                    visited_captions=self.visited_captions,
                 )
+                if 'across-training' not in feedbacks_type:
+                    self.visited_captions = []
                 positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
             else:
                 batched_new_r = None
