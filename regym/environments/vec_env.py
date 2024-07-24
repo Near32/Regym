@@ -137,7 +137,8 @@ class VecEnv():
         never overlap from one env to another.
         
         #WARNING: the seed update is propagated up to the original dict,
-        that was given as an argument to this module.
+        that was given as an argument to this module, because lns150-156 
+        do not deepcopy but rather maintains a reference.
 
         """
         p = self.env_processes[idx]

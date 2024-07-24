@@ -1906,15 +1906,29 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
             obs = reset_output
             infos = [{}]
 
-        nbr_agent = len(infos)
-        self.previous_reward = [np.zeros((1, 1)) for _ in range(nbr_agent)]
-        self.previous_action = [np.zeros((1, self.nbr_actions)) for _ in range(nbr_agent)]
-        self.previous_action_int = [np.zeros((1, 1)) for _ in range(nbr_agent)]
+        if isinstance(infos, list) and len(infos) > 1:
+            nbr_agent = len(infos)
+            self.previous_reward = [np.zeros((1, 1)) for _ in range(nbr_agent)]
+            self.previous_action = [np.zeros((1, self.nbr_actions)) for _ in range(nbr_agent)]
+            self.previous_action_int = [np.zeros((1, 1)) for _ in range(nbr_agent)]
         
-        for info_idx in range(len(infos)):
-            infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
-            infos[info_idx]['previous_action'] = copy.deepcopy(self.previous_action[info_idx])
-            infos[info_idx]['previous_action_int'] = copy.deepcopy(self.previous_action_int[info_idx])
+            for info_idx in range(len(infos)):
+                infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
+                infos[info_idx]['previous_action'] = copy.deepcopy(self.previous_action[info_idx])
+                infos[info_idx]['previous_action_int'] = copy.deepcopy(self.previous_action_int[info_idx])
+        elif isinstance(infos, dict):
+            nbr_agent = 1
+            self.previous_reward = [np.zeros((1, 1)) for _ in range(nbr_agent)]
+            self.previous_action = [np.zeros((1, self.nbr_actions)) for _ in range(nbr_agent)]
+            self.previous_action_int = [np.zeros((1, 1)) for _ in range(nbr_agent)]
+        
+            infos = [infos]
+            info_idx = 0
+            infos[0]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
+            infos[0]['previous_action'] = copy.deepcopy(self.previous_action[info_idx])
+            infos[0]['previous_action_int'] = copy.deepcopy(self.previous_action_int[info_idx])
+        else:
+            raise NotImplementedError
         return obs, infos 
     
     def step(self, action):

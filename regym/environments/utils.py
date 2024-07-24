@@ -25,7 +25,7 @@ class EnvironmentCreator():
         if self.is_gym_environment or self.is_gymnasium_environment:
             if self.is_gym_environment:
                 env = gym.make(self.environment_name, **self.env_config)
-                env.seed(seed)
+                if hasattr(env, 'seed'):    env.seed(seed)
             else:
                 env = gymnasium.make(self.environment_name, **self.env_config)
             if self.wrapping_fn is not None: env = self.wrapping_fn(env=env)
