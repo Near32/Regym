@@ -252,7 +252,8 @@ def train_and_evaluate(
 
     # Hooks:
     ## DIPhyR accuracy hook:
-    #TODO :config['step_hooks'].append(acc_hook)
+    diphyr_hook = DIPhyRHook()
+    config['step_hooks'].append(diphyr_hook.acc_hook)
 
     agents = [agent]
 

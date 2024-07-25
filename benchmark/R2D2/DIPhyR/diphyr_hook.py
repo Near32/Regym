@@ -1,12 +1,13 @@
 from typing import List, Dict, Optional
 
+import numpy as np
 
 class DIPhyRHook:
   def __init__(self, average_window_length=4,):
     self.average_window_length = average_window_length
-    self.aw_idx = -1
-    self.pred_answers = np.zeros((self.average_window_length,))
-    self.gt_answers = np.ones((self.average_window_length,))
+    self.aw_idxs = [-1]
+    self.pred_answers = (-1)*np.ones((self.average_window_length,))
+    self.gt_answers = (-1)*np.ones((self.average_window_length,))
     self.perLabel_pred_answers = {}
 
   def acc_hook(
@@ -23,27 +24,38 @@ class DIPhyRHook:
     dones = env_output_dict['done']
     info = env_output_dict['succ_info']
     
-    import ipdb; ipdb.set_trace()
+    nbr_actors = len(dones)
+    while len(self.aw_idxs) < nbr_actors:
+        self.aw_idxs.append(self.aw_idxs[-1])
+    if self.pred_answers.shape[0] != nbr_actors:
+        self.pred_answers = (-1)*np.ones((nbr_actors, self.average_window_length))
+        self.gt_answers = (-1)*np.ones((nbr_actors,self.average_window_length))
+   
     for iidx in range(len(info[0])):
-      done = done[iidx]
+      done = dones[iidx]
       if done:
-        self.aw_idx = (self.aw_idx+1) % self.average_window_length
-        pred_answer = info['predicted_answer']
-        gt_label = info['groundtruth_answer']
+        self.aw_idxs[iidx] = (self.aw_idxs[iidx]+1) % self.average_window_length
+        pred_answer = info[0][iidx]['predicted_answer']
+        gt_label = info[0][iidx]['groundtruth_answer']
         if gt_label not in self.perLabel_pred_answers:  self.perLabel_pred_answers[gt_label] = []
         self.perLabel_pred_answers[gt_label].append(pred_answer)
-        self.pred_answers[self.aw_idx] = pred_answer
-        self.gt_answers[self.aw_idx] = gt_label
+        self.pred_answers[iidx,self.aw_idxs[iidx]] = pred_answer
+        self.gt_answers[iidx,self.aw_idxs[iidx]] = gt_label
+    
+    if not any(dones):  return
     
     acc_buffers = {}
-    for akey, lperLabel_pred_answers in self.perLabel_pred_answers.items():
-        if len(lperLabel_pred_answers) >= self.average_window_length:
-            import ipdb; ipdb.set_trace()
+    for akey in list(self.perLabel_pred_answers.keys()):
+        lperLabel_pred_answers = self.perLabel_pred_answers[akey]
+        if len(lperLabel_pred_answers) > self.average_window_length-1:
             npperLabel_pred_answers = np.asarray(lperLabel_pred_answers)
             gt_answers = akey*np.ones_like(npperLabel_pred_answers)
-            acc_buffers[akey] = 100.0*(npperLabel_pred_answers == gt_answers).float()
-    
-    acc_buffers['Overall'] = 100.0*(self.pred_answers == self.gt_answers).float()
+            acc_buffers[akey] = 100.0*(npperLabel_pred_answers == gt_answers).astype(float)
+            while len(lperLabel_pred_answers) >= self.average_window_length:
+                del lperLabel_pred_answers[0]
+            self.perLabel_pred_answers[akey] = lperLabel_pred_answers
+
+    acc_buffers['Overall'] = 100.0*(self.pred_answers == self.gt_answers).astype(float)
     for akey, acc_buffer in acc_buffers.items():
         values = np.asarray(acc_buffer)
         meanv = values.mean()

@@ -78,7 +78,7 @@ experiment:
         'env-id': 'OfflineInvertedPendulumDIPhiREnv-v0',
         'env-config': {
           'max_nbr_actions': 5,
-          'max_nbr_timesteps': 2, #16,
+          'max_nbr_timesteps': 3, #16,
           'timestep': 0.0165,
           'frame_skip': 16,
           'max_sentence_length': 131072,
@@ -204,15 +204,17 @@ agents:
         ArchiModel:
             model_id: 'RL_ArchiTransformerTestModel'
             hyperparameters:
-                hidden_dim: &hidden_dim 16384 #4096*action_dim
-                action_dim: &action_dim 4
+                #hidden_dim: &hidden_dim 16384 #4096*action_dim
+                hidden_dim: &hidden_dim 2880 #2304
+                action_dim: &action_dim 5
             input_stream_ids:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"
             modules:
                 'LMModule':
                     type: 'ArchiTransformerModule' 
-                    model_id: "togethercomputer/LLaMA-2-7B-32K"
+                    model_id: "HuggingFaceTB/SmolLM-135M-Instruct"
+                    #model_id: "togethercomputer/LLaMA-2-7B-32K"
                     #model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" 
                     #model_id: "RWKV/v6-Finch-1B6-HF" 
                     #model_id: "microsoft/Phi-3-mini-4k-instruct"
@@ -261,7 +263,7 @@ agents:
                     input_stream_ids: 
                         input0: "inputs:LMModule:inputs_last_token_last_hidden_states"
                         action: "inputs:action"
-                        probs: 'inputs:LMModule:inputs_lprediction_probs'
+                        probs: 'inputs:LMModule:inputs_prediction_probs'
                         #legal_actions: "inputs:legal_actions"
                         legal_actions: "inputs:LMModule:inputs_legal_choices"
                     use_cuda: True
