@@ -199,6 +199,8 @@ agents:
         psend: 0.4
         eps_greedy_alpha: 2.0
         
+        use_target_model: False
+    
         ArchiModel:
             model_id: 'RL_ArchiTransformerTestModel'
             hyperparameters:
@@ -210,19 +212,21 @@ agents:
             modules:
                 'LMModule':
                     type: 'ArchiTransformerModule' 
-                    #model_id: "togethercomputer/LLaMA-2-7B-32K"
-                    model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" 
+                    model_id: "togethercomputer/LLaMA-2-7B-32K"
+                    #model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" 
+                    #model_id: "RWKV/v6-Finch-1B6-HF" 
                     #model_id: "microsoft/Phi-3-mini-4k-instruct"
                     #model_id: "microsoft/Phi-3-mini-128k-instruct"
                     config:
-                      #'quantize': False 
+                        #'quantize': False 
                         'quantize': True
                         'bnb_config': 
                             'load_in_4bit': True
                             'bnb_4bit_use_double_quant': True
                             'bnb_4bit_quant_type': 'nf4'
                             'bnb_4bit_compute_dtype': 'bfloat16'
-                        'use_lora': True 
+                        #'use_lora': False
+                        'use_lora': True
                         'lora_config':
                             'r': 8
                             'lora_alpha': 32

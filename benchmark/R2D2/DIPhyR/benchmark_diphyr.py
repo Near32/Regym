@@ -19,6 +19,7 @@ from regym.util.experiment_parsing import initialize_agents
 from regym.util.wrappers import ClipRewardEnv, PreviousRewardActionInfoMultiAgentWrapper
 
 import diphyrgym
+from diphyr_hook import DIPhyRHook
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
 from regym.modules import MARLEnvironmentModule, RLAgentModule
@@ -248,6 +249,10 @@ def train_and_evaluate(
     config['otherplay'] = False
     config['nbr_players'] = 1
     config['step_hooks'] = [] 
+
+    # Hooks:
+    ## DIPhyR accuracy hook:
+    #TODO :config['step_hooks'].append(acc_hook)
 
     agents = [agent]
 
