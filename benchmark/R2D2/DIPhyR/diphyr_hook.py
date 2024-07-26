@@ -1,13 +1,15 @@
 from typing import List, Dict, Optional
 
 import numpy as np
+import wandb 
+
 
 class DIPhyRHook:
-  def __init__(self, average_window_length=4,):
+  def __init__(self, average_window_length=32,):
     self.average_window_length = average_window_length
     self.aw_idxs = [-1]
     self.pred_answers = (-1)*np.ones((self.average_window_length,))
-    self.gt_answers = (-1)*np.ones((self.average_window_length,))
+    self.gt_answers = (-2)*np.ones((self.average_window_length,))
     self.perLabel_pred_answers = {}
 
   def acc_hook(
@@ -29,7 +31,7 @@ class DIPhyRHook:
         self.aw_idxs.append(self.aw_idxs[-1])
     if self.pred_answers.shape[0] != nbr_actors:
         self.pred_answers = (-1)*np.ones((nbr_actors, self.average_window_length))
-        self.gt_answers = (-1)*np.ones((nbr_actors,self.average_window_length))
+        self.gt_answers = (-2)*np.ones((nbr_actors,self.average_window_length))
    
     for iidx in range(len(info[0])):
       done = dones[iidx]
@@ -87,6 +89,8 @@ class DIPhyRHook:
         logs_dict[f"DIPhyR/Accuracy-{akey}/Q3"] = q3_value
         logs_dict[f"DIPhyR/Accuracy-{akey}/IQR"] = iqr
     
+    wandb.log({f"DIPhyR/Labels/Distribution":wandb.Histogram(self.gt_answers)}, commit=False)
+    wandb.log({f"DIPhyR/Predictions/Distribution":wandb.Histogram(self.pred_answers)}, commit=False)
     return   
         
 

@@ -1,6 +1,6 @@
 accelerate @ git+https://github.com/huggingface/accelerate.git@0af1d8b8de9036b51d1e06862f4d36d237e781b8
 aiosignal==1.3.1
--e git+https://github.com/Near32/Archi@fa168cc32a848d851120632996f871baa5f6886c#egg=Archi&subdirectory=../../../../regym/thirdparty/Archi
+#-e git+https://github.com/Near32/Archi@fa168cc32a848d851120632996f871baa5f6886c#egg=Archi&subdirectory=../../../../regym/thirdparty/Archi
 asttokens==2.4.1
 attrs==23.2.0
 bitsandbytes==0.43.1
@@ -16,7 +16,7 @@ cvxopt==1.3.2
 cycler==0.12.1
 decorator==4.4.2
 dill==0.3.8
--e git+https://github.com/Near32/DIPhyR-Gym.git@47f9ce1f508781c72a656a825dae0734e85a3d36#egg=DIPhyR_Gym
+#-e git+https://github.com/Near32/DIPhyR-Gym.git@47f9ce1f508781c72a656a825dae0734e85a3d36#egg=DIPhyR_Gym
 docker-pycreds==0.4.0
 docopt==0.6.2
 einops==0.8.0
@@ -94,7 +94,7 @@ psutil==6.0.0
 ptyprocess==0.7.0
 pure-eval==0.2.2
 pybullet==3.2.6
--e git+https://github.com/Near32/pybullet-gym@42d416e846f2e057d694dcfff3ed51ee355166f1#egg=pybulletgym&subdirectory=../../../../diphyrgym/thirdparties/pybulletgym
+#-e git+https://github.com/Near32/pybullet-gym@42d416e846f2e057d694dcfff3ed51ee355166f1#egg=pybulletgym&subdirectory=../../../../diphyrgym/thirdparties/pybulletgym
 pygame==2.6.0
 pyglet==2.0.16
 Pygments==2.18.0
@@ -105,9 +105,9 @@ pytz==2024.1
 PyYAML==6.0.1
 ray==2.32.0
 referencing==0.35.1
--e git+https://github.com/Near32/ReferentialGym@8c774a98595a5609bfab68ecafcdf811a1c15115#egg=ReferentialGym&subdirectory=../../../../regym/thirdparty/ReferentialGym
+#-e git+https://github.com/Near32/ReferentialGym@8c774a98595a5609bfab68ecafcdf811a1c15115#egg=ReferentialGym&subdirectory=../../../../regym/thirdparty/ReferentialGym
 regex==2024.5.15
--e git+https://github.com/Near32/Regym@9f823041160998a8519f7dfecd38eb20d3d1bba4#egg=regym
+#-e git+https://github.com/Near32/Regym@9f823041160998a8519f7dfecd38eb20d3d1bba4#egg=regym
 requests==2.32.3
 rpds-py==0.19.0
 safetensors==0.4.3
@@ -127,7 +127,7 @@ tifffile==2024.7.2
 tokenizers==0.19.1
 tomli==2.0.1
 torch==2.3.1
-torchvision==0.14.1
+#torchvision==0.14.1
 tqdm==4.66.4
 traitlets==5.14.3
 transformers @ git+https://github.com/huggingface/transformers.git@765732e92c17a17682a5efd4aa4323e5ab01fe07
