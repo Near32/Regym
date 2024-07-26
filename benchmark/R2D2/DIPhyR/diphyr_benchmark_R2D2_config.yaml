@@ -78,9 +78,9 @@ experiment:
         'env-id': 'OfflineInvertedPendulumDIPhiREnv-v0',
         'env-config': {
           'max_nbr_actions': 5,
-          'max_nbr_timesteps': 3, #16,
+          'max_nbr_timesteps': 5, #16,
           'timestep': 0.0165,
-          'frame_skip': 16,
+          'frame_skip': 24,
           'max_sentence_length': 131072,
           'obfuscate_logs': False,
           'show_phase_space_diagram': False,

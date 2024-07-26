@@ -16,11 +16,11 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_diphyr.py \
 --tau=None \
 --inverted_tau=2500 \
 --n_step=0 \
---nbr_actor=2 \
---replay_capacity=1e4 \
---min_capacity=1e1 \
+--nbr_actor=1 \
+--replay_capacity=1e1 \
+--min_capacity=1e2 \
 --sequence_replay_burn_in_ratio=0.0 \
 --sequence_replay_unroll_length=2 \
 --r2d2_use_value_function_rescaling=False \
---train_observation_budget=1.0e7 
+--train_observation_budget=2.0e3 
 

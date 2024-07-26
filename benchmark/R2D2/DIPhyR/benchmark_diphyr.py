@@ -562,7 +562,7 @@ def main():
     parser.add_argument("--static_envs", type=str2bool, default=False) 
     parser.add_argument("--use_cuda", type=str2bool, default=False) 
     parser.add_argument("--benchmarking_interval", type=float, default=5.0e4)
-    parser.add_argument("--benchmarking_record_episode_interval", type=int, default=40)
+    parser.add_argument("--benchmarking_record_episode_interval", type=int, default=1e10)
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
