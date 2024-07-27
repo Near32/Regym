@@ -890,7 +890,9 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             "entropy_regularization_factor":    -1e-2,
             
             "with_logits_mdl_principle":       self.kwargs['ETHER_rg_with_logits_mdl_principle'],
+            "logits_mdl_principle_normalization":     self.kwargs['ETHER_rg_logits_mdl_principle_normalization'],
             "logits_mdl_principle_factor":     self.kwargs['ETHER_rg_logits_mdl_principle_factor'],
+            "logits_mdl_principle_use_inst_accuracy":     self.kwargs['ETHER_rg_logits_mdl_principle_use_inst_accuracy'],
             "logits_mdl_principle_accuracy_threshold":     self.kwargs['ETHER_rg_logits_mdl_principle_accuracy_threshold'],
             
             "with_mdl_principle":       False,
@@ -1547,7 +1549,8 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
-                "sanity_check_shuffling": self.kwargs.get("ETHER_rg_shuffling_sanity_check_compactness_ambiguity_metric", False),
+                "with_ordering": self.kwargs.get("ETHER_rg_compactness_ambiguity_metric_with_ordering", False),
+                "use_cumulative_scores": self.kwargs["ETHER_rg_compactness_ambiguity_metric_use_cumulative_scores"],
                 'sanity_check_shuffling': False,
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
@@ -1559,6 +1562,7 @@ class ETHERAlgorithmWrapper(THERAlgorithmWrapper2):
                 "resample": False, #self.kwargs["ETHER_rg_metric_resampling"],
                 "threshold":5e-2,#0.0,#1.0,
                 "random_state_seed":self.kwargs["ETHER_rg_seed"],
+                "nbr_shuffled_entities":4,
                 "verbose":False,
                 "idx2w": self.idx2w,
                 "language_specs_to_compute":self.kwargs["ETHER_rg_compactness_ambiguity_metric_language_specs"].split('+'),

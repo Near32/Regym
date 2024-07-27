@@ -1138,6 +1138,8 @@ def main():
     parser.add_argument("--ETHER_listener_based_predicated_reward_fn", type=str2bool, default=False,)
     parser.add_argument("--ETHER_listener_entropy_based_reward_bonus", type=str2bool, default=False,)
     parser.add_argument("--ETHER_rg_freeze_speaker", type=str2bool, default="False",)
+    parser.add_argument("--ETHER_rg_compactness_ambiguity_metric_with_ordering", type=str2bool, default=True)
+    parser.add_argument("--ETHER_rg_compactness_ambiguity_metric_use_cumulative_scores", type=str2bool, default=True)
     parser.add_argument("--ETHER_rg_compactness_ambiguity_metric_epoch_period", type=int, default=32)
     parser.add_argument("--ETHER_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_compactness_ambiguity_metric_language_specs", type=str, default="emergent")
@@ -1209,7 +1211,9 @@ def main():
     parser.add_argument("--ETHER_rg_aita_levenshtein_comprange", type=float, default=1.0)
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_normalization", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_use_inst_accuracy", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
     parser.add_argument("--ETHER_rg_cultural_pressure_it_period", type=int, default=0)
