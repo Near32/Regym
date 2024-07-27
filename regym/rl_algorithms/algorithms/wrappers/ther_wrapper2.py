@@ -453,9 +453,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
             self.episode_count += 1
             episode_length = len(self.episode_buffer[actor_index])
 
-            goals = self.episode_buffer[actor_index][-1]['rnn_states']['phi_body']['extra_inputs']['desired_goal'][0]
+            goals = self.episode_buffer[actor_index][-1]['rnn_states']['phi_body']['extra_inputs']['desired_goal'][0].cpu().long()
             idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
-            goals_expr = " ".join([idx2w[tidx] for tidx in goals[0]]
+            goals_expr = " ".join([idx2w[tidx.item()] for tidx in goals[0]])
             if goals_expr not in self.original_goals_hist:
                 self.original_goals_hist[goals_expr] = 0
             self.original_goals_hist[goals_expr] += 1
@@ -578,9 +578,9 @@ class THERAlgorithmWrapper2(AlgorithmWrapper):
                         negative=False,
                     )
                    
-                    goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0]
+                    goals = rnn_states['phi_body']['extra_inputs']['desired_goal'][0].cpu().long()
                     idx2w = self.predictor.model.modules['InstructionGenerator'].idx2w
-                    goals_expr = " ".join([idx2w[tidx] for tidx in goals[0]]
+                    goals_expr = " ".join([idx2w[tidx.item()] for tidx in goals[0]])
                     if goals_expr not in self.original_goals_hist:
                         self.original_goals_hist[goals_expr] = 0
                     self.original_goals_hist[goals_expr] += 1
