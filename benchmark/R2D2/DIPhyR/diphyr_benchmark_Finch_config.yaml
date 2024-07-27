@@ -84,6 +84,8 @@ experiment:
           'max_sentence_length': 131072,
           'obfuscate_logs': False,
           'show_phase_space_diagram': False,
+          'save_metadata': False,
+          'minimal_logs': False,
         },
         
         'run-id': 'Train',

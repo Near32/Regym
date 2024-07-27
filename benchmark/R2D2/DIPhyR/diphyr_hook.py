@@ -5,7 +5,7 @@ import wandb
 
 
 class DIPhyRHook:
-  def __init__(self, average_window_length=32,):
+  def __init__(self, average_window_length=256,):
     self.average_window_length = average_window_length
     self.aw_idxs = [-1]
     self.pred_answers = (-1)*np.ones((self.average_window_length,))
