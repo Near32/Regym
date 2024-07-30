@@ -22,7 +22,7 @@ parameters:
   saving_interval:
     values: [1e20]
   yaml_config:
-    values: ["diphyr_benchmark_minimal_Finch_config.yaml"]
+    values: ["diphyr_benchmark_Finch_config.yaml"]
   nbr_episode_per_cycle:
     values: [32]
   nbr_training_iteration_per_cycle:
