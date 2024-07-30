@@ -252,7 +252,7 @@ def train_and_evaluate(
 
     # Hooks:
     ## DIPhyR accuracy hook:
-    diphyr_hook = DIPhyRHook()
+    diphyr_hook = DIPhyRHook(average_window_length=task_config['DIPhyR_average_window_length'])
     config['step_hooks'].append(diphyr_hook.acc_hook)
 
     agents = [agent]
@@ -566,6 +566,10 @@ def main():
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
+    )
+    parser.add_argument("--DIPhyR_average_window_length", 
+        type=int, 
+        default=128,
     )
  
     parser.add_argument("--project", 
