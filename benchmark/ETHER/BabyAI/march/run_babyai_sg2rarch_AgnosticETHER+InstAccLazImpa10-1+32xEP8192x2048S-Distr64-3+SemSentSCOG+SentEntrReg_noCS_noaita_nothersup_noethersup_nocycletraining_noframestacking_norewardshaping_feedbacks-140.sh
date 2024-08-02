@@ -29,11 +29,11 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_compactness_ambiguity_metric_epoch_period=32 \
 --ETHER_rg_sanity_check_compactness_ambiguity_metric=False \
 --ETHER_rg_shared_architecture=True \
---ETHER_rg_with_logits_mdl_principle=False \
---ETHER_rg_logits_mdl_principle_normalization=False \
+--ETHER_rg_with_logits_mdl_principle=True \
+--ETHER_rg_logits_mdl_principle_normalization=True \
 --ETHER_rg_logits_mdl_principle_use_inst_accuracy=True \
---ETHER_rg_logits_mdl_principle_factor=0.0 \
---ETHER_rg_logits_mdl_principle_accuracy_threshold=60.0 \
+--ETHER_rg_logits_mdl_principle_factor=10-1 \
+--ETHER_rg_logits_mdl_principle_accuracy_threshold=50.0 \
 --ETHER_rg_agent_loss_type=Impatient+Hinge \
 --ETHER_use_continuous_feedback=False \
 --ETHER_rg_agent_nbr_latent_dim=1024 \
@@ -64,7 +64,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c ../../benchmark_wandb_ether.p
 --ETHER_rg_object_centric_version=2 \
 --ETHER_rg_distractor_sampling_scheme_version=2 \
 --ETHER_rg_descriptive_version=1 \
---ETHER_rg_learning_rate=6.25e-5 --ETHER_rg_weight_decay=0.0 \
+--ETHER_rg_learning_rate=3e-4 --ETHER_rg_weight_decay=0.0 \
 --ETHER_rg_l2_weight_decay=0.0 --ETHER_rg_l1_weight_decay=0.0 \
 --ETHER_rg_vocab_size=64 --ETHER_rg_training_period=8192 \
 --ETHER_rg_descriptive=True --ETHER_rg_object_centric=False \
