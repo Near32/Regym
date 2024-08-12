@@ -2,12 +2,12 @@
 #python benchmark_selfplay_s2b.py \
 CUDA_LAUNCH_BLOCKING=1 \
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_diphyr.py \
---DIPhyR_average_window_length=256 \
+--DIPhyR_average_window_length=128 \
 --success_threshold=0.5 \
 --use_cuda=True \
 --seed=40 \
 --saving_interval=1e20 \
---yaml_config=diphyr_benchmark_minimal_cot_Finch_config.yaml \
+--yaml_config=diphyr_benchmark_minimal_cot_nocache_Finch_config.yaml \
 --nbr_episode_per_cycle=32 \
 --nbr_training_iteration_per_cycle=4 \
 --min_handled_experiences=1e1 \
