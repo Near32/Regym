@@ -226,6 +226,7 @@ agents:
                     #model_id: "microsoft/Phi-3-mini-4k-instruct"
                     #model_id: "microsoft/Phi-3-mini-128k-instruct"
                     config:
+                        'use_grammar': False
                         'generation_kwargs': 
                             'max_new_tokens': 256
                             'do_sample': True
