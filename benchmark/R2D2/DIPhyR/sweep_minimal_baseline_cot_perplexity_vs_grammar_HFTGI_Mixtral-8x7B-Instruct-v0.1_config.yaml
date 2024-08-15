@@ -22,7 +22,7 @@ parameters:
   saving_interval:
     values: [1e20]
   yaml_config:
-    values: ["diphyr_benchmark_minimal_cot_Mixtral-8x7B-Instruct-v0.1_config.yaml"]
+    values: ["diphyr_benchmark_minimal_cot_HFTGI_Mixtral-8x7B-Instruct-v0.1_config.yaml"]
   use_grammar:
     values: [False, True]
   nbr_episode_per_cycle:
