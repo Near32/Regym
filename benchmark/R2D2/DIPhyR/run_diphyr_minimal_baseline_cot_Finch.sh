@@ -2,7 +2,7 @@
 #python benchmark_selfplay_s2b.py \
 CUDA_LAUNCH_BLOCKING=1 \
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_diphyr.py \
---DIPhyR_average_window_length=256 \
+--DIPhyR_average_window_length=128 \
 --success_threshold=0.5 \
 --use_cuda=True \
 --seed=40 \

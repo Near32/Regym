@@ -227,8 +227,9 @@ agents:
                     #model_id: "microsoft/Phi-3-mini-128k-instruct"
                     config:
                         'use_grammar': False
+                        'prompt_template': "[INST]\n{prompt}\n[/INST]\n"
                         'generation_kwargs': 
-                            'max_new_tokens': 256
+                            'max_new_tokens': 1024
                             'do_sample': True
                             'temperature': 0.7 
                             'repetition_penalty': 1.1 

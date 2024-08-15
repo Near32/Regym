@@ -567,6 +567,11 @@ def main():
         type=float, 
         default=0.0,
     )
+    parser.add_argument("--use_grammar", 
+        type=str2bool, 
+        default=False,
+    )
+ 
     parser.add_argument("--DIPhyR_average_window_length", 
         type=int, 
         default=128,
