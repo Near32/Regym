@@ -8,6 +8,7 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_diphyr.py \
 --seed=40 \
 --saving_interval=1e20 \
 --yaml_config=diphyr_benchmark_minimal_cot_Finch_config.yaml \
+--use_grammar=False \
 --nbr_episode_per_cycle=32 \
 --nbr_training_iteration_per_cycle=4 \
 --min_handled_experiences=1e1 \

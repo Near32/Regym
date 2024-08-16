@@ -224,6 +224,7 @@ agents:
                     #model_id: "microsoft/Phi-3-mini-4k-instruct"
                     #model_id: "microsoft/Phi-3-mini-128k-instruct"
                     config:
+                        'use_grammar': False
                         'quantize': False 
                         #'quantize': True
                         'bnb_config': 
