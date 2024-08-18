@@ -87,6 +87,7 @@ experiment:
           'save_metadata': False,
           'minimal_logs': True,
           'use_cot': True,
+          'notrace': False,
         },
         
         'run-id': 'Train',

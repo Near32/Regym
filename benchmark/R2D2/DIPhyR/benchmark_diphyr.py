@@ -572,6 +572,11 @@ def main():
         default=False,
     )
  
+    parser.add_argument("--notrace", 
+        type=str2bool, 
+        default=False,
+    )
+ 
     parser.add_argument("--DIPhyR_average_window_length", 
         type=int, 
         default=128,

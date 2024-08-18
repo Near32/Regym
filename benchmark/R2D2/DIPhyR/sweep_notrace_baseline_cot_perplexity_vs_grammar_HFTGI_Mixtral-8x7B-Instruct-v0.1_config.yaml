@@ -1,0 +1,62 @@
+project: DIPhyR 
+entity: kevin-near32-org
+program: benchmark_diphyr.py
+command:
+  - ${env}
+  - ./venv/bin/python
+  - ${program}
+  - ${args}
+method: grid
+metric:
+  name: PerEpoch/DIPhyR/Accuracy-Overall/Mean
+  goal: maximize
+parameters:
+  success_threshold:
+     values: [0.5]
+  DIPhyR_average_window_length:
+    values: [128]
+  use_cuda:
+    values: [True]
+  seed:
+    values: [10, 20, 30, 40, 50]
+  saving_interval:
+    values: [1e20]
+  yaml_config:
+    values: ["diphyr_benchmark_minimal_cot_HFTGI_Mixtral-8x7B-Instruct-v0.1_config.yaml"]
+  notrace:
+    values: [True]
+  use_grammar:
+    values: [False, True]
+  nbr_episode_per_cycle:
+    values: [32]
+  nbr_training_iteration_per_cycle:
+    values: [4]
+  min_handled_experiences:
+    values: [1e1]
+  nbr_minibatches:
+    values: [4]
+  batch_size:
+    values: [64]
+  learning_rate:
+    values: [6.25e-05]
+  tau:
+    values: [None]
+  inverted_tau:
+    values: [2500]
+  n_step:
+    values: [0]
+  nbr_actor:
+    values: [1]
+  replay_capacity:
+    values: [1e1]
+  min_capacity:
+    values: [1e2]
+  sequence_replay_burn_in_ratio:
+    values: [0.0]
+  sequence_replay_unroll_length:
+    values: [2]
+  r2d2_use_value_function_rescaling:
+    values: [False]
+  train_observation_budget:
+    values: [2.0e3]
+ 
