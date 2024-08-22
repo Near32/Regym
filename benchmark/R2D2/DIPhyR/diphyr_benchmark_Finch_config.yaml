@@ -1,4 +1,7 @@
 extra_hyperparameters: &extra_hyperparameters
+    # As we are using LLMs with sample, no need to add epsilon-greedy:
+    greedy_actions: True
+    
     lr_account_for_nbr_actor: False 
     weights_decay_lambda: 0.0
     weights_entropy_lambda: 0.0 #01

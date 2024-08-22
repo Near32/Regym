@@ -416,7 +416,9 @@ class DQNAgent(Agent):
         
         greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
 
-        if self.noisy or not(self.training):
+        if self.noisy \
+        or not(self.training) \
+        or self.kwargs.get('greedy_actions', False):
             return greedy_action
 
         legal_actions = torch.ones_like(self.current_prediction['qa'])

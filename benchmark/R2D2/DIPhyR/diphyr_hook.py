@@ -57,7 +57,7 @@ class DIPhyRHook:
                 del lperLabel_pred_answers[0]
             self.perLabel_pred_answers[akey] = lperLabel_pred_answers
 
-    acc_buffers['Overall'] = 100.0*(self.pred_answers == self.gt_answers).astype(float)
+    acc_buffers['Overall'] = 100.0*(self.pred_answers == self.gt_answers).astype(float)[self.pred_answers > -1]
     for akey, acc_buffer in acc_buffers.items():
         values = np.asarray(acc_buffer)
         meanv = values.mean()
