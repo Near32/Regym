@@ -472,10 +472,12 @@ def s2b_r2d2_wrap(
     previous_reward_action=True,
     otherplay=False,
     multi_binary_comm=True,
+    multi_discrete_combined_actions=False,
     ):
     env = s2b_wrap(
       env, 
       combined_actions=True,
+      multi_discrete_combined_actions=multi_discrete_combined_actions,
       dict_obs_space=False,
       multi_binary_comm=multi_binary_comm,
     )
@@ -847,6 +849,7 @@ def training_process(agent_config: Dict,
 
     pixel_wrapping_fn = partial(
       s2b_r2d2_wrap,
+      multi_discrete_combined_actions=task_config.get('multi_discrete_combined_actions', False), 
       clip_reward=task_config['clip_reward'],
       previous_reward_action=task_config.get('previous_reward_action', False),
       otherplay=task_config.get("otherplay", False),
@@ -920,23 +923,23 @@ def training_process(agent_config: Dict,
             if use_speaker_rule_based_agent:
                 rb_agent = build_WrappedPositionallyDisentangledSpeakerAgent( 
                     player_idx=0,
-                    action_space_dim=task.env.action_space.n, 
+                    action_space=task.env.action_space, 
                     vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
                     max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
                     nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
                     nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
-        
+                    multi_discrete=task_config.get('multi_discrete_combined_actions', False), 
                 )
                 agents = [rb_agent, agent]
             else:
                 rb_agent = build_WrappedPositionallyDisentangledListenerAgent( 
                     player_idx=1,
-                    action_space_dim=task.env.action_space.n, 
+                    action_space=task.env.action_space, 
                     vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
                     max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
                     nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
                     nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
-        
+                    multi_discrete=task_config.get('multi_discrete_combined_actions', False), 
                 )
                 agents = [agent, rb_agent]
         else:
@@ -1072,6 +1075,11 @@ def main():
         default="META_RG_S2B",
     )
 
+    parser.add_argument("--use_grammar", 
+        type=str2bool, 
+        default=False,
+    )
+ 
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,

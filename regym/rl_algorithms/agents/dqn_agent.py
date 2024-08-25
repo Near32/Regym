@@ -414,7 +414,10 @@ class DQNAgent(Agent):
         # when feeding it to the models.
         self.current_prediction = self._post_process(self.current_prediction)
         
-        greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
+        #TODO: the following reshape messes up with MultiCategorical,
+        # but it might be necessary in the case of a single categorical
+        # greedy_action = self.current_prediction['a'].reshape((-1,1)).numpy()
+        greedy_action = self.current_prediction['a'].numpy()#.reshape((-1,1)).numpy()
 
         if self.noisy \
         or not(self.training) \
@@ -431,6 +434,12 @@ class DQNAgent(Agent):
             for actor_idx in range(legal_actions.shape[0]):
                 if legal_actions[actor_idx].sum() == 0: 
                     legal_actions[actor_idx, ...] = 1
+        # TODO: those shapes make the multi-categorical exploration correlated
+        # between themselves, which is not desirable.
+        # It will be necessary to reshape everything if kwargs['greedy_actions']==True
+        if greedy_action.shape[1] > 1:
+            import ipdb; ipdb.set_trace()
+            raise NotImplementedError
         sample = np.random.random(size=self.eps.shape)
         greedy = (sample > self.eps)
         greedy = np.reshape(greedy[:state.shape[0]], (state.shape[0],1))
