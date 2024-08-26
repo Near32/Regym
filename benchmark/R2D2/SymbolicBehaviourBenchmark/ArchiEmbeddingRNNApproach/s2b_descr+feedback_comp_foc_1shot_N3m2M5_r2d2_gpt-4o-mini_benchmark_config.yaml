@@ -578,11 +578,13 @@ agents:
             },
             
             'action_mask':{
-                shape: ['task.action_dim',], 
+                #shape: ['task.action_dim',], 
+                shape: [4,7,], 
                 target_location: ['critic_body', 'extra_inputs']
             },
             'legal_actions':{
-                shape: ['task.action_dim',], 
+                #shape: ['task.action_dim',], 
+                shape: [4,7,], 
                 target_location: ['head', 'extra_inputs']
             },
 
