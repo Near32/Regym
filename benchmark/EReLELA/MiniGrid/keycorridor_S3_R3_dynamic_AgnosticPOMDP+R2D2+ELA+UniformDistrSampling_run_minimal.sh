@@ -36,6 +36,8 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_obverter_threshold_to_stop_message_generation=0.9 \
 --ELA_rg_obverter_nbr_games_per_round=32 \
 --ELA_rg_obverter_sampling_round_alternation_only=False --ELA_rg_use_obverter_sampling=False \
+--ELA_rg_language_dynamic_metric_epoch_period=4 \
+--ELA_rg_compactness_ambiguity_metric_epoch_period=4 \
 --ELA_rg_compactness_ambiguity_metric_language_specs=emergent+natural+color+shape+shuffled-emergent+shuffled-natural+shuffled-color+shuffled-shape \
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
 --ELA_rg_shared_architecture=True \
@@ -63,7 +65,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
 --ELA_rg_distractor_sampling_scheme_version=2 \
 --ELA_rg_distractor_sampling_with_replacement=True \
---ELA_rg_distractor_sampling='similarity-50' \
+--ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
 --ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \

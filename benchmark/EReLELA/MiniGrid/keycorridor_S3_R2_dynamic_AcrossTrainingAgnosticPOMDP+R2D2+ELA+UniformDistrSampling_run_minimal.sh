@@ -31,7 +31,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_with_rg_training=True \
 --ELA_with_rg_optimize=True \
 --ELA_rg_use_cuda=True \
---ELA_rg_dataloader_num_worker=2 \
+--ELA_rg_dataloader_num_worker=8 \
 --ELA_rg_graphtype='straight_through_gumbel_softmax' \
 --ELA_rg_obverter_threshold_to_stop_message_generation=0.9 \
 --ELA_rg_obverter_nbr_games_per_round=32 \
@@ -64,7 +64,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
---ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
+--ELA_reward_extrinsic_weight=100.0 --ELA_reward_intrinsic_weight=1.0 \
 --ELA_feedbacks_type='across-training-1.0' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --BabyAI_Bot_action_override=False \

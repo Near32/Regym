@@ -1171,6 +1171,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         language_dynamic_metric_module = rg_modules.LanguageDynamicMetricModule(
             id=language_dynamic_metric_id,
             config = {
+                "epoch_period":self.kwargs.get("ELA_rg_language_dynamic_metric_epoch_period", 1),
             },
         )
         modules[language_dynamic_metric_id] = language_dynamic_metric_module
@@ -1179,7 +1180,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             id=inst_coord_metric_id,
             config = {
                 "filtering_fn":(lambda kwargs: True),
-                "epoch_period":1,
+                "epoch_period":1, #self.kwargs.get("ELA_rg_language_dynamic_metric_epoch_period", 1),
             },
             input_stream_ids=inst_coord_input_stream_ids,
         )
@@ -1337,7 +1338,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
-                "epoch_period":1,#self.kwargs["ELA_rg_metric_epoch_period"],
+                "epoch_period":self.kwargs.get("ELA_rg_compactness_ambiguity_metric_epoch_period", 1),
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
                 "nbr_eval_points":self.kwargs["ELA_rg_nbr_eval_points"],#2000,
@@ -1451,6 +1452,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             nbr_epoch=nbr_epoch,
             logger=self.logger,
             verbose_period=1,
+            dataloader_shuffle=False, # https://github.com/pytorch/pytorch/issues/13246#issuecomment-708067670
         )
         self.predictor.train(False)
         torch.set_grad_enabled(False)
