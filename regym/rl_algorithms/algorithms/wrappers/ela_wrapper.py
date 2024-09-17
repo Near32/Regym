@@ -1452,7 +1452,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             nbr_epoch=nbr_epoch,
             logger=self.logger,
             verbose_period=1,
-            dataloader_shuffle=False, # https://github.com/pytorch/pytorch/issues/13246#issuecomment-708067670
+            dataloader_shuffle=self.kwargs['ELA_rg_dataloader_shuffle'], # https://github.com/pytorch/pytorch/issues/13246#issuecomment-708067670
         )
         self.predictor.train(False)
         torch.set_grad_enabled(False)

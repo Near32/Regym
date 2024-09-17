@@ -1050,6 +1050,7 @@ def main():
         'normal','hurry-140', 'across-training-1.0'],)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
+    parser.add_argument("--ELA_rg_dataloader_shuffle", type=str2bool, default=True,)
     parser.add_argument("--ELA_rg_language_dynamic_metric_epoch_period", type=int, default=32)
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_epoch_period", type=int, default=1)
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_with_ordering", type=str2bool, default=False)
