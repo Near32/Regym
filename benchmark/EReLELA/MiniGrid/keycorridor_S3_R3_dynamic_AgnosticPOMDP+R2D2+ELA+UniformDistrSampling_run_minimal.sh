@@ -1,5 +1,5 @@
-WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=10 --env_seed=12 --static_envs=False \
+WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
+--seed=40 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-KeyCorridor-Benchmark \
@@ -32,7 +32,7 @@ WANDB_CACHE_DIR=./wandb_cache/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extens
 --ELA_with_rg_optimize=True \
 --ELA_rg_use_cuda=True \
 --ELA_rg_dataloader_shuffle=True \
---ELA_rg_dataloader_num_worker=4 \
+--ELA_rg_dataloader_num_worker=8 \
 --ELA_rg_graphtype='straight_through_gumbel_softmax' \
 --ELA_rg_obverter_threshold_to_stop_message_generation=0.9 \
 --ELA_rg_obverter_nbr_games_per_round=32 \
