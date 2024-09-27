@@ -4,6 +4,7 @@ import numpy as np
 from copy import deepcopy
 import random
 from collections.abc import Iterable
+from tqdm import tqdm
 
 from ..algorithms.DQN import DQNAlgorithm, dqn_loss, ddqn_loss
 from ..networks import PreprocessFunction, ResizeCNNPreprocessFunction, ResizeCNNInterpolationFunction
@@ -89,6 +90,7 @@ class DQNAgent(Agent):
         # batch x ...
 
         batch_size = a.shape[0]
+        nbr_stored_exp = 0
 
         if "vdn" in self.kwargs \
         and self.kwargs["vdn"]:
@@ -259,7 +261,7 @@ class DQNAgent(Agent):
                     post_process_fn=(lambda x: x.detach().cpu())
                 )
 
-            self.algorithm.store(exp_dict, actor_index=actor_index)
+            nbr_stored_exp += self.algorithm.store(exp_dict, actor_index=actor_index)
             self.previously_done_actors[actor_index] = done[actor_index]
             self.handled_experiences +=1
 
@@ -269,10 +271,106 @@ class DQNAgent(Agent):
                 self.nbr_episode_per_cycle_count += len(done_actors_among_notdone)
         
         if not(self.async_actor):
-            self.train()
+            self.train(nbr_stored_exp=nbr_stored_exp)
 
-    def train(self):
+    
+    def train_using_stored_exp(self, nbr_stored_exp) -> int:
+        nbr_updates = 0 
+        if nbr_stored_exp:
+            minibatch_size = self.kwargs['batch_size']
+            if self.nbr_episode_per_cycle is None:
+                minibatch_size *= self.replay_period
+            else:
+                self.nbr_episode_per_cycle_count = 1
+
+            nbr_train_it = self.nbr_training_iteration_per_cycle
+            # TODO: nbr_train_it *= nbr_stored_exp
+            
+            f2 = int(np.sqrt(nbr_stored_exp))
+            f1 = int(np.power(nbr_stored_exp, 1.0/4))
+            f3 = int(np.power(nbr_stored_exp, 3.0/4))
+            print('-'*32)
+            print('-'*32)
+            #print(nbr_stored_exp, sqrt_stored_exp)
+            print(nbr_stored_exp, f1, f2, f3)
+            print('-'*32)
+            print('-'*32)
+            nbr_train_it *= f2
+            #self.algorithm.unwrapped.nbr_minibatches *= f1 #sqrt_stored_exp #nbr_stored_exp
+            for train_it in tqdm(range(nbr_train_it)):
+                self.algorithm.train(minibatch_size=minibatch_size)
+            
+            torch.cuda.empty_cache()
+            nbr_updates = nbr_train_it
+
+            #if self.algorithm.unwrapped.summary_writer is not None:
+            if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+            else:
+                actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+            nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
+            #self.algorithm.unwrapped.summary_writer.add_scalar(
+            wandb.log({
+                f'PerUpdate/ActorLearnerSynchroRemainingUpdates':
+                nbr_update_remaining
+                }, 
+                #self.algorithm.unwrapped.get_update_count()
+            )
+            
+            # Update actor's models:
+            if self.async_learner\
+            and (self.handled_experiences // self.actor_models_update_steps_interval) != self.previous_actor_models_update_quotient:
+                self.previous_actor_models_update_quotient = self.handled_experiences // self.actor_models_update_steps_interval
+                new_models_cpu = {}
+                for k,m in self.algorithm.unwrapped.get_models().items():
+                    m.reset()
+                    new_models_cpu[k] = deepcopy(m).cpu()
+                    #{k:deepcopy(m).cpu() for k,m in self.algorithm.unwrapped.get_models().items()}
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    actor_learner_shared_dict = ray.get(self.actor_learner_shared_dict.get.remote())
+                else:
+                    actor_learner_shared_dict = self.actor_learner_shared_dict.get()
+                
+                actor_learner_shared_dict["models"] = new_models_cpu
+                actor_learner_shared_dict["models_update_required"] = [True]*len(actor_learner_shared_dict["models_update_required"])
+                
+                if isinstance(self.actor_learner_shared_dict, ray.actor.ActorHandle):
+                    self.actor_learner_shared_dict.set.remote(actor_learner_shared_dict)
+                else:
+                    self.actor_learner_shared_dict.set(actor_learner_shared_dict)
+            
+            #print("SAVING STAT:", self.saving_interval, self.previous_save_quotient, self.algorithm.unwrapped.get_obs_count())
+            obs_count = self.algorithm.unwrapped.get_obs_count()
+            if not self.async_actor\
+            and self.save_path is not None \
+            and (obs_count // self.saving_interval) != self.previous_save_quotient:
+                self.previous_save_quotient = obs_count // self.saving_interval
+                original_save_path = self.save_path
+                self.save_path = original_save_path.split(".agent")[0]+"."+str(int(self.previous_save_quotient))+".agent"
+                self.save()
+                self.save_path = original_save_path
+    
+        return nbr_updates
+
+    def train(self, nbr_stored_exp=0) -> int:
+        '''
+        If kwargs['training_iteration_use_nbr_stored_exp'] is set to True,
+        then agent is trained only when some experiences is being stored in
+        the replay buffer, as opposed to being queue for n-return computation
+        or algorithm wrapper processing.
+
+        #TODO: need to update different algorithm wrappers...
+        '''
+        USE_NBR_STORED_EXP = self.kwargs.get("training_iteration_use_nbr_stored_exp", False)
+        
         nbr_updates = 0
+        
+        if USE_NBR_STORED_EXP \
+        and not(self.async_actor):
+            nbr_updates = self.train_using_stored_exp(nbr_stored_exp)
+            return nbr_updates
+
 
         period_check = self.replay_period
         period_count_check = self.replay_period_count

@@ -255,6 +255,8 @@ def _extract_rnn_states_from_batch_indices(
     rnn_states_batched: Dict,
     batch_indices: torch.Tensor,
     use_cuda: bool=False,
+    pin_memory: bool=False,
+    cuda_non_blocking: bool=False,
     map_keys: Optional[List]=None,
 ): 
     if rnn_states_batched is None:  return None
@@ -274,7 +276,11 @@ def _extract_rnn_states_from_batch_indices(
                             sparse_v = True
                             value = value.to_dense()
                         new_value = value[batch_indices,...]
-                        if use_cuda: new_value = new_value.cuda()
+                        if not new_value.is_cuda \
+                        and pin_memory and not new_value.is_pinned():
+                            new_value = new_value.pin_memory()
+                        if use_cuda and not new_value.is_cuda: 
+                            new_value = new_value.cuda(non_blocking=cuda_non_blocking)
                         if sparse_v:
                             new_value = new_value.to_sparse()
                         rnn_states[recurrent_submodule_name][key].append(new_value)
@@ -283,6 +289,8 @@ def _extract_rnn_states_from_batch_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name],
                 batch_indices=batch_indices,
                 use_cuda=use_cuda,
+                pin_memory=pin_memory,
+                cuda_non_blocking=cuda_non_blocking,
                 map_keys=map_keys
             )
     return rnn_states

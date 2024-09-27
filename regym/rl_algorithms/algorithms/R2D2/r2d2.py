@@ -292,7 +292,9 @@ class R2D2Algorithm(DQNAlgorithm):
         actor_index:int, 
         override:bool=False,
         storage_index:int=None,
-    ):
+    ) -> int:
+        nbr_stored_exp = 0
+
         if storage_index is not None :
             assert self.nbr_categorized_storages>1
             storage_index = actor_index
@@ -303,7 +305,7 @@ class R2D2Algorithm(DQNAlgorithm):
             
         # Can we add the current sequence buffer to the replay storage?
         if not override and len(self.sequence_replay_buffers[actor_index]) < self.sequence_replay_unroll_length:
-            return
+            return nbr_stored_exp
         if override \
         or self.sequence_replay_buffers_count[actor_index] % (self.sequence_replay_unroll_length - self.sequence_replay_overlap_length) == 0:
             # Verify the length of the sequence:
@@ -323,7 +325,7 @@ class R2D2Algorithm(DQNAlgorithm):
                     self.pre_storage_sequence_exp_dict.append(current_sequence_exp_dict)
                     self.pre_storage_sequence_storage_idx.append(storage_index)
                     if len(self.pre_storage_sequence_exp_dict) < self.batch_size//self.sequence_replay_unroll_length:
-                        return 
+                        return nbr_stored_exp
 
                     samples = {}
                     for exp_dict in self.pre_storage_sequence_exp_dict:
@@ -376,6 +378,8 @@ class R2D2Algorithm(DQNAlgorithm):
                                 csed, 
                                 priority=new_priority
                             )
+                    
+                    nbr_stored_exp += len(self.pre_storage_sequence_exp_dict)
 
                     self.pre_storage_sequence_exp_dict = []
                     self.pre_storage_sequence_storage_idx = []
@@ -393,11 +397,14 @@ class R2D2Algorithm(DQNAlgorithm):
                             current_sequence_exp_dict, 
                             priority=new_priority
                         )
+                    nbr_stored_exp += 1
             else:
                 self.storages[storage_index].add(current_sequence_exp_dict)
 
+        return nbr_stored_exp
+
     # NOTE: overriding this function from DQNAlgorithm -
-    def store(self, exp_dict, actor_index=0, storage_index:int=None):
+    def store(self, exp_dict, actor_index=0, storage_index:int=None) -> int:
         '''
         Compute n-step returns, for each actor, separately,
         and then assembles experiences into sequences of experiences of length
@@ -422,7 +429,7 @@ class R2D2Algorithm(DQNAlgorithm):
             # Append to deque:
             self.n_step_buffers[actor_index].append(copy.deepcopy(exp_dict))
             if len(self.n_step_buffers[actor_index]) < self.n_step:
-                return
+                return 0
         
         # We assume non_terminal are the same for all players ==> torch.all :
         assert torch.all(exp_dict['non_terminal'].bool()) == torch.any(exp_dict['non_terminal'].bool())
@@ -433,6 +440,7 @@ class R2D2Algorithm(DQNAlgorithm):
             raise NotImplementedError
             nbr_experience_to_handle = min(self.n_step, len(self.n_step_buffers[actor_index])) 
 
+        nbr_stored_exp = 0
         for exp_it in range(nbr_experience_to_handle):
             if False: #self.n_step>1:
                 raise NotImplementedError
@@ -465,7 +473,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 self.n_step_buffers[actor_index].popleft()
 
             # Maybe add to replay storage?
-            self._add_sequence_to_replay_storage(
+            nbr_stored_exp += self._add_sequence_to_replay_storage(
                 actor_index=actor_index, 
                 override=(self.sequence_replay_store_on_terminal and (exp_it==nbr_experience_to_handle-1) and reached_end_of_episode),
                 # Only add if experience count handled, 
@@ -485,6 +493,8 @@ class R2D2Algorithm(DQNAlgorithm):
             # synchronised with the modulo sequence_replay_overlap_length operation
             # that controls whether to store the current sequence.
             self.sequence_replay_buffers_count[actor_index] = 0
+        
+        return nbr_stored_exp
 
     # NOTE: we are overriding this function from DQNAlgorithm
     def _update_replay_buffer_priorities(

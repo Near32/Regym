@@ -12,6 +12,7 @@ import torchvision
 import torchvision.transforms as T 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from regym.rl_algorithms.algorithms.wrappers.algorithm_wrapper import AlgorithmWrapper
 from regym.rl_algorithms.algorithms.wrappers.ther_wrapper2 import batched_predictor_based_goal_predicated_reward_fn2
@@ -411,7 +412,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         )
         return 
     
-    def store(self, exp_dict, actor_index=0):
+    def store(self, exp_dict, actor_index=0) -> int:
         #################
         #################
         # Vocabulary logging:
@@ -425,6 +426,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.nbr_buffered_predictor_experience += 1
 
         successful_traj = False
+        nbr_stored_exp = 0
 
         if not(exp_dict['non_terminal']):
             self.record_metrics(exp_dict, actor_index=actor_index)
@@ -491,7 +493,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             )
             
             new_rs = []
-            for idx in range(episode_length):
+            for idx in tqdm(range(episode_length)):
                 s = self.episode_buffer[actor_index][idx]['s']
                 a = self.episode_buffer[actor_index][idx]['a']
                 r = self.episode_buffer[actor_index][idx]['r']
@@ -542,7 +544,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 for key, value in self.episode_buffer[actor_index][idx].items():
                     if key not in d2store_ela:
                         d2store_ela[key] = value
-                self.algorithm.store(d2store_ela, actor_index=actor_index)
+                nbr_stored_exp += self.algorithm.store(d2store_ela, actor_index=actor_index)
                 
                 if idx==(episode_length-1):
                     wandb.log({'PerEpisode/ExtrinsicWeight': self.extrinsic_weight}, commit=False)
@@ -573,6 +575,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.episode_buffer[actor_index] = []
         self.update_predictor(successful_traj=successful_traj)
 	   
+        return nbr_stored_exp
+
     def init_referential_game(self):
         ReferentialGym.datasets.dataset.DSS_version = self.kwargs["ELA_rg_distractor_sampling_scheme_version"]
         ReferentialGym.datasets.dataset.OC_version = self.kwargs["ELA_rg_object_centric_version"]
