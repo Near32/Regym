@@ -28,7 +28,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --use_ELA=True --ELA_use_ELA=True \
 --use_HER=False --goal_oriented=False \
 --ETHER_use_ETHER=False --THER_use_THER=False \
---ELA_with_rg_training=False \
+--ELA_with_rg_training=True \
 --ELA_with_rg_optimize=True \
 --ELA_rg_use_cuda=True \
 --ELA_rg_dataloader_shuffle=True \
@@ -37,7 +37,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_obverter_threshold_to_stop_message_generation=0.9 \
 --ELA_rg_obverter_nbr_games_per_round=32 \
 --ELA_rg_obverter_sampling_round_alternation_only=False --ELA_rg_use_obverter_sampling=False \
---ELA_rg_language_dynamic_metric_epoch_period=4 \
+--ELA_rg_language_dynamic_metric_epoch_period=1 \
 --ELA_rg_compactness_ambiguity_metric_epoch_period=4 \
 --ELA_rg_compactness_ambiguity_metric_language_specs=emergent+natural+color+shape+shuffled-emergent+shuffled-natural+shuffled-color+shuffled-shape \
 --ELA_rg_sanity_check_compactness_ambiguity_metric=False \
@@ -59,6 +59,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
 --ELA_rg_training_period=32768 \
+--ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
 --ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=90 \
@@ -70,18 +71,19 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_same_episode_target=True \
 --ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
+--ELA_rg_record_unique_stats=False \
 --BabyAI_Bot_action_override=False \
---n_step=3 --nbr_actor=16 \
+--n_step=3 --nbr_actor=32 \
 --epsstart=1.0 --epsend=0.1 \
 --epsdecay=100000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=256 \
---min_capacity=4e3 --min_handled_experiences=2e3 --replay_capacity=5e3 --learning_rate=3e-4 \
+--min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=20e3 --learning_rate=3e-4 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
---training_iteration_use_stored_exp=True \
+--training_iteration_use_nbr_stored_exp=True \
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \
