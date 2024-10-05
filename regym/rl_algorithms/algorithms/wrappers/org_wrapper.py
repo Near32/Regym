@@ -40,8 +40,22 @@ def S2B_postprocess_fn(
     predictor:nn.Module,
     algorithm:Union[Algorithm,AlgorithmWrapper],
     **kwargs,
-    ):
-    
+):
+    '''
+    postprocessing function for online referential game, i.e.:
+    - decode communication channel from predictor's discrete combined actions format
+    - initialise sentences_widx with EoS from predictor and copy communication channel into it
+    - initialize next_rnn_states with shape- and EoS-regularised sentences_widx 
+
+    Warning: it involves detaching the output from the backpropagation graph...
+
+    :param output: output of online referential game
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: postprocessed output
+    '''    
+
+    # Decode communication channel from predictor's discrete combined actions format:
     current_actor = algorithm.current_actor
     current_env = algorithm.venv.unwrapped.env_processes[current_actor].env.env.env
     
@@ -52,6 +66,7 @@ def S2B_postprocess_fn(
         axis=0,
     )
     
+    # Initialise sentences_widx with EoS from predictor and copy communication channel into it:
     batch_size = action.shape[0]
     max_sentence_length = predictor.max_sentence_length
     vocab_size = predictor.vocab_size
@@ -61,11 +76,13 @@ def S2B_postprocess_fn(
     sentences_widx = predictor.vocab_stop_idx*torch.ones((batch_size, max_sentence_length)).to(action.device)
     sentences_widx[:,:unreg_sentences_widx.shape[1]] = unreg_sentences_widx
     
+    # Initialize next_rnn_states with shape- and EoS-regularised sentences_widx
     if predictor.generator_name not in output['next_rnn_states']:
         output['next_rnn_states'][predictor.generator_name] = {}
      
     output['next_rnn_states'][predictor.generator_name]['processed_input0'] = [sentences_widx]
-    
+
+    # Initialise predicted_logits to shape- and EoS-regularised sentences_widx:
     predicted_logits = torch.zeros(
         batch_size, max_sentence_length, vocab_size,
     ).to(sentences_widx.device)
@@ -76,10 +93,13 @@ def S2B_postprocess_fn(
             ).repeat(1,1,vocab_size).long(),
         src=torch.ones_like(predicted_logits),
     )
+
+    # Initialise hidden_states to zero:
     hidden_dim = 512 #predictor.kwargs['processing_hidden_units']
     hidden_states = torch.zeros(batch_size, max_sentence_length, hidden_dim).to(sentences_widx.device)
     # batch_size x max_sentence_length x hidden_state_dim=1=dummy
 
+    # Copy predicted_logits and hidden_states into output['next_rnn_states']:
     output["next_rnn_states"][predictor.generator_name]["input0_prediction_logits"] = [predicted_logits]
     output["next_rnn_states"][predictor.generator_name]["input0_hidden_states"] = [hidden_states]
     
