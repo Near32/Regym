@@ -456,9 +456,9 @@ agents:
                 key_dim: 64
                 hidden_dim: 512
                 output_dim: 256
-                action_dim: &action_dim 519 #171 #8
-                lstm_input_dim: &lstm_input_dim 593 #245
-                rl_state_dim: &rl_state_dim 1031 #683 
+                action_dim: &action_dim 313 #519 #171 #8
+                lstm_input_dim: &lstm_input_dim 387 #593 #245
+                rl_state_dim: &rl_state_dim 825 #1031 #683 
             input_stream_ids:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"

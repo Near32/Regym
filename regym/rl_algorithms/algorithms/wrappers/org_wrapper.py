@@ -160,7 +160,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
 
         ## Listener :
         if self.kwargs['ORG_rg_reset_listener_each_training']:
-            self.listener.reset(whole=True)
+            self.listener.reset_weights(whole=True)
         return 
     
     def regularise_agents(self):
@@ -479,7 +479,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         
         nbr_obs_dim = 15 #30
         
-        if self.kwargs['ORG_use_predictor']:
+        if self.kwargs['ORG_use_predictor_as_speaker']:
             speaker = self.predictor
             speaker.speaker_init(
                 kwargs=agent_config, 
@@ -529,7 +529,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 listener_config['cnn_encoder'] = speaker.cnn_encoder 
         listener_config['nbr_distractors'] = rg_config['nbr_distractors']['train']
         
-        if 'obverter' in self.kwargs["ORG_rg_graphtype"]:
+        if self.kwargs['ORG_use_predictor_as_listener'] \
+        or 'obverter' in self.kwargs["ORG_rg_graphtype"]:
             listener = copy.deepcopy(self.predictor)
             listener.listener_init(
                 kwargs=listener_config,

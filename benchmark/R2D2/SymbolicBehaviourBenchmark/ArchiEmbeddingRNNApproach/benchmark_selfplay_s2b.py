@@ -990,17 +990,34 @@ def training_process(agent_config: Dict,
     return trained_agents, task 
 
 
-def load_configs(config_file_path: str):
-    all_configs = yaml.load(
-        open(config_file_path),
-        Loader=yaml.Loader,
-    )
+def parse_and_update(config_file_path: str, kwargs: Dict[str, Any]):
+    config_file = open(config_file_path, 'r')
+    lines = config_file.readlines()
+    config = ""
+    for line in lines:
+        if '&' in line:
+            key, value = line.split(': ')[:2]
+            key = key.strip()
+            value = value.strip()
+            if key in kwargs:
+                if '&' in value:
+                    value = value.split('&')[1].split(' ')[1]
+                value = value.strip()
+                line = line.replace(value, str(kwargs[key]))
+        config += line 
+    return config
+
+
+def load_configs(config_file_path: str, kwargs: Dict[str, Any]):
+    yaml_str = parse_and_update(config_file_path, kwargs)
+    all_configs = yaml.safe_load(yaml_str)
 
     agents_config = all_configs['agents']
     experiment_config = all_configs['experiment']
     envs_config = experiment_config['tasks']
 
     return experiment_config, agents_config, envs_config
+
 
 def str2bool(instr):
     if isinstance(instr, bool):
@@ -1262,9 +1279,11 @@ def main():
     parser.add_argument("--use_ORG", type=str2bool, default="True",)
     parser.add_argument("--ORG_rg_tau0", type=float, default=0.2,)
     parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
-    parser.add_argument("--ORG_use_predictor", type=str2bool, default="True",)
-    parser.add_argument("--ORG_with_Oracle", type=str2bool, default="False",)
+    parser.add_argument("--ORG_use_predictor_as_speaker", type=str2bool, default="True",)
+    parser.add_argument("--ORG_use_predictor_as_listener", type=str2bool, default="False",)
+    #TODO : only available if using obverter and ArchiPredictorListener as opposed to the speaker one...
     parser.add_argument("--ORG_with_Oracle_type", type=str, default="visible-entities",)
+    parser.add_argument("--ORG_with_Oracle_speaker", type=str2bool, default="False",)
     parser.add_argument("--ORG_with_Oracle_listener", type=str2bool, default="False",)
     parser.add_argument("--ORG_use_ORG", type=str2bool, default="True",)
     parser.add_argument("--ORG_use_supervised_training", type=str2bool, default="True",)
@@ -1452,8 +1471,11 @@ def main():
     #GpuUtils.allocate(required_memory=20000, framework="torch")
     
     config_file_path = args.yaml_config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
-    experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
-   
+    experiment_config, agents_config, tasks_configs = load_configs(
+        config_file_path,
+        kwargs=dargs,
+    )
+    
     bfs_ptr = agents_config
     bfs_list = [(k, bfs_ptr) for k in bfs_ptr.keys()]
     while len(bfs_list):
