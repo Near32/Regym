@@ -1056,13 +1056,13 @@ def main():
         type=float, 
         default=5e-2,
     )
-    parser.add_argument("--speaker_rec", type=str, default="False",)
+    parser.add_argument("--speaker_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_rec", type=str2bool, default="False",)
     parser.add_argument("--speaker_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_rec_lambda", type=float, default=1.0,)
     parser.add_argument("--listener_comm_rec", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_lambda", type=float, default=1.0,)
-    parser.add_argument("--speaker_rec_biasing", type=str, default="False",)
+    parser.add_argument("--speaker_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_multimodal_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_rec_biasing", type=str2bool, default="False",)
     parser.add_argument("--listener_comm_rec_biasing", type=str2bool, default="False",)
@@ -1348,6 +1348,7 @@ def main():
         #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
     )
     parser.add_argument("--ORG_rg_agent_loss_type", type=str, default='Hinge')
+    parser.add_argument("--ORG_rg_language_dynamic_metric_epoch_period", type=int, default=1)
     parser.add_argument("--ORG_rg_use_aita_sampling", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_aita_update_epoch_period", type=int, default=32)
     parser.add_argument("--ORG_rg_aita_levenshtein_comprange", type=float, default=1.0)

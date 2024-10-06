@@ -925,6 +925,7 @@ def main():
     parser.add_argument("--coverage_manipulation_metric", type=str2bool, default="False",)
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
+    parser.add_argument("--training_iteration_use_nbr_stored_exp", type=str2bool, default=False)
     #parser.add_argument("--critic_arch_feature_dim", 
     #    type=int, 
     #    default=32,
@@ -988,6 +989,7 @@ def main():
     parser.add_argument("--ETHER_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ETHER_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ETHER_rg_logits_mdl_principle_normalization", type=str2bool, default=False)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ETHER_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     
@@ -1045,13 +1047,20 @@ def main():
     parser.add_argument("--ELA_with_rg_optimize", type=str2bool, default="True",)
     parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
-    parser.add_argument("--ELA_feedbacks_type", type=str, default='normal', choices=['normal','hurry-140'],)
+    parser.add_argument("--ELA_feedbacks_type", type=str, default='normal', choices=[
+        'normal','hurry-140', 'across-training-1.0'],)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
+    parser.add_argument("--ELA_rg_dataloader_shuffle", type=str2bool, default=True,)
+    parser.add_argument("--ELA_rg_language_dynamic_metric_epoch_period", type=int, default=32)
+    parser.add_argument("--ELA_rg_compactness_ambiguity_metric_epoch_period", type=int, default=1)
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_with_ordering", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_compactness_ambiguity_metric_use_cumulative_scores", type=str2bool, default=True)
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_language_specs", type=str, default="emergent")
     parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
+    parser.add_argument("--ELA_rg_training_max_skip", type=int, default=-1)
+    parser.add_argument("--ELA_rg_training_adaptive_period", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ELA_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ELA_rg_use_cuda", type=str2bool, default="False",)
@@ -1062,6 +1071,7 @@ def main():
     parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_lambda", type=float, default=1.0)
     parser.add_argument("--ELA_rg_semantic_cooccurrence_grounding_noise_magnitude", type=float, default=0.0)
     parser.add_argument("--ELA_split_strategy", type=str, default="divider-1-offset-0",)
+    parser.add_argument("--ELA_rg_record_unique_stats", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_filter_out_non_unique", type=str2bool, default=False)
     parser.add_argument("--ELA_replay_capacity", type=int, default=1024)
     parser.add_argument("--ELA_lock_test_storage", type=str2bool, default=False)
@@ -1102,6 +1112,8 @@ def main():
     parser.add_argument("--ELA_rg_agent_loss_type", type=str, default='Hinge')
 
     parser.add_argument("--ELA_rg_with_logits_mdl_principle", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_normalization", type=str2bool, default=False)
+    parser.add_argument("--ELA_rg_logits_mdl_principle_use_inst_accuracy", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_logits_mdl_principle_factor", type=str, default=1.0e-3)
     parser.add_argument("--ELA_rg_logits_mdl_principle_accuracy_threshold", type=float, help='in percent.', default=10.0)
     

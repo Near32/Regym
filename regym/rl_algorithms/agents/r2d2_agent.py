@@ -341,7 +341,7 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         )
         if not kwargs["ORG_with_Oracle_speaker"]:
             predictor.set_postprocess_fn(
-                partial(kwargs.get("ORG_postprocess_fn", None),
+                partial(kwargs["ORG_postprocess_fn"],
                     algorithm=algorithm,
                 )
             )

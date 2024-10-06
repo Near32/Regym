@@ -452,7 +452,9 @@ class SharedPrioritizedReplayStorage(SharedReplayStorage):
 
         if self.use_rewards_in_priority:
             assert sequence_dict is not None
-            rewards = sequence_dict['rewards'].cpu().detach().numpy()
+            reward_key = 'r' if 'r' in sequence_dict.keys() else 'reward'
+            if reward_key not in sequence_dict.keys():  reward_key = 'rewards'
+            rewards = sequence_dict[reward_key].cpu().detach().numpy()
             max_reward = rewards.max()
             mean_reward = rewards.mean()
             reward_mult = 1+max(0, self.eta*max_reward+(1-self.eta)*mean_reward)
@@ -696,7 +698,9 @@ class PrioritizedReplayStorage(ReplayStorage):
         
         if self.use_rewards_in_priority:
             assert sequence_dict is not None
-            rewards = sequence_dict['rewards'].cpu().detach().numpy()
+            reward_key = 'r' if 'r' in sequence_dict.keys() else 'reward'
+            if reward_key not in sequence_dict.keys():  reward_key = 'rewards'
+            rewards = sequence_dict[reward_key].cpu().detach().numpy()
             max_reward = rewards.max()
             mean_reward = rewards.mean()
             reward_mult = 1+max(0, self.eta*max_reward+(1-self.eta)*mean_reward)

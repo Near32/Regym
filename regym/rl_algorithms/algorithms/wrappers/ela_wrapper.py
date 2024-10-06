@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List 
+from typing import Dict, Optional, List, Union 
 
 import os
 import time
@@ -12,6 +12,7 @@ import torchvision
 import torchvision.transforms as T 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from regym.rl_algorithms.algorithms.wrappers.algorithm_wrapper import AlgorithmWrapper
 from regym.rl_algorithms.algorithms.wrappers.ther_wrapper2 import batched_predictor_based_goal_predicated_reward_fn2
@@ -59,6 +60,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             algorithm=algorithm,
         )
         
+        self.feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
+        self.visited_captions = []
+        if 'across-training' in self.feedbacks_type:    self.visited_captions = {}
+
         self.hook_fns = []
         self.nbr_episode_success_range = 32 #256
         self.feedbacks = feedbacks 
@@ -93,6 +98,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.non_unique_data = 0
         self.nbr_data = 0 
 
+        self.rg_training_skipped_counter = 0 
         self.rg_iteration = 0
         
         self.init_referential_game()
@@ -161,7 +167,9 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.nbr_data += 1 
         wandb.log({f"Training/ELA/NbrData":self.nbr_data}, commit=False)
          
-        if "symbolic_image" in exp_dict['info']:
+        if "symbolic_image" in exp_dict['info'] \
+        and (self.kwargs.get('ELA_rg_record_unique_stats', False) \
+        or self.kwargs['ELA_rg_filter_out_non_unique']):
             if not hasattr(self, 'uniqueObs2Hist'): self.uniqueObs2Hist = {}
             unique = True
             symbolicRepr = ht(exp_dict['info']['symbolic_image'])
@@ -243,7 +251,9 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
 
         self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
         
-        if "symbolic_image" in exp_dict['info']:
+        if "symbolic_image" in exp_dict['info'] \
+        and (self.kwargs.get('ELA_rg_record_unique_stats', False) \
+        or self.kwargs['ELA_rg_filter_out_non_unique']):
             # Regularising:
             if self.rg_storages[actor_index].latest_addition_to_test_set \
             and lastTestSymbolicRepr is not None:
@@ -258,10 +268,19 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         exp:List[Dict[str,object]], 
         feedbacks:Dict[str,float]={"failure":-1, "success":0},
         reward_shape:List[int]=[1,1],
+        visited_captions:Union[Dict[List[int],int], List[List[int]]]=[],
         **kwargs:Dict[str,object],
     ):
         '''
         '''
+        wandb_dict = {}
+        feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
+        scaler= 1.0
+        if 'across-training' in feedbacks_type: 
+            scaler = float(feedbacks_type.split('-')[-1])
+            # Log the scaler value
+            wandb_dict[f'PerEpisode/EReLELA/AcrossTraining-Scaler'] = scaler
+        
         episode_length = len(exp)
         state = torch.stack(
             [e['succ_s'] for e in exp],
@@ -284,11 +303,50 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.predictor.train(training)
         
         ## Logging perplexity:
-        wandb_dict = {}
         metrics = {
-            'caption_perplexity': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_perplexities'][0].cpu().numpy(),
-            'caption_likelihood': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_likelihoods'][0].cpu().numpy(),
+            'EReLELA/caption_perplexity': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_perplexities'][0].cpu().numpy(),
+            'EReLELA/caption_likelihood': prediction['next_rnn_states']['CaptionGenerator']['input0_prediction_likelihoods'][0].cpu().numpy(),
         }
+        
+        reward_mask = torch.zeros(episode_length)
+        for idx, caption in enumerate(captions):
+            lcaption = ht(caption)
+            if 'across-training' in feedbacks_type:
+                assert isinstance(visited_captions, dict)
+                if lcaption not in visited_captions:    visited_captions[lcaption] = 0
+                visited_captions[lcaption] += 1
+                reward_mask[idx] = scaler/np.sqrt(visited_captions[lcaption])
+            elif lcaption not in visited_captions: #intra-life
+                visited_captions.append(lcaption)
+                reward_mask[idx] = 1
+        if 'across-training' in feedbacks_type:    
+            reward_mask = reward_mask.float()
+            reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+            failure_mask = (reward_mask==0).unsqueeze(-1)
+            reward += failure_mask*feedbacks["failure"]*torch.ones(reward_shape)
+            # Logging reward distribution :
+            metrics['EReLELA/AcrossTrainingRewards'] = reward.cpu().numpy(),
+            # Logging visitation counts and failures:
+            metrics['EReLELA/AcrossTrainingVisitCounts'] = np.asarray(list(visited_captions.values()))
+            metrics['EReLELA/AcrossTrainingEpisodeFailures'] = failure_mask.cpu().numpy()
+        else:
+            # Then it is intra-life and the reward_mask does not scale:
+            reward_mask = reward_mask.bool()
+            if 'hurry' in feedbacks_type:
+                assert '-' in feedbacks_type
+                max_episode_length = int(feedbacks_type.split('-')[-1])
+                feedbacks_type = 'hurry'
+            if feedbacks_type == 'normal':
+                reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+            elif feedbacks_type == 'hurry':
+                assert feedbacks['success'] > 0.0
+                reward = (1.0-torch.arange(episode_length).float()/max_episode_length).clamp(min=0.1).unsqueeze(-1)
+                reward *= reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+            else:
+                raise NotImplementedError
+            reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
+        
+        # Logging :
         for k in metrics.keys():
             hist = metrics[k]
             median = np.median(hist)
@@ -301,32 +359,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             wandb_dict[f"PerEpisode/{k}/Median"] = median
             wandb_dict[f"PerEpisode/{k}/Mean"] = mean
             wandb_dict[f"PerEpisode/{k}/Std"] = std
+        
         wandb.log(
             wandb_dict,
             commit=False,
         )
         
-        visited_captions = []
-        reward_mask = torch.zeros(episode_length)
-        for idx, caption in enumerate(captions):
-            if caption.tolist() not in visited_captions:
-                visited_captions.append(caption.tolist())
-                reward_mask[idx] = 1
-        reward_mask = reward_mask.bool()
-        feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
-        if 'hurry' in feedbacks_type:
-            assert '-' in feedbacks_type
-            max_episode_length = int(feedbacks_type.split('-')[-1])
-            feedbacks_type = 'hurry'
-        if feedbacks_type == 'normal':
-            reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
-        elif feedbacks_type == 'hurry':
-            assert feedbacks['success'] > 0.0
-            reward = (1.0-torch.arange(episode_length).float()/max_episode_length).clamp(min=0.1).unsqueeze(-1)
-            reward *= reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
-        else:
-            raise NotImplementedError
-        reward += (~reward_mask.unsqueeze(-1))*feedbacks["failure"]*torch.ones(reward_shape)
         return reward, captions
     
     def record_metrics(self, exp_dict, actor_index=0):
@@ -379,7 +417,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         )
         return 
     
-    def store(self, exp_dict, actor_index=0):
+    def store(self, exp_dict, actor_index=0) -> int:
         #################
         #################
         # Vocabulary logging:
@@ -393,6 +431,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.nbr_buffered_predictor_experience += 1
 
         successful_traj = False
+        nbr_stored_exp = 0
 
         if not(exp_dict['non_terminal']):
             self.record_metrics(exp_dict, actor_index=actor_index)
@@ -411,12 +450,16 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
 
             self.nbr_relabelled_traj += 1
             if self.kwargs['ELA_use_ELA']:
+                feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
                 batched_exp = self.episode_buffer[actor_index]
                 batched_new_r, batched_captions = self.compute_captions(
                     exp=batched_exp, 
                     feedbacks=self.feedbacks,
                     reward_shape=self.reward_shape,
+                    visited_captions=self.visited_captions,
                 )
+                if 'across-training' not in feedbacks_type:
+                    self.visited_captions = []
                 positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
             else:
                 batched_new_r = None
@@ -455,7 +498,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             )
             
             new_rs = []
-            for idx in range(episode_length):
+            for idx in tqdm(range(episode_length)):
                 s = self.episode_buffer[actor_index][idx]['s']
                 a = self.episode_buffer[actor_index][idx]['a']
                 r = self.episode_buffer[actor_index][idx]['r']
@@ -506,7 +549,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 for key, value in self.episode_buffer[actor_index][idx].items():
                     if key not in d2store_ela:
                         d2store_ela[key] = value
-                self.algorithm.store(d2store_ela, actor_index=actor_index)
+                nbr_stored_exp += self.algorithm.store(d2store_ela, actor_index=actor_index)
                 
                 if idx==(episode_length-1):
                     wandb.log({'PerEpisode/ExtrinsicWeight': self.extrinsic_weight}, commit=False)
@@ -537,6 +580,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.episode_buffer[actor_index] = []
         self.update_predictor(successful_traj=successful_traj)
 	   
+        return nbr_stored_exp
+
     def init_referential_game(self):
         ReferentialGym.datasets.dataset.DSS_version = self.kwargs["ELA_rg_distractor_sampling_scheme_version"]
         ReferentialGym.datasets.dataset.OC_version = self.kwargs["ELA_rg_object_centric_version"]
@@ -753,6 +798,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "entropy_regularization_factor":    -1e-2,
             
             "with_logits_mdl_principle":       self.kwargs['ELA_rg_with_logits_mdl_principle'],
+            "logits_mdl_principle_normalization":     self.kwargs['ELA_rg_logits_mdl_principle_normalization'],
+            "logits_mdl_principle_use_inst_accuracy":     self.kwargs['ELA_rg_logits_mdl_principle_use_inst_accuracy'],
             "logits_mdl_principle_factor":     self.kwargs['ELA_rg_logits_mdl_principle_factor'],
             "logits_mdl_principle_accuracy_threshold":     self.kwargs['ELA_rg_logits_mdl_principle_accuracy_threshold'],
             
@@ -1128,11 +1175,22 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "decision_probs":"modules:current_listener:decision_probs",
             "listener_indices":"current_dataloader:sample:listener_indices",
         }
+        
+        language_dynamic_metric_id = f"language_dynamic_metric"
+        language_dynamic_metric_module = rg_modules.LanguageDynamicMetricModule(
+            id=language_dynamic_metric_id,
+            config = {
+                "epoch_period":self.kwargs.get("ELA_rg_language_dynamic_metric_epoch_period", 1),
+                "filtering_fn":(lambda input_streams_dict: input_streams_dict['mode']=='test'), # ONLY COMPUTE OVER TEST STIMULI
+            },
+        )
+        modules[language_dynamic_metric_id] = language_dynamic_metric_module
+        
         inst_coord_metric_module = rg_modules.build_InstantaneousCoordinationMetricModule(
             id=inst_coord_metric_id,
             config = {
                 "filtering_fn":(lambda kwargs: True),
-                "epoch_period":1,
+                "epoch_period":1, #self.kwargs.get("ELA_rg_language_dynamic_metric_epoch_period", 1),
             },
             input_stream_ids=inst_coord_input_stream_ids,
         )
@@ -1285,11 +1343,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
             config = {
                 "with_ordering": self.kwargs["ELA_rg_compactness_ambiguity_metric_with_ordering"],
+                "use_cumulative_scores": self.kwargs["ELA_rg_compactness_ambiguity_metric_use_cumulative_scores"],
                 'sanity_check_shuffling': False,
                 "show_stimuli": False, #True,
                 "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
-                "epoch_period":1,#self.kwargs["ELA_rg_metric_epoch_period"],
+                "epoch_period":self.kwargs.get("ELA_rg_compactness_ambiguity_metric_epoch_period", 1),
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
                 "nbr_eval_points":self.kwargs["ELA_rg_nbr_eval_points"],#2000,
@@ -1301,6 +1360,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "idx2w": self.idx2w,
                 "language_specs_to_compute":self.kwargs["ELA_rg_compactness_ambiguity_metric_language_specs"].split('+'),
                 "kwargs": self.kwargs,
+                "min_size": self.kwargs["ELA_replay_capacity"], # ONLY COMPUTE METRIC on full dataset.
             }
         )
         modules[compactness_ambiguity_metric_id] = compactness_ambiguity_metric_module
@@ -1384,6 +1444,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
         '''
+        pipelines[optim_id].append(language_dynamic_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
         
         pipelines[optim_id].append(logger_id)
@@ -1394,7 +1455,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.rg_config = rg_config
         self.population_handler_id = population_handler_id
            
-    def launch_referential_game(self, nbr_epoch=1):
+    def launch_referential_game(self, nbr_epoch=1, test_only=False):
         torch.set_grad_enabled(True)
         self.predictor.train(True)
         self.referential_game.train(
@@ -1402,11 +1463,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             nbr_epoch=nbr_epoch,
             logger=self.logger,
             verbose_period=1,
+            dataloader_shuffle=self.kwargs['ELA_rg_dataloader_shuffle'], # https://github.com/pytorch/pytorch/issues/13246#issuecomment-708067670
+            modes=None if not test_only else ['test'],
         )
         self.predictor.train(False)
         torch.set_grad_enabled(False)
         
-        self.rg_iteration+=1 #nbr_epoch
+        if not test_only:
+            self.rg_iteration+=1 #nbr_epoch
         #self.referential_game.save(os.path.join(self.save_path, f"{self.rg_iteration}.rg"))
         self.logger.flush()
  
@@ -1498,19 +1562,25 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.dataset_args = dataset_args
 
     def update_predictor(self, successful_traj=False):
+        '''
+        Every training_period:
+            - reset the previous period count check to the current count
+            - so that it is possible to update the training_period adaptively if needs be.
+        '''
         # RG Update:
         period_check = self.kwargs['ELA_rg_training_period']
-        period_count_check = self.nbr_buffered_predictor_experience
+        period_count_check = self.nbr_buffered_predictor_experience-getattr(self, 'previous_ELA_period_count_check',-self.kwargs['ELA_rg_training_period'])
         can_rg_train = False
         if self.kwargs["ELA_with_rg_training"] \
         and len(self.rg_storages[0])>=self.kwargs['ELA_replay_capacity']:
             can_rg_train = True
         quotient = period_count_check // period_check
-        previous_quotient = getattr(self, 'previous_ELA_quotient', -1)
+        #previous_quotient = getattr(self, 'previous_ELA_quotient', -1)
         if can_rg_train \
-        and quotient != previous_quotient:
+        and quotient != 0: #previous_quotient:
         #and (period_count_check % period_check == 0):
-            self.previous_ELA_quotient = quotient
+            #self.previous_ELA_quotient = quotient
+            self.previous_ELA_period_count_check = self.nbr_buffered_predictor_experience
             if self.kwargs['ELA_use_ELA']:
                 self._rg_training()
         
@@ -1518,13 +1588,80 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
 
     def _rg_training(self):
         full_update = True
+        need_dataset_update = True
+        if self.kwargs['ELA_rg_training_max_skip'] > 0:
+            self.test_acc = self.test_predictor(update=need_dataset_update)
+            need_dataset_update = False
+            if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold'] \
+            and self.rg_training_skipped_counter < self.kwargs['ELA_rg_training_max_skip']:
+                print(f"ELA: RG: training skipped #{self.rg_training_skipped_counter}.")
+                self.rg_training_skipped_counter += 1
+                full_update = False
+
+        if not full_update:
+            wandb.log({f"Training/ELA/RGTrainingPeriod":self.kwargs['ELA_rg_training_period']}, commit=False)
+            wandb.log({f"Training/ELA/TestAccuracy":self.test_acc}, commit=False)
+            wandb.log({f"Training/ELA/FullUpdate":int(full_update)}, commit=False)
+            return
+
+        self.rg_training_skipped_counter = 0 
         for it in range(self.kwargs['ELA_rg_nbr_epoch_per_update']):
-            self.test_acc = self.finetune_predictor(update=(it==0))
+            self.test_acc = self.finetune_predictor(update=need_dataset_update) #update=(it==0))
+            need_dataset_update = False
             if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold']:
                 full_update = False
                 break
+        
+        # Update training period:
+        if self.kwargs['ELA_rg_training_adaptive_period']:
+            if full_update: self.kwargs['ELA_rg_training_period'] = int(0.75*self.kwargs['ELA_rg_training_period'])
+            else:   self.kwargs['ELA_rg_training_period'] = int(1.25*self.kwargs['ELA_rg_training_period'])
+        wandb.log({f"Training/ELA/RGTrainingPeriod":self.kwargs['ELA_rg_training_period']}, commit=False)
         wandb.log({f"Training/ELA/TestAccuracy":self.test_acc}, commit=False)
         wandb.log({f"Training/ELA/FullUpdate":int(full_update)}, commit=False)
+        return
+
+    def test_predictor(self, update=False):
+        if self.rg_iteration == 0:
+            ###
+            save_path = os.path.join(wandb.run.dir, f"referential_game")
+            print(f"ELA: Referential Game NEW PATH: {save_path}")
+            self.save_path = save_path 
+            ###
+            
+            ###
+            from ReferentialGym.utils import statsLogger
+            logger = statsLogger(path=save_path,dumpPeriod=100)
+            self.logger = logger
+            self.listener.logger = logger
+            self.speaker.logger = logger
+            self.rg_config['modules'][self.population_handler_id].logger = logger
+            self.rg_config['modules'][self.population_handler_id].config['save_path'] = self.save_path
+            ###
+            
+        if update:
+            self.update_datasets()
+            if self.rg_iteration==0:
+                self.referential_game = ReferentialGym.make(
+                    config=self.rg_config, 
+                    dataset_args=self.dataset_args,
+                    save_path=self.save_path,
+                )
+            else:
+                self.referential_game.update_datasets(dataset_args=self.dataset_args)
+         
+        # Testing first, to see if training is necessary:
+        # Note that the CAM is computed because the testing set is continuous.
+        # But it is performed on fewer stimuli than the whole dataset, though.
+        # This means that the comparisons will be less robuts...
+        start = time.time()
+        self.launch_referential_game(nbr_epoch=1, test_only=True)
+        logs_dict = self.referential_game.modules['per_epoch_logger'].latest_logs
+        test_acc = logs_dict["PerEpoch/test/repetition0/comm_round0/referential_game_accuracy/Mean"]
+        end = time.time()
+        wandb.log({'PerELAUpdate/TimeComplexity/TestReferentialGame':  end-start}, commit=False) # self.param_update_counter)
+        
+        return test_acc 
 
     def finetune_predictor(self, update=False):
         if self.rg_iteration == 0:
@@ -1559,7 +1696,6 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         #self.launch_referential_game(nbr_epoch=self.kwargs["ELA_rg_nbr_epoch_per_update"])
         self.launch_referential_game(nbr_epoch=1)
         end = time.time()
-        
         wandb.log({'PerELAUpdate/TimeComplexity/ReferentialGame':  end-start}, commit=False) # self.param_update_counter)
         
         logs_dict = self.referential_game.modules['per_epoch_logger'].latest_logs

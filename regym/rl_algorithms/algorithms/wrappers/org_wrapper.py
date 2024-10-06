@@ -118,8 +118,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.venv = venv
         return 
 
-    def store(self, exp_dict, actor_index=0):
-        self.algorithm.store(exp_dict, actor_index=actor_index)
+    def store(self, exp_dict, actor_index=0) -> int:
+        nbr_stored_exp = 0
+        nbr_stored_exp += self.algorithm.store(exp_dict, actor_index=actor_index)
         if not(exp_dict['non_terminal']):
             self.episode_count += 1
             
@@ -127,8 +128,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             self.update_agents(exp_dict)
             self.run()
             self.regularise_agents()
-        else:
-            pass
+        
+        return nbr_stored_exp
     
     def update_agents(self, exp_dict):
         # Extract rnn_states from current_actor
@@ -281,14 +282,20 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         
         self.rg_transformation = T.Compose(transformations)
         
-        default_descriptive_ratio = 1-(1/(self.kwargs["ORG_rg_nbr_train_distractors"]+2))
+        #default_descriptive_ratio = 1-(1/(self.kwargs["ORG_rg_nbr_train_distractors"]+2))
+        default_descriptive_ratio = {mode:1-(1/(self.kwargs[f"ORG_rg_nbr_{mode}_distractors"]+2))
+            for mode in ['train', 'test']
+        }
         # Default: 1-(1/(nbr_distractors+2)), 
         # otherwise the agent find the local minimum
         # where it only predicts "no-target"...
         if self.kwargs["ORG_rg_descriptive_ratio"] <=0.001:
             descriptive_ratio = default_descriptive_ratio
         else:
-            descriptive_ratio = self.kwargs["ORG_rg_descriptive_ratio"]
+            #descriptive_ratio = self.kwargs["ORG_rg_descriptive_ratio"]
+            descriptive_ratio = {mode:self.kwargs["ORG_rg_descriptive_ratio"]
+                for mode in ['train','test']
+            }
 
         
         rg_config = {
@@ -505,7 +512,6 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 logger=None
             )
             print("Speaker:", speaker)
-            import ipdb; ipdb.set_trace()
             if self.kwargs["ORG_with_Oracle_listener"]:
                 speaker.input_stream_ids["speaker"]["experiences"] = "current_dataloader:sample:speaker_exp_latents_one_hot_encoded.float" 
          
@@ -560,7 +566,6 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             )
         listener.set_vocabulary(self.vocabulary)
         print("Listener:", listener)
-        import ipdb; ipdb.set_trace()
         if self.kwargs["ORG_with_Oracle_listener"]:
             #listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents" 
             listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents_one_hot_encoded" 
@@ -839,6 +844,16 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         )
         modules[listener_modularity_disentanglement_metric_id] = listener_modularity_disentanglement_metric_module
         
+        language_dynamic_metric_id = f"language_dynamic_metric"
+        language_dynamic_metric_module = rg_modules.LanguageDynamicMetricModule(
+            id=language_dynamic_metric_id,
+            config = {
+                "epoch_period":self.kwargs.get("ORG_rg_language_dynamic_metric_epoch_period", 1),
+                "filtering_fn":(lambda input_streams_dict: input_streams_dict['mode']=='test'), # ONLY COMPUTE OVER TEST STIMULI
+            },
+        )
+        modules[language_dynamic_metric_id] = language_dynamic_metric_module
+        
         inst_coord_metric_id = f"inst_coord_metric"
         inst_coord_input_stream_ids = {
             "logger":"modules:logger:ref",
@@ -1115,6 +1130,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         if "obverter" in self.kwargs["ORG_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
+        pipelines[optim_id].append(language_dynamic_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
         if self.kwargs["ORG_rg_use_aita_sampling"]:
             pipelines[optim_id].append(aita_sampling_id)

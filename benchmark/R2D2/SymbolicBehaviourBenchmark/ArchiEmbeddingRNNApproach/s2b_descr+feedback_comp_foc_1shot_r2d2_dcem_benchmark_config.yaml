@@ -700,10 +700,20 @@ agents:
                         legal_actions: "inputs:head:extra_inputs:legal_actions"
                     use_cuda: True
             output_mappings:
-                "a": "modules:RLHead:a"
-                "ent" : "modules:RLHead:ent"
-                "qa" : "modules:RLHead:qa"
-                "log_a" : "modules:RLHead:log_a"
+                head:
+                    "a": "modules:RLHead:a"
+                    #"greedy_action" : "modules:RLHead:greedy_action"
+                    "ent" : "modules:RLHead:ent"
+                    "legal_ent" : "modules:RLHead:legal_ent"
+                    #"v" : "modules:RLHead:v"
+                    "qa" : "modules:RLHead:qa"
+                    #"log_pi_a" : "modules:RLHead:log_pi_a"
+                    "log_a" : "modules:RLHead:log_a"
+                    "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
+                caption_generator:
+                    "a" : "modules:RLHead:a"
+                    #"a" : "inputs:InstructionGenerator:processed_input0"
+ 
             input_mappings:
                     # Remaps the features to there original stream when using head pipeline only:
                     head:   
