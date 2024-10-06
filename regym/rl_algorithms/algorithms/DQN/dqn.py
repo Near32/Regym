@@ -440,7 +440,7 @@ class DQNAlgorithm(Algorithm):
             truncated_n_step_return = exp_dict['r'] + self.GAMMA[actor_index] * truncated_n_step_return * exp_dict['non_terminal']
         return truncated_n_step_return
 
-    def store(self, exp_dict, actor_index=0):
+    def store(self, exp_dict, actor_index=0) -> int:
         '''
         Compute n-step returns, for each actor, separately,
         and then store the experience in the relevant-actor's storage.        
@@ -449,7 +449,7 @@ class DQNAlgorithm(Algorithm):
             # Append to deque:
             self.n_step_buffers[actor_index].append(exp_dict)
             if len(self.n_step_buffers[actor_index]) < self.n_step:
-                return
+                return 0
             # Compute n-step return of the first element of deque:
             truncated_n_step_return = self._compute_truncated_n_step_return()
             # Retrieve the first element of deque:
@@ -470,6 +470,7 @@ class DQNAlgorithm(Algorithm):
             self.storages[actor_index].add(current_exp_dict)
         
         self.param_obs_counter += 1 
+        return 1
 
     def train(self, minibatch_size:int=None):
         global summary_writer
@@ -661,7 +662,33 @@ class DQNAlgorithm(Algorithm):
         sampled_batch_indices = []
         sampled_losses_per_item = []
         list_sampled_samples = []
-
+        
+        # Transfer everything into cuda all at once:
+        batch_indices = torch.from_numpy(np.arange(samples['s'].shape[0])).long()
+        cuda_samples = {}
+        for k in samples:
+            v = samples[k]
+            if v is None:   
+                cuda_samples[k] = None
+                continue
+            if 'rnn' in k:
+                v = _extract_rnn_states_from_batch_indices(
+                    v, 
+                    batch_indices, 
+                    use_cuda=self.kwargs['use_cuda'],
+                    pin_memory=True,
+                    cuda_non_blocking=True,
+                )
+            elif self.kwargs['use_cuda'] and not v.is_cuda:
+                if not v.is_pinned():   v = v.pin_memory()
+                v = v[batch_indices].cuda(non_blocking=True) 
+            else: 
+                if not v.is_pinned():   v = v.pin_memory()
+                v = v[batch_indices]
+            
+            cuda_samples[k] = v
+            # (batch_size, unroll_dim, ...)
+            
         self.optimizer.zero_grad()
         for batch_indices in sampler:
             batch_indices = torch.from_numpy(batch_indices).long()
@@ -673,7 +700,8 @@ class DQNAlgorithm(Algorithm):
                 if k in self.kremap:
                     out_k = self.kremap[k]
                 
-                v = samples[k]
+                # TODO: v = samples[k]
+                v = cuda_samples[k]
                 if v is None:   
                     sampled_samples[out_k] = None
                     continue
@@ -682,9 +710,11 @@ class DQNAlgorithm(Algorithm):
                         v, 
                         batch_indices, 
                         use_cuda=self.kwargs['use_cuda'],
+                        pin_memory=True,
+                        cuda_non_blocking=True,
                     )
-                elif self.kwargs['use_cuda']:
-                    v = v[batch_indices].cuda() 
+                elif self.kwargs['use_cuda'] and not v.is_cuda:
+                    v = v[batch_indices].cuda(non_blocking=True) 
                 else: 
                     v = v[batch_indices]
                 

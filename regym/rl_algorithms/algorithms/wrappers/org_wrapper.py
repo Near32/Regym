@@ -138,8 +138,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.venv = venv
         return 
 
-    def store(self, exp_dict, actor_index=0):
-        self.algorithm.store(exp_dict, actor_index=actor_index)
+    def store(self, exp_dict, actor_index=0) -> int:
+        nbr_stored_exp = 0
+        nbr_stored_exp += self.algorithm.store(exp_dict, actor_index=actor_index)
         if not(exp_dict['non_terminal']):
             self.episode_count += 1
             
@@ -147,8 +148,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             self.update_agents(exp_dict)
             self.run()
             self.regularise_agents()
-        else:
-            pass
+        
+        return nbr_stored_exp
     
     def update_agents(self, exp_dict):
         # Extract rnn_states from current_actor
@@ -505,7 +506,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         
         nbr_obs_dim = 15 #30
         
-        if self.kwargs['ORG_use_predictor']:
+        if self.kwargs['ORG_use_predictor_as_speaker']:
             speaker = self.predictor
             speaker.speaker_init(
                 kwargs=agent_config, 
@@ -554,7 +555,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 listener_config['cnn_encoder'] = speaker.cnn_encoder 
         listener_config['nbr_distractors'] = rg_config['nbr_distractors']['train']
         
-        if 'obverter' in self.kwargs["ORG_rg_graphtype"]:
+        if self.kwargs['ORG_use_predictor_as_listener'] \
+        or 'obverter' in self.kwargs["ORG_rg_graphtype"]:
             listener = copy.deepcopy(self.predictor)
             listener.listener_init(
                 kwargs=listener_config,
@@ -862,6 +864,16 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         )
         modules[listener_modularity_disentanglement_metric_id] = listener_modularity_disentanglement_metric_module
         
+        language_dynamic_metric_id = f"language_dynamic_metric"
+        language_dynamic_metric_module = rg_modules.LanguageDynamicMetricModule(
+            id=language_dynamic_metric_id,
+            config = {
+                "epoch_period":self.kwargs.get("ORG_rg_language_dynamic_metric_epoch_period", 1),
+                "filtering_fn":(lambda input_streams_dict: input_streams_dict['mode']=='test'), # ONLY COMPUTE OVER TEST STIMULI
+            },
+        )
+        modules[language_dynamic_metric_id] = language_dynamic_metric_module
+        
         inst_coord_metric_id = f"inst_coord_metric"
         inst_coord_input_stream_ids = {
             "logger":"modules:logger:ref",
@@ -1138,6 +1150,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         if "obverter" in self.kwargs["ORG_rg_graphtype"]:
             pipelines[optim_id].append(listener_topo_sim_metric_id)
             pipelines[optim_id].append(listener_posbosdis_metric_id)
+        pipelines[optim_id].append(language_dynamic_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
         if self.kwargs["ORG_rg_use_aita_sampling"]:
             pipelines[optim_id].append(aita_sampling_id)
