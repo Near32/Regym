@@ -698,14 +698,23 @@ def main():
         default=2e6,
     )
 
-    parser.add_argument("--use_ORG", type=str2bool, default="True",)
+    parser.add_argument("--use_ORG", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_tau0", type=float, default=0.2,)
     parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
-    parser.add_argument("--ORG_use_predictor", type=str2bool, default="True",)
-    parser.add_argument("--ORG_with_Oracle", type=str2bool, default="False",)
+    parser.add_argument("--ORG_use_model_in_speaker", type=str2bool, default="True",)
+    parser.add_argument("--ORG_trainable_speaker", type=str2bool, default="False",)
+    parser.add_argument("--ORG_use_model_in_speaker_pipeline", type=str, default="caption_generator",)
+    parser.add_argument("--ORG_use_model_in_speaker_generator", type=str, default="CaptionGenerator",)
+    parser.add_argument("--ORG_use_model_in_listener", type=str2bool, default="True",)
+    parser.add_argument("--ORG_trainable_listener", type=str2bool, default="True",)
+    parser.add_argument("--ORG_use_model_in_listener_pipeline", type=str, default="caption_generator",)
+    parser.add_argument("--ORG_use_model_in_listener_generator", type=str, default="CaptionGenerator",)
+    # TODO: setup the postprocessing fn for speaker
+    parser.add_argument("--ORG_with_Oracle_speaker", type=str2bool, default="False",)
     #parser.add_argument("--ORG_with_Oracle_type", type=str, default="visible-entities",)
     parser.add_argument("--ORG_with_Oracle_listener", type=str2bool, default="False",)
     parser.add_argument("--ORG_use_ORG", type=str2bool, default="True",)
+    parser.add_argument("--ORG_with_S2B", type=str2bool, default="False",)
     parser.add_argument("--ORG_use_supervised_training", type=str2bool, default="True",)
     parser.add_argument("--ORG_use_continuous_feedback", type=str2bool, default=False,)
     #parser.add_argument("--ORG_listener_based_predicated_reward_fn", type=str2bool, default=False,)
@@ -715,7 +724,7 @@ def main():
     parser.add_argument("--ORG_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ORG_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ORG_rg_use_cuda", type=str2bool, default="True",)
-    parser.add_argument("--ORG_exp_key", type=str, default="succ_s",)
+    parser.add_argument("--ORG_exp_key", type=str, default="s",)
     #parser.add_argument("--semantic_embedding_init", type=str, default="none",)
     #parser.add_argument("--semantic_prior_mixing", type=str, default="multiplicative",)
     #parser.add_argument("--semantic_prior_mixing_with_detach", type=str2bool, default=True)
@@ -730,10 +739,10 @@ def main():
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
     parser.add_argument("--ORG_split_strategy", type=str, default="divider-1-offset-0",)
-    parser.add_argument("--ORG_replay_capacity", type=int, default=1024)
+    parser.add_argument("--ORG_replay_capacity", type=int, default=32)
     parser.add_argument("--ORG_rg_filter_out_non_unique", type=str2bool, default=False)
     parser.add_argument("--ORG_lock_test_storage", type=str2bool, default=False)
-    parser.add_argument("--ORG_test_replay_capacity", type=int, default=512)
+    parser.add_argument("--ORG_test_replay_capacity", type=int, default=16)
     parser.add_argument("--ORG_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ORG_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ORG_test_dataset_length", type=intOrNone, default=None)
@@ -757,7 +766,7 @@ def main():
     parser.add_argument("--ORG_rg_distractor_sampling", type=str, default='uniform')
     parser.add_argument("--ORG_rg_object_centric", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_object_centric_type", type=str, default="hard")
-    parser.add_argument("--ORG_rg_graphtype", type=str, default='straight_through_gumbel_softmax')
+    parser.add_argument("--ORG_rg_graphtype", type=str, default='obverter')
     parser.add_argument("--ORG_rg_vocab_size", type=int, default=32)
     # TODO : integrate this feature in ArchiPredictorSpeaker ...
     #parser.add_argument("--ORG_rg_force_eos", type=str2bool, default=True)
@@ -792,8 +801,8 @@ def main():
     parser.add_argument("--ORG_rg_use_obverter_sampling", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
     
-    parser.add_argument("--ORG_rg_batch_size", type=int, default=32)
-    parser.add_argument("--ORG_rg_dataloader_num_worker", type=int, default=8)
+    parser.add_argument("--ORG_rg_batch_size", type=int, default=2)
+    parser.add_argument("--ORG_rg_dataloader_num_worker", type=int, default=1)
     parser.add_argument("--ORG_rg_learning_rate", type=float, default=3.0e-4)
     parser.add_argument("--ORG_rg_weight_decay", type=float, default=0.0)
     parser.add_argument("--ORG_rg_l1_weight_decay", type=float, default=0.0)
@@ -841,6 +850,34 @@ def main():
     
     dargs['seed'] = int(dargs['seed'])
     
+    if args.use_ORG:
+        #dargs['preprocessed_observation_shape'] = [args.nbr_latents]
+        import ipdb; ipdb.set_trace()
+        from regym.rl_algorithms.algorithms.wrappers.org_wrapper import (
+            DIPhyR_preprocess_utter_oracle_fn,
+            DIPhyR_preprocess_reason_detach_fn,
+            DIPhyR_postprocess_utter_oracle_fn,
+            DIPhyR_postprocess_reason_fn,
+        ) 
+        dargs['ORG_speaker_preprocess_utter_fn'] = DIPhyR_preprocess_utter_oracle_fn 
+        dargs['ORG_speaker_preprocess_reason_fn'] = DIPhyR_preprocess_reason_detach_fn
+        dargs['ORG_speaker_postprocess_utter_fn'] = DIPhyR_postprocess_utter_oracle_fn
+        dargs['ORG_speaker_postprocess_reason_fn'] = DIPhyR_postprocess_reason_fn
+    
+        dargs['ORG_listener_preprocess_utter_fn'] = DIPhyR_preprocess_utter_oracle_fn 
+        dargs['ORG_listener_preprocess_reason_fn'] = DIPhyR_preprocess_reason_detach_fn
+        dargs['ORG_listener_postprocess_utter_fn'] = DIPhyR_postprocess_utter_oracle_fn
+        dargs['ORG_listener_postprocess_reason_fn'] = DIPhyR_postprocess_reason_fn
+        
+        dargs['ORG_use_model_in_speaker_pipelines'] = {'utter':'speaker', 'reason':'listener'}
+        dargs['ORG_use_model_in_speaker_generators'] = {'utter':'LMModule', 'reason':'LMModule'}
+        dargs['ORG_use_model_in_listener_pipelines'] = {'utter':'speaker', 'reason':'listener'} 
+        dargs['ORG_use_model_in_listener_generators'] = {'utter':'LMModule', 'reason':'LMModule'}
+
+        dargs['ORG_rg_demonstration_dataset_extra_keys'] = {
+            "experiences":"infos:prompt",
+        }
+
     print(dargs)
 
     #from gpuutils import GpuUtils

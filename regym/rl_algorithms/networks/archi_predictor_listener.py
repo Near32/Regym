@@ -15,10 +15,20 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
     def __init__(
         self,
         model,
-        pipeline_name="instruction_generator",
-        generator_name="InstructionGenerator",
+        pipelines={'utter':"speaker", 'reason':"listener"},
+        generators={"utter":"InstructionGenerator", "reason":"LMModule"},
+        trainable=True,
+        preprocess_fn=None,
+        postprocess_fn=None,
         **kwargs,
     ):
+        if not isinstance(pipelines, dict):
+            pipelines = {'utter':pipelines, 'reason':pipelines}
+        if not isinstance(generators, dict):
+            generators = {'utter':generators, 'reason':generators}
+        pipeline_name = list(pipelines.values())[0]
+        generator_name = list(generators.values())[0]
+
         ArchiPredictor.__init__(
             self,
             model=model,
@@ -27,6 +37,12 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             **kwargs,
         )
         self.logger = None
+        self.trainable = trainable
+        self.preprocess_fn = preprocess_fn
+        self.postprocess_fn = postprocess_fn
+        self.pipelines = pipelines
+        self.generators = generators
+ 
         '''
         DiscriminativeListener.__init__(
             self,
@@ -38,7 +54,29 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             kwargs=kwargs,
         )
         '''
-    
+
+    def set_preprocess_fn(self, preprocess_fn):
+        self.preprocess_fn = preprocess_fn
+
+    def set_postprocess_fn(self, postprocess_fn):
+        self.postprocess_fn = postprocess_fn
+
+    def save(self, path, filename=None):
+        postprocess_fn = self.postprocess_fn
+        self.postprocess_fn = None
+
+        logger = self.logger
+        self.logger = None
+
+        if filename is None:
+            filepath = path+self.id+".agent"
+        else:
+            filepath = os.path.join(path, filename)
+        torch.save(self, filepath)
+
+        self.logger = logger
+        self.postprocess_fn = postprocess_fn
+      
     def clone(self):
         self.reset()
         return DiscriminativeListener.clone(self)
@@ -82,9 +120,15 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             nn.Softplus(),
         )
         
-        self.reset()
+        self.reset_weights(reset_language_model=True)
 
-    def reset(self, reset_language_model=False):
+    def reset(self):
+        self.features = None
+        if hasattr(self, 'tau'):
+            self.tau = None
+        self._reset_rnn_states()
+
+    def reset_weights(self, reset_language_model=False):
         # TODO: implement language model reset if
         # wanting to use iterated learning or cultural pressures...
         self.features = None
@@ -107,19 +151,32 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
 
     def parameters(self):
         params = []
+        
+        if not self.trainable:
+            return params
+        
         for km, module in self.model.modules.items():
-            if km in self.model.pipelines[self.pipeline_name]:
-                params += module.parameters()
+            #if km in self.model.pipelines[self.pipeline_name]:
+            for pipe_fn, pipe_name in self.pipelines.items():
+                if km in self.model.pipelines[pipe_name]:
+                    params += module.parameters()
+                    break
+        
         if hasattr(self, 'tau_fc'):
             #print(f"WARNING: Speaker INIT: Tau_FC parameters included for optimization")
             params += self.tau_fc.parameters()
+        
         return params
 
     def _compute_tau(self, tau0, h):
-        tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        batch_size = h.shape[0]
+        if self.trainable:
+            tau = 1.0 / (self.tau_fc(h).squeeze() + tau0)
+        else:
+            tau = tau0*torch.ones(batch_size, 1).to(h.device)
         return tau
     
-    def _reason(self, sentences, features):
+    def _reason(self, sentences, features, rnn_states=None):
         """
         Reasons about the features and sentences to yield the target-prediction logits.
         
@@ -131,6 +188,19 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
         rnn_states = self.model.get_reset_states()
+        batch_size = features.shape[0]
+        extra_rnn_states = self.model.get_reset_states({
+            'repeat':batch_size,
+            'cuda':self.kwargs['use_cuda'],
+            }
+        )
+        if rnn_states is None:
+            rnn_states = extra_rnn_states
+        else:
+            for k,v in extra_rnn_states.items():
+                if k in rnn_states: continue
+                rnn_states[k] = v
+				
         input_dict = {
             'obs':features,
             'rnn_states': {
@@ -141,18 +211,49 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         gt_sentences = None 
         return_feature_only = None 
             
+        if self.preprocess_fn is not None:
+            if isinstance(self.preprocess_fn, dict) \
+            and 'reason' in self.preprocess_fn: 
+                input_dict = self.preprocess_fn['reason'](
+                    input_dict=input_dict,
+                    predictor=self,
+                )
+            elif not isinstance(self.preprocess_fn, dict):
+                input_dict = self.preprocess_fn(
+                    input_dict=input_dict,
+                    predictor=self,
+                )
+        
+        pipeline_name = self.pipelines['reason']
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "decision_generator":self.archi_kwargs["pipelines"]["decision_generator"]
+                #"decision_generator":self.archi_kwargs["pipelines"]["decision_generator"]
+                pipeline_name:self.archi_kwargs["pipelines"][pipeline_name], #"instruction_generator"]
             },
             return_feature_only=return_feature_only,
         )
         
-        feature_module = self.model.pipelines[self.pipeline_name][0]
-        self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
+        if self.postprocess_fn is not None:
+            if isinstance(self.postprocess_fn, dict) \
+            and 'reason' in self.postprocess_fn:
+                output = self.postprocess_fn['reason'](
+                    input_dict=input_dict,
+                    output_dict=output,
+                    predictor=self,
+                )
+            elif not isinstance(self.postprocess_fn, dict):
+                output = self.postprocess_fn(
+                    output=output,
+                    predictor=self,
+                )
+        
+        #TODO: figure out whether it is actually needed:
+        #feature_module = self.model.pipelines[self.pipeline_name][0]
+        #self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
 
-        decision_logits = output["next_rnn_states"]["DecisionGenerator"]["decision"][0]
+        generator_name = self.generators['reason']
+        decision_logits = output["next_rnn_states"][generator_name]["decision"][0]
         import ipdb; ipdb.set_trace()
         # TODO : find out dimensions :
         # (batch_size, max sentence_lengths, (nbr_distractors+1)=1 most likely, 2 )
@@ -162,7 +263,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         return decision_logits, temporal_features
    
      
-    def _utter(self, features, sentences=None):
+    def _utter(self, features, sentences=None, rnn_states=None):
         """
         Reasons about the features and the listened sentences, if multi_round, to yield the sentences to utter back.
         
@@ -175,7 +276,20 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             - sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of one-hot-encoded symbols.
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
-        rnn_states = self.model.get_reset_states()
+        batch_size = features.shape[0]
+        extra_rnn_states = self.model.get_reset_states({
+            'repeat':batch_size,
+            'cuda':self.kwargs['use_cuda'],
+            }
+        )
+        if rnn_states is None:
+            rnn_states = extra_rnn_states
+        else:
+            for k,v in extra_rnn_states.items():
+                if k in rnn_states: continue
+                rnn_states[k] = v
+				
+        #rnn_states = self.model.get_reset_states()
         input_dict = {
             'obs':features,
             'rnn_states': {
@@ -186,20 +300,51 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         gt_sentences = None 
         return_feature_only = None 
             
+        if self.preprocess_fn is not None:
+            if isinstance(self.preprocess_fn, dict) \
+            and 'utter' in self.preprocess_fn:
+                input_dict = self.preprocess_fn['utter'](
+                    input_dict=input_dict,
+                    predictor=self,
+                )
+            elif not isinstance(self.preprocess_fn, dict):
+                input_dict = self.preprocess_fn(
+                    input_dict=input_dict,
+                    predictor=self,
+                )
+        
+        pipeline_name = self.pipelines['utter']
         output = self.model.forward(
             **input_dict,
             pipelines={
-                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
+                pipeline_name:self.archi_kwargs["pipelines"][pipeline_name]
             },
             return_feature_only=return_feature_only,
         )
         
-        feature_module = self.model.pipelines[self.pipeline_name][0]
-        self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
+        if self.postprocess_fn is not None:
+            if isinstance(self.postprocess_fn, dict) \
+            and 'utter' in self.postprocess_fn:
+                output = self.postprocess_fn['utter'](
+                    input_dict=input_dict,
+                    output_dict=output,
+                    predictor=self,
+                )
+            elif not isinstance(self.postprocess_fn, dict):
+                output = self.postprocess_fn(
+                    output=output,
+                    predictor=self,
+                )
+        
+        # TODO: find out whether it is used anywhere:
+        #feature_module = self.model.pipelines[self.pipeline_name][0]
+        #self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
 
-        sentences_widx = output["next_rnn_states"][self.generator_name]["processed_input0"][0].unsqueeze(-1)
-        sentences_logits = output["next_rnn_states"][self.generator_name]["input0_prediction_logits"][0]
-        sentences_hidden_states = output["next_rnn_states"][self.generator_name]["input0_hidden_states"][0]
+        import ipdb; ipdb.set_trace()
+        generator_name = self.generators['utter']
+        sentences_widx = output["next_rnn_states"][generator_name]["processed_input0"][0].unsqueeze(-1)
+        sentences_logits = output["next_rnn_states"][generator_name]["input0_prediction_logits"][0]
+        sentences_hidden_states = output["next_rnn_states"][generator_name]["input0_hidden_states"][0]
         sentences_one_hots = nn.functional.one_hot(
                 sentences_widx.long(), 
                 num_classes=self.vocab_size,
@@ -333,84 +478,6 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
 
         return output
     
-    def speaker_forward(
-        self, 
-        experiences, 
-        sentences=None, 
-        multi_round=False, 
-        graphtype="straight_through_gumbel_softmax", 
-        tau0=0.2,
-    ):
-        """
-        Deprecated visibly...
-
-        :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
-        :param experiences: Tensor of shape `(batch_size, *self.obs_shape)`. 
-                            `experiences[:,0]` is assumed as the target experience, while the others are distractors, if any. 
-        :param multi_round: Boolean defining whether to utter a sentence back or not.
-        :param graphtype: String defining the type of symbols used in the output sentence:
-                    - `'categorical'`: one-hot-encoded symbols.
-                    - `'gumbel_softmax'`: continuous relaxation of a categorical distribution.
-                    - `'straight_through_gumbel_softmax'`: improved continuous relaxation...
-                    - `'obverter'`: obverter training scheme...
-        :param tau0: Float, temperature with which to apply gumbel-softmax estimator.
-        """
-        
-        import ipdb; ipdb.set_trace()
-        #THIS FUNCTION IS PROBABLY WORTH DEPR in favor of listener_forward alone
-        
-        batch_size = experiences.size(0)
-        #features = self._sense(experiences=experiences, sentences=sentences)
-        features = experiences.view(-1, *(experiences.size()[2:]))
-        utter_outputs = self._utter(features=features, sentences=None)
-        if len(utter_outputs) == 5:
-            next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
-        else:
-            next_sentences_hidden_states = None
-            next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
-        
-        if self.training:
-            if "gumbel_softmax" in graphtype:    
-                if next_sentences_hidden_states is None: 
-                    self.tau = self._compute_tau(tau0=tau0)
-                    #tau = self.tau.view((-1,1,1)).repeat(1, self.max_sentence_length, self.vocab_size)
-                    tau = self.tau.view((-1))
-                    # (batch_size)
-                else:
-                    self.tau = []
-                    for hs in next_sentences_hidden_states:
-                        self.tau.append( self._compute_tau(tau0=tau0, h=hs).view((-1)))
-                    # list of size batch_size containing Tensors of shape (sentence_length)
-                    tau = self.tau 
-                    
-                straight_through = (graphtype == "straight_through_gumbel_softmax")
-                
-                next_sentences_stgs = []
-                for bidx in range(len(next_sentences_logits)):
-                    nsl_in = next_sentences_logits[bidx]
-                    # (sentence_length<=max_sentence_length, vocab_size)
-                    tau_in = tau[bidx].view((-1,1))
-                    # (1, 1) or (sentence_length, 1)
-                    stgs = gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1, eps=self.kwargs["gumbel_softmax_eps"])
-                    
-                    next_sentences_stgs.append(stgs)
-                    #next_sentences_stgs.append( nn.functional.gumbel_softmax(logits=nsl_in, tau=tau_in, hard=straight_through, dim=-1))
-                next_sentences = next_sentences_stgs
-                if isinstance(next_sentences, list): 
-                    next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
-                    # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
-
-        output_dict = {"sentences_widx":next_sentences_widx, 
-                       "sentences_logits":next_sentences_logits, 
-                       "sentences_one_hot":next_sentences,
-                       #"features":features,
-                       "temporal_features":temporal_features}
-        
-        if not multi_round:
-            self._reset_rnn_states()
-
-        return output_dict
-
     def listener_forward(
         self, 
         sentences, 
@@ -439,7 +506,11 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             nominal_call=True
         )
         '''
-        features = experiences.view(-1, *(experiences.size()[2:]))
+        #features = experiences.view(-1, *(experiences.size()[2:]))
+        if len(experiences.shape)==5:
+            features = experiences.reshape(-1, experiences.shape[-1])
+        else:
+            features = experiences.view(-1, *(experiences.size()[2:]))
         
         if sentences is not None:
             decision_logits, listener_temporal_features = self._reason(sentences=sentences, features=features)
@@ -460,7 +531,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
                 next_sentences_hidden_states = None
                 next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
                         
-            if self.training:
+            if self.training and self.trainable:
                 if "gumbel_softmax" in graphtype:    
                     print(f"WARNING: Listener {self.agent_id} is producing messages via a {graphtype}-based graph at the Listener class-level!")
                     if next_sentences_hidden_states is None: 
@@ -492,7 +563,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
                         next_sentences = nn.utils.rnn.pad_sequence(next_sentences, batch_first=True, padding_value=0.0).float()
                         # (batch_size, max_sentence_length<=max_sentence_length, vocab_size)
 
-        self.output_dict = {
+        output_dict = {
             "output": decision_logits,
             "decision": decision_logits, 
             "sentences_widx":next_sentences_widx, 
@@ -505,4 +576,6 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         if not(multi_round):
             self._reset_rnn_states()
 
-        return self.output_dict 
+        return output_dict 
+
+

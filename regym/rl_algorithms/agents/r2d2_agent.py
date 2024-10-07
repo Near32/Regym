@@ -21,7 +21,6 @@ from regym.rl_algorithms.algorithms.wrappers import (
 )
 from regym.rl_algorithms.networks import (
     ArchiPredictor, 
-    ArchiPredictorSpeaker,
     ArchiRewardPredictor,
 )
 
@@ -328,24 +327,12 @@ def build_R2D2_Agent(task: 'regym.environments.Task',
         )
     
     if kwargs.get("use_ORG", False):
-        predictor = ArchiPredictorSpeaker(
-            model=model, 
-            **kwargs["ArchiModel"],
-            pipeline_name="instruction_generator" if kwargs["ORG_with_Oracle_speaker"] else "caption_generator",
-            generator_name="InstructionGenerator" if kwargs["ORG_with_Oracle_speaker"] else "CaptionGenerator",
-            trainable=False,
-        )
         algorithm = OnlineReferentialGameAlgorithmWrapper(
           algorithm=algorithm,
-          predictor=predictor,
+          model=model,
+          kwargs=kwargs,
         )
-        if not kwargs["ORG_with_Oracle_speaker"]:
-            predictor.set_postprocess_fn(
-                partial(kwargs["ORG_postprocess_fn"],
-                    algorithm=algorithm,
-                )
-            )
-            
+
     agent = R2D2Agent(
         name=agent_name,
         algorithm=algorithm,

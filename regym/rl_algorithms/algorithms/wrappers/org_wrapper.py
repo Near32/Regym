@@ -25,6 +25,18 @@ from regym.rl_algorithms.utils import (
     copy_hdict,
 )
 
+from regym.rl_algorithms.networks import (
+    ArchiPredictor, 
+    ArchiPredictorSpeaker,
+    ArchiPredictorListener,
+)
+
+from Archi.utils import (
+    STR2BT,
+    BT2STR,
+)
+
+
 import ReferentialGym
 from ReferentialGym.agents import (
     DiscriminativeListener, 
@@ -111,12 +123,325 @@ def S2B_postprocess_fn(
 ###########################################################
 
 
+def DIPhyR_preprocess_utter_oracle_fn(
+    input_dict:Dict[str,object],
+    predictor:nn.Module,
+    algorithm:Union[Algorithm,AlgorithmWrapper],
+    **kwargs,
+):
+    '''
+    DIPhyR preprocessing utter function for oracle in online referential game, i.e.:
+    - retrieve obs, which should only contain candidate stimuli.
+    - converts them all from Byte Tokens to String
+    - remove [OPTION]-based QA prompt to it.
+    - regularise obs with the resulting Byte token from the string.
+
+    :param output: output of online referential game
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: preprocessed output
+    '''    
+
+    nbr_distractors_po = predictor.nbr_distractors_po
+
+    stimulus = input_dict['obs'] 
+    
+    # batch_size x 1 x feature_dim  : Byte Tokens
+    batch_size = stimulus.shape[0]
+    import ipdb; ipdb.set_trace()
+    # Check shape :
+    if len(stimulus.shape) > 2: import ipdb; ipdb.set_trace()
+    str_stimuli = []
+    for bidx in range(batch_size):
+        bidx_str_stimuli = []
+        for d_idx in range(nbr_distractors_po):
+            bidx_str_stimuli.append(BT2STR(stimuli[bidx][d_idx]))
+        str_stimuli.append(bidx_str_stimuli)
+
+    # Remove [OPTION]-based QA prompt:
+    str_stimuli = [
+        bidx_str_stimuli.split(
+            'followed by some instructions:\n\n',
+        )[1].split(
+        '\n\nYou are an expert')[0] 
+        for bidx_str_stimuli in str_stimuli
+    ]
+    
+    import ipdb; ipdb.set_trace()
+    bt_stimuli = STR2BT(str_stimuli)
+    
+    input_dict['obs'] = [bt_stimuli]
+    return input_dict
+
+
+def DIPhyR_preprocess_reason_detach_fn(
+    input_dict:Dict[str,object],
+    predictor:nn.Module,
+    algorithm:Union[Algorithm,AlgorithmWrapper],
+    **kwargs,
+):
+    '''
+    DIPhyR preprocessing reason function for online referential game, i.e.:
+    - retrieve sentences_widx, which should only contain stimulus description.
+    - retrieve features, which should only contain candidate stimuli.
+    - converts them all from LM/Byte Tokens to String
+    - add discrimination [OPTION]-based QA prompt to it, while detaching from graph
+
+    WARNING: currently assuming that sentences_widx is Byte tokens rather than LM tokens
+
+    :param output: output of online referential game
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: preprocessed output
+    '''    
+
+    nbr_distractors_po = predictor.nbr_distractors_po
+
+    sentences_widx = input_dict['rnn_states']['sentences']
+    # batch_size x max_sentence_length x 1 : LM Tokens + gradient
+    stimuli = input_dict['obs'] 
+    # batch_size x nbr_distractors_po x feature_dim  : Byte Tokens
+    batch_size = sentences_widx.shape[0]
+    
+    str_sentences = []    
+    str_stimuli = []
+    for bidx in range(batch_size):
+        #TODO: need to figure out how to differentiate a Byte from LM tokens:
+        str_sentences.append(BT2STR(sentences_widx[bidx]))
+        bidx_str_stimuli = []
+        for d_idx in range(nbr_distractors_po):
+            str_stimulus = BT2STR(stimuli[bidx][d_idx])
+            str_stimulus = str_stimulus.split(
+                'followed by some instructions:\n\n',
+                )[1].split(
+                '\n\nYou are an expert',
+            )[0] 
+            import ipdb; ipdb.set_trace() 
+            bidx_str_stimuli.append(str_stimulus)
+        str_stimuli.append(bidx_str_stimuli)
+
+    import ipdb; ipdb.set_trace()
+    # Add [OPTION]-based QA prompt:
+    prompted_inputs = []
+    for bidx in range(batch_size):
+        task_descr = f"Consider the context below and answer the following question: \n\n"
+        task_descr += f"--- description ---\n\n"+ str_sentences[bidx] + "\n\n----------\n\n" 
+        for d_idx in range(nbr_distractors_po):
+            task_descr += f"--- candidate {d_idx+1} ---\n\n" + str_stimuli[bidx][d_idx] 
+            task_descr += "\n\n----------\n\n"    
+        task_descr += f"--- question ---\n\n" + "Which candidate, if any, is accurately described by the description?" 
+        task_descr += "\n\n----------\n\n"
+        task_descr += f"Answer: " + f"[/PROMPT] "
+        for d_idx in range(nbr_distractors_po): 
+            if d_idx > 0: task_descr += ' [OPTION] ' 
+            task_descr += f"{d_idx+1}"
+        # Descriptive context:
+        task_descr += f" [OPTION] None of the candidates"
+        prompted_inputs.append(task_descr)
+    
+    import ipdb; ipdb.set_trace()
+    bt_prompted_inputs = STR2BT(prompted_inputs)
+
+    generator_name = predictor.generators['reason'] 
+    generator_module = predictor.model.modules[generator_name]
+    generator_input_streams_ids = generator_module.input_stream_ids
+    input_path = generator_input_streams_ids['inputs'].split(':')
+    
+    ptr_input = input_dict['rnn_states']
+    for input_path_part in input_path[:-1]:
+        if input_path_part=='inputs': continue
+        if input_path_part not in ptr_input: ptr_input[input_path_part] = {}
+        ptr_input = ptr_input[input_path_part]
+    
+    import ipdb; ipdb.set_trace()
+    ptr_input[input_path[-1]] = bt_prompted_inputs
+
+    return input_dict
+
+
+###########################################################
+###########################################################
+###########################################################
+
+
+def DIPhyR_postprocess_utter_oracle_fn(
+    input_dict:Dict[str,object],
+    outpu_dict:Dict[str,object],
+    predictor:nn.Module,
+    algorithm:Union[Algorithm,AlgorithmWrapper],
+    **kwargs,
+):
+    '''
+    DIPhyR postprocessing utter function for oracle use in online referential game, i.e.:
+    - retrieve from inputs:obs the Byte tensors stimuli.
+    - initialise sentences_widx with EoS from predictor and copy communication channel into it
+    - initialize next_rnn_states with shape- and EoS-regularised sentences_widx
+    - same regularisation for predicted_logits and hidden_states...
+
+    WARNING: the EoS symbol from the predictor may be different than from the model.
+    E.g.: if the model uses an ArchiTransformersModule, then the tokenized may be using a different EoS.
+    # TODO: it might be important to regularise for it, not sure... 
+
+    :param input_dict: preprocessed input_dict of online referential game
+    :param output_dict: output dict of model
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: postprocessed output
+    '''    
+
+    import ipdb; ipdb.set_trace()
+    orig_sentences_widx = input_dict['obs']
+    
+    # Initialise sentences_widx with EoS from predictor and copy communication channel into it:
+    batch_size = orig_sentences_widx.shape[0]
+    max_sentence_length = predictor.max_sentence_length
+    vocab_size = predictor.vocab_size
+     
+    sentences_widx = predictor.vocab_stop_idx*torch.ones((batch_size, max_sentence_length)).to(orig_sentences_widx.device)
+    sentences_widx[:,:orig_sentences_widx.shape[1]] = orig_sentences_widx
+    
+    # Initialize next_rnn_states with shape- and EoS-regularised sentences_widx
+    output['next_rnn_states']['sentences_widx'] = [sentences_widx]
+
+    # Initialise predicted_logits to shape- and EoS-regularised sentences_widx:
+    predicted_logits = torch.zeros(
+        batch_size, max_sentence_length, vocab_size,
+    ).to(sentences_widx.device)
+    # batch_size x max_sentence_length x vocab_size
+    predicted_logits = predicted_logits.scatter_(
+        dim=-1,
+        index=sentences_widx.unsqueeze(-1,
+            ).repeat(1,1,vocab_size).long(),
+        src=torch.ones_like(predicted_logits),
+    )
+    output['next_rnn_states']['sentences_logits'] = [predicted_logits]
+
+    # Initialise hidden_states to zero:
+    hidden_dim = 512 #predictor.kwargs['processing_hidden_units']
+    hidden_states = torch.zeros(batch_size, max_sentence_length, hidden_dim).to(sentences_widx.device)
+    # batch_size x max_sentence_length x hidden_state_dim
+    output["next_rnn_states"]["hidden_states"] = [hidden_states]
+   
+    import ipdb; ipdb.set_trace()
+    generator_name = predictor.generators['utter'] 
+    if generator_name not in output['next_rnn_states']:
+        output['next_rnn_states'][generator_name] = {}
+    output['next_rnn_states'][generator_name]['processed_input0'] = [sentences_widx]
+    output['next_rnn_states'][generator_name]['input0_prediction_logits'] = [predicted_logits]
+    output['next_rnn_states'][generator_name]['input0_hidden_states'] = [hidden_states]
+
+    return output
+
+def DIPhyR_postprocess_utter_fn(
+    input_dict:Dict[str,object],
+    output_dict:Dict[str,object],
+    predictor:nn.Module,
+    algorithm:Union[Algorithm,AlgorithmWrapper],
+    **kwargs,
+):
+    '''
+    DIPhyR postprocessing utter function for online referential game, i.e.:
+    - initialise sentences_widx with EoS from predictor and copy communication channel into it
+    - initialize next_rnn_states with shape- and EoS-regularised sentences_widx
+    - same regularisation for predicted_logits and hidden_states...
+
+    WARNING: the EoS symbol from the predictor may be different than from the model.
+    E.g.: if the model uses an ArchiTransformersModule, then the tokenized may be using a different EoS.
+    # TODO: it might be important to regularise for it, not sure... 
+
+    :param input_dict: preprocessed input_dict of online referential game
+    :param output_dict: output dict of model 
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: postprocessed output
+    '''    
+
+    orig_sentences_widx = output_dict['next_rnn_states']['sentences_widx']
+    
+    # Initialise sentences_widx with EoS from predictor and copy communication channel into it:
+    batch_size = orig_sentences_widx.shape[0]
+    max_sentence_length = predictor.max_sentence_length
+    vocab_size = predictor.vocab_size
+     
+    sentences_widx = predictor.vocab_stop_idx*torch.ones((batch_size, max_sentence_length)).to(orig_sentences_widx.device)
+    sentences_widx[:,:orig_sentences_widx.shape[1]] = orig_sentences_widx
+    
+    # Initialize next_rnn_states with shape- and EoS-regularised sentences_widx
+    output_dict['next_rnn_states']['sentences_widx'] = [sentences_widx]
+
+    # Initialise predicted_logits to shape- and EoS-regularised sentences_widx:
+    orig_predicted_logits = output_dict['next_rnn_states']['sentences_logits']
+    predicted_logits = torch.zeros(
+        batch_size, max_sentence_length, vocab_size,
+    ).to(sentences_widx.device)
+    # batch_size x max_sentence_length x vocab_size
+    predicted_logits[:,:orig_predicted_logits.shape[1]] = orig_predicted_logits
+    output_dict['next_rnn_states']['sentences_logits'] = [predicted_logits]
+
+    # Initialise hidden_states to zero:
+    orig_hidden_states = output_dict['next_rnn_states']['hidden_states']
+    hidden_dim = orig_hidden_states.shape[-1] #512 #predictor.kwargs['processing_hidden_units']
+    hidden_states = torch.zeros(batch_size, max_sentence_length, hidden_dim).to(sentences_widx.device)
+    # batch_size x max_sentence_length x hidden_state_dim
+    hidden_states[:,:orig_hidden_states.shape[1]] = orig_hidden_states
+    output_dict["next_rnn_states"]["hidden_states"] = [hidden_states]
+   
+    generator_name = predictor.generators['utter'] 
+    if generator_name not in output_dict['next_rnn_states']:
+        output_dict['next_rnn_states'][generator_name] = {}
+    output_dict['next_rnn_states'][generator_name]['processed_input0'] = [sentences_widx]
+    output_dict['next_rnn_states'][generator_name]['input0_prediction_logits'] = [predicted_logits]
+    output_dict['next_rnn_states'][generator_name]['input0_hidden_states'] = [hidden_states]
+
+    return output_dict
+
+
+def DIPhyR_postprocess_reason_fn(
+    input_dict:Dict[str,object],
+    output_dict:Dict[str,object],
+    predictor:nn.Module,
+    algorithm:Union[Algorithm,AlgorithmWrapper],
+    **kwargs,
+):
+    '''
+    DIPhyR postprocessing reason function for online referential game, i.e.:
+    - retrieve decision logits from model.
+    - format it properly for loss computation 
+
+    :param input_dict: preprocessed input_dict of online referential game
+    :param output_dict: output dict of model
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: postprocessed output
+    '''    
+
+    orig_decision = output_dict['next_rnn_states']['decision']
+    # batch_size x max_sentence_length x hidden_state_dim
+    
+    import ipdb; ipdb.set_trace()
+    # TODO: check that it is log softmax or apply it if necessary
+    # check shape ? batch_size x nbr_distractors+1 x 1/2 depending on obverter or not? 
+    # apply what is necessary from loss function... 
+    generator_name = predictor.generators['reason'] 
+    if generator_name not in output_dict['next_rnn_states']:
+        output_dict['next_rnn_states'][generator_name] = {}
+    output_dict['next_rnn_states'][generator_name]['decision'] = [decision]
+
+    return output_dict
+
+
+###########################################################
+###########################################################
+###########################################################
+
+
 class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
     def __init__(
         self, 
         algorithm, 
-        predictor, 
-        ):
+        model,
+        kwargs, 
+    ):
         """
         """
         
@@ -124,7 +449,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             algorithm=algorithm,
         )
         
-        self.predictor = predictor 
+        self.model = model
+        self.kwargs = kwargs
         self.episode_count = 0
         
         self.rg_iteration = 0
@@ -506,8 +832,59 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         
         nbr_obs_dim = 15 #30
         
-        if self.kwargs['ORG_use_predictor_as_speaker']:
-            speaker = self.predictor
+        if self.kwargs['ORG_use_model_in_speaker']:
+            ArchiPredictorCls = ArchiPredictorSpeaker
+            if 'obverter' in self.kwargs['ORG_rg_graphtype']:
+                ArchiPredictorCls = ArchiPredictorListener
+            speaker = ArchiPredictorCls(
+                model=self.model,
+                **self.kwargs["ArchiModel"],
+                #pipeline_name="instruction_generator" if self.kwargs["ORG_with_Oracle_speaker"] else "caption_generator",
+                pipelines=self.kwargs["ORG_use_model_in_speaker_pipelines"],
+                #generator_name="InstructionGenerator" if self.kwargs["ORG_with_Oracle_speaker"] else "CaptionGenerator",
+                generators=self.kwargs["ORG_use_model_in_speaker_generators"],
+                trainable=self.kwargs['ORG_trainable_speaker'],
+            )
+            if not self.kwargs["ORG_with_Oracle_speaker"]:
+                if 'ORG_speaker_preprocess_reason_fn' in self.kwargs.keys() \
+                and 'ORG_speaker_preprocess_utter_fn' in self.kwargs.keys():
+                    speaker_preprocess_fn_dict = {}
+                    speaker_preprocess_fn_dict["reason"] = partial(
+                        self.kwargs["ORG_speaker_preprocess_reason_fn"],
+                        algorithm=self,
+                    )
+                    speaker_preprocess_fn_dict['utter'] = partial(
+                        self.kwargs["ORG_speaker_preprocess_utter_fn"],
+                        algorithm=self,
+                    )
+                    speaker.set_preprocess_fn(speaker_preprocess_fn_dict)
+                elif 'ORG_speaker_preprocess_fn' in self.kwargs.keys():
+                    speaker.set_preprocess_fn(
+                        partial(
+                            self.kwargs["ORG_speaker_preprocess_fn"],
+                            algorithm=self,
+                        ),
+                    )
+
+                if 'ORG_speaker_postprocess_reason_fn' in self.kwargs.keys() \
+                and 'ORG_speaker_postprocess_utter_fn' in self.kwargs.keys():
+                    speaker_postprocess_fn_dict = {}
+                    speaker_postprocess_fn_dict["reason"] = partial(
+                        self.kwargs["ORG_speaker_postprocess_reason_fn"],
+                        algorithm=self,
+                    )
+                    speaker_postprocess_fn_dict['utter'] = partial(
+                        self.kwargs["ORG_speaker_postprocess_utter_fn"],
+                        algorithm=self,
+                    )
+                    speaker.set_postprocess_fn(speaker_postprocess_fn_dict)
+                elif 'ORG_speaker_postprocess_fn' in self.kwargs.keys():
+                    speaker.set_postprocess_fn(
+                        partial(self.kwargs["ORG_speaker_postprocess_fn"],
+                            algorithm=self,
+                        ),
+                    )
+
             speaker.speaker_init(
                 kwargs=agent_config, 
                 obs_shape=agent_obs_shape, 
@@ -521,6 +898,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             # by the archi predictor speaker.
             print("Speaker:", speaker)
         else:
+            raise NotImplementedError
+            # TODO: need to check that everything is still OK after update from predictor to model
             if self.kwargs["ORG_with_Oracle_listener"]:
                 agent_obs_shape[-1] = nbr_obs_dim #15 #9 #15 
             speaker = LSTMObsSpeaker(
@@ -545,8 +924,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.speaker = speaker
 
         listener_config = copy.deepcopy(agent_config)
-        #TODO : 
+        #TODO : needs an update if using oracles since predictor->model change 
         if self.kwargs["ORG_with_Oracle_listener"]:
+            raise NotImplementedError
             agent_obs_shape[-1] = nbr_obs_dim #15 #9 #15 
         if self.kwargs["ORG_rg_shared_architecture"]:
             if len(obs_shape)==1:
@@ -555,9 +935,58 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 listener_config['cnn_encoder'] = speaker.cnn_encoder 
         listener_config['nbr_distractors'] = rg_config['nbr_distractors']['train']
         
-        if self.kwargs['ORG_use_predictor_as_listener'] \
+        if self.kwargs['ORG_use_model_in_listener'] \
         or 'obverter' in self.kwargs["ORG_rg_graphtype"]:
-            listener = copy.deepcopy(self.predictor)
+            listener = ArchiPredictorListener(
+                model=self.model,
+                **self.kwargs["ArchiModel"],
+                #pipeline_name="instruction_generator" if self.kwargs["ORG_with_Oracle_speaker"] else "caption_generator",
+                pipelines=self.kwargs["ORG_use_model_in_listener_pipelines"],
+                #generator_name="InstructionGenerator" if self.kwargs["ORG_with_Oracle_speaker"] else "CaptionGenerator",
+                generators=self.kwargs["ORG_use_model_in_listener_generators"],
+                trainable=self.kwargs['ORG_trainable_listener'],
+            )
+            if not self.kwargs["ORG_with_Oracle_listenerer"]:
+                if 'ORG_listener_preprocess_reason_fn' in self.kwargs.keys() \
+                and 'ORG_listener_preprocess_utter_fn' in self.kwargs.keys():
+                    listener_preprocess_fn_dict = {}
+                    listener_preprocess_fn_dict["reason"] = partial(
+                        self.kwargs["ORG_listener_preprocess_reason_fn"],
+                        algorithm=self,
+                    )
+                    listener_preprocess_fn_dict['utter'] = partial(
+                        self.kwargs["ORG_listener_preprocess_utter_fn"],
+                        algorithm=self,
+                    )
+                    listener.set_preprocess_fn(listener_preprocess_fn_dict)
+                elif 'ORG_listener_preprocess_fn' in self.kwargs.keys():
+                    listener.set_preprocess_fn(
+                        partial(
+                            self.kwargs["ORG_listener_preprocess_fn"],
+                            algorithm=self,
+                        ),
+                    )
+
+                if 'ORG_listener_postprocess_reason_fn' in self.kwargs.keys() \
+                and 'ORG_listener_postprocess_utter_fn' in self.kwargs.keys():
+                    listener_postprocess_fn_dict = {}
+                    listener_postprocess_fn_dict["reason"] = partial(
+                        self.kwargs["ORG_listener_postprocess_reason_fn"],
+                        algorithm=self,
+                    )
+                    listener_postprocess_fn_dict['utter'] = partial(
+                        self.kwargs["ORG_listener_postprocess_utter_fn"],
+                        algorithm=self,
+                    )
+                    listener.set_postprocess_fn(listener_postprocess_fn_dict)
+                elif 'ORG_listener_postprocess_fn' in self.kwargs.keys():
+                    listener.set_postprocess_fn(
+                        partial(
+                            self.kwargs["ORG_listener_postprocess_fn"],
+                            algorithm=self,
+                        ),
+                    )
+
             listener.listener_init(
                 kwargs=listener_config,
                 obs_shape=agent_obs_shape,
@@ -587,6 +1016,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         listener.set_vocabulary(self.vocabulary)
         print("Listener:", listener)
         if self.kwargs["ORG_with_Oracle_listener"]:
+            raise NotImplementedError
+            # TODO: update to latest update with model instead of predictor : the following might still be good , though...
             #listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents" 
             listener.input_stream_ids["listener"]["experiences"] = "current_dataloader:sample:listener_exp_latents_one_hot_encoded" 
         self.listener = listener
@@ -1184,24 +1615,55 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         if 'similarity' in self.rg_config['distractor_sampling']:
             kwargs['same_episode_target'] = True 
         
-        self.rg_train_dataset = self.venv.unwrapped.env_processes[self.current_actor].unwrapped.datasets['test'].previous_datasets['train']
-        self.rg_test_dataset = self.venv.unwrapped.env_processes[self.current_actor].unwrapped.datasets['test'].previous_datasets['test']
+        if self.kwargs['ORG_with_S2B']:
+            self.rg_train_dataset = self.venv.unwrapped.env_processes[self.current_actor].unwrapped.datasets['test'].previous_datasets['train']
+            self.rg_test_dataset = self.venv.unwrapped.env_processes[self.current_actor].unwrapped.datasets['test'].previous_datasets['test']
         
-        #####
-        self.rg_train_dataset.sampling_strategy = None
-        self.rg_train_dataset.reset_sampling()
-        self.rg_test_dataset.__init__( 
-            train=False, 
-            transform=self.rg_train_dataset.transform, 
-            sampling_strategy=None,
-            split_strategy=self.rg_train_dataset.split_strategy, 
-            nbr_latents=self.rg_train_dataset.nbr_latents, 
-            min_nbr_values_per_latent=self.rg_train_dataset.min_nbr_values_per_latent, 
-            max_nbr_values_per_latent=self.rg_train_dataset.max_nbr_values_per_latent, 
-            nbr_object_centric_samples=self.rg_train_dataset.nbr_object_centric_samples,
-            prototype=self.rg_train_dataset,
-        )
-        ##### 
+            ####
+            self.rg_train_dataset.sampling_strategy = None
+            self.rg_train_dataset.reset_sampling()
+            self.rg_test_dataset.__init__( 
+                train=False, 
+                transform=self.rg_train_dataset.transform, 
+                sampling_strategy=None,
+                split_strategy=self.rg_train_dataset.split_strategy, 
+                nbr_latents=self.rg_train_dataset.nbr_latents, 
+                min_nbr_values_per_latent=self.rg_train_dataset.min_nbr_values_per_latent, 
+                max_nbr_values_per_latent=self.rg_train_dataset.max_nbr_values_per_latent, 
+                nbr_object_centric_samples=self.rg_train_dataset.nbr_object_centric_samples,
+                prototype=self.rg_train_dataset,
+            )
+            ##### 
+        else:
+            extra_keys_dict = {
+                k:v 
+                for k,v in self.kwargs.get("ORG_rg_demonstration_dataset_extra_keys", {})
+            }
+         
+            self.rg_train_dataset = DemonstrationDataset(
+                replay_storage=self.rg_storages[0],
+                train=True,
+                transform=self.rg_transformation,
+                split_strategy=self.rg_split_strategy,
+                dataset_length=self.rg_train_dataset_length,
+                exp_key=self.rg_exp_key,
+                extra_keys_dict=extra_keys_dict,
+                latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
+                kwargs=kwargs,
+            )
+        
+            self.rg_test_dataset = DemonstrationDataset(
+                replay_storage=self.rg_storages[0],
+                #replay_storage=self.rg_storages[0].test_storage,
+                train=False,
+                transform=self.rg_transformation,
+                split_strategy=self.rg_split_strategy,
+                dataset_length=self.rg_test_dataset_length,
+                exp_key=self.rg_exp_key,
+                extra_keys_dict=extra_keys_dict,
+                latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
+                kwargs=kwargs,
+            )
         
         need_dict_wrapping = {}
         dataset_args = {"modes":["train", "test"]}
