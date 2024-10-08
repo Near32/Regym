@@ -740,13 +740,13 @@ def main():
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
     parser.add_argument("--ORG_split_strategy", type=str, default="divider-1-offset-0",)
-    parser.add_argument("--ORG_replay_capacity", type=int, default=16)
+    parser.add_argument("--ORG_replay_capacity", type=int, default=4)
     parser.add_argument("--ORG_rg_filter_out_non_unique", type=str2bool, default=False)
     # WARNING: very important to lock the test replay in order to ensure that 
     # observed variations are not due to variations of the test data.
     # If the test set is large enough, then it does not matter.
     parser.add_argument("--ORG_lock_test_storage", type=str2bool, default=True)
-    parser.add_argument("--ORG_test_replay_capacity", type=int, default=4)
+    parser.add_argument("--ORG_test_replay_capacity", type=int, default=2)
     parser.add_argument("--ORG_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ORG_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ORG_test_dataset_length", type=intOrNone, default=None)
@@ -771,7 +771,7 @@ def main():
     parser.add_argument("--ORG_rg_object_centric", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_object_centric_type", type=str, default="hard")
     parser.add_argument("--ORG_rg_graphtype", type=str, default='obverter')
-    parser.add_argument("--ORG_rg_vocab_size", type=int, default=32)
+    parser.add_argument("--ORG_rg_vocab_size", type=int, default=65043)
     # TODO : integrate this feature in ArchiPredictorSpeaker ...
     parser.add_argument("--ORG_rg_force_eos", type=str2bool, default=True)
     parser.add_argument("--ORG_rg_symbol_embedding_size", type=int, default=64)
@@ -780,7 +780,7 @@ def main():
     parser.add_argument("--ORG_rg_normalize_features", type=str2bool, default=False, 
         #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
     )
-    parser.add_argument("--ORG_rg_agent_loss_type", type=str, default='Hinge')
+    parser.add_argument("--ORG_rg_agent_loss_type", type=str, default='NLL')
     parser.add_argument("--ORG_rg_use_aita_sampling", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_aita_update_epoch_period", type=int, default=32)
     parser.add_argument("--ORG_rg_aita_levenshtein_comprange", type=float, default=1.0)
@@ -806,7 +806,7 @@ def main():
     parser.add_argument("--ORG_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
     
     parser.add_argument("--ORG_rg_batch_size", type=int, default=2)
-    parser.add_argument("--ORG_rg_dataloader_num_worker", type=int, default=1)
+    parser.add_argument("--ORG_rg_dataloader_num_worker", type=int, default=0)
     parser.add_argument("--ORG_rg_learning_rate", type=float, default=3.0e-4)
     parser.add_argument("--ORG_rg_weight_decay", type=float, default=0.0)
     parser.add_argument("--ORG_rg_l1_weight_decay", type=float, default=0.0)
@@ -878,7 +878,7 @@ def main():
         dargs['ORG_use_model_in_listener_generators'] = {'utter':'LMModule', 'reason':'LMModule'}
 
         dargs['ORG_rg_demonstration_dataset_extra_keys'] = {
-            "experiences":"infos:prompt",
+            "experiences":"info:prompt",
         }
 
     print(dargs)

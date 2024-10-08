@@ -153,22 +153,11 @@ def DIPhyR_preprocess_utter_oracle_fn(
     :return: preprocessed output
     '''    
 
-    nbr_distractors_po = predictor.nbr_distractors_po
 
-    stimulus = input_dict['obs'] 
-    
-    # batch_size x 1 x feature_dim  : Byte Tokens
-    batch_size = stimulus.shape[0]
-    import ipdb; ipdb.set_trace()
-    # Check shape :
-    if len(stimulus.shape) > 2: import ipdb; ipdb.set_trace()
-    str_stimuli = []
-    for bidx in range(batch_size):
-        bidx_str_stimuli = []
-        for d_idx in range(nbr_distractors_po):
-            bidx_str_stimuli.append(BT2STR(stimuli[bidx][d_idx]))
-        str_stimuli.append(bidx_str_stimuli)
-
+    stimuli = input_dict['obs'].cpu().long() 
+    # batch_size x feature_dim  : Byte Tokens
+    batch_size = stimuli.shape[0]
+    str_stimuli = BT2STR(stimuli)
     # Remove [OPTION]-based QA prompt:
     str_stimuli = [
         bidx_str_stimuli.split(
@@ -178,10 +167,9 @@ def DIPhyR_preprocess_utter_oracle_fn(
         for bidx_str_stimuli in str_stimuli
     ]
     
-    import ipdb; ipdb.set_trace()
     bt_stimuli = STR2BT(str_stimuli)
     
-    input_dict['obs'] = [bt_stimuli]
+    input_dict['obs'] = bt_stimuli
     return input_dict
 
 
@@ -206,33 +194,29 @@ def DIPhyR_preprocess_reason_detach_fn(
     :return: preprocessed output
     '''    
 
-    nbr_distractors_po = predictor.nbr_distractors_po
+    nbr_distractors_po = predictor.kwargs['nbr_distractors']+1
 
-    sentences_widx = input_dict['rnn_states']['sentences']
-    # batch_size x max_sentence_length x 1 : LM Tokens + gradient
-    stimuli = input_dict['obs'] 
+    sentences_widx = input_dict['rnn_states']['sentences'].squeeze(-1).cpu().long()
+    # batch_size x max_sentence_length : LM Tokens + gradient
+    stimuli = input_dict['obs'].unsqueeze(1).cpu().long()
     # batch_size x nbr_distractors_po x feature_dim  : Byte Tokens
     batch_size = sentences_widx.shape[0]
     
-    str_sentences = []    
+    str_sentences = BT2STR(sentences_widx)
     str_stimuli = []
     for bidx in range(batch_size):
-        #TODO: need to figure out how to differentiate a Byte from LM tokens:
-        str_sentences.append(BT2STR(sentences_widx[bidx]))
-        bidx_str_stimuli = []
-        for d_idx in range(nbr_distractors_po):
-            str_stimulus = BT2STR(stimuli[bidx][d_idx])
-            str_stimulus = str_stimulus.split(
-                'followed by some instructions:\n\n',
-                )[1].split(
-                '\n\nYou are an expert',
+        bidx_str_stimuli = BT2STR(stimuli[bidx])
+        bidx_str_stimuli = [str_stim.split(
+            'followed by some instructions:\n\n',
+            )[1].split(
+            '\n\nYou are an expert',
             )[0] 
-            import ipdb; ipdb.set_trace() 
-            bidx_str_stimuli.append(str_stimulus)
+            for str_stim in bidx_str_stimuli
+        ]
         str_stimuli.append(bidx_str_stimuli)
 
-    import ipdb; ipdb.set_trace()
     # Add [OPTION]-based QA prompt:
+    # TODO: possibly add separators, e.g. 'end of X'
     prompted_inputs = []
     for bidx in range(batch_size):
         task_descr = f"Consider the context below and answer the following question: \n\n"
@@ -250,7 +234,6 @@ def DIPhyR_preprocess_reason_detach_fn(
         task_descr += f" [OPTION] None of the candidates"
         prompted_inputs.append(task_descr)
     
-    import ipdb; ipdb.set_trace()
     bt_prompted_inputs = STR2BT(prompted_inputs)
 
     generator_name = predictor.generators['reason'] 
@@ -264,7 +247,6 @@ def DIPhyR_preprocess_reason_detach_fn(
         if input_path_part not in ptr_input: ptr_input[input_path_part] = {}
         ptr_input = ptr_input[input_path_part]
     
-    import ipdb; ipdb.set_trace()
     ptr_input[input_path[-1]] = bt_prompted_inputs
 
     return input_dict
@@ -277,7 +259,7 @@ def DIPhyR_preprocess_reason_detach_fn(
 
 def DIPhyR_postprocess_utter_oracle_fn(
     input_dict:Dict[str,object],
-    outpu_dict:Dict[str,object],
+    output_dict:Dict[str,object],
     predictor:nn.Module,
     algorithm:Union[Algorithm,AlgorithmWrapper],
     **kwargs,
@@ -300,19 +282,18 @@ def DIPhyR_postprocess_utter_oracle_fn(
     :return: postprocessed output
     '''    
 
-    import ipdb; ipdb.set_trace()
-    orig_sentences_widx = input_dict['obs']
+    orig_sentences_widx = input_dict['obs'].cpu()
     
     # Initialise sentences_widx with EoS from predictor and copy communication channel into it:
     batch_size = orig_sentences_widx.shape[0]
-    max_sentence_length = predictor.max_sentence_length
-    vocab_size = predictor.vocab_size
+    max_sentence_length = orig_sentences_widx.shape[1] #predictor.max_sentence_length
+    vocab_size = len(predictor.model.modules['LMModule'].tokenizer)#predictor.vocab_size
      
     sentences_widx = predictor.vocab_stop_idx*torch.ones((batch_size, max_sentence_length)).to(orig_sentences_widx.device)
     sentences_widx[:,:orig_sentences_widx.shape[1]] = orig_sentences_widx
     
     # Initialize next_rnn_states with shape- and EoS-regularised sentences_widx
-    output['next_rnn_states']['sentences_widx'] = [sentences_widx]
+    output_dict['next_rnn_states']['sentences_widx'] = [sentences_widx]
 
     # Initialise predicted_logits to shape- and EoS-regularised sentences_widx:
     predicted_logits = torch.zeros(
@@ -325,23 +306,22 @@ def DIPhyR_postprocess_utter_oracle_fn(
             ).repeat(1,1,vocab_size).long(),
         src=torch.ones_like(predicted_logits),
     )
-    output['next_rnn_states']['sentences_logits'] = [predicted_logits]
+    output_dict['next_rnn_states']['sentences_logits'] = [predicted_logits]
 
     # Initialise hidden_states to zero:
     hidden_dim = 512 #predictor.kwargs['processing_hidden_units']
     hidden_states = torch.zeros(batch_size, max_sentence_length, hidden_dim).to(sentences_widx.device)
     # batch_size x max_sentence_length x hidden_state_dim
-    output["next_rnn_states"]["hidden_states"] = [hidden_states]
+    output_dict["next_rnn_states"]["hidden_states"] = [hidden_states]
    
-    import ipdb; ipdb.set_trace()
     generator_name = predictor.generators['utter'] 
-    if generator_name not in output['next_rnn_states']:
-        output['next_rnn_states'][generator_name] = {}
-    output['next_rnn_states'][generator_name]['processed_input0'] = [sentences_widx]
-    output['next_rnn_states'][generator_name]['input0_prediction_logits'] = [predicted_logits]
-    output['next_rnn_states'][generator_name]['input0_hidden_states'] = [hidden_states]
+    if generator_name not in output_dict['next_rnn_states']:
+        output_dict['next_rnn_states'][generator_name] = {}
+    output_dict['next_rnn_states'][generator_name]['processed_input0'] = [sentences_widx]
+    output_dict['next_rnn_states'][generator_name]['input0_prediction_logits'] = [predicted_logits]
+    output_dict['next_rnn_states'][generator_name]['input0_hidden_states'] = [hidden_states]
 
-    return output
+    return output_dict
 
 def DIPhyR_postprocess_utter_fn(
     input_dict:Dict[str,object],
@@ -426,13 +406,16 @@ def DIPhyR_postprocess_reason_fn(
     :return: postprocessed output
     '''    
 
-    orig_decision = output_dict['next_rnn_states']['decision']
-    # batch_size x max_sentence_length x hidden_state_dim
+    #orig_decision = output_dict['next_rnn_states']['decision']
+    orig_decision = output_dict['next_rnn_states']['LMModule']['inputs_prediction_perplexities'][0].unsqueeze(1)
+    # batch_size x nbr_distractor_po=1 x 2 
     
-    import ipdb; ipdb.set_trace()
     # TODO: check that it is log softmax or apply it if necessary
     # check shape ? batch_size x nbr_distractors+1 x 1/2 depending on obverter or not? 
-    # apply what is necessary from loss function... 
+    # apply what is necessary from loss function...
+
+    #WARNING: using NLL, log softmax is applied later in the loss computation:
+    decision = (-1*orig_decision) #.log_softmax(dim=-1)
     generator_name = predictor.generators['reason'] 
     if generator_name not in output_dict['next_rnn_states']:
         output_dict['next_rnn_states'][generator_name] = {}
@@ -460,7 +443,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             algorithm=algorithm,
         )
         
-        self.model = model
+        self.predictor = self.model = model
         self.kwargs = kwargs
         self.episode_count = 0
         
@@ -1122,7 +1105,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         population_handler_id = "population_handler_0"
         population_handler_config = copy.deepcopy(rg_config)
         population_handler_config["verbose"] = self.kwargs["ORG_rg_verbose"]
-        population_handler_config["agent_saving"] = True #False
+        population_handler_config["agent_saving"] = self.kwargs.get("ORG_rg_agent_saving", False)
         population_handler_stream_ids = {
             "current_speaker_streams_dict":"modules:current_speaker",
             "current_listener_streams_dict":"modules:current_listener",
@@ -1702,9 +1685,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 replay_storage=self.rg_storages[0],
                 train=True,
                 transform=self.rg_transformation,
-                split_strategy=self.rg_split_strategy,
-                dataset_length=self.rg_train_dataset_length,
-                exp_key=self.rg_exp_key,
+                split_strategy = self.kwargs["ORG_split_strategy"],
+                dataset_length = self.kwargs["ORG_train_dataset_length"],
+                exp_key = self.kwargs["ORG_exp_key"],
                 extra_keys_dict=extra_keys_dict,
                 #latents_build_fn=self.kwargs['ORG_rg_latents_build_fn'],
                 kwargs=kwargs,
@@ -1715,9 +1698,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 #replay_storage=self.rg_storages[0].test_storage,
                 train=False,
                 transform=self.rg_transformation,
-                split_strategy=self.rg_split_strategy,
-                dataset_length=self.rg_test_dataset_length,
-                exp_key=self.rg_exp_key,
+                split_strategy = self.kwargs["ORG_split_strategy"],
+                dataset_length = self.kwargs["ORG_test_dataset_length"],
+                exp_key = self.kwargs["ORG_exp_key"],
                 extra_keys_dict=extra_keys_dict,
                 #latents_build_fn=self.kwargs['ORG_rg_latents_build_fn'],
                 kwargs=kwargs,

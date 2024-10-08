@@ -196,7 +196,6 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             - decision_logits: Tensor of shape `(batch_size, self.obs_shape[1])` containing the target-prediction logits.
             - temporal features: Tensor of shape `(batch_size, (nbr_distractors+1)*temporal_feature_dim)`.
         """
-        rnn_states = self.model.get_reset_states()
         batch_size = features.shape[0]
         extra_rnn_states = self.model.get_reset_states({
             'repeat':batch_size,
@@ -210,6 +209,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
                 if k in rnn_states: continue
                 rnn_states[k] = v
 				
+        #rnn_states = self.model.get_reset_states()
         input_dict = {
             'obs':features,
             'rnn_states': {
@@ -238,7 +238,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             **input_dict,
             pipelines={
                 #"decision_generator":self.archi_kwargs["pipelines"]["decision_generator"]
-                pipeline_name:self.archi_kwargs["pipelines"][pipeline_name], #"instruction_generator"]
+                pipeline_name:self.archi_kwargs["ArchiModel"]["pipelines"][pipeline_name], #"instruction_generator"]
             },
             return_feature_only=return_feature_only,
         )
@@ -263,9 +263,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
 
         generator_name = self.generators['reason']
         decision_logits = output["next_rnn_states"][generator_name]["decision"][0]
-        import ipdb; ipdb.set_trace()
-        # TODO : find out dimensions :
-        # (batch_size, max sentence_lengths, (nbr_distractors+1)=1 most likely, 2 )
+        # (batch_size, (max sentence_lengths), (nbr_distractors+1)=1 most likely, 2 )
         
         temporal_features = None
 
@@ -326,7 +324,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                pipeline_name:self.archi_kwargs["pipelines"][pipeline_name]
+                pipeline_name:self.archi_kwargs["ArchiModel"]["pipelines"][pipeline_name]
             },
             return_feature_only=return_feature_only,
         )
@@ -349,14 +347,14 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         #feature_module = self.model.pipelines[self.pipeline_name][0]
         #self.features = output['next_rnn_states'][feature_module]['processed_input'][0]
 
-        import ipdb; ipdb.set_trace()
         generator_name = self.generators['utter']
         sentences_widx = output["next_rnn_states"][generator_name]["processed_input0"][0].unsqueeze(-1)
         sentences_logits = output["next_rnn_states"][generator_name]["input0_prediction_logits"][0]
         sentences_hidden_states = output["next_rnn_states"][generator_name]["input0_hidden_states"][0]
+        vocab_size = sentences_logits.shape[-1]
         sentences_one_hots = nn.functional.one_hot(
                 sentences_widx.long(), 
-                num_classes=self.vocab_size,
+                num_classes=vocab_size,
         ).float()
         # (batch_size, max_sentence_length, vocab_size)
         
@@ -399,7 +397,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                self.pipeline_name:self.archi_kwargs["pipelines"][self.pipeline_name]
+                self.pipeline_name:self.archi_kwargs["ArchiModel"]["pipelines"][self.pipeline_name]
             },
             return_feature_only=return_feature_only,
         )
@@ -433,7 +431,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         output = self.model.forward(
             **input_dict,
             pipelines={
-                "prediction_generator":self.archi_kwargs["pipelines"]["prediction_generator"]
+                "prediction_generator":self.archi_kwargs["ArchiModel"]["pipelines"]["prediction_generator"]
             },
             return_feature_only=return_feature_only,
         )
@@ -494,6 +492,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         multi_round=False, 
         graphtype="straight_through_gumbel_softmax", 
         tau0=0.2,
+        sample=None,
     ):
         """
         :param sentences: Tensor of shape `(batch_size, max_sentence_length, vocab_size)` containing the padded sequence of (potentially one-hot-encoded) symbols.
@@ -521,8 +520,21 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         else:
             features = experiences.view(-1, *(experiences.size()[2:]))
         
+        rnn_states = None
+        if sample is not None \
+        and hasattr(sample, 'listener_rnn_states'):
+            rnn_states = sample.listener_rnn_states
+            '''
+            rnn_states = _concatenate_list_hdict(
+                lhds=[rnn_states[idx][0][0] for idx in range(batch_size)],
+                concat_fn=partial(torch.cat, dim=0),
+                #preprocess_fn=(lambda x:
+                #    torch.from_numpy(x).unsqueeze(0) if isinstance(x, np.ndarray) else torch.ones(1, 1)*x                   ),
+            )
+            '''
+            rnn_states = {'InstructionGenerator':{'achieved_goal':rnn_states}}
         if sentences is not None:
-            decision_logits, listener_temporal_features = self._reason(sentences=sentences, features=features)
+            decision_logits, listener_temporal_features = self._reason(sentences=sentences, features=features, rnn_states=rnn_states,)
         else:
             decision_logits = None
             listener_temporal_features = None
@@ -533,7 +545,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         temporal_features = None
         
         if multi_round or ("obverter" in graphtype.lower() and sentences is None):
-            utter_outputs = self._utter(features=features, sentences=sentences)
+            utter_outputs = self._utter(features=features, sentences=sentences, rnn_states=rnn_states,)
             if len(utter_outputs) == 5:
                 next_sentences_hidden_states, next_sentences_widx, next_sentences_logits, next_sentences, temporal_features = utter_outputs
             else:
