@@ -78,7 +78,7 @@ r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLP
 
 experiment:
     tasks: [{
-        'env-id': 'OfflineInvertedPendulumDIPhyREnv-v0',
+        'env-id': 'OfflineInvertedPendulumDIPhiREnv-v0',
         'env-config': {
           'max_nbr_actions': 5,
           #'max_nbr_timesteps': 16, #16,
@@ -210,7 +210,7 @@ agents:
             model_id: 'RL_ArchiTransformerTestModel'
             hyperparameters:
                 #hidden_dim: &hidden_dim 16384 #4096*action_dim
-                #hidden_dim: &hidden_dim 2880 #2304
+                #hidden_dim: &hidden_dim 2880 #SmolLM
                 hidden_dim: &hidden_dim 10240
                 action_dim: &action_dim 5
             input_stream_ids:
@@ -219,16 +219,16 @@ agents:
             modules:
                 'LMModule':
                     type: 'ArchiTransformerModule' 
-                    model_id: "HuggingFaceTB/SmolLM-135M-Instruct"
+                    #model_id: "HuggingFaceTB/SmolLM-135M-Instruct"
                     #model_id: "togethercomputer/LLaMA-2-7B-32K"
                     #model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" 
-                    #model_id: "RWKV/v6-Finch-1B6-HF" 
+                    model_id: "RWKV/v6-Finch-1B6-HF" 
                     #model_id: "microsoft/Phi-3-mini-4k-instruct"
                     #model_id: "microsoft/Phi-3-mini-128k-instruct"
                     config:
                         'output_tokenized_prediction': True
-                        'output_last_hidden_states': True
-                        'output_logits': True
+                        #'output_last_hidden_states': True
+                        #'output_logits': True
                         'use_grammar': False
                         'prompt_template': '{prompt}'
                         'quantize': False 

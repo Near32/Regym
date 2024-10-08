@@ -703,12 +703,12 @@ def main():
     parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
     parser.add_argument("--ORG_use_model_in_speaker", type=str2bool, default="True",)
     parser.add_argument("--ORG_trainable_speaker", type=str2bool, default="False",)
-    parser.add_argument("--ORG_use_model_in_speaker_pipeline", type=str, default="caption_generator",)
-    parser.add_argument("--ORG_use_model_in_speaker_generator", type=str, default="CaptionGenerator",)
+    parser.add_argument("--ORG_use_model_in_speaker_pipeline", type=str, default="listener",)
+    parser.add_argument("--ORG_use_model_in_speaker_generator", type=str, default="LMModule",)
     parser.add_argument("--ORG_use_model_in_listener", type=str2bool, default="True",)
     parser.add_argument("--ORG_trainable_listener", type=str2bool, default="True",)
-    parser.add_argument("--ORG_use_model_in_listener_pipeline", type=str, default="caption_generator",)
-    parser.add_argument("--ORG_use_model_in_listener_generator", type=str, default="CaptionGenerator",)
+    parser.add_argument("--ORG_use_model_in_listener_pipeline", type=str, default="listener",)
+    parser.add_argument("--ORG_use_model_in_listener_generator", type=str, default="LMModule",)
     # TODO: setup the postprocessing fn for speaker
     parser.add_argument("--ORG_with_Oracle_speaker", type=str2bool, default="False",)
     #parser.add_argument("--ORG_with_Oracle_type", type=str, default="visible-entities",)
@@ -720,7 +720,7 @@ def main():
     #parser.add_argument("--ORG_listener_based_predicated_reward_fn", type=str2bool, default=False,)
     parser.add_argument("--ORG_with_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
-    parser.add_argument("--ORG_rg_training_period", type=int, default=1024)
+    parser.add_argument("--ORG_rg_training_period", type=int, default=4)
     parser.add_argument("--ORG_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ORG_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ORG_rg_use_cuda", type=str2bool, default="True",)
@@ -739,10 +739,10 @@ def main():
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
     parser.add_argument("--ORG_split_strategy", type=str, default="divider-1-offset-0",)
-    parser.add_argument("--ORG_replay_capacity", type=int, default=32)
+    parser.add_argument("--ORG_replay_capacity", type=int, default=16)
     parser.add_argument("--ORG_rg_filter_out_non_unique", type=str2bool, default=False)
     parser.add_argument("--ORG_lock_test_storage", type=str2bool, default=False)
-    parser.add_argument("--ORG_test_replay_capacity", type=int, default=16)
+    parser.add_argument("--ORG_test_replay_capacity", type=int, default=4)
     parser.add_argument("--ORG_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ORG_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ORG_test_dataset_length", type=intOrNone, default=None)
@@ -769,9 +769,9 @@ def main():
     parser.add_argument("--ORG_rg_graphtype", type=str, default='obverter')
     parser.add_argument("--ORG_rg_vocab_size", type=int, default=32)
     # TODO : integrate this feature in ArchiPredictorSpeaker ...
-    #parser.add_argument("--ORG_rg_force_eos", type=str2bool, default=True)
-    #parser.add_argument("--ORG_rg_symbol_embedding_size", type=int, default=64)
-    #parser.add_argument("--ORG_rg_arch", type=str, default='BN+MLP')#'BN+7x4x3xCNN')
+    parser.add_argument("--ORG_rg_force_eos", type=str2bool, default=True)
+    parser.add_argument("--ORG_rg_symbol_embedding_size", type=int, default=64)
+    parser.add_argument("--ORG_rg_arch", type=str, default='BN+MLP')#'BN+7x4x3xCNN')
     parser.add_argument("--ORG_rg_shared_architecture", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_normalize_features", type=str2bool, default=False, 
         #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
@@ -851,8 +851,7 @@ def main():
     dargs['seed'] = int(dargs['seed'])
     
     if args.use_ORG:
-        #dargs['preprocessed_observation_shape'] = [args.nbr_latents]
-        import ipdb; ipdb.set_trace()
+        dargs['preprocessed_observation_shape'] = [32] #dummy value [args.nbr_latents]
         from regym.rl_algorithms.algorithms.wrappers.org_wrapper import (
             DIPhyR_preprocess_utter_oracle_fn,
             DIPhyR_preprocess_reason_detach_fn,

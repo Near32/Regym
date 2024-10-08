@@ -45,6 +45,12 @@ from ReferentialGym.agents import (
     LSTMObsSpeaker,
 )
 
+from ReferentialGym.datasets import DemonstrationDataset
+
+###########################################################
+###########################################################
+###########################################################
+
 
 
 def S2B_postprocess_fn(
@@ -838,7 +844,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 ArchiPredictorCls = ArchiPredictorListener
             speaker = ArchiPredictorCls(
                 model=self.model,
-                **self.kwargs["ArchiModel"],
+                **self.kwargs,
                 #pipeline_name="instruction_generator" if self.kwargs["ORG_with_Oracle_speaker"] else "caption_generator",
                 pipelines=self.kwargs["ORG_use_model_in_speaker_pipelines"],
                 #generator_name="InstructionGenerator" if self.kwargs["ORG_with_Oracle_speaker"] else "CaptionGenerator",
@@ -885,6 +891,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                         ),
                     )
 
+            if 'ArchiModel' in self.kwargs \
+            and 'hyperparameters' not in agent_config:
+                agent_config['hyperparameters'] = self.kwargs['ArchiModel']['hyperparameters']
             speaker.speaker_init(
                 kwargs=agent_config, 
                 obs_shape=agent_obs_shape, 
@@ -939,14 +948,15 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         or 'obverter' in self.kwargs["ORG_rg_graphtype"]:
             listener = ArchiPredictorListener(
                 model=self.model,
-                **self.kwargs["ArchiModel"],
+                **self.kwargs,
+                #**self.kwargs["ArchiModel"],
                 #pipeline_name="instruction_generator" if self.kwargs["ORG_with_Oracle_speaker"] else "caption_generator",
                 pipelines=self.kwargs["ORG_use_model_in_listener_pipelines"],
                 #generator_name="InstructionGenerator" if self.kwargs["ORG_with_Oracle_speaker"] else "CaptionGenerator",
                 generators=self.kwargs["ORG_use_model_in_listener_generators"],
                 trainable=self.kwargs['ORG_trainable_listener'],
             )
-            if not self.kwargs["ORG_with_Oracle_listenerer"]:
+            if not self.kwargs["ORG_with_Oracle_listener"]:
                 if 'ORG_listener_preprocess_reason_fn' in self.kwargs.keys() \
                 and 'ORG_listener_preprocess_utter_fn' in self.kwargs.keys():
                     listener_preprocess_fn_dict = {}
@@ -1578,9 +1588,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         if self.kwargs['ORG_with_compactness_ambiguity_metric']:
             pipelines[optim_id].append(compactness_ambiguity_metric_id)
         pipelines[optim_id].append(speaker_posbosdis_metric_id)
-        if "obverter" in self.kwargs["ORG_rg_graphtype"]:
-            pipelines[optim_id].append(listener_topo_sim_metric_id)
-            pipelines[optim_id].append(listener_posbosdis_metric_id)
+        #if "obverter" in self.kwargs["ORG_rg_graphtype"]:
+        #    pipelines[optim_id].append(listener_topo_sim_metric_id)
+        #    pipelines[optim_id].append(listener_posbosdis_metric_id)
         pipelines[optim_id].append(language_dynamic_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
         if self.kwargs["ORG_rg_use_aita_sampling"]:
@@ -1637,7 +1647,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         else:
             extra_keys_dict = {
                 k:v 
-                for k,v in self.kwargs.get("ORG_rg_demonstration_dataset_extra_keys", {})
+                for k,v in self.kwargs.get("ORG_rg_demonstration_dataset_extra_keys", {}).items()
             }
          
             self.rg_train_dataset = DemonstrationDataset(

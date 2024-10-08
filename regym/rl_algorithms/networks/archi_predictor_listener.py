@@ -112,9 +112,18 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
             **pkwargs,
         )
         
-        feature_module = self.model.pipelines[self.pipeline_name][0]
-        self.cnn_encoder = self.model.modules[feature_module]
-
+        try: 
+            feature_module = self.model.pipelines[self.pipeline_name][0]
+            self.cnn_encoder = self.model.modules[feature_module]
+        except Exception as e:
+            self.cnn_encoder = None
+        
+        if 'ArchiModel' in self.archi_kwargs \
+        and 'hyperparameters' not in self.archi_kwargs:
+            self.archi_kwargs['hyperparameters'] = self.archi_kwargs['ArchiModel']['hyperparameters']
+        if 'ArchiModel' in kwargs \
+        and 'hyperparameters' not in self.archi_kwargs:
+            self.archi_kwargs['hyperparameters'] = kwargs['ArchiModel']['hyperparameters']
         self.tau_fc = nn.Sequential(
             nn.Linear(self.archi_kwargs['hyperparameters']['hidden_dim'], 1,bias=False),
             nn.Softplus(),

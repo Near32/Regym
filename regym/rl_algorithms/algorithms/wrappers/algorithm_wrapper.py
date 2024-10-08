@@ -5,9 +5,9 @@ class AlgorithmWrapper(Algorithm):
         self.algorithm = algorithm 
         self.unwrapped = self.algorithm.unwrapped
 
-    @property
-    def kwargs(self):
-        return self.algorithm.kwargs
+    #@property
+    #def kwargs(self):
+    #    return self.algorithm.kwargs
     
 
     @property
