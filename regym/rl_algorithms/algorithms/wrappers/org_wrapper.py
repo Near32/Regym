@@ -14,6 +14,11 @@ import numpy as np
 
 from regym.rl_algorithms.algorithms.algorithm import Algorithm 
 from regym.rl_algorithms.algorithms.wrappers.algorithm_wrapper import AlgorithmWrapper
+from regym.rl_algorithms.replay_buffers import (
+    PrioritizedReplayStorage, 
+    SplitReplayStorage, 
+    SplitPrioritizedReplayStorage,
+)
 
 from regym.rl_algorithms.utils import (
     archi_concat_fn, 
@@ -460,6 +465,9 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.episode_count = 0
         
         self.rg_iteration = 0
+        self.rg_storages = None
+        if not self.kwargs['ORG_with_S2B']:
+            self._reset_rg_storages()
         
         self.init_referential_game()
     
@@ -470,16 +478,59 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.venv = venv
         return 
 
+    def _reset_rg_storages(self):
+        if self.rg_storages is not None:
+            for storage in self.rg_storages: storage.reset()
+       
+        nbr_storages = 1  
+
+        self.rg_storages = []
+        keys = ['s', 'a', 'r', 'non_terminal', 'info']
+        
+        circular_keys= {} #{'succ_s':'s'}
+        circular_offsets= {} #{'succ_s':1}
+        keys.append('succ_s')
+        
+        beta_increase_interval = None
+        #if 'ELA_rg_PER_beta_increase_interval' in self.kwargs and self.kwargs['ELA_rg_PER_beta_increase_interval']!='None':
+        #    beta_increase_interval = float(self.kwargs['ELA_rg_PER_beta_increase_interval'])  
+
+        for i in range(nbr_storages):
+            if False: #self.kwargs.get('ELA_use_PER', False):
+                raise NotImplementedError
+            else:
+                self.rg_storages.append(
+                    SplitReplayStorage(
+                        capacity=int(self.kwargs['ORG_replay_capacity']),
+                        keys=keys,
+                        circular_keys=circular_keys,
+                        circular_offsets=circular_offsets,
+                        test_train_split_interval=self.kwargs['ORG_test_train_split_interval'],
+                        test_capacity=int(self.kwargs['ORG_test_replay_capacity']),
+                        lock_test_storage=self.kwargs['ORG_lock_test_storage'],
+                    )
+                )
+
     def store(self, exp_dict, actor_index=0) -> int:
         nbr_stored_exp = 0
         nbr_stored_exp += self.algorithm.store(exp_dict, actor_index=actor_index)
+        # TODO: figure out how the test set here affect the resulting tests:
+        if not self.kwargs['ORG_with_S2B']:
+            test_set = False 
+            self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
         if not(exp_dict['non_terminal']):
             self.episode_count += 1
             
             self.current_actor = actor_index 
-            self.update_agents(exp_dict)
+            if self.kwargs['ORG_rg_init_agent_states_with_online_states']:
+                self.update_agents(exp_dict)
+            if self.kwargs['ORG_rg_reset_listener_each_training']:
+                self.listener.reset_weights(whole=True)
+            
             self.run()
-            self.regularise_agents()
+            
+            if self.kwargs['ORG_rg_init_agent_states_with_online_states']:
+                self.regularise_agents()
         
         return nbr_stored_exp
     
@@ -511,9 +562,6 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             self.old_reset_states = self.speaker.get_reset_states()
             self.speaker.set_reset_states(self.new_reset_states)
 
-        ## Listener :
-        if self.kwargs['ORG_rg_reset_listener_each_training']:
-            self.listener.reset_weights(whole=True)
         return 
     
     def regularise_agents(self):
@@ -1658,7 +1706,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 dataset_length=self.rg_train_dataset_length,
                 exp_key=self.rg_exp_key,
                 extra_keys_dict=extra_keys_dict,
-                latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
+                #latents_build_fn=self.kwargs['ORG_rg_latents_build_fn'],
                 kwargs=kwargs,
             )
         
@@ -1671,7 +1719,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
                 dataset_length=self.rg_test_dataset_length,
                 exp_key=self.rg_exp_key,
                 extra_keys_dict=extra_keys_dict,
-                latents_build_fn=self.kwargs['ETHER_rg_latents_build_fn'],
+                #latents_build_fn=self.kwargs['ORG_rg_latents_build_fn'],
                 kwargs=kwargs,
             )
         
@@ -1715,12 +1763,16 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.dataset_args = dataset_args
 
     def run(self):
+        can_rg_train = True
+        if not self.kwargs["ORG_with_S2B"]:
+            can_rg_train = (len(self.rg_storages[0]) >= self.kwargs['ORG_replay_capacity'])
+
         # RG Update:
         period_check = self.kwargs['ORG_rg_training_period']
         period_count_check = self.episode_count
         quotient = period_count_check // period_check
         previous_quotient = getattr(self, 'previous_ORG_quotient', 0)
-        if quotient != previous_quotient:
+        if can_rg_train and quotient != previous_quotient:
             self.previous_ORG_quotient = quotient
             self._rg_training()
         return 

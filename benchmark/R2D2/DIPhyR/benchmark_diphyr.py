@@ -700,6 +700,7 @@ def main():
 
     parser.add_argument("--use_ORG", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_tau0", type=float, default=0.2,)
+    parser.add_argument("--ORG_rg_init_agent_states_with_online_states", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
     parser.add_argument("--ORG_use_model_in_speaker", type=str2bool, default="True",)
     parser.add_argument("--ORG_trainable_speaker", type=str2bool, default="False",)
@@ -741,7 +742,10 @@ def main():
     parser.add_argument("--ORG_split_strategy", type=str, default="divider-1-offset-0",)
     parser.add_argument("--ORG_replay_capacity", type=int, default=16)
     parser.add_argument("--ORG_rg_filter_out_non_unique", type=str2bool, default=False)
-    parser.add_argument("--ORG_lock_test_storage", type=str2bool, default=False)
+    # WARNING: very important to lock the test replay in order to ensure that 
+    # observed variations are not due to variations of the test data.
+    # If the test set is large enough, then it does not matter.
+    parser.add_argument("--ORG_lock_test_storage", type=str2bool, default=True)
     parser.add_argument("--ORG_test_replay_capacity", type=int, default=4)
     parser.add_argument("--ORG_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ORG_train_dataset_length", type=intOrNone, default=None)

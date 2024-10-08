@@ -79,6 +79,7 @@ r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLP
 experiment:
     tasks: [{
         'env-id': 'OfflineInvertedPendulumDIPhiREnv-v0',
+        #'env-id': 'OfflineInvertedPendulumDIPhyREnv-v0',
         'env-config': {
           'max_nbr_actions': 5,
           #'max_nbr_timesteps': 16, #16,
