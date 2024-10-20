@@ -91,16 +91,17 @@ class DQNAlgorithm(Algorithm):
         if self.kwargs['use_cuda']:
             self.model = self.model.cuda()
 
-        if target_model is None:
-            target_model = copy.deepcopy(self.model)
+        self.use_target_model = kwargs.get('use_target_model', True)
+        if self.use_target_model:
+            if target_model is None:
+                target_model = copy.deepcopy(self.model)
 
-        self.target_model = target_model
-        #self.target_model.share_memory()
+            self.target_model = target_model
+            #self.target_model.share_memory()
 
-        hard_update(self.target_model, self.model)
-        if self.use_cuda:
-            self.target_model = self.target_model.cuda()
-
+            hard_update(self.target_model, self.model)
+            if self.use_cuda:
+                self.target_model = self.target_model.cuda()
         
         if optimizer is None:
             parameters = self.model.parameters()
@@ -276,12 +277,16 @@ class DQNAlgorithm(Algorithm):
             self._param_obs_counter.set(val)
     
     def get_models(self):
-        return {'model': self.model, 'target_model': self.target_model}
+        rdict = {'model': self.model}
+        if self.use_target_model:
+            rdict['target_model'] = self.target_model
+        return rdict
 
     def set_models(self, models_dict):
         if "model" in models_dict:
             hard_update(self.model, models_dict["model"])
         if "target_model" in models_dict:
+            assert self.use_target_model
             hard_update(self.target_model, models_dict["target_model"])
     
     def get_nbr_actor(self):
@@ -488,7 +493,8 @@ class DQNAlgorithm(Algorithm):
         if self.noisy \
         and hasattr(self.model, "reset_noise"):
             self.model.reset_noise()
-            self.target_model.reset_noise()
+            if self.use_target_model:
+                self.target_model.reset_noise()
 
         start = time.time()
         self.optimize_model(minibatch_size, samples)
@@ -496,15 +502,16 @@ class DQNAlgorithm(Algorithm):
         
         wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
-        if self.use_target_update_interval:
-            self.target_update_count += self.nbr_actor
-            if self.target_update_count > self.target_update_interval:
-                self.target_update_count = 0
-                hard_update(self.target_model,self.model)
-        elif self.use_HER and self.kwargs.get("HER_soft_update", False):
-            soft_update(self.target_model, self.model, tau=0.95) 
-        else:
-            soft_update(self.target_model, self.model, tau=self.TAU)
+        if self.use_target_model:
+            if self.use_target_update_interval:
+                self.target_update_count += self.nbr_actor
+                if self.target_update_count > self.target_update_interval:
+                    self.target_update_count = 0
+                    hard_update(self.target_model,self.model)
+            elif self.use_HER and self.kwargs.get("HER_soft_update", False):
+                soft_update(self.target_model, self.model, tau=0.95) 
+            else:
+                soft_update(self.target_model, self.model, tau=self.TAU)
 
     def _mp_sampling(self, storages, sampling_config, samples):
         logger = logging.getLogger()
@@ -899,14 +906,14 @@ class DQNAlgorithm(Algorithm):
         param_update_counter = self._param_update_counter
         self._param_update_counter = None 
 
-        if self.target_model is None:
-            self.target_model = copy.deepcopy(self.model)
-        
+        if self.use_target_model:
+            if self.target_model is None:
+                self.target_model = copy.deepcopy(self.model)
+            if isinstance(self.target_model, ArchiModel):
+                self.target_model.reset()
+         
         if isinstance(self.model, ArchiModel):
             self.model.reset()
-        if isinstance(self.target_model, ArchiModel):
-            self.target_model.reset()
-        
         param_obs_counter = self._param_obs_counter
         self._param_obs_counter = None 
 

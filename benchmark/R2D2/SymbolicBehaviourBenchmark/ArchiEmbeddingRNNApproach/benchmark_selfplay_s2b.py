@@ -472,10 +472,12 @@ def s2b_r2d2_wrap(
     previous_reward_action=True,
     otherplay=False,
     multi_binary_comm=True,
+    multi_discrete_combined_actions=False,
     ):
     env = s2b_wrap(
       env, 
       combined_actions=True,
+      multi_discrete_combined_actions=multi_discrete_combined_actions,
       dict_obs_space=False,
       multi_binary_comm=multi_binary_comm,
     )
@@ -847,6 +849,7 @@ def training_process(agent_config: Dict,
 
     pixel_wrapping_fn = partial(
       s2b_r2d2_wrap,
+      multi_discrete_combined_actions=task_config.get('multi_discrete_combined_actions', False), 
       clip_reward=task_config['clip_reward'],
       previous_reward_action=task_config.get('previous_reward_action', False),
       otherplay=task_config.get("otherplay", False),
@@ -920,23 +923,23 @@ def training_process(agent_config: Dict,
             if use_speaker_rule_based_agent:
                 rb_agent = build_WrappedPositionallyDisentangledSpeakerAgent( 
                     player_idx=0,
-                    action_space_dim=task.env.action_space.n, 
+                    action_space=task.env.action_space, 
                     vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
                     max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
                     nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
                     nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
-        
+                    multi_discrete=task_config.get('multi_discrete_combined_actions', False), 
                 )
                 agents = [rb_agent, agent]
             else:
                 rb_agent = build_WrappedPositionallyDisentangledListenerAgent( 
                     player_idx=1,
-                    action_space_dim=task.env.action_space.n, 
+                    action_space=task.env.action_space, 
                     vocab_size=task.env.unwrapped_env.unwrapped.vocab_size,
                     max_sentence_length=task.env.unwrapped_env.unwrapped.max_sentence_length,
                     nbr_communication_rounds=task.env.unwrapped_env.unwrapped.nbr_communication_rounds,
                     nbr_latents=task.env.unwrapped_env.unwrapped.nbr_latents,
-        
+                    multi_discrete=task_config.get('multi_discrete_combined_actions', False), 
                 )
                 agents = [agent, rb_agent]
         else:
@@ -990,17 +993,34 @@ def training_process(agent_config: Dict,
     return trained_agents, task 
 
 
-def load_configs(config_file_path: str):
-    all_configs = yaml.load(
-        open(config_file_path),
-        Loader=yaml.Loader,
-    )
+def parse_and_update(config_file_path: str, kwargs: Dict[str, Any]):
+    config_file = open(config_file_path, 'r')
+    lines = config_file.readlines()
+    config = ""
+    for line in lines:
+        if '&' in line:
+            key, value = line.split(': ')[:2]
+            key = key.strip()
+            value = value.strip()
+            if key in kwargs:
+                if '&' in value:
+                    value = value.split('&')[1].split(' ')[1]
+                value = value.strip()
+                line = line.replace(value, str(kwargs[key]))
+        config += line 
+    return config
+
+
+def load_configs(config_file_path: str, kwargs: Dict[str, Any]):
+    yaml_str = parse_and_update(config_file_path, kwargs)
+    all_configs = yaml.safe_load(yaml_str)
 
     agents_config = all_configs['agents']
     experiment_config = all_configs['experiment']
     envs_config = experiment_config['tasks']
 
     return experiment_config, agents_config, envs_config
+
 
 def str2bool(instr):
     if isinstance(instr, bool):
@@ -1072,6 +1092,11 @@ def main():
         default="META_RG_S2B",
     )
 
+    parser.add_argument("--use_grammar", 
+        type=str2bool, 
+        default=False,
+    )
+ 
     parser.add_argument("--success_threshold", 
         type=float, 
         default=0.0,
@@ -1262,9 +1287,11 @@ def main():
     parser.add_argument("--use_ORG", type=str2bool, default="True",)
     parser.add_argument("--ORG_rg_tau0", type=float, default=0.2,)
     parser.add_argument("--ORG_rg_reset_listener_each_training", type=str2bool, default="False",)
-    parser.add_argument("--ORG_use_predictor", type=str2bool, default="True",)
-    parser.add_argument("--ORG_with_Oracle", type=str2bool, default="False",)
+    parser.add_argument("--ORG_use_predictor_as_speaker", type=str2bool, default="True",)
+    parser.add_argument("--ORG_use_predictor_as_listener", type=str2bool, default="False",)
+    #TODO : only available if using obverter and ArchiPredictorListener as opposed to the speaker one...
     parser.add_argument("--ORG_with_Oracle_type", type=str, default="visible-entities",)
+    parser.add_argument("--ORG_with_Oracle_speaker", type=str2bool, default="False",)
     parser.add_argument("--ORG_with_Oracle_listener", type=str2bool, default="False",)
     parser.add_argument("--ORG_use_ORG", type=str2bool, default="True",)
     parser.add_argument("--ORG_use_supervised_training", type=str2bool, default="True",)
@@ -1329,6 +1356,7 @@ def main():
         #help="Will be toggled on automatically if using (listener) continuous feedback without descriptive RG.",
     )
     parser.add_argument("--ORG_rg_agent_loss_type", type=str, default='Hinge')
+    parser.add_argument("--ORG_rg_language_dynamic_metric_epoch_period", type=int, default=1)
     parser.add_argument("--ORG_rg_use_aita_sampling", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_aita_update_epoch_period", type=int, default=32)
     parser.add_argument("--ORG_rg_aita_levenshtein_comprange", type=float, default=1.0)
@@ -1452,8 +1480,11 @@ def main():
     #GpuUtils.allocate(required_memory=20000, framework="torch")
     
     config_file_path = args.yaml_config #sys.argv[1] #'./atari_10M_benchmark_config.yaml'
-    experiment_config, agents_config, tasks_configs = load_configs(config_file_path)
-   
+    experiment_config, agents_config, tasks_configs = load_configs(
+        config_file_path,
+        kwargs=dargs,
+    )
+    
     bfs_ptr = agents_config
     bfs_list = [(k, bfs_ptr) for k in bfs_ptr.keys()]
     while len(bfs_list):

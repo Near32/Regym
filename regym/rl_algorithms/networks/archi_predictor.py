@@ -18,10 +18,13 @@ class ArchiPredictor(nn.Module):
         self.generator_name = generator_name
         self.model = model
         self.archi_kwargs = kwargs
-        self.use_oracle = len([
-            m_id for m_id in self.model.pipelines[self.pipeline_name]
-            if 'oracle' in m_id.lower()
-        ]) > 0
+        try:
+            self.use_oracle = len([
+                m_id for m_id in self.model.pipelines[self.pipeline_name]
+                if 'oracle' in m_id.lower()
+            ]) > 0
+        except Exception as e:
+            self.use_oracle = False
         if self.use_oracle:
             print("ARCHI PREDICTOR::WARNING: using OracleTHER.")
     

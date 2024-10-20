@@ -3,7 +3,7 @@
 #python benchmark_selfplay_s2b.py \
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --success_threshold=0.5 \
---use_cuda=True \
+--use_cuda=False \
 --project=META-RG-S2B-Debug-OracleListener \
 --seed=30 \
 --saving_interval=1e20 \
@@ -60,14 +60,14 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_selfplay_s2b.py \
 --ORG_rg_l2_weight_decay=0.0 --ORG_rg_l1_weight_decay=0.0 \
 --ORG_rg_vocab_size=64 --ORG_rg_training_period=2 \
 --ORG_rg_descriptive=True --ORG_rg_object_centric=True \
---ORG_rg_object_centric_type='ratio-75' \
+--ORG_rg_object_centric_type='hard' \
 --ORG_rg_use_curriculum_nbr_distractors=False \
 --ORG_rg_batch_size=32 \
 --ORG_rg_nbr_epoch_per_update=512 --ORG_rg_accuracy_threshold=101 \
 --ORG_rg_nbr_train_distractors=0 --ORG_rg_nbr_test_distractors=0 \
 --ORG_rg_distractor_sampling=uniform \
 --ORG_rg_distractor_sampling_with_replacement=True \
---ORG_rg_use_cuda=True \
+--ORG_rg_use_cuda=False \
 --ORG_rg_metric_fast=True --ORG_rg_parallel_TS_worker=8 \
 --ORG_rg_metric_epoch_period=32 --ORG_rg_dis_metric_epoch_period=0 \
 --ORG_rg_metric_batch_size=32 \

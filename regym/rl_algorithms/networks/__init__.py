@@ -17,6 +17,7 @@ from .heads import EnsembleQNet
 from .archi_predictor import ArchiPredictor
 from .archi_reward_predictor import ArchiRewardPredictor
 from .archi_predictor_speaker import ArchiPredictorSpeaker
+from .archi_predictor_listener import ArchiPredictorListener
 
 
 import torch.nn.functional as F 

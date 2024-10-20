@@ -1,0 +1,328 @@
+extra_hyperparameters: &extra_hyperparameters
+    # As we are using LLMs with sample, no need to add epsilon-greedy:
+    greedy_actions: True
+
+    lr_account_for_nbr_actor: False 
+    weights_decay_lambda: 0.0
+    weights_entropy_lambda: 0.0 #01
+    use_target_to_gather_data:    False
+
+    ####################################
+    # New hyperparameters:
+    PER_compute_initial_priority: False
+    #####################################
+    
+    sequence_replay_use_online_states: True
+    sequence_replay_use_zero_initial_states: False
+    sequence_replay_store_on_terminal: True
+    
+    r2d2_loss_masking: True
+    r2d2_loss_masking_n_step_regularisation: True
+    r2d2_bellman_target_SAD: False
+
+    burn_in: True
+    sequence_replay_unroll_length: 80
+    sequence_replay_overlap_length: 40
+    sequence_replay_burn_in_length: 20
+
+    sequence_replay_PER_eta: 0.9
+
+    vdn: False 
+    vdn_nbr_players: 2
+
+r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0: &r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
+        #observation_resize_dim: 21 #56
+        
+        dueling: True
+        noisy: False 
+        n_step: 3
+
+        use_PER: True
+        PER_alpha: 0.9
+        PER_beta: 0.6
+
+        replay_capacity: 5242880 # in terms of experience #1e6
+        min_capacity: 4e5 #in terms of experiences... #1e4
+        replay_period: 1
+        
+        actor_models_update_steps_interval: 10 #considering only 1 actor's steps.
+
+        discount: 0.999
+        use_cuda: True
+        gradient_clip: 0.5
+        batch_size: 128
+        tau: 4.0e-4
+        learning_rate: 6.25e-5
+        adam_eps: 1.5e-5
+
+        epsstart: 1.0
+        epsend: 0.1
+        epsdecay: 10000
+        eps_greedy_alpha: 7.0
+
+        sequence_replay_use_online_states: True
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: False
+        
+        r2d2_loss_masking: True
+        r2d2_loss_masking_n_step_regularisation: True
+        
+        burn_in: False
+        sequence_replay_unroll_length: 40
+        sequence_replay_overlap_length: 10
+        sequence_replay_burn_in_length: 0
+
+        sequence_replay_PER_eta: 0.9
+
+        <<: *extra_hyperparameters
+
+experiment:
+    tasks: [{
+        'env-id': 'OfflineInvertedPendulumDIPhiREnv-v0',
+        'env-config': {
+          'max_nbr_actions': 5,
+          #'max_nbr_timesteps': 16, #16,
+          'timestep': 0.0165,
+          'frame_skip': 24,
+          'max_sentence_length': 131072,
+          'obfuscate_logs': False,
+          'show_phase_space_diagram': False,
+          'save_metadata': False,
+          'minimal_logs': True,
+          'use_cot': True,
+        },
+        
+        'run-id': 'Train',
+        'agent-id': 'r2d2_APEX1m0_4m2OVER3p4_gamma997_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone',
+        
+        'nbr_actor': 128,
+        #'nbr_actor': 100,
+        #'nbr_actor': 64,
+        #'nbr_actor': 32,
+        #'nbr_actor': 16,
+        #'nbr_actor': 8,
+        #'nbr_frame_skipping': 4,
+        #'nbr_frame_stacking': 4,
+        #'grayscale': True,
+        #'single_life_episode': True, #False,
+        #'nbr_max_random_steps': 30,
+        #'sad': False, 
+        'sad': True,
+        #'vdn': False, 
+        'vdn': True,
+        #"otherplay": True,
+        "otherplay": False,
+        'clip_reward': False,
+        'previous_reward_action': True,
+        #'observation_resize_dim': (21,21), #(56,56),
+        'observation_resize_dim': 56, #(56,56),
+        #
+        'reload': 'None',
+        },
+    ]
+    experiment_id: 'r2d2_s2b_debug'
+    benchmarking_episodes: 0
+    benchmarking_interval: 1.0e4
+    benchmarking_record_episode_interval: 'None' #1.0e1 #1.0e20
+    #benchmarking_record_episode_interval: 1.0e20
+    train_observation_budget: 1.0e7
+    seed: 1
+    
+agents:
+    base_agent: &base_agent
+        <<: *r2d2_LargeMLPLSTM_SAD_graclip5m1_b128_tau4m4_lr6p25m5_L40_O10_B0
+        actor_models_update_steps_interval: 1 #considering only 1 actor's steps.
+
+        vdn: True 
+        vdn_nbr_players: 2
+
+        batch_size: 32
+        learning_rate: 6.25e-5
+        adam_eps: 1.5e-5
+        discount: 0.997
+        gradient_clip: 5.0 
+        # ...not specified in r2d2 paper but in Ape-X,
+        # and r2d2 paper says that missing hyper-param
+        # are the same as ape-X
+        
+        replay_capacity: 5e4 #163840 #2e13*20 #5242880 # in terms of experience #1e6
+        min_capacity: 2e4 #in terms of experiences... #1e4
+        
+        PER_compute_initial_priority: False
+        PER_beta_increase_interval: None #2e5
+        
+        double: True
+        dueling: True 
+        noisy: False
+        n_step: 3
+        tau: 4.0e-4
+        
+        sequence_replay_use_online_states: True
+        sequence_replay_use_zero_initial_states: False
+        sequence_replay_store_on_terminal: True
+        
+        r2d2_loss_masking: True
+        r2d2_loss_masking_n_step_regularisation: True
+        r2d2_bellman_target_SAD: False 
+
+        burn_in: False
+        sequence_replay_unroll_length: 100
+        sequence_replay_overlap_length: 0
+        sequence_replay_burn_in_length: 0
+        
+
+        epsstart: 1.0
+        epsend: 0.05
+        epsdecay: 30000 #1000000
+        
+        # ape-X and r2d2 keep it constant over each actor 
+        # with a different value eps_i = base_eps**(1+\alpha*i/nbr_actors)
+        # with base_eps=0.4 and \alpha = 7...
+        eps_greedy_alpha: 7.0
+    
+    r2d2_APEX1m0_4m2OVER3p4_gamma997_GradClip5m0_r5p4Min2e4_alpha9m1_beta6m1_eta9m1_tau4m4_RepP1_NOBURNIN_b32_L100_O0_B0_NOZeroInitSt_StoreOnDone:
+        <<: *base_agent
+        min_capacity: 4e4
+        weights_entropy_lambda: 0.0 
+        vdn: False 
+        sad: False 
+
+        
+        learning_rate: 6.25e-5
+        adam_eps: 1.0e-12
+
+        replay_capacity: 5e4 #5e5
+        #replay_capacity: 1e5 
+        #min_capacity: 3e4 #in terms of experiences... #1e4
+        
+        n_step: 0
+        
+        batch_size: 128
+        burn_in: False
+        sequence_replay_unroll_length: 20
+        sequence_replay_overlap_length: 10
+        sequence_replay_burn_in_length: 0
+        psend: 0.4
+        eps_greedy_alpha: 2.0
+        
+        use_target_model: False
+    
+        ArchiModel:
+            model_id: 'RL_ArchiTransformerTestModel'
+            hyperparameters:
+                #hidden_dim: &hidden_dim 16384 #4096*action_dim
+                #hidden_dim: &hidden_dim 2880 #2304
+                hidden_dim: &hidden_dim 10240
+                action_dim: &action_dim 5
+            input_stream_ids:
+                "inputs:obs" : "observations:obs"
+                "inputs:legal_actions" : "frame_states:legal_actions"
+            modules:
+                'LMModule':
+                    type: 'ArchiTransformerModule' 
+                    #model_id: "HuggingFaceTB/SmolLM-135M-Instruct"
+                    #model_id: "togethercomputer/LLaMA-2-7B-32K"
+                    #model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" 
+                    model_id: "RWKV/v6-Finch-1B6-HF" 
+                    #model_id: "microsoft/Phi-3-mini-4k-instruct"
+                    #model_id: "microsoft/Phi-3-mini-128k-instruct"
+                    config:
+                        'use_nocache': True
+                        'quantize': False 
+                        #'quantize': True
+                        'bnb_config': 
+                            'load_in_4bit': True
+                            'bnb_4bit_use_double_quant': True
+                            'bnb_4bit_quant_type': 'nf4'
+                            'bnb_4bit_compute_dtype': 'bfloat16'
+                        'use_lora': False
+                        #'use_lora': True
+                        'lora_config':
+                            'r': 8
+                            'lora_alpha': 32
+                            'target_modules': ['q_proj','k_proj','v_proj','o_proj']
+                            #'target_modules': ['o_proj', 'qkv_proj'] 
+                            #'target_modules': ['c_proj'] 
+                            'lora_dropout': 0.05
+                            'bias': 'none'
+                            'task_type': 'CAUSAL_LM'
+                        'generation_kwargs': 
+                            'max_new_tokens': 1
+                            'do_sample': True
+                            'temperature': 0.7 
+                            'repetition_penalty': 1.1 
+                            'stop_strings': ['\n']
+                            'top_p': 0.7 
+                            'top_k': 50
+                        'gradient_checkpointing': False
+                    use_cuda: True 
+                    input_stream_ids:
+                        inputs: 'inputs:phi_body:extra_inputs:prompt'
+                    output_stream_ids:
+                        output: "inputs:LMModule:output"
+                'RLHead':
+                    type: RLCategoricalHeadModule
+                    state_dim: *hidden_dim
+                    action_dim: *action_dim
+                    noisy: False
+                    dueling: True
+                    action_logits_from_probs: True
+                    config: None
+                    input_stream_ids: 
+                        input0: "inputs:LMModule:inputs_last_token_last_hidden_states"
+                        action: "inputs:action"
+                        probs: 'inputs:LMModule:inputs_prediction_probs'
+                        #legal_actions: "inputs:legal_actions"
+                        legal_actions: "inputs:LMModule:inputs_legal_choices"
+                    use_cuda: True
+            
+            output_mappings:
+                head:
+                    "a": "modules:RLHead:a"
+                    #"greedy_action" : "modules:RLHead:greedy_action"
+                    "ent" : "modules:RLHead:ent"
+                    "legal_ent" : "modules:RLHead:legal_ent"
+                    #"v" : "modules:RLHead:v"
+                    "qa" : "modules:RLHead:qa"
+                    #"log_pi_a" : "modules:RLHead:log_pi_a"
+                    "log_a" : "modules:RLHead:log_a"
+                    "unlegal_log_a" : "modules:RLHead:unlegal_log_a"
+                caption_generator:
+                    "a" : "modules:RLHead:a"
+ 
+            input_mappings:
+                    # Remaps the features to there original stream when using head pipeline only:
+                    head:
+                      "inputs:obs": "inputs:obs"
+            pipelines:
+                    torso: ['LMModule', 'RLHead']
+                    head: []
+            features_id: 
+              #torso: "modules:ConcatenationOperation:output"
+        extra_inputs_infos: {
+            'previous_reward':{
+                shape: [1,], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'previous_action':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+
+            'action_mask':{
+                shape: ['task.action_dim',], 
+                target_location: ['critic_body', 'extra_inputs']
+            },
+            'legal_actions':{
+                shape: ['task.action_dim',], 
+                target_location: ['head', 'extra_inputs']
+            },
+            'prompt':{
+                shape:[131072,],
+                target_location: ['phi_body', 'extra_inputs']
+            },
+        }
+    
+    
+    
+        
