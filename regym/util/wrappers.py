@@ -1895,7 +1895,8 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
 
     def __init__(self, env, trajectory_wrapping=False):
         super(PreviousRewardActionInfoMultiAgentWrapper, self).__init__(env)
-        if isinstance(env.action_space, spaces.Discrete):
+        if isinstance(env.action_space, spaces.Discrete) \
+        or isinstance(env.action_space, gymnasium.spaces.Discrete):
             self.nbr_actions = env.action_space.n
             self.nbr_action_dims = None
         elif isinstance(env.action_space, spaces.MultiDiscrete):
@@ -1927,7 +1928,10 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
                 infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
                 infos[info_idx]['previous_action'] = copy.deepcopy(self.previous_action[info_idx])
                 infos[info_idx]['previous_action_int'] = copy.deepcopy(self.previous_action_int[info_idx])
-        elif isinstance(infos, dict):
+        elif isinstance(infos, dict) \
+        or (isinstance(infos, list) and len(infos) == 1):
+            if (isinstance(infos, list) and len(infos) == 1):
+                infos = infos[0]
             nbr_agent = 1
             self.previous_reward = [np.zeros((1, 1)) for _ in range(nbr_agent)]
             if self.nbr_action_dims is None:
@@ -1996,7 +2000,10 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
                 next_infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
                 next_infos[info_idx]['previous_action'] = copy.deepcopy(pa[info_idx])
                 next_infos[info_idx]['previous_action_int'] = copy.deepcopy(pa_int[info_idx])
-        elif isinstance(next_infos, dict):
+        elif isinstance(next_infos, dict) \
+        or (isinstance(next_infos, list) and len(next_infos) == 1):
+            if (isinstance(next_infos, list) and len(next_infos) == 1):
+                next_infos = next_infos[0]
             nbr_agent = 1
             self.previous_reward = [np.ones((1, 1), dtype=np.float32)*reward for agent_idx in range(nbr_agent)]
             if eye_actions is None:
@@ -2028,7 +2035,8 @@ class PreviousRewardActionInfoMultiAgentWrapper(gym.Wrapper):
             next_infos[info_idx]['previous_reward'] = copy.deepcopy(self.previous_reward[info_idx])
             next_infos[info_idx]['previous_action'] = copy.deepcopy(pa[info_idx])
             next_infos[info_idx]['previous_action_int'] = copy.deepcopy(pa_int[info_idx])
- 
+        else:
+            raise NotImplementedError 
         return next_observation, reward, done, next_infos
 
 
@@ -3287,6 +3295,7 @@ except Exception as e:
 from typing import Any, Callable
 
 #from gymnasium import spaces
+import gymnasium
 from gym import spaces
 from gymnasium.utils import seeding
 

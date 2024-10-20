@@ -22,6 +22,7 @@ from regym.rl_algorithms.algorithms.wrappers import (
 from regym.rl_algorithms.networks import (
     ArchiPredictor, 
     ArchiRewardPredictor,
+    ArchiPredictorSpeaker,
 )
 
 import wandb 
