@@ -3188,7 +3188,7 @@ except Exception as e:
             )
         
         def observation(self, obs):
-            rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)
+            rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
             if isinstance(obs, tuple):
                 assert len(obs) == 2
                 # reset:
@@ -3470,7 +3470,7 @@ class GymRGBImgPartialObsWrapper(gym.ObservationWrapper):
         )
     
     def observation(self, obs):
-        rgb_img_partial = self.get_frame(tile_size=self.tile_size, agent_pov=True)
+        rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
         if isinstance(obs, tuple):
             assert len(obs) == 2
             # reset:
@@ -3960,7 +3960,7 @@ def baseline_ther_wrapper(
     if single_pick_episode:
         env = EpisodicPickEnv(
             env,
-            pick_idx=env.actions.pickup,
+            pick_idx=env.unwrapped.actions.pickup,
         )
 
     if stack > 1 or len(concatenate_keys_with_obs):
@@ -4017,7 +4017,7 @@ def baseline_ther_wrapper(
     if coverage_manipulation_metric:
         env = CoverageManipulationMetricWrapper(
             env=env,
-            pick_idx=env.actions.pickup,
+            pick_idx=env.unwrapped.actions.pickup,
         )
 
     #env = DictObservationSpaceReMapping(env=env, remapping={'image':'observation'})

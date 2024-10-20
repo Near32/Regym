@@ -277,6 +277,15 @@ class DQNAgent(Agent):
     def train_using_stored_exp(self, nbr_stored_exp) -> int:
         nbr_updates = 0 
         if nbr_stored_exp:
+
+            if not hasattr(self, 'accum_nbr_stored_exp'):   self.accum_nbr_stored_exp = 0
+            self.accum_nbr_stored_exp += nbr_stored_exp
+
+            if self.accum_nbr_stored_exp < self.kwargs['training_iteration_stored_exp_period']:
+                return nbr_updates
+            nbr_stored_exp = self.accum_nbr_stored_exp
+            self.accum_nbr_stored_exp = 0
+
             minibatch_size = self.kwargs['batch_size']
             if self.nbr_episode_per_cycle is None:
                 minibatch_size *= self.replay_period
@@ -295,7 +304,7 @@ class DQNAgent(Agent):
             print(nbr_stored_exp, f1, f2, f3)
             print('-'*32)
             print('-'*32)
-            nbr_train_it *= f2
+            nbr_train_it *= f3 #f2
             #self.algorithm.unwrapped.nbr_minibatches *= f1 #sqrt_stored_exp #nbr_stored_exp
             for train_it in tqdm(range(nbr_train_it)):
                 self.algorithm.train(minibatch_size=minibatch_size)
