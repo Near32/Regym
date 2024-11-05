@@ -77,13 +77,14 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --epsstart=1.0 --epsend=0.1 \
 --epsdecay=100000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=256 \
---min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=20e3 --learning_rate=3e-4 \
+--min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=20e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --training_iteration_use_nbr_stored_exp=True \
+--training_iteration_stored_exp_period=864 \
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \

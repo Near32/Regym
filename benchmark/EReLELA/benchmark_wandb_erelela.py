@@ -20,6 +20,7 @@ from regym.util.wrappers import baseline_ther_wrapper
 
 #import babyai
 import minigrid
+minigrid.register_minigrid_envs()
 #import miniworld 
 
 from regym.modules import EnvironmentModule, CurrentAgentsModule
@@ -926,6 +927,7 @@ def main():
     parser.add_argument("--nbr_training_iteration_per_cycle", type=int, default=10)
     parser.add_argument("--nbr_episode_per_cycle", type=int, default=16)
     parser.add_argument("--training_iteration_use_nbr_stored_exp", type=str2bool, default=False)
+    parser.add_argument("--training_iteration_stored_exp_period", type=int, default=32*270/10)
     #parser.add_argument("--critic_arch_feature_dim", 
     #    type=int, 
     #    default=32,

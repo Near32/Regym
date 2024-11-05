@@ -60,6 +60,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             algorithm=algorithm,
         )
         
+        self.kwargs = algorithm.kwargs
         self.feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
         self.visited_captions = []
         if 'across-training' in self.feedbacks_type:    self.visited_captions = {}
