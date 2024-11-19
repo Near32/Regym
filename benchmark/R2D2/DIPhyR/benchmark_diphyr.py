@@ -30,6 +30,28 @@ import wandb
 import argparse
 import random
 
+# DEBUGGING:
+'''
+import logging
+import ipdb
+
+class WarningHandler(logging.Handler):
+    def emit(self, record):
+        if record.levelno == logging.WARNING:
+            # Trigger ipdb trace when a warning occurs
+            print(f"Warning triggered: {record.msg}")
+            #ipdb.set_trace()  # or raise an exception if preferred
+            # Uncomment the following to raise an exception instead:
+            raise Exception(f"Warning occurred: {record.msg}")
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)  # Capture all levels of logs
+
+# Add the custom warning handler
+warning_handler = WarningHandler()
+logger.addHandler(warning_handler)
+'''
 
 def diphyr_r2d2_wrap(
     env, 
@@ -587,6 +609,7 @@ def main():
         default="DIPhyR",
     )
 
+    parser.add_argument("--multi_gpu_strategy", type=str, default="none")
     parser.add_argument("--test_only", type=str2bool, default="False")
     parser.add_argument("--reload_wandb_run_path", 
         type=str, 
@@ -721,7 +744,7 @@ def main():
     #parser.add_argument("--ORG_listener_based_predicated_reward_fn", type=str2bool, default=False,)
     parser.add_argument("--ORG_with_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
-    parser.add_argument("--ORG_rg_training_period", type=int, default=4)
+    parser.add_argument("--ORG_rg_training_period", type=int, default=64)
     parser.add_argument("--ORG_rg_accuracy_threshold", type=float, default=75)
     parser.add_argument("--ORG_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ORG_rg_use_cuda", type=str2bool, default="True",)
@@ -740,19 +763,19 @@ def main():
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_ungrounding", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_semantic_cooccurrence_grounding_sentence_level_lambda", type=float, default=1.0)
     parser.add_argument("--ORG_split_strategy", type=str, default="divider-1-offset-0",)
-    parser.add_argument("--ORG_replay_capacity", type=int, default=4)
+    parser.add_argument("--ORG_replay_capacity", type=int, default=64)
     parser.add_argument("--ORG_rg_filter_out_non_unique", type=str2bool, default=False)
     # WARNING: very important to lock the test replay in order to ensure that 
     # observed variations are not due to variations of the test data.
     # If the test set is large enough, then it does not matter.
     parser.add_argument("--ORG_lock_test_storage", type=str2bool, default=True)
-    parser.add_argument("--ORG_test_replay_capacity", type=int, default=2)
+    parser.add_argument("--ORG_test_replay_capacity", type=int, default=16)
     parser.add_argument("--ORG_test_train_split_interval",type=int, default=5)
     parser.add_argument("--ORG_train_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ORG_test_dataset_length", type=intOrNone, default=None)
     parser.add_argument("--ORG_rg_object_centric_version", type=int, default=1)
     parser.add_argument("--ORG_rg_distractor_sampling_scheme_version", type=int, default=2)
-    parser.add_argument("--ORG_rg_descriptive_version", type=int, default=2)
+    parser.add_argument("--ORG_rg_descriptive_version", type=int, default=1)
     parser.add_argument("--ORG_rg_with_color_jitter_augmentation", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_color_jitter_prob", type=float, default=0)
     parser.add_argument("--ORG_rg_with_gaussian_blur_augmentation", type=str2bool, default=False)
@@ -805,9 +828,9 @@ def main():
     parser.add_argument("--ORG_rg_use_obverter_sampling", type=str2bool, default=False)
     parser.add_argument("--ORG_rg_obverter_sampling_round_alternation_only", type=str2bool, default=False)
     
-    parser.add_argument("--ORG_rg_batch_size", type=int, default=2)
+    parser.add_argument("--ORG_rg_batch_size", type=int, default=1)
     parser.add_argument("--ORG_rg_dataloader_num_worker", type=int, default=0)
-    parser.add_argument("--ORG_rg_learning_rate", type=float, default=3.0e-4)
+    parser.add_argument("--ORG_rg_learning_rate", type=float, default=6.25e-5)
     parser.add_argument("--ORG_rg_weight_decay", type=float, default=0.0)
     parser.add_argument("--ORG_rg_l1_weight_decay", type=float, default=0.0)
     parser.add_argument("--ORG_rg_l2_weight_decay", type=float, default=0.0)
@@ -823,11 +846,12 @@ def main():
     parser.add_argument("--ORG_rg_symbol_processing_nbr_hidden_units", type=int, default=512)
     
     parser.add_argument("--ORG_rg_mini_batch_size", type=int, default=32)
-    parser.add_argument("--ORG_rg_optimizer_type", type=str, default='adam')
-    parser.add_argument("--ORG_rg_nbr_epoch_per_update", type=int, default=3)
+    parser.add_argument("--ORG_rg_optimizer_type", type=str, default='adamW')
+    parser.add_argument("--ORG_rg_optimizer_gradient_accumulation_steps", type=int, default=1)
+    parser.add_argument("--ORG_rg_nbr_epoch_per_update", type=int, default=2)
 
-    parser.add_argument("--ORG_rg_metric_epoch_period", type=int, default=10024)
-    parser.add_argument("--ORG_rg_dis_metric_epoch_period", type=int, default=10024)
+    parser.add_argument("--ORG_rg_metric_epoch_period", type=int, default=0)
+    parser.add_argument("--ORG_rg_dis_metric_epoch_period", type=int, default=0)
     parser.add_argument("--ORG_rg_metric_batch_size", type=int, default=16)
     parser.add_argument("--ORG_rg_metric_fast", type=str2bool, default=True)
     parser.add_argument("--ORG_rg_parallel_TS_worker", type=int, default=8)
@@ -859,8 +883,10 @@ def main():
         from regym.rl_algorithms.algorithms.wrappers.org_wrapper import (
             DIPhyR_preprocess_utter_oracle_fn,
             DIPhyR_preprocess_reason_detach_fn,
+            DIPhyR_preprocess_reason_over_distractors_detach_fn,
             DIPhyR_postprocess_utter_oracle_fn,
             DIPhyR_postprocess_reason_fn,
+            DIPhyR_postprocess_reason_over_distractors_fn,
         ) 
         dargs['ORG_speaker_preprocess_utter_fn'] = DIPhyR_preprocess_utter_oracle_fn 
         dargs['ORG_speaker_preprocess_reason_fn'] = DIPhyR_preprocess_reason_detach_fn
@@ -871,7 +897,12 @@ def main():
         dargs['ORG_listener_preprocess_reason_fn'] = DIPhyR_preprocess_reason_detach_fn
         dargs['ORG_listener_postprocess_utter_fn'] = DIPhyR_postprocess_utter_oracle_fn
         dargs['ORG_listener_postprocess_reason_fn'] = DIPhyR_postprocess_reason_fn
-        
+        if max(dargs["ORG_rg_nbr_train_distractors"], dargs["ORG_rg_nbr_test_distractors"]) > 0:
+            dargs['ORG_speaker_preprocess_reason_fn'] = DIPhyR_preprocess_reason_over_distractors_detach_fn
+            dargs['ORG_speaker_postprocess_reason_fn'] = DIPhyR_postprocess_reason_over_distractors_fn
+            dargs['ORG_listener_preprocess_reason_fn'] = DIPhyR_preprocess_reason_over_distractors_detach_fn
+            dargs['ORG_listener_postprocess_reason_fn'] = DIPhyR_postprocess_reason_over_distractors_fn
+
         dargs['ORG_use_model_in_speaker_pipelines'] = {'utter':'speaker', 'reason':'listener'}
         dargs['ORG_use_model_in_speaker_generators'] = {'utter':'LMModule', 'reason':'LMModule'}
         dargs['ORG_use_model_in_listener_pipelines'] = {'utter':'speaker', 'reason':'listener'} 

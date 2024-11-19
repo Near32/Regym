@@ -155,9 +155,9 @@ def DIPhyR_preprocess_utter_oracle_fn(
 
 
     stimuli = input_dict['obs'].cpu().long() 
-    # batch_size x feature_dim  : Byte Tokens
+    # batch_size x nbr_stim x nbr_distractors_po x feature_dim  : Byte Tokens
     batch_size = stimuli.shape[0]
-    str_stimuli = BT2STR(stimuli)
+    str_stimuli = BT2STR(stimuli.reshape(batch_size, -1))
     # Remove [OPTION]-based QA prompt:
     str_stimuli = [
         bidx_str_stimuli.split(
@@ -194,18 +194,20 @@ def DIPhyR_preprocess_reason_detach_fn(
     :return: preprocessed output
     '''    
 
-    nbr_distractors_po = predictor.kwargs['nbr_distractors']+1
+    #nbr_distractors_po = predictor.kwargs['nbr_distractors']+1
 
     sentences_widx = input_dict['rnn_states']['sentences'].squeeze(-1).cpu().long()
     # batch_size x max_sentence_length : LM Tokens + gradient
     stimuli = input_dict['obs'].unsqueeze(1).cpu().long()
     # batch_size x nbr_distractors_po x feature_dim  : Byte Tokens
     batch_size = sentences_widx.shape[0]
+    nbr_distractors_po = stimuli.shape[1]
     
     str_sentences = BT2STR(sentences_widx)
     str_stimuli = []
     for bidx in range(batch_size):
-        bidx_str_stimuli = BT2STR(stimuli[bidx])
+        bidx_str_stimuli = BT2STR(stimuli[bidx].reshape(nbr_distractors_po, -1))
+        #bidx_str_stimuli = BT2STR(stimuli[bidx])
         bidx_str_stimuli = [str_stim.split(
             'followed by some instructions:\n\n',
             )[1].split(
@@ -236,6 +238,84 @@ def DIPhyR_preprocess_reason_detach_fn(
     
     bt_prompted_inputs = STR2BT(prompted_inputs)
 
+    generator_name = predictor.generators['reason'] 
+    generator_module = predictor.model.modules[generator_name]
+    generator_input_streams_ids = generator_module.input_stream_ids
+    input_path = generator_input_streams_ids['inputs'].split(':')
+    
+    ptr_input = input_dict['rnn_states']
+    for input_path_part in input_path[:-1]:
+        if input_path_part=='inputs': continue
+        if input_path_part not in ptr_input: ptr_input[input_path_part] = {}
+        ptr_input = ptr_input[input_path_part]
+    
+    ptr_input[input_path[-1]] = bt_prompted_inputs
+
+    return input_dict
+
+def DIPhyR_preprocess_reason_over_distractors_detach_fn(
+    input_dict:Dict[str,object],
+    predictor:nn.Module,
+    algorithm:Union[Algorithm,AlgorithmWrapper],
+    **kwargs,
+):
+    '''
+    DIPhyR preprocessing reason function for online referential game with K>0 distractors, i.e.:
+    - retrieve sentences_widx, which should contain stimulus and distractors description.
+    - retrieve features, which should only contain candidate stimuli.
+    - converts them all from LM/Byte Tokens to String
+    - add discrimination [OPTION]-based QA prompt to it, while detaching from graph
+
+    WARNING: currently assuming that sentences_widx is Byte tokens rather than LM tokens
+
+    :param output: output of online referential game
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: preprocessed output
+    '''    
+
+    #nbr_distractors_po = predictor.kwargs['nbr_distractors']+1
+
+    sentences_widx = input_dict['rnn_states']['sentences'].squeeze(-1).cpu().long()
+    # batch_size x max_sentence_length : LM Tokens + gradient
+    stimuli = input_dict['obs'].cpu().long()
+    # batch_size x nbr_distractors_po x feature_dim  : Byte Tokens
+    batch_size = sentences_widx.shape[0]
+    nbr_distractors_po = stimuli.shape[1]
+
+    str_sentences = BT2STR(sentences_widx)
+    str_stimuli = []
+    for bidx in range(batch_size):
+        bidx_str_stimuli = BT2STR(stimuli[bidx].reshape(nbr_distractors_po, -1))
+        # (nbr_distractors_po x max_sentence_length)
+        bidx_str_stimuli = [str_stim.split(
+            'followed by some instructions:\n\n',
+            )[1].split(
+            '\n\nYou are an expert',
+            )[0] 
+            for str_stim in bidx_str_stimuli
+        ]
+        str_stimuli.append(bidx_str_stimuli)
+
+    # Add [OPTION]-based QA prompt:
+    # TODO: possibly add separators, e.g. 'end of X'
+    prompted_inputs = []
+    for bidx in range(batch_size):
+        task_descr = f"Consider the context below and answer the following question: \n\n"
+        task_descr += f"--- description ---\n\n"+ str_sentences[bidx] + "\n\n----------\n\n" 
+        for d_idx in range(nbr_distractors_po):
+            didx_task_descr = task_descr + f"--- candidate 1 ---\n\n" + str_stimuli[bidx][d_idx] 
+            didx_task_descr += "\n\n----------\n\n"    
+            didx_task_descr += f"--- question ---\n\n" + "Which candidate, if any, is accurately described by the description?" 
+            didx_task_descr += "\n\n----------\n\n"
+            didx_task_descr += f"Answer: " + f"[/PROMPT] "
+            didx_task_descr += f"1"
+            # Descriptive context:
+            didx_task_descr += f" [OPTION] None of the candidates"
+            prompted_inputs.append(didx_task_descr)
+    
+    bt_prompted_inputs = STR2BT(prompted_inputs)
+    #( batch_size*nbr_distractors_po x max_sentence_length)
     generator_name = predictor.generators['reason'] 
     generator_module = predictor.model.modules[generator_name]
     generator_input_streams_ids = generator_module.input_stream_ids
@@ -424,6 +504,48 @@ def DIPhyR_postprocess_reason_fn(
     return output_dict
 
 
+def DIPhyR_postprocess_reason_over_distractors_fn(
+    input_dict:Dict[str,object],
+    output_dict:Dict[str,object],
+    predictor:nn.Module,
+    algorithm:Union[Algorithm,AlgorithmWrapper],
+    **kwargs,
+):
+    '''
+    DIPhyR postprocessing reason function for online referential game, with K>0 distractors i.e.:
+    - retrieve decision logits from model.
+    - reformat from (batch_size*nbr_distractors_po x 2) to (batch_size x nbr_distractors_po x 2) 
+    - format it properly for loss computation 
+
+    :param input_dict: preprocessed input_dict of online referential game
+    :param output_dict: output dict of model
+    :param predictor: online referential game predictor
+    :param algorithm: online referential game algorithm
+    :return: postprocessed output
+    '''    
+
+    #orig_decision = output_dict['next_rnn_states']['decision']
+    orig_decision = output_dict['next_rnn_states']['LMModule']['inputs_prediction_perplexities'][0]
+    # (batch_size*nbr_distractor_po>1) x 2 
+    
+    # Reshaping:
+    nbr_distractors_po = input_dict["obs"].shape[1]
+    orig_decision = orig_decision.reshape(-1, nbr_distractors_po, 2)
+
+    # TODO: check that it is log softmax or apply it if necessary
+    # check shape ? batch_size x nbr_distractors+1 x 1/2 depending on obverter or not? 
+    # apply what is necessary from loss function...
+
+    #WARNING: using NLL, log softmax is applied later in the loss computation:
+    decision = (-1*orig_decision) #.log_softmax(dim=-1)
+    generator_name = predictor.generators['reason'] 
+    if generator_name not in output_dict['next_rnn_states']:
+        output_dict['next_rnn_states'][generator_name] = {}
+    output_dict['next_rnn_states'][generator_name]['decision'] = [decision]
+
+    return output_dict
+
+
 ###########################################################
 ###########################################################
 ###########################################################
@@ -498,11 +620,13 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         nbr_stored_exp = 0
         nbr_stored_exp += self.algorithm.store(exp_dict, actor_index=actor_index)
         # TODO: figure out how the test set here affect the resulting tests:
-        if not self.kwargs['ORG_with_S2B']:
-            test_set = False 
-            self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
         if not(exp_dict['non_terminal']):
             self.episode_count += 1
+            
+            if self.kwargs["ORG_use_supervised_training"] \
+            and not self.kwargs['ORG_with_S2B']:
+                test_set = False 
+                self.rg_storages[actor_index].add(exp_dict, test_set=test_set)
             
             self.current_actor = actor_index 
             if self.kwargs['ORG_rg_init_agent_states_with_online_states']:
@@ -1186,10 +1310,13 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         optim_id = "global_optim"
         optim_config = {
             "modules":modules,
+            "multi_gpu_strategy":self.kwargs["multi_gpu_strategy"],
+            'accelerator':self.listener.model.modules['LMModule'].accelerator if 'accelerator' in self.kwargs["multi_gpu_strategy"] else None,
             "learning_rate":self.kwargs["ORG_rg_learning_rate"],
             "weight_decay":self.kwargs["ORG_rg_weight_decay"],
             "l1_reg_lambda":self.kwargs["ORG_rg_l1_weight_decay"],
             "l2_reg_lambda":self.kwargs["ORG_rg_l2_weight_decay"],
+            "gradient_accumulation_steps":self.kwargs["ORG_rg_optimizer_gradient_accumulation_steps"],
             "optimizer_type":self.kwargs["ORG_rg_optimizer_type"],
             "with_gradient_clip":rg_config["with_gradient_clip"],
             "adam_eps":rg_config["adam_eps"],
@@ -1615,13 +1742,14 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             pipelines[optim_id].append(speaker_modularity_disentanglement_metric_id)
             pipelines[optim_id].append(speaker_mig_disentanglement_metric_id)
     
-        pipelines[optim_id].append(speaker_topo_sim_metric_id)
-        if self.kwargs['ORG_with_compactness_ambiguity_metric']:
-            pipelines[optim_id].append(compactness_ambiguity_metric_id)
-        pipelines[optim_id].append(speaker_posbosdis_metric_id)
+        if self.kwargs["ORG_rg_metric_epoch_period"] != 0:
+            pipelines[optim_id].append(speaker_topo_sim_metric_id)
+            pipelines[optim_id].append(speaker_posbosdis_metric_id)
         #if "obverter" in self.kwargs["ORG_rg_graphtype"]:
         #    pipelines[optim_id].append(listener_topo_sim_metric_id)
         #    pipelines[optim_id].append(listener_posbosdis_metric_id)
+        if self.kwargs['ORG_with_compactness_ambiguity_metric']:
+            pipelines[optim_id].append(compactness_ambiguity_metric_id)
         pipelines[optim_id].append(language_dynamic_metric_id)
         pipelines[optim_id].append(inst_coord_metric_id)
         if self.kwargs["ORG_rg_use_aita_sampling"]:

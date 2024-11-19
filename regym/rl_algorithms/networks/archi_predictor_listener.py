@@ -219,7 +219,7 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         }
         gt_sentences = None 
         return_feature_only = None 
-            
+        
         if self.preprocess_fn is not None:
             if isinstance(self.preprocess_fn, dict) \
             and 'reason' in self.preprocess_fn: 
@@ -515,11 +515,13 @@ class ArchiPredictorListener(ArchiPredictor, DiscriminativeListener):
         )
         '''
         #features = experiences.view(-1, *(experiences.size()[2:]))
+        features = experiences
+        '''
         if len(experiences.shape)==5:
             features = experiences.reshape(-1, experiences.shape[-1])
         else:
             features = experiences.view(-1, *(experiences.size()[2:]))
-        
+        '''
         rnn_states = None
         if sample is not None \
         and hasattr(sample, 'listener_rnn_states'):

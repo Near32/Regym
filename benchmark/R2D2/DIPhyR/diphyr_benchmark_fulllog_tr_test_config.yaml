@@ -81,7 +81,7 @@ experiment:
         'env-id': 'OfflineInvertedPendulumDIPhiREnv-v0',
         #'env-id': 'OfflineInvertedPendulumDIPhyREnv-v0',
         'env-config': {
-          'max_nbr_actions': 3, #5,
+          'max_nbr_actions': 2, #5,
           #'max_nbr_timesteps': 16, #16,
           'timestep': 0.0165,
           'frame_skip': 24,
@@ -211,9 +211,10 @@ agents:
             model_id: 'RL_ArchiTransformerTestModel'
             hyperparameters:
                 #hidden_dim: &hidden_dim 16384 #4096*action_dim
-                #hidden_dim: &hidden_dim 2880 #SmolLM
-                hidden_dim: &hidden_dim 6144 #10240
-                action_dim: &action_dim 3 #5
+                #hidden_dim: &hidden_dim 1728 #2880 #SmolLM
+                #hidden_dim: &hidden_dim 6144 #10240
+                hidden_dim: &hidden_dim 4096 #10240
+                action_dim: &action_dim 2 #5
             input_stream_ids:
                 "inputs:obs" : "observations:obs"
                 "inputs:legal_actions" : "frame_states:legal_actions"
@@ -221,44 +222,53 @@ agents:
                 'LMModule':
                     type: 'ArchiTransformerModule' 
                     #model_id: "HuggingFaceTB/SmolLM-135M-Instruct"
+                    #model_id: "meta-llama/Llama-3.2-1B"
+                    #model_id: "unsloth/Llama-3.2-1B-Instruct"
+                    model_id: "unsloth/Llama-3.2-1B-Instruct-bnb-4bit"
                     #model_id: "togethercomputer/LLaMA-2-7B-32K"
                     #model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0" 
-                    model_id: "RWKV/v6-Finch-1B6-HF" 
+                    #model_id: "RWKV/v7-Finch-1B6-HF" 
                     #model_id: "microsoft/Phi-3-mini-4k-instruct"
                     #model_id: "microsoft/Phi-3-mini-128k-instruct"
                     config:
                         'output_tokenized_prediction': True
-                        #'output_last_hidden_states': True
-                        #'output_logits': True
+                        'output_last_token_last_hidden_states': False
+                        'output_last_hidden_states': False
+                        'output_logits': False
+                        'use_nocache': True
                         'use_grammar': False
                         'prompt_template': '{prompt}'
-                        'quantize': False 
-                        #'quantize': True
+                        #'quantize': False 
+                        'quantize': True
                         'bnb_config': 
                             'load_in_4bit': True
                             'bnb_4bit_use_double_quant': True
                             'bnb_4bit_quant_type': 'nf4'
                             'bnb_4bit_compute_dtype': 'bfloat16'
-                        'use_lora': False
-                        #'use_lora': True
+                        #'use_lora': False
+                        'use_unsloth': True
+                        'use_lora': True
                         'lora_config':
-                            'r': 8
-                            'lora_alpha': 32
-                            'target_modules': ['q_proj','k_proj','v_proj','o_proj']
+                            'r': 256 #128 #8
+                            'lora_alpha': 512 #256 #16
+                            'target_modules': ['q_proj','k_proj','v_proj','o_proj','gate_proj','up_proj','down_proj']
+                            #'target_modules': ['q_proj','k_proj','v_proj','o_proj']
                             #'target_modules': ['o_proj', 'qkv_proj'] 
                             #'target_modules': ['c_proj'] 
                             'lora_dropout': 0.05
                             'bias': 'none'
-                            'task_type': 'CAUSAL_LM'
+                            #'task_type': 'CAUSAL_LM'
                         'generation_kwargs': 
                             'max_new_tokens': 1
                             'do_sample': True
-                            'temperature': 0.7 
+                            'temperature': 0.1 
                             'repetition_penalty': 1.1 
                             'stop_strings': ['\n']
                             'top_p': 0.7 
                             'top_k': 50
-                        'gradient_checkpointing': False
+                        #'gradient_checkpointing': False
+                        'gradient_checkpointing': True
+                        'multi_gpu_strategy': "none"
                     use_cuda: True 
                     input_stream_ids:
                         inputs: 'inputs:phi_body:extra_inputs:prompt'
