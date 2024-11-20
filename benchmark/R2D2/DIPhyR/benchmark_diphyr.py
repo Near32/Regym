@@ -27,6 +27,8 @@ from regym.modules import MARLEnvironmentModule, RLAgentModule
 from regym.pubsub_manager import PubSubManager
 
 import wandb
+import weave
+
 import argparse
 import random
 
@@ -317,6 +319,7 @@ def training_process(
     video_recording_episode_period: int = None,
     seed: int = 0,
     env_seed: int = 0,
+    use_weave: bool=False,
     ):
     
     test_only = task_config.get('test_only', False)
@@ -479,6 +482,9 @@ def training_process(
         tensorboard_x=True,
     )
     '''
+    if use_weave:
+        weave.init(task_config['project'])
+
     agent.save_path = os.path.join(wandb.run.dir, "agent_checkpoints")
     os.makedirs(agent.save_path, exist_ok=True)
     agent.save_path += "/checkpoint.agent"
@@ -721,6 +727,9 @@ def main():
         default=2e6,
     )
 
+    parser.add_argument("--use_weave", type=str2bool, default="False",)
+    parser.add_argument("--minimal_logs", type=str2bool, default="False",)
+    parser.add_argument("--n_samples", type=int, default=1,)
     parser.add_argument("--use_ORG", type=str2bool, default="False",)
     parser.add_argument("--ORG_rg_tau0", type=float, default=0.2,)
     parser.add_argument("--ORG_rg_init_agent_states_with_online_states", type=str2bool, default="False",)
@@ -996,6 +1005,7 @@ def main():
             base_path=path,
             seed=experiment_config['seed'],
             env_seed=experiment_config['env_seed'],
+            use_weave=dargs['use_weave'],
         )
 
 if __name__ == '__main__':
