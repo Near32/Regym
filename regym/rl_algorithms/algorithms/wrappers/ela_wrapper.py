@@ -73,6 +73,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.intrinsic_weight = intrinsic_weight
 
         self.test_acc = 0.0
+        self.test_expr = 0.0
+        self.previous_test_expr = 0.0
         self.predictor = predictor 
         if self.kwargs['use_cuda']:
             self.predictor = self.predictor.cuda()
@@ -580,7 +582,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                         self.algorithm.unwrapped.summary_writer.add_histogram('PerEpisode/Rewards', episode_rewards, self.episode_count)
             self.episode_buffer[actor_index] = []
         self.update_predictor(successful_traj=successful_traj)
-	   
+       
         return nbr_stored_exp
 
     def init_referential_game(self):
@@ -1591,26 +1593,37 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         full_update = True
         need_dataset_update = True
         if self.kwargs['ELA_rg_training_max_skip'] > 0:
-            self.test_acc = self.test_predictor(update=need_dataset_update)
+            #self.test_acc = self.test_predictor(update=need_dataset_update)
+            test_dstats = self.test_predictor(update=need_dataset_update)
+            self.test_acc = test_dstats['test_acc']
+            self.test_expr = test_dstats['test_expr']
             need_dataset_update = False
             if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold'] \
+            and self.test_expr >= self.previous_test_expr*float(self.kwargs.get('ELA_rg_relative_expressivity_threshold', 10))/100 \
             and self.rg_training_skipped_counter < self.kwargs['ELA_rg_training_max_skip']:
                 print(f"ELA: RG: training skipped #{self.rg_training_skipped_counter}.")
                 self.rg_training_skipped_counter += 1
+                self.previous_test_expr = max(self.test_expr, self.previous_test_expr)
                 full_update = False
 
         if not full_update:
             wandb.log({f"Training/ELA/RGTrainingPeriod":self.kwargs['ELA_rg_training_period']}, commit=False)
             wandb.log({f"Training/ELA/TestAccuracy":self.test_acc}, commit=False)
+            wandb.log({f"Training/ELA/TestExpressivity":self.test_expr}, commit=False)
             wandb.log({f"Training/ELA/FullUpdate":int(full_update)}, commit=False)
             return
 
         self.rg_training_skipped_counter = 0 
         for it in range(self.kwargs['ELA_rg_nbr_epoch_per_update']):
-            self.test_acc = self.finetune_predictor(update=need_dataset_update) #update=(it==0))
+            #self.test_acc = self.finetune_predictor(update=need_dataset_update) #update=(it==0))
+            test_dstats = self.finetune_predictor(update=need_dataset_update) #update=(it==0))
+            self.test_acc = test_dstats['test_acc']
+            self.test_expr = test_dstats['test_expr']
             need_dataset_update = False
-            if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold']:
+            if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold'] \
+            and self.test_expr >= self.previous_test_expr*float(self.kwargs.get('ELA_rg_relative_expressivity_threshold', 10))/100 :
                 full_update = False
+                self.previous_test_expr = max(self.test_expr, self.previous_test_expr)
                 break
         
         # Update training period:
@@ -1619,6 +1632,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             else:   self.kwargs['ELA_rg_training_period'] = int(1.25*self.kwargs['ELA_rg_training_period'])
         wandb.log({f"Training/ELA/RGTrainingPeriod":self.kwargs['ELA_rg_training_period']}, commit=False)
         wandb.log({f"Training/ELA/TestAccuracy":self.test_acc}, commit=False)
+        wandb.log({f"Training/ELA/TestExpressivity":self.test_expr}, commit=False)
         wandb.log({f"Training/ELA/FullUpdate":int(full_update)}, commit=False)
         return
 
@@ -1662,7 +1676,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         end = time.time()
         wandb.log({'PerELAUpdate/TimeComplexity/TestReferentialGame':  end-start}, commit=False) # self.param_update_counter)
         
-        return test_acc 
+        test_expr = logs_dict["PerEpoch/test/s0_topo_sim2_metric/CompositionalityMetric/TopographicSimilarity/NonAmbiguousProduction"]
+        test_dstats = {
+            'test_acc':test_acc,
+            'test_expr':test_expr,
+        }
+        return test_dstats 
 
     def finetune_predictor(self, update=False):
         if self.rg_iteration == 0:
@@ -1702,7 +1721,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         logs_dict = self.referential_game.modules['per_epoch_logger'].latest_logs
         test_acc = logs_dict["PerEpoch/test/repetition0/comm_round0/referential_game_accuracy/Mean"]
         train_acc = logs_dict["PerEpoch/train/repetition0/comm_round0/referential_game_accuracy/Mean"]
-        return test_acc 
+        test_expr = logs_dict["PerEpoch/test/s0_topo_sim2_metric/CompositionalityMetric/TopographicSimilarity/NonAmbiguousProduction"]
+        test_dstats = {
+            'test_acc':test_acc,
+            'test_expr':test_expr,
+        }
+        return test_dstats 
 
     def clone(
         self, 
