@@ -1,3 +1,7 @@
+from typing import Dict,List,Tuple
+import wandb
+import copy
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -6,6 +10,31 @@ import matplotlib.animation as anim
 import os 
 
 from celluloid import Camera 
+
+def wandb_log(
+    log_dict: Dict[str,object],
+    commit: bool = True,
+):
+    """
+    Wrapper around wandb.log functions that perform zero-order holding of all previously logged values.
+    This enables logging and plotting data against any x-axis.
+    """
+    if wandb.run is None:
+        raise RuntimeError("No active wandb run. Call wandb.init() first.")
+
+    existing_log = {}
+    for k in wandb.run.summary.keys():
+        # filtering out _step, _runtime, etc
+        if k[0] == '_': continue
+        value = wandb.run.summary.get(k)
+        # filtering out any non-numerical data:
+        if isinstance(value, dict):  continue
+        existing_log[k] = value
+
+    wandb.log(
+        {**existing_log, **log_dict},
+        commit=commit,
+    )
 
 
 def save_traj_with_graph_depr(trajectory, data, episode=0, actor_idx=0, path='./', divider=10, colors=['blue', 'green', 'red', 'yellow', 'orange', 'black', 'grey'], markers=['o', 's', 'p', 'P', '*', 'h', 'H']):

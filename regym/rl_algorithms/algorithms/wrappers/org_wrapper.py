@@ -3,7 +3,6 @@ from typing import Dict, Optional, List, Union
 import os
 import time
 import copy
-import wandb 
 from functools import partial
 
 import torch
@@ -51,6 +50,8 @@ from ReferentialGym.agents import (
 )
 
 from ReferentialGym.datasets import DemonstrationDataset
+import wandb 
+from regym.util import wandb_log
 
 ###########################################################
 ###########################################################
@@ -1895,8 +1896,8 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
             if self.test_acc >= self.kwargs['ORG_rg_accuracy_threshold']:
                 full_update = False
                 break
-        wandb.log({f"Training/ORG/TestAccuracy":self.test_acc}, commit=False)
-        wandb.log({f"Training/ORG/FullUpdate":int(full_update)}, commit=False)
+        wandb_log({f"Training/ORG/TestAccuracy":self.test_acc}, commit=True)
+        wandb_log({f"Training/ORG/FullUpdate":int(full_update)}, commit=True)
 
     def run_rg(self, update=False):
         if self.rg_iteration == 0:
@@ -1945,7 +1946,7 @@ class OnlineReferentialGameAlgorithmWrapper(AlgorithmWrapper):
         self.launch_referential_game(nbr_epoch=1)
         end = time.time()
         
-        wandb.log({'PerORGUpdate/TimeComplexity/ReferentialGame':  end-start}, commit=False) # self.param_update_counter)
+        wandb_log({'PerORGUpdate/TimeComplexity/ReferentialGame':  end-start}, commit=True) # self.param_update_counter)
         
         logs_dict = self.referential_game.modules['per_epoch_logger'].latest_logs
         test_acc = logs_dict["PerEpoch/test/repetition0/comm_round0/referential_game_accuracy/Mean"]
