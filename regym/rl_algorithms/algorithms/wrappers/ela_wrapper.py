@@ -65,8 +65,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         
         self.kwargs = algorithm.kwargs
         self.feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
-        self.visited_captions = []
-        if 'across-training' in self.feedbacks_type:    self.visited_captions = {}
+        self.visited_captions = {}
 
         self.hook_fns = []
         self.nbr_episode_success_range = 32 #256
@@ -274,7 +273,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         exp:List[Dict[str,object]], 
         feedbacks:Dict[str,float]={"failure":-1, "success":0},
         reward_shape:List[int]=[1,1],
-        visited_captions:Union[Dict[List[int],int], List[List[int]]]=[],
+        visited_captions:Dict[List[int],int] = {},
         **kwargs:Dict[str,object],
     ):
         '''
@@ -317,24 +316,31 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         reward_mask = torch.zeros(episode_length)
         for idx, caption in enumerate(captions):
             lcaption = ht(caption)
-            if 'across-training' in feedbacks_type:
-                assert isinstance(visited_captions, dict)
-                if lcaption not in visited_captions:    visited_captions[lcaption] = 0
-                visited_captions[lcaption] += 1
+            if lcaption not in visited_captions:    visited_captions[lcaption] = 0
+            visited_captions[lcaption] += 1
+            if 'across-training' in feedbacks_type \
+            or 'count-based' in feedbacks_type:
                 reward_mask[idx] = scaler/np.sqrt(visited_captions[lcaption])
-            elif lcaption not in visited_captions: #intra-life
-                visited_captions.append(lcaption)
-                reward_mask[idx] = 1
+            else:
+                reward_mask[idx] = int(visited_captions[lcaption]==1)
         if 'across-training' in feedbacks_type:    
             reward_mask = reward_mask.float()
             reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
             failure_mask = (reward_mask==0).unsqueeze(-1)
             reward += failure_mask*feedbacks["failure"]*torch.ones(reward_shape)
             # Logging reward distribution :
-            metrics['EReLELA/AcrossTrainingRewards'] = reward.cpu().numpy(),
+            metrics['EReLELA/AcrossTrainingRewards'] = reward.cpu().numpy()
             # Logging visitation counts and failures:
             metrics['EReLELA/AcrossTrainingVisitCounts'] = np.asarray(list(visited_captions.values()))
             metrics['EReLELA/AcrossTrainingEpisodeFailures'] = failure_mask.cpu().numpy()
+        elif 'count-based' in feedbacks_type:    
+            import ipdb; ipdb.set_trace()
+            reward_mask = reward_mask.float()
+            reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
+            # Logging reward distribution :
+            metrics['EReLELA/CountBasedRewards'] = reward.cpu().numpy()
+            # Logging visitation counts and failures:
+            metrics['EReLELA/CountBasedVisitCounts'] = np.asarray(list(visited_captions.values()))
         else:
             # Then it is intra-life and the reward_mask does not scale:
             reward_mask = reward_mask.bool()
@@ -464,8 +470,9 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                     reward_shape=self.reward_shape,
                     visited_captions=self.visited_captions,
                 )
+                # Reinitialised visitation counts if doing intra-life exploration
                 if 'across-training' not in feedbacks_type:
-                    self.visited_captions = []
+                    self.visited_captions = {}
                 positive_new_r_mask = (batched_new_r.detach() == self.feedbacks['success']).cpu().reshape(-1)
             else:
                 batched_new_r = None
