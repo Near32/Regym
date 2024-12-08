@@ -334,7 +334,6 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             metrics['EReLELA/AcrossTrainingVisitCounts'] = np.asarray(list(visited_captions.values()))
             metrics['EReLELA/AcrossTrainingEpisodeFailures'] = failure_mask.cpu().numpy()
         elif 'count-based' in feedbacks_type:    
-            import ipdb; ipdb.set_trace()
             reward_mask = reward_mask.float()
             reward = reward_mask.unsqueeze(-1)*feedbacks["success"]*torch.ones(reward_shape)
             # Logging reward distribution :
