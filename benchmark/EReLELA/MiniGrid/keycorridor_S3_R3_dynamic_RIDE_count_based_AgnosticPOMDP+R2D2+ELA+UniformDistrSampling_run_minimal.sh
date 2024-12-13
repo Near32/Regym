@@ -74,6 +74,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
 --ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
+--ELA_feedbacks_type='count-based' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --ELA_rg_record_unique_stats=False \
 --BabyAI_Bot_action_override=False \
