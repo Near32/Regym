@@ -1598,8 +1598,23 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.test_acc = test_dstats['test_acc']
             self.test_expr = test_dstats['test_expr']
             need_dataset_update = False
+            '''
             if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold'] \
             and self.test_expr >= self.previous_test_expr*float(self.kwargs.get('ELA_rg_relative_expressivity_threshold', 10))/100 \
+            and self.rg_training_skipped_counter < self.kwargs['ELA_rg_training_max_skip']:
+                print(f"ELA: RG: training skipped #{self.rg_training_skipped_counter}.")
+                self.rg_training_skipped_counter += 1
+                self.previous_test_expr = max(self.test_expr, self.previous_test_expr)
+                full_update = False
+            '''
+            if self.test_expr >= self.kwargs['ELA_rg_expressivity_threshold'] \
+            and self.test_expr < self.previous_test_expr*float(self.kwargs.get('ELA_rg_relative_expressivity_threshold', 10))/100 :
+                # Then the RL agent has not progressed, we need to maintain the current abstractions:
+                full_update = False
+
+            if full_update \
+            and self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold'] \
+            and self.test_expr >= self.kwargs['ELA_rg_expressivity_threshold'] \
             and self.rg_training_skipped_counter < self.kwargs['ELA_rg_training_max_skip']:
                 print(f"ELA: RG: training skipped #{self.rg_training_skipped_counter}.")
                 self.rg_training_skipped_counter += 1
@@ -1620,7 +1635,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.test_acc = test_dstats['test_acc']
             self.test_expr = test_dstats['test_expr']
             need_dataset_update = False
+            # If we RG train, then we need to at least maintain the accuracy and the amount of abstractions,
+            # or increase them at best:
             if self.test_acc >= self.kwargs['ELA_rg_accuracy_threshold'] \
+            and self.test_expr >= self.kwargs['ELA_rg_expressivity_threshold'] \
             and self.test_expr >= self.previous_test_expr*float(self.kwargs.get('ELA_rg_relative_expressivity_threshold', 10))/100 :
                 full_update = False
                 self.previous_test_expr = max(self.test_expr, self.previous_test_expr)
