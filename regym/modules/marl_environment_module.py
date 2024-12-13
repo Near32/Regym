@@ -38,6 +38,7 @@ from regym.modules.module import Module
 from regym.rl_loops.multiagent_loops.wandb_marl_loop import test_agent
 
 import wandb 
+from regym.util import wandb_log
 
 
 def build_MARLEnvironmentModule(
@@ -288,7 +289,7 @@ class MARLEnvironmentModule(Module):
         for actor_index in range(self.nbr_actors):
             self.obs_count += 1
             self.pbar.update(1)
-            wandb.log({'Training/NbrTrajectoriesQueued': len(self.trajectories)}, commit=False)
+            wandb_log({'Training/NbrTrajectoriesQueued': len(self.trajectories)}, commit=True)
 
             # Bookkeeping of the actors whose episode just ended:
             done_condition = ('real_done' in succ_info[0][actor_index] \
@@ -338,12 +339,12 @@ class MARLEnvironmentModule(Module):
                         if actor_index not in self.episode_counts:
                             self.episode_counts[actor_index] = 0
                         self.episode_counts[actor_index] += 1
-                        wandb.log({
+                        wandb_log({
                             f"PerEpisodeStats/Actor{actor_index}/Return":pa_succ_info['episode']['r'],
                             f"PerEpisodeStats/Actor{actor_index}/Length":pa_succ_info['episode']['l'],
                             },
                             #step=self.episode_counts[actor_index],
-                            commit=False,
+                            commit=True,
                         )
                     """
                     if getattr(agent.algorithm, "use_rnd", False):
@@ -390,19 +391,19 @@ class MARLEnvironmentModule(Module):
                 self.total_int_returns.append(sum([ exp[3] for exp in traj]))
                 self.episode_lengths.append(len(traj))
                 
-                wandb.log({'Training/TotalReturn':  self.total_returns[-1], "episode_count":self.episode_count}, commit=False)
-                wandb.log({'PerObservation/TotalReturn':  self.total_returns[-1], "obs_count":self.obs_count}, commit=False)
-                wandb.log({'PerUpdate/TotalReturn':  self.total_returns[-1], "update_count":self.update_count}, commit=False)
+                wandb_log({'Training/TotalReturn':  self.total_returns[-1], "episode_count":self.episode_count}, commit=True)
+                wandb_log({'PerObservation/TotalReturn':  self.total_returns[-1], "obs_count":self.obs_count}, commit=True)
+                wandb_log({'PerUpdate/TotalReturn':  self.total_returns[-1], "update_count":self.update_count}, commit=True)
                 
-                wandb.log({'Training/PositiveTotalReturn':  self.positive_total_returns[-1], "episode_count":self.episode_count}, commit=False)
-                wandb.log({'PerObservation/PositiveTotalReturn':  self.positive_total_returns[-1], "obs_count":self.obs_count}, commit=False)
-                wandb.log({'PerUpdate/PositiveTotalReturn':  self.positive_total_returns[-1], "update_count":self.update_count}, commit=False)
+                wandb_log({'Training/PositiveTotalReturn':  self.positive_total_returns[-1], "episode_count":self.episode_count}, commit=True)
+                wandb_log({'PerObservation/PositiveTotalReturn':  self.positive_total_returns[-1], "obs_count":self.obs_count}, commit=True)
+                wandb_log({'PerUpdate/PositiveTotalReturn':  self.positive_total_returns[-1], "update_count":self.update_count}, commit=True)
                 
                 if actor_index == 0:
                     self.sample_episode_count += 1
                 if len(self.trajectories) >= self.nbr_actors:
                     mean_total_return = sum( self.total_returns).item() / len(self.trajectories)
-                    std_ext_return = math.sqrt( sum( [math.pow( r-mean_total_return ,2) for r in self.total_returns]) / len(self.total_returns) )
+                    std_ext_return = math.sqrt( sum( [math.pow( r.item()-mean_total_return ,2) for r in self.total_returns]) / len(self.total_returns) )
                     mean_positive_total_return = sum( self.positive_total_returns) / len(self.trajectories)
                     std_ext_positive_return = math.sqrt( sum( [math.pow( r-mean_positive_total_return ,2) for r in self.positive_total_returns]) / len(self.positive_total_returns) )
                     mean_total_int_return = sum( self.total_int_returns) / len(self.trajectories)
@@ -411,27 +412,27 @@ class MARLEnvironmentModule(Module):
                     mean_episode_length = sum( self.episode_lengths) / len(self.trajectories)
                     std_episode_length = math.sqrt( sum( [math.pow( l-mean_episode_length ,2) for l in self.episode_lengths]) / len(self.episode_lengths) )
 
-                    wandb.log({'PerEpisodeBatch/StdIntReturn':  std_int_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
-                    wandb.log({'PerEpisodeBatch/StdExtReturn':  std_ext_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb_log({'PerEpisodeBatch/StdIntReturn':  std_int_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
+                    wandb_log({'PerEpisodeBatch/StdExtReturn':  std_ext_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
 
-                    wandb.log({'PerEpisodeBatch/MeanTotalReturn':  mean_total_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
-                    wandb.log({'PerObservation/MeanTotalReturn':  mean_total_return, "obs_count":self.obs_count}, commit=False)
-                    wandb.log({'PerUpdate/MeanTotalReturn':  mean_total_return, "update_count":self.update_count}, commit=False)
-                    wandb.log({'PerEpisodeBatch/MeanPositiveTotalReturn':  mean_positive_total_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
-                    wandb.log({'PerObservation/MeanPositiveTotalReturn':  mean_positive_total_return, "obs_count":self.obs_count}, commit=False)
-                    wandb.log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return, "update_count":self.update_count}, commit=False)
-                    wandb.log({'PerEpisodeBatch/MeanTotalIntReturn':  mean_total_int_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
+                    wandb_log({'PerEpisodeBatch/MeanTotalReturn':  mean_total_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
+                    wandb_log({'PerObservation/MeanTotalReturn':  mean_total_return, "obs_count":self.obs_count}, commit=True)
+                    wandb_log({'PerUpdate/MeanTotalReturn':  mean_total_return, "update_count":self.update_count}, commit=True)
+                    wandb_log({'PerEpisodeBatch/MeanPositiveTotalReturn':  mean_positive_total_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
+                    wandb_log({'PerObservation/MeanPositiveTotalReturn':  mean_positive_total_return, "obs_count":self.obs_count}, commit=True)
+                    wandb_log({'PerUpdate/MeanPositiveTotalReturn':  mean_positive_total_return, "update_count":self.update_count}, commit=True)
+                    wandb_log({'PerEpisodeBatch/MeanTotalIntReturn':  mean_total_int_return, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
 
-                    wandb.log({'PerEpisodeBatch/MeanEpisodeSuccesses':  mean_episode_successes, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
-                    wandb.log({'PerObservation/MeanEpisodeSuccesses':  mean_episode_successes, "obs_count":self.obs_count}, commit=False)
-                    wandb.log({'PerUpdate/MeanEpisodeSuccesses':  mean_episode_successes, "update_count":self.update_count}, commit=False)
+                    wandb_log({'PerEpisodeBatch/MeanEpisodeSuccesses':  mean_episode_successes, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
+                    wandb_log({'PerObservation/MeanEpisodeSuccesses':  mean_episode_successes, "obs_count":self.obs_count}, commit=True)
+                    wandb_log({'PerUpdate/MeanEpisodeSuccesses':  mean_episode_successes, "update_count":self.update_count}, commit=True)
                     
-                    wandb.log({'PerEpisodeBatch/MeanEpisodeLength':  mean_episode_length, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
-                    wandb.log({'PerObservation/MeanEpisodeLength':  mean_episode_length, "obs_count":self.obs_count}, commit=False)
-                    wandb.log({'PerUpdate/MeanEpisodeLength':  mean_episode_length, "update_count":self.update_count}, commit=False)
-                    wandb.log({'PerEpisodeBatch/StdEpisodeLength':  std_episode_length, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=False)
-                    wandb.log({'PerObservation/StdEpisodeLength':  std_episode_length, "obs_count":self.obs_count}, commit=False)
-                    wandb.log({'PerUpdate/StdEpisodeLength':  std_episode_length, "update_count":self.update_count}, commit=False)
+                    wandb_log({'PerEpisodeBatch/MeanEpisodeLength':  mean_episode_length, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
+                    wandb_log({'PerObservation/MeanEpisodeLength':  mean_episode_length, "obs_count":self.obs_count}, commit=True)
+                    wandb_log({'PerUpdate/MeanEpisodeLength':  mean_episode_length, "update_count":self.update_count}, commit=True)
+                    wandb_log({'PerEpisodeBatch/StdEpisodeLength':  std_episode_length, "per_actor_training_step":self.episode_count // self.nbr_actors}, commit=True)
+                    wandb_log({'PerObservation/StdEpisodeLength':  std_episode_length, "obs_count":self.obs_count}, commit=True)
+                    wandb_log({'PerUpdate/StdEpisodeLength':  std_episode_length, "update_count":self.update_count}, commit=True)
 
                     # bookkeeping:
                     if self.config.get('publish_trajectories', False):
