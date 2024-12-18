@@ -11,8 +11,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 
-import matplotlib.pyplot as plt 
-
 import regym
 from regym.rl_algorithms.networks import random_sample
 from regym.rl_algorithms.algorithms.algorithm import Algorithm

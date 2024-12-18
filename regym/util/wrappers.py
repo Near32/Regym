@@ -2532,7 +2532,11 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         return observation
 
 
-from minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
+try:
+    from minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
+except Exception as e:
+    print(e)
+
 
 class BehaviourDescriptionWrapper(gym.ObservationWrapper):
     def __init__(
@@ -3286,6 +3290,7 @@ except Exception as e:
 
 try:
     import gymnasium
+    from gymnasium.utils import seeding
 except Exception as e:
     print(f"Gymnasium could not be imported : {e}")
 
@@ -3294,10 +3299,7 @@ except Exception as e:
 
 from typing import Any, Callable
 
-#from gymnasium import spaces
-import gymnasium
 from gym import spaces
-from gymnasium.utils import seeding
 
 
 def check_if_no_duplicate(duplicate_list: list) -> bool:

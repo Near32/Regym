@@ -3,13 +3,17 @@ import wandb
 import copy
 
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt 
-import matplotlib.animation as anim
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt 
+    import matplotlib.animation as anim
+    from celluloid import Camera 
+except Exception as e:
+    print(e)
+
 import os 
 
-from celluloid import Camera 
 
 WANDB_SUMMARY = {}
 

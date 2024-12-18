@@ -9,8 +9,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import matplotlib.pyplot as plt 
-
 import regym
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
