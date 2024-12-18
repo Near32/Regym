@@ -6,7 +6,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --use_cuda=True \
 --project=EReLELA-KeyCorridor-Benchmark \
 --success_threshold=0.01 \
---config=keycorridor_S3_R2_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA_config.yaml \
+--config=keycorridor_S3_R2_symbolic_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA_config.yaml \
 --language_guided_curiosity=False \
 --language_guided_curiosity_descr_type='descr' \
 --language_guided_curiosity_extrinsic_weight=10.0 \
