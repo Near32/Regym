@@ -66,6 +66,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.kwargs = algorithm.kwargs
         self.feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
         self.visited_captions = {}
+        self.need_training = False
 
         self.hook_fns = []
         self.nbr_episode_success_range = 32 #256
@@ -428,7 +429,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         )
         return 
     
-    def store(self, exp_dict, actor_index=0) -> int:
+    def store(self, exp_dict, actor_index=0, minimal:bool=False) -> int:
+        '''
+        
+        :param minimal: bool that decides whether to only store for RG training
+        as opposed to also store in algorithm and compute all intrinsic rewards.
+        '''
         #################
         #################
         # Vocabulary logging:
@@ -556,13 +562,17 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                         negative=False,
                         self=self,
                     )
-                # Adding all the other elements back into the dict
-                # e.g. v values , and entropy ...
-                for key, value in self.episode_buffer[actor_index][idx].items():
-                    if key not in d2store_ela:
-                        d2store_ela[key] = value
-                nbr_stored_exp += self.algorithm.store(d2store_ela, actor_index=actor_index)
                 
+                if not minimal:
+                    # Adding all the other elements back into the dict
+                    # e.g. v values , and entropy ...
+                    for key, value in self.episode_buffer[actor_index][idx].items():
+                        if key not in d2store_ela:
+                            d2store_ela[key] = value
+                    nbr_stored_exp += self.algorithm.store(d2store_ela, actor_index=actor_index)
+                else:
+                    nbr_stored_exp = 0
+
                 if idx==(episode_length-1):
                     wandb_log({'PerEpisode/ExtrinsicWeight': self.extrinsic_weight}, commit=True)
                     wandb_log({'PerEpisode/IntrinsicWeight': self.intrinsic_weight}, commit=True)
@@ -590,7 +600,11 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                         self.algorithm.unwrapped.summary_writer.add_scalar('PerEpisode/Success', (self.rewards['success']==her_r).float().mean().item(), self.episode_count)
                         self.algorithm.unwrapped.summary_writer.add_histogram('PerEpisode/Rewards', episode_rewards, self.episode_count)
             self.episode_buffer[actor_index] = []
-        self.update_predictor(successful_traj=successful_traj)
+        
+        self.update_predictor(
+            successful_traj=successful_traj,
+            minimal=minimal,
+        )
        
         return nbr_stored_exp
 
@@ -1573,11 +1587,18 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
 
         self.dataset_args = dataset_args
 
-    def update_predictor(self, successful_traj=False):
+    def update_predictor(
+        self, 
+        successful_traj=False,
+        minimal=False,
+    ):
         '''
         Every training_period:
             - reset the previous period count check to the current count
             - so that it is possible to update the training_period adaptively if needs be.
+
+        :param minimal: bool that decides whether to simply record that training is necessary
+        or also perform it.
         '''
         # RG Update:
         period_check = self.kwargs['ELA_rg_training_period']
@@ -1594,7 +1615,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             #self.previous_ELA_quotient = quotient
             self.previous_ELA_period_count_check = self.nbr_buffered_predictor_experience
             if self.kwargs['ELA_use_ELA']:
-                self._rg_training()
+                if minimal:
+                    self.need_training = True
+                else:
+                    self._rg_training()
         
         wandb_log({'Training/ELA/storage_length': len(self.rg_storages[0])}, commit=True)
 

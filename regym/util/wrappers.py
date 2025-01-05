@@ -2535,6 +2535,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
 try:
     from minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
 except Exception as e:
+    from gym_minigrid.minigrid import IDX_TO_COLOR, IDX_TO_OBJECT
     print(e)
 
 
@@ -3269,7 +3270,25 @@ except Exception as e:
             )
         
         def observation(self, obs):
-            rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+            if hasattr(self.unwrapped, 'get_frame'):
+                rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+            else:
+                '''
+                # Full observation / north-oriented:
+                rgb_img_partial1 = self.unwrapped.render(
+                    mode='rgb_array',
+                    highlight=False, #whether to overlay an alpha-ed over the egocentric partial view.
+                    tile_size=self.tile_size
+                )
+                # 200 x 200 x 3
+                '''
+                # Partial observation / egocentric:
+                rgb_img_partial = self.unwrapped.get_obs_render(
+                    obs=obs['image'],
+                    tile_size=self.tile_size,
+                )
+                # 56 x 56 x 3
+
             if isinstance(obs, tuple):
                 assert len(obs) == 2
                 # reset:
@@ -3550,7 +3569,25 @@ class GymRGBImgPartialObsWrapper(gym.ObservationWrapper):
         )
     
     def observation(self, obs):
-        rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+        if hasattr(self.unwrapped, 'get_frame'):
+            rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+        else:
+            '''
+            # Full observation / north-oriented:
+            rgb_img_partial1 = self.unwrapped.render(
+                mode='rgb_array',
+                highlight=False, #whether to overlay an alpha-ed over the egocentric partial view.
+                tile_size=self.tile_size
+            )
+            # 200 x 200 x 3
+            '''
+            # Partial observation / egocentric:
+            rgb_img_partial = self.unwrapped.get_obs_render(
+                obs=obs['image'],
+                tile_size=self.tile_size,
+            )
+            # 56 x 56 x 3
+        
         if isinstance(obs, tuple):
             assert len(obs) == 2
             # reset:
