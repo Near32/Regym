@@ -1050,7 +1050,7 @@ def main():
     parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_feedbacks_type", type=str, default='normal', choices=[
-        'normal','hurry-140', 'across-training-1.0'],)
+        'normal','count-based', 'hurry-140', 'across-training-1.0'],)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
     parser.add_argument("--ELA_rg_dataloader_shuffle", type=str2bool, default=True,)
@@ -1064,6 +1064,8 @@ def main():
     parser.add_argument("--ELA_rg_training_max_skip", type=int, default=-1)
     parser.add_argument("--ELA_rg_training_adaptive_period", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_accuracy_threshold", type=float, default=75)
+    parser.add_argument("--ELA_rg_relative_expressivity_threshold", type=float, default=0)
+    parser.add_argument("--ELA_rg_expressivity_threshold", type=float, default=0)
     parser.add_argument("--ELA_rg_verbose", type=str2bool, default="True",)
     parser.add_argument("--ELA_rg_use_cuda", type=str2bool, default="False",)
     parser.add_argument("--ELA_exp_key", type=str, default="succ_s",)

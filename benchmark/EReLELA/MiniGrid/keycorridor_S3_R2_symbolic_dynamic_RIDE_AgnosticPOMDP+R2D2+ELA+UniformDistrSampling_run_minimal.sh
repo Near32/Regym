@@ -1,11 +1,12 @@
 #/bin/bash
+#--config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
 WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=10 --env_seed=12 --static_envs=False \
+--seed=20 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA-KeyCorridor-Benchmark \
 --success_threshold=0.01 \
---config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
+--config=keycorridor_S3_R2_symbolic_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA_config.yaml \
 --language_guided_curiosity=False \
 --language_guided_curiosity_descr_type='descr' \
 --language_guided_curiosity_extrinsic_weight=10.0 \
@@ -73,6 +74,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
 --ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
+--ELA_feedbacks_type='normal' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --ELA_rg_record_unique_stats=False \
 --BabyAI_Bot_action_override=False \
@@ -85,14 +87,14 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
---adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
+--adam_weight_decay=0.01 --ther_adam_weight_decay=0.0 \
 --training_iteration_use_nbr_stored_exp=False \
 --training_iteration_stored_exp_period=864 \
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \
 --time_limit=0 \
---benchmarking_record_episode_interval=1000000 \
+--benchmarking_record_episode_interval=100000 \
 --benchmarking_interval=1.0e4 \
 --train_observation_budget=1.0e7
 

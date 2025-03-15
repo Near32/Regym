@@ -2,14 +2,16 @@
 #python benchmark_selfplay_s2b.py \
 CUDA_LAUNCH_BLOCKING=1 \
 WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_diphyr.py \
---use_ORG=True \
+--project='DIPhyR-OptimalLogs-OpenAI-GPT-4o-mini' \
 --DIPhyR_average_window_length=128 \
---minimal_logs=False \
 --success_threshold=0.5 \
+--n_samples=3 \
+--minimal_logs=False \
+--use_weave=False \
 --use_cuda=False \
---seed=10 \
+--seed=30 \
 --saving_interval=1e20 \
---yaml_config=diphyr_benchmark_fulllog_tr_test_config.yaml \
+--yaml_config=diphyr_benchmark_fulllog_dspy_HFTGI_OpenAI-GPT-4o-mini_config.yaml \
 --use_grammar=False \
 --nbr_episode_per_cycle=32 \
 --nbr_training_iteration_per_cycle=4 \
@@ -26,5 +28,5 @@ WANDB_CACHE_DIR=./wandb_cache/ python -m ipdb -c c benchmark_diphyr.py \
 --sequence_replay_burn_in_ratio=0.0 \
 --sequence_replay_unroll_length=2 \
 --r2d2_use_value_function_rescaling=False \
---train_observation_budget=2.0e3 
+--train_observation_budget=288 
 

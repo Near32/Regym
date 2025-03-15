@@ -26,7 +26,7 @@ from regym.rl_algorithms.utils import apply_on_hdict, _concatenate_list_hdict
 from regym.rl_algorithms.utils import recursive_inplace_update
 
 import wandb
-
+from regym.util import wandb_log
 
 class DQNAgent(Agent):
     def __init__(self, name, algorithm):
@@ -319,7 +319,7 @@ class DQNAgent(Agent):
                 actor_learner_shared_dict = self.actor_learner_shared_dict.get()
             nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
             #self.algorithm.unwrapped.summary_writer.add_scalar(
-            wandb.log({
+            wandb_log({
                 f'PerUpdate/ActorLearnerSynchroRemainingUpdates':
                 nbr_update_remaining
                 }, 
@@ -415,7 +415,7 @@ class DQNAgent(Agent):
                 actor_learner_shared_dict = self.actor_learner_shared_dict.get()
             nbr_update_remaining = sum(actor_learner_shared_dict["models_update_required"])
             #self.algorithm.unwrapped.summary_writer.add_scalar(
-            wandb.log({
+            wandb_log({
                 f'PerUpdate/ActorLearnerSynchroRemainingUpdates':
                 nbr_update_remaining
                 }, 

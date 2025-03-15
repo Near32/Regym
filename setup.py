@@ -31,6 +31,7 @@ setup(
     zip_safe=False,
 
     install_requires=[
+      'numpy',#==1.26.4',
       'gym==0.25',
       'ray',
       'coloredlogs',

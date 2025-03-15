@@ -9,8 +9,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import matplotlib.pyplot as plt 
-
 import regym
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
 from regym.rl_algorithms.algorithms.R2D2 import r2d2_loss
@@ -25,6 +23,7 @@ from regym.rl_algorithms.utils import (
 )
 
 import wandb
+from regym.util import wandb_log
 sum_writer = None
 
 
@@ -252,7 +251,7 @@ class R2D2Algorithm(DQNAlgorithm):
 
         nbr_stored_experiences = nbr_stored_sequences*(self.sequence_replay_unroll_length-self.sequence_replay_overlap_length)
 
-        wandb.log({'PerTrainingRequest/NbrStoredExperiences': nbr_stored_experiences}, commit=False) #, self.train_request_count)
+        wandb_log({'PerTrainingRequest/NbrStoredExperiences': nbr_stored_experiences}, commit=True) #, self.train_request_count)
         #print(f"Train request: {self.train_request_count} // nbr_exp stored: {nbr_stored_experiences}")
         return nbr_stored_experiences
     
@@ -454,7 +453,7 @@ class R2D2Algorithm(DQNAlgorithm):
                 #condition_state = torch.all(self.n_step_buffers[actor_index][0]['s']==self.n_step_buffers[actor_index][-1]['s'])
             else:
                 current_exp_dict = exp_dict
-                wandb.log({'Training/Storing/CurrentExp/MaxReward':  exp_dict['r'].cpu().max().item()}, commit=True)
+                wandb_log({'Training/Storing/CurrentExp/MaxReward':  exp_dict['r'].cpu().max().item()}, commit=True)
             """
             # depr : goal update
             if self.goal_oriented and 'g' not in current_exp_dict:
