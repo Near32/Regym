@@ -1,0 +1,48 @@
+project: PromptOptimisationSTGS 
+entity: kevin-near32-org
+program: main.py
+command:
+  - ${env}
+  - ../venv/bin/python
+  - ${program}
+  - ${args}
+method: bayes
+early_terminate:
+  min_iter: 100
+  eta: 3 
+  type: hyperband
+metric:
+  name: loss
+  goal: minimize 
+parameters:
+  model_name:
+    values: ["HuggingFaceTB/SmolLM-135M"]
+  target_text:
+    values: ["The quick brown fox jumps over the lazy dog"]
+  pre_prompt:
+    values: [None]
+  seq_len:
+    values: [10,20,40,100]
+  epochs:
+    values: [2000]
+  eps:
+    values: [1e-20]
+  temperature:
+    values: [1e0, 0.1, 0.01, 0.001, 1e1, 1e2]
+  learnable_temperature:
+    values: [False, True]
+  stgs_hard:
+    values: [False, True]
+  plot_every:
+    values: [100000]
+  filter_vocab:
+    values: [ True]
+  vocab_threshold:
+    values: [-1]
+  seed:
+    values: [10]
+  batch_size:
+    values: [16,32,64,92,128,256]
+  learning_rate:
+    values: [1.0e-2, 1.0e-3, 1.0e-4]
+                   
