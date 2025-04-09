@@ -196,7 +196,7 @@ def optimize_inputs(
         "vocab_threshold": vocab_threshold,
         "batch_size": batch_size,
     })
-    wandb_table = wandb.Table(columns=["epoch", "generated_output_ids", "generated_output_str"])
+    wandb_table = wandb.Table(columns=["epoch", "learned_input_ids", "learned_input_str", "generated_output_ids", "generated_output_str"])
 
     if filter_vocab:
       # Build a mapping from full-vocab token id to allowed index
@@ -419,14 +419,23 @@ def optimize_inputs(
             "vocab_size": model.config.vocab_size,
         })
         # Update wandb_table with generated_output:
+        learnable_input_ids = torch.argmax(learnable_inputs, dim=-1)[0]
         generated_output_ids = torch.argmax(generated_logits, dim=-1)
         # Check shape:
         #print(f"Generated output ids shape: {generated_output_ids.shape}")
         # Remapping from allowed ids to original ids:
         table_generated_output_ids = generated_output_ids[0:1]
         table_generated_output_ids = torch.gather(allowed_tokens.unsqueeze(0), dim=1, index=table_generated_output_ids)
+        learnable_input_str = tokenizer.decode(learnable_input_ids, skip_special_tokens=False)
         generated_output_str = tokenizer.decode(table_generated_output_ids[0], skip_special_tokens=False)
-        wandb_table.add_data(epoch+1, table_generated_output_ids[0].tolist(), generated_output_str)
+        #print(learnable_input_str)
+        wandb_table.add_data(
+            epoch+1, 
+            learnable_input_ids.tolist(),
+            learnable_input_str,
+            table_generated_output_ids[0].tolist(), 
+            generated_output_str,
+        )
         wandb.log({"generated_output_table": copy.deepcopy(wandb_table)})
 
          # Update plot every plot_every epochs - Colab compatible version
@@ -498,18 +507,18 @@ def main():
     parser.add_argument("--target_text", type=str, default="The quick brown fox jumps over the lazy dog")
     parser.add_argument("--pre_prompt", type=str, default=None)
     #pre_prompt = "Complete the following: "  # Can be None if not needed
-    parser.add_argument("--seq_len", type=int, default=100)
+    parser.add_argument("--seq_len", type=int, default=40)
     parser.add_argument("--epochs", type=int, default=2000)
     parser.add_argument("--learning_rate", type=float, default=1e-2)
     parser.add_argument("--eps", type=float, default=1e-20)
-    parser.add_argument("--temperature", type=float, default=1e0)
+    parser.add_argument("--temperature", type=float, default=1e1)
     parser.add_argument("--learnable_temperature", type=str2bool, default=False)
     parser.add_argument("--stgs_hard", type=str2bool, default=False)
     parser.add_argument("--plot_every", type=int, default=100000)
     parser.add_argument("--filter_vocab", type=str2bool, default= True)
     parser.add_argument("--vocab_threshold", type=float, default=-1)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--batch_size", type=int, default=96)
+    parser.add_argument("--batch_size", type=int, default=128)
     
     args = parser.parse_args()
     config = vars(args)
