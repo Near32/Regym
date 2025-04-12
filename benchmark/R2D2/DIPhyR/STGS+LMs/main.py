@@ -128,20 +128,95 @@ def generate_completions(model, input_embeddings, target_length, temperature=1.0
     return generated_token_ids, outputs.hidden_states
 
 
+class STGS(torch.nn.Module):
+    def __init__(
+        self,
+        vocab_size,
+        stgs_hard=False,
+        init_temperature=1.0,
+        learnable_temperature=False,
+        eps=1e-12,
+        device="cpu",
+    ):
+        super(STGS,self).__init__()
+        self.vocab_size = vocab_size
+        self.stgs_hard = stgs_hard
+        self.init_temperature = init_temperature
+        self.learnable_temperature = learnable_temperature
+        self.eps = eps
+        self.device = device
+
+        if self.learnable_temperature:
+            #self.register_parameter(name="temperature_param", param=torch.nn.Parameter(torch.rand(1, requires_grad=True, device=self.device)))
+            self.temperature_param = torch.nn.Parameter(torch.rand(1, requires_grad=True, device=self.device))
+
+    def forward(self, x):
+        if self.learnable_temperature:
+          eff_temperature = self.eps + 1. / (F.softplus(self.temperature_param)+1.0/(self.eps+self.init_temperature))
+        else:
+          eff_temperature = torch.tensor([self.inint_temperature], device=self.device)
+        
+        # Add Gumbel noise for exploration during training
+        '''
+        gumbel_dist = torch.distributions.gumbel.Gumbel(
+            torch.zeros_like(message_logits),
+            torch.ones_like(message_logits)
+        )
+
+        gss = []
+        for bidx in range(batch_size):
+          gumbel_sample = gumbel_dist.sample()
+          # (1, allowed_vocab, seq_len)
+          #print(gumbel_sample.shape)
+          gss.append(gumbel_sample)
+        gumbel_sample = torch.concat(gss, dim=0)
+        #gumbel_logits = message_logits + gumbel_sample
+        gumbel_logits = message_logits.repeat(batch_size, 1, 1) + gumbel_sample
+        '''
+        u = torch.rand_like(x)*(0.999-self.eps)+self.eps
+        gumbels = -torch.log( -torch.log(u))
+
+        gumbel_logits = (x + gumbels) #/ (tau+eps)  # ~Gumbel(logits,tau)
+        # Check shape:
+        #print(f"Gumbel logits shape: {gumbel_logits.shape}")
+
+        # Softmax with temperature
+        y_soft = F.softmax(gumbel_logits / eff_temperature, dim=-1)
+
+        # Straight-through: use hard in forward, soft in backward
+        if self.stgs_hard:
+          #indices = torch.argmax(y_soft, dim=-1)
+          # Sampling from batched distribution y_soft:
+          indices = torch.distributions.Categorical(probs=y_soft).sample()
+          y_hard = F.one_hot(indices, num_classes=self.vocab_size).float()
+
+          # Straight-through trick: y_hard - y_soft.detach() + y_soft
+          message_one_hot = y_hard - y_soft.detach() + y_soft
+        else:
+          message_one_hot = y_soft
+        
+        return message_one_hot, eff_temperature
+
+        
 def optimize_inputs(
     model,
     tokenizer,
     device,
+    bptt=False,
     target_text="The quick brown fox jumps over the lazy dog",
     pre_prompt=None,
     seq_len=50,
     epochs=1000,
     learning_rate=0.01,
     temperature = 0.5,
+    bptt_temperature = 0.5,
     learnable_temperature=False,
+    bptt_learnable_temperature=False,
     stgs_hard=True,
+    bptt_stgs_hard=True,
     plot_every=10,
     eps=1e-10,
+    bptt_eps=1e-10,
     vocab_threshold=0.5,  # Hyperparameter for filtering
     filter_vocab=False,
     batch_size=1,
@@ -188,11 +263,16 @@ def optimize_inputs(
         "seq_len": seq_len,
         "epochs": epochs,
         "learning_rate": learning_rate,
+        "bptt":bptt,
         "temperature": temperature,
+        "bptt_temperature": bptt_temperature,
         "learnable_temperature": learnable_temperature,
+        "bptt_learnable_temperature": bptt_learnable_temperature,
         "stgs_hard": stgs_hard,
+        "bptt_stgs_hard": bptt_stgs_hard,
         "plot_every": plot_every,
         "eps": eps,
+        "bptt_eps": bptt_eps,
         "vocab_threshold": vocab_threshold,
         "batch_size": batch_size,
     })
@@ -216,11 +296,34 @@ def optimize_inputs(
     #print(f"Target tokens mapped shape: {target_tokens_mapped.shape}")
 
     # Initialize learnable inputs
+    parameters = []
     learnable_inputs = initialize_learnable_inputs(allowed_vocab_size, seq_len, device)
-    temperature_param = torch.randn(1, requires_grad=True, device=device)
+    parameters.append(learnable_inputs)
+
+    stgs = STGS(
+        vocab_size=allowed_vocab_size,
+        stgs_hard=stgs_hard,
+        init_temperature=temperature,
+        learnable_temperature=learnable_temperature,
+        eps=eps,
+        device=device,
+    )
+    parameters += list(stgs.parameters())
+    # check parameters contain stgs 
+
+    if bptt:
+        bptt_stgs = STGS(
+            vocab_size=allowed_vocab_size,
+            stgs_hard=bptt_stgs_hard,
+            init_temperature=bptt_temperature,
+            learnable_temperature=bptt_learnable_temperature,
+            eps=bptt_eps,
+            device=device,
+        )
+        parameters += list(bptt_stgs.parameters())
 
     # Set up optimizer
-    optimizer = optim.Adam([learnable_inputs, temperature_param], lr=learning_rate)
+    optimizer = optim.Adam(parameters, lr=learning_rate)
 
     # Set up loss function
     loss_fn = nn.CrossEntropyLoss()
@@ -232,49 +335,8 @@ def optimize_inputs(
         optimizer.zero_grad()
 
         # Apply ST-GS:
-        if learnable_temperature:
-          eff_temperature = eps + 1. / (F.softplus(temperature_param)+1.0/(eps+temperature))
-        else:
-          eff_temperature = torch.tensor([temperature], device=device)
-        # Add Gumbel noise for exploration during training
         message_logits = learnable_inputs.repeat(batch_size, 1, 1)
-        '''
-        gumbel_dist = torch.distributions.gumbel.Gumbel(
-            torch.zeros_like(message_logits),
-            torch.ones_like(message_logits)
-        )
-
-        gss = []
-        for bidx in range(batch_size):
-          gumbel_sample = gumbel_dist.sample()
-          # (1, allowed_vocab, seq_len)
-          #print(gumbel_sample.shape)
-          gss.append(gumbel_sample)
-        gumbel_sample = torch.concat(gss, dim=0)
-        #gumbel_logits = message_logits + gumbel_sample
-        gumbel_logits = message_logits.repeat(batch_size, 1, 1) + gumbel_sample
-        '''
-        u = torch.rand_like(message_logits)*(0.999-eps)+eps
-        gumbels = -torch.log( -torch.log(u))
-
-        gumbel_logits = (message_logits + gumbels) #/ (tau+eps)  # ~Gumbel(logits,tau)
-        # Check shape:
-        #print(f"Gumbel logits shape: {gumbel_logits.shape}")
-
-        # Softmax with temperature
-        y_soft = F.softmax(gumbel_logits / eff_temperature, dim=-1)
-
-        # Straight-through: use hard in forward, soft in backward
-        if stgs_hard:
-          #indices = torch.argmax(y_soft, dim=-1)
-          # Sampling from batched distribution y_soft:
-          indices = torch.distributions.Categorical(probs=y_soft).sample()
-          y_hard = F.one_hot(indices, num_classes=allowed_vocab_size).float()
-
-          # Straight-through trick: y_hard - y_soft.detach() + y_soft
-          message_one_hot = y_hard - y_soft.detach() + y_soft
-        else:
-          message_one_hot = y_soft
+        message_one_hot, eff_temperature  = stgs.forward(message_logits)
 
         # Convert one-hot-like vectors to embeddings by manual matrix multiplication
         # learnable_inputs shape: [batch_size, seq_len, vocab_size]
@@ -314,7 +376,7 @@ def optimize_inputs(
             use_cache=True,
             return_dict=True,
         )
-
+        
         # Get the logits from the output
         logits = outputs.logits
         # Check shape:
@@ -334,16 +396,17 @@ def optimize_inputs(
 
         while current_length < target_length:
             # Get the predicted token ID from the last position
-            next_token_id = torch.argmax(all_logits[-1], dim=-1)
-            # Check shape:
-            #print(next_token_id.shape)
-
-            # Get the embedding for this token
-            if filter_vocab:
-              #checked that these are equivalent when not doing filtering...
-              next_token_embedding = embedding_weights_subset[next_token_id]
+            if bptt:
+                next_token_one_hot, eff_temperature = bptt_stgs(all_logits[-1])
+                next_token_embedding = torch.matmul(next_token_one_hot, embedding_weights_subset)  # (batch, seq_len, embed_dim)
             else:
-              next_token_embedding = embedding_layer(next_token_id)
+                next_token_id = torch.argmax(all_logits[-1], dim=-1)
+                # Get the embedding for this token
+                if filter_vocab:
+                    #checked that these are equivalent when not doing filtering...
+                    next_token_embedding = embedding_weights_subset[next_token_id]
+                else:
+                    next_token_embedding = embedding_layer(next_token_id)
             #assert (next_token_embedding == next_token_embedding_2).all()
 
             # Forward pass with past key values for efficient generation
@@ -510,10 +573,15 @@ def main():
     parser.add_argument("--seq_len", type=int, default=40)
     parser.add_argument("--epochs", type=int, default=2000)
     parser.add_argument("--learning_rate", type=float, default=1e-2)
-    parser.add_argument("--eps", type=float, default=1e-20)
+    parser.add_argument("--eps", type=float, default=1e-10)
+    parser.add_argument("--bptt_eps", type=float, default=1e-10)
     parser.add_argument("--temperature", type=float, default=1e1)
-    parser.add_argument("--learnable_temperature", type=str2bool, default=False)
+    parser.add_argument("--learnable_temperature", type=str2bool, default=True)
     parser.add_argument("--stgs_hard", type=str2bool, default=False)
+    parser.add_argument("--bptt", type=str2bool, default=True)
+    parser.add_argument("--bptt_temperature", type=float, default=1e1)
+    parser.add_argument("--bptt_learnable_temperature", type=str2bool, default=True)
+    parser.add_argument("--bptt_stgs_hard", type=str2bool, default=False)
     parser.add_argument("--plot_every", type=int, default=100000)
     parser.add_argument("--filter_vocab", type=str2bool, default= True)
     parser.add_argument("--vocab_threshold", type=float, default=-1)
@@ -541,6 +609,7 @@ def main():
     optimized_inputs, losses = optimize_inputs(
         model,
         tokenizer,
+        bptt=config['bptt'],
         device=device,
         target_text=config['target_text'],
         pre_prompt=config['pre_prompt'],
@@ -548,10 +617,14 @@ def main():
         epochs=config['epochs'],
         learning_rate=config['learning_rate'],
         temperature=config['temperature'],
+        bptt_temperature=config['bptt_temperature'],
+        bptt_learnable_temperature=config['bptt_learnable_temperature'],
         learnable_temperature=config['learnable_temperature'],
         stgs_hard=config['stgs_hard'],
+        bptt_stgs_hard=config['bptt_stgs_hard'],
         plot_every=config['plot_every'],
         eps=config['eps'],
+        bptt_eps=config['bptt_eps'],
         vocab_threshold=config['vocab_threshold'],
         filter_vocab=config['filter_vocab'],
         batch_size=config['batch_size'],
