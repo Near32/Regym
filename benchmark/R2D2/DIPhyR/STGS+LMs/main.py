@@ -127,6 +127,59 @@ def generate_completions(model, input_embeddings, target_length, temperature=1.0
 
     return generated_token_ids, outputs.hidden_states
 
+class LossClass(object):
+    def __init__(
+        self,
+        losses,
+        embedding_weights_subset,
+        target_text,
+        target_tokens_mapped,
+        model,
+        tokenizer,
+    ):
+        self.losses = losses
+        self.target_text = target_text
+        self.target_tokens_mapped = target_tokens_mapped
+        self.embedding_weights_subset = embedding_weights_subset
+        self.model = model
+        self.tokenizer = tokenizer
+
+    def compute_loss(
+        self,
+        input_dict,
+    ):
+        sumloss = 0
+
+        if "crossentropy" in self.losses.lower():
+            loss_fn = nn.CrossEntropyLoss()
+            loss = loss_fn(
+                #generated_logits.reshape(-1, vocab_size),
+                input_dict['generated_logits'].reshape(-1, allowed_vocab_size),
+                self.target_tokens_mapped#.reshape(-1), #.reshape(1, -1).repeat(batch_size, 1),
+                #target_tokens.reshape(-1)
+            )
+            sumloss += loss
+
+        if "embedded" in self.losses.lower():
+            #print(self.embedding_weights_subset.shape)
+            #print(input_dict['generated_logits'].shape)
+            generated_embeddings = torch.matmul( input_dict['generated_logits'], self.embedding_weights_subset)
+            #print(self.target_tokens_mapped.shape)
+            target_tokens_one_hot = F.one_hot(self.target_tokens_mapped, num_classes=self.embedding_weights_subset.shape[0]).float()
+            #print(target_tokens_one_hot.shape)
+            target_embeddings = torch.matmul(target_tokens_one_hot, self.embedding_weights_subset)
+            loss_fn = torch.nn.MSELoss(size_average=None, reduce=None, reduction='none')#'mean')
+            loss = loss_fn(
+                input=generated_embeddings,
+                target=target_embeddings,
+            )
+            # (batch_size x target_seq_len x embedding_size)
+            #loss = loss.mean() #dim=-1).mean(dim=-1)
+            loss = loss.sum(dim=-1).sqrt().mean()
+            # (batch_size
+            sumloss += loss
+
+        return sumloss
 
 class STGS(torch.nn.Module):
     def __init__(
@@ -154,7 +207,7 @@ class STGS(torch.nn.Module):
         if self.learnable_temperature:
           eff_temperature = self.eps + 1. / (F.softplus(self.temperature_param)+1.0/(self.eps+self.init_temperature))
         else:
-          eff_temperature = torch.tensor([self.inint_temperature], device=self.device)
+          eff_temperature = torch.tensor([self.init_temperature], device=self.device)
         
         # Add Gumbel noise for exploration during training
         '''
@@ -202,6 +255,7 @@ def optimize_inputs(
     model,
     tokenizer,
     device,
+    losses="crossentropy",
     bptt=False,
     target_text="The quick brown fox jumps over the lazy dog",
     pre_prompt=None,
@@ -262,6 +316,7 @@ def optimize_inputs(
         "pre_prompt": pre_prompt,
         "seq_len": seq_len,
         "epochs": epochs,
+        "losses": losses,
         "learning_rate": learning_rate,
         "bptt":bptt,
         "temperature": temperature,
@@ -326,7 +381,14 @@ def optimize_inputs(
     optimizer = optim.Adam(parameters, lr=learning_rate)
 
     # Set up loss function
-    loss_fn = nn.CrossEntropyLoss()
+    loss_instance = LossClass(
+        model=model,
+        tokenizer=tokenizer,
+        embedding_weights_subset=embedding_weights_subset,
+        losses=losses,
+        target_text=target_text,
+        target_tokens_mapped=target_tokens_mapped,
+    )
 
     # Training loop
     losses = []
@@ -435,12 +497,20 @@ def optimize_inputs(
 
         # Compute loss against target tokens
         # We want to compare the generated token logits against the target tokens
+        '''
         loss = loss_fn(
             #generated_logits.reshape(-1, vocab_size),
             generated_logits.reshape(-1, allowed_vocab_size),
             target_tokens_mapped.reshape(-1), #.reshape(1, -1).repeat(batch_size, 1),
             #target_tokens.reshape(-1)
         )
+        '''
+        loss = loss_instance.compute_loss(
+            input_dict={
+                'generated_logits':generated_logits,#.reshape(-1,allowed_vocab_size),
+            },
+        )
+
         # Check shape: expect none because reduction=mean is default
         #print(f"Loss shape: {loss.shape}")
         # Backward pass and optimize
@@ -572,15 +642,18 @@ def main():
     #pre_prompt = "Complete the following: "  # Can be None if not needed
     parser.add_argument("--seq_len", type=int, default=40)
     parser.add_argument("--epochs", type=int, default=2000)
+    #parser.add_argument("--losses", type=str, default="crossentropy")
+    parser.add_argument("--losses", type=str, default="embedded")
+    # +embedded
     parser.add_argument("--learning_rate", type=float, default=1e-2)
     parser.add_argument("--eps", type=float, default=1e-10)
     parser.add_argument("--bptt_eps", type=float, default=1e-10)
     parser.add_argument("--temperature", type=float, default=1e1)
-    parser.add_argument("--learnable_temperature", type=str2bool, default=True)
+    parser.add_argument("--learnable_temperature", type=str2bool, default=False)
     parser.add_argument("--stgs_hard", type=str2bool, default=False)
-    parser.add_argument("--bptt", type=str2bool, default=True)
+    parser.add_argument("--bptt", type=str2bool, default=False)
     parser.add_argument("--bptt_temperature", type=float, default=1e1)
-    parser.add_argument("--bptt_learnable_temperature", type=str2bool, default=True)
+    parser.add_argument("--bptt_learnable_temperature", type=str2bool, default=False)
     parser.add_argument("--bptt_stgs_hard", type=str2bool, default=False)
     parser.add_argument("--plot_every", type=int, default=100000)
     parser.add_argument("--filter_vocab", type=str2bool, default= True)
@@ -609,6 +682,7 @@ def main():
     optimized_inputs, losses = optimize_inputs(
         model,
         tokenizer,
+        losses=config['losses'],
         bptt=config['bptt'],
         device=device,
         target_text=config['target_text'],
