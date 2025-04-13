@@ -163,7 +163,11 @@ class LossClass(object):
         if "embedded" in self.losses.lower():
             #print(self.embedding_weights_subset.shape)
             #print(input_dict['generated_logits'].shape)
-            generated_embeddings = torch.matmul( input_dict['generated_logits'], self.embedding_weights_subset)
+            generated_distr = input_dict['generated_logits'].softmax(dim=-1)
+            generated_embeddings = torch.matmul( 
+                generated_distr,
+                self.embedding_weights_subset,
+            )
             #print(self.target_tokens_mapped.shape)
             target_tokens_one_hot = F.one_hot(self.target_tokens_mapped, num_classes=self.embedding_weights_subset.shape[0]).float()
             #print(target_tokens_one_hot.shape)
@@ -171,11 +175,12 @@ class LossClass(object):
             loss_fn = torch.nn.MSELoss(size_average=None, reduce=None, reduction='none')#'mean')
             loss = loss_fn(
                 input=generated_embeddings,
-                target=target_embeddings,
+                target=target_embeddings.detach(),
             )
             # (batch_size x target_seq_len x embedding_size)
             #loss = loss.mean() #dim=-1).mean(dim=-1)
-            loss = loss.sum(dim=-1).sqrt().mean()
+            #loss = loss.sum(dim=-1).sqrt().mean()
+            loss = loss.sum(dim=-1).mean()
             # (batch_size
             sumloss += loss
 
