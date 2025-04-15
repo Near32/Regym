@@ -149,15 +149,17 @@ class LossClass(object):
         input_dict,
     ):
         sumloss = 0
+        losses_dict = {}
 
         if "crossentropy" in self.losses.lower():
             loss_fn = nn.CrossEntropyLoss()
             loss = loss_fn(
                 #generated_logits.reshape(-1, vocab_size),
-                input_dict['generated_logits'].reshape(-1, allowed_vocab_size),
-                self.target_tokens_mapped#.reshape(-1), #.reshape(1, -1).repeat(batch_size, 1),
+                input_dict['generated_logits'].reshape(-1, self.embedding_weights_subset.shape[0]),
+                self.target_tokens_mapped.reshape(-1), #.reshape(1, -1).repeat(batch_size, 1),
                 #target_tokens.reshape(-1)
             )
+            losses_dict['crossentropy'] = loss
             sumloss += loss
 
         if "embedded" in self.losses.lower():
@@ -182,9 +184,12 @@ class LossClass(object):
             #loss = loss.sum(dim=-1).sqrt().mean()
             loss = loss.sum(dim=-1).mean()
             # (batch_size
+            losses_dict['embedded'] = loss
             sumloss += loss
 
-        return sumloss
+        losses_dict['sumloss'] = sumloss
+
+        return losses_dict
 
 class STGS(torch.nn.Module):
     def __init__(
@@ -193,6 +198,7 @@ class STGS(torch.nn.Module):
         stgs_hard=False,
         init_temperature=1.0,
         learnable_temperature=False,
+        conditioning_dim=0,
         eps=1e-12,
         device="cpu",
     ):
@@ -201,16 +207,34 @@ class STGS(torch.nn.Module):
         self.stgs_hard = stgs_hard
         self.init_temperature = init_temperature
         self.learnable_temperature = learnable_temperature
+        self.conditioning_dim = conditioning_dim
         self.eps = eps
         self.device = device
 
         if self.learnable_temperature:
             #self.register_parameter(name="temperature_param", param=torch.nn.Parameter(torch.rand(1, requires_grad=True, device=self.device)))
-            self.temperature_param = torch.nn.Parameter(torch.rand(1, requires_grad=True, device=self.device))
+            if self.conditioning_dim < 1:
+                self.temperature_param = torch.nn.Parameter(torch.rand(1, requires_grad=True, device=self.device))
+            else:
+                self.tau_fc = nn.Sequential(
+                    nn.Linear(self.conditioning_dim, 1,bias=False),
+                    nn.Softplus()
+                )
+                self.tau_fc = self.tau_fc.to(device=device)
 
-    def forward(self, x):
+    def forward(self, x, hidden_states=None):
         if self.learnable_temperature:
-          eff_temperature = self.eps + 1. / (F.softplus(self.temperature_param)+1.0/(self.eps+self.init_temperature))
+            if self.conditioning_dim < 1:
+                eff_temperature = self.eps + 1. / (F.softplus(self.temperature_param)+1.0/(self.eps+self.init_temperature))
+            else:
+                assert hidden_states is not None
+                batch_size = x.shape[0]
+                seq_len = x.shape[1]
+                last_hidden_state = hidden_states[-1][:,-1,:].reshape(batch_size, self.conditioning_dim)
+                self.inv_tau0 = 1.0/(self.eps+self.init_temperature)
+                eff_temperature = self.eps + 1. / ( self.tau_fc(last_hidden_state)+self.inv_tau0).reshape(batch_size, -1, 1)
+                # repeat for seq len:
+                eff_temperature = eff_temperature.repeat(1,seq_len,1)
         else:
           eff_temperature = torch.tensor([self.init_temperature], device=self.device)
         
@@ -239,6 +263,7 @@ class STGS(torch.nn.Module):
         #print(f"Gumbel logits shape: {gumbel_logits.shape}")
 
         # Softmax with temperature
+        # (batch_size x seq_len x vocab_dim )
         y_soft = F.softmax(gumbel_logits / eff_temperature, dim=-1)
 
         # Straight-through: use hard in forward, soft in backward
@@ -273,6 +298,7 @@ def optimize_inputs(
     bptt_learnable_temperature=False,
     stgs_hard=True,
     bptt_stgs_hard=True,
+    bptt_hidden_state_conditioning=False,
     plot_every=10,
     eps=1e-10,
     bptt_eps=1e-10,
@@ -286,6 +312,7 @@ def optimize_inputs(
 
     # Get model's vocabulary size and embedding dimension
     vocab_size = model.config.vocab_size
+    hidden_state_dim = model.config.hidden_size
 
     # Tokenize the target text
     target_tokens = tokenizer(target_text, return_tensors="pt").input_ids.to(device)  # shape: (1, target_length)
@@ -330,6 +357,7 @@ def optimize_inputs(
         "bptt_learnable_temperature": bptt_learnable_temperature,
         "stgs_hard": stgs_hard,
         "bptt_stgs_hard": bptt_stgs_hard,
+        "bptt_hidden_state_conditioning":bptt_hidden_state_conditioning,
         "plot_every": plot_every,
         "eps": eps,
         "bptt_eps": bptt_eps,
@@ -378,6 +406,7 @@ def optimize_inputs(
             init_temperature=bptt_temperature,
             learnable_temperature=bptt_learnable_temperature,
             eps=bptt_eps,
+            conditioning_dim=hidden_state_dim if bptt_hidden_state_conditioning else 0,
             device=device,
         )
         parameters += list(bptt_stgs.parameters())
@@ -464,9 +493,10 @@ def optimize_inputs(
         while current_length < target_length:
             # Get the predicted token ID from the last position
             if bptt:
-                next_token_one_hot, eff_temperature = bptt_stgs(all_logits[-1])
+                next_token_one_hot, bptt_eff_temperature = bptt_stgs(all_logits[-1], hidden_states=outputs.hidden_states)
                 next_token_embedding = torch.matmul(next_token_one_hot, embedding_weights_subset)  # (batch, seq_len, embed_dim)
             else:
+                bptt_eff_temperature = 0
                 next_token_id = torch.argmax(all_logits[-1], dim=-1)
                 # Get the embedding for this token
                 if filter_vocab:
@@ -510,11 +540,12 @@ def optimize_inputs(
             #target_tokens.reshape(-1)
         )
         '''
-        loss = loss_instance.compute_loss(
+        losses_dict = loss_instance.compute_loss(
             input_dict={
                 'generated_logits':generated_logits,#.reshape(-1,allowed_vocab_size),
             },
         )
+        loss = losses_dict['sumloss']
 
         # Check shape: expect none because reduction=mean is default
         #print(f"Loss shape: {loss.shape}")
@@ -543,10 +574,11 @@ def optimize_inputs(
         losses.append(loss.item())
         pbar.set_description(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f} / {info}")
         # Log metrics to wandb
-        wandb.log({
+        wandb_log = {
             "epoch": epoch+1,
             "loss": loss.item(),
             "effective_temperature": eff_temperature.item(),
+            "bptt_effective_temperature": bptt_eff_temperature.mean().item() if isinstance(bptt_eff_temperature, torch.Tensor) else bptt_eff_temperature,
             "allowed_vocab_size": allowed_vocab_size,
             "non_zero_grads": non_zero_grads,
             "grad_mean": learnable_inputs.grad.mean().item() if learnable_inputs.grad is not None else 0.0,
@@ -555,7 +587,12 @@ def optimize_inputs(
             "grad_norm": learnable_inputs.grad.norm().item() if learnable_inputs.grad is not None else 0.0,
             "grad_std": learnable_inputs.grad.std().item() if learnable_inputs.grad is not None else 0.0,
             "vocab_size": model.config.vocab_size,
-        })
+
+        }
+        for k, v in losses_dict.items():
+            wandb_log[k] = v.item()
+
+        wandb.log(wandb_log)
         # Update wandb_table with generated_output:
         learnable_input_ids = torch.argmax(learnable_inputs, dim=-1)[0]
         generated_output_ids = torch.argmax(generated_logits, dim=-1)
@@ -660,6 +697,7 @@ def main():
     parser.add_argument("--bptt_temperature", type=float, default=1e1)
     parser.add_argument("--bptt_learnable_temperature", type=str2bool, default=False)
     parser.add_argument("--bptt_stgs_hard", type=str2bool, default=False)
+    parser.add_argument("--bptt_hidden_state_conditioning", type=str2bool, default=False)
     parser.add_argument("--plot_every", type=int, default=100000)
     parser.add_argument("--filter_vocab", type=str2bool, default= True)
     parser.add_argument("--vocab_threshold", type=float, default=-1)
@@ -701,6 +739,7 @@ def main():
         learnable_temperature=config['learnable_temperature'],
         stgs_hard=config['stgs_hard'],
         bptt_stgs_hard=config['bptt_stgs_hard'],
+        bptt_hidden_state_conditioning=config['bptt_hidden_state_conditioning'],
         plot_every=config['plot_every'],
         eps=config['eps'],
         bptt_eps=config['bptt_eps'],
