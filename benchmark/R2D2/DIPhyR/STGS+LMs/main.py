@@ -137,12 +137,58 @@ class LossClass(object):
         model,
         tokenizer,
     ):
+        self.eps = 1e-8
         self.losses = losses
         self.target_text = target_text
         self.target_tokens_mapped = target_tokens_mapped
         self.embedding_weights_subset = embedding_weights_subset
         self.model = model
         self.tokenizer = tokenizer
+
+        self.vocab_size = self.embedding_weights_subset.shape[0]
+        self.embedding_dim = self.embedding_weights_subset.shape[1]
+        self.batch_size = self.target_tokens_mapped.shape[0]
+        self.target_seq_len = self.target_tokens_mapped.shape[1]
+
+        # EmbXEntropy:
+        if 'embxentropy' in self.losses.lower():
+            target_tokens_one_hot = F.one_hot(
+                self.target_tokens_mapped,
+                num_classes=self.vocab_size,
+            ).float()
+            # batch_size x target_seq_len x vocab_size
+            target_embeddings = torch.matmul(target_tokens_one_hot, self.embedding_weights_subset)
+            # batch_size x target_seq_len x embedding_dim
+            '''
+            diff_target_minus_other = target_embeddings.unsqueeze(2).expand(-1,-1,self.vocab_size, -1) - self.embedding_weights_subset.reshape(
+                1,1,self.vocab_size, self.embedding_dim,
+            ).expand(
+                self.batch_size, self.target_seq_len, -1,-1,
+            )
+            # batch_size x target_seq_len x vocab_size x embedding_dim
+            l2_norm_diff_target_other = torch.linalg.norm(
+                diff_target_minus_other,
+                dim=-1,
+                ord=2,
+            )
+            # batch_size x target_seq_len x vocab_size
+            '''
+            l2_norm_diff_target_other = torch.zeros((self.batch_size, self.target_seq_len, self.vocab_size))
+            for bidx in range(self.batch_size):
+                for tidx in range(self.target_seq_len):
+                    diff_target_minus_other = target_embeddings[bidx,tidx].unsqueeze(0).expand(self.vocab_size, -1) - self.embedding_weights_subset
+                    # (vocab_size x emd_dim)
+                    l2_norm_diff_target_other[bidx,tidx] = torch.linalg.norm(
+                        diff_target_minus_other,
+                        dim=-1,
+                        ord=2,
+                    )
+                    # vocab_size
+
+            self.target_distr = torch.softmax(
+                1.0 / (self.eps + l2_norm_diff_target_other),
+                dim=-1,
+            ).to(device=self.embedding_weights_subset.device)
 
     def compute_loss(
         self,
@@ -185,6 +231,15 @@ class LossClass(object):
             loss = loss.sum(dim=-1).mean()
             # (batch_size
             losses_dict['embedded'] = loss
+            sumloss += loss
+
+        if "embxentropy" in self.losses.lower():
+            loss_fn = nn.CrossEntropyLoss()
+            loss = loss_fn(
+                input_dict['generated_logits'].reshape(-1, self.vocab_size),
+                target=self.target_distr.reshape(-1, self.vocab_size).detach(),
+            )
+            losses_dict['embxentropy'] = loss
             sumloss += loss
 
         losses_dict['sumloss'] = sumloss
@@ -300,6 +355,7 @@ def optimize_inputs(
     bptt_stgs_hard=True,
     bptt_hidden_state_conditioning=False,
     plot_every=10,
+    log_table_every=100,
     eps=1e-10,
     bptt_eps=1e-10,
     vocab_threshold=0.5,  # Hyperparameter for filtering
@@ -611,7 +667,8 @@ def optimize_inputs(
             table_generated_output_ids[0].tolist(), 
             generated_output_str,
         )
-        wandb.log({"generated_output_table": copy.deepcopy(wandb_table)})
+        if epoch % log_table_every == 0:
+            wandb.log({"generated_output_table": copy.deepcopy(wandb_table)})
 
          # Update plot every plot_every epochs - Colab compatible version
         if epoch % plot_every == 0 or epoch == epochs - 1:
@@ -685,8 +742,10 @@ def main():
     parser.add_argument("--seq_len", type=int, default=40)
     parser.add_argument("--epochs", type=int, default=2000)
     #parser.add_argument("--losses", type=str, default="crossentropy")
-    parser.add_argument("--losses", type=str, default="embedded")
+    #parser.add_argument("--losses", type=str, default="embedded")
+    parser.add_argument("--losses", type=str, default="embxentropy")
     # +embedded
+    # +embxentropy
     parser.add_argument("--learning_rate", type=float, default=1e-2)
     parser.add_argument("--eps", type=float, default=1e-10)
     parser.add_argument("--bptt_eps", type=float, default=1e-10)
