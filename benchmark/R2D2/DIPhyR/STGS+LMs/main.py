@@ -335,7 +335,45 @@ class STGS(torch.nn.Module):
         
         return message_one_hot, eff_temperature
 
+
+class TokenOverlapMetric(object):
+    def __init__(
+        self,
+        target_text,
+        tokenizer,
+    ):
+        self.target_text = target_text
+        self.tokenizer = tokenizer
+
+    def measure(
+        self,
+        prompt_text=None,
+        prompt_tokens=None,
+    ):
+        target_tokens = self.tokenizer(
+            self.target_text, 
+            add_special_tokens=False,
+            return_tensors="pt",
+        ).input_ids[0]
+        if prompt_tokens is None:
+            assert prompt_text is not None
+            prompt_tokens = self.tokenizer(
+                prompt_text, 
+                add_special_tokens=False,
+                return_tensors="pt",
+            ).input_ids[0]
         
+        tt_occ = {}
+        for ttoken in target_tokens:
+            tt_occ[ttoken.item()] = (prompt_tokens == ttoken).int().sum().item()
+
+        nbr_occ = sum(tt_occ.values())
+        max_occ = prompt_tokens.shape[-1]
+
+        overlap_ratio = nbr_occ / max_occ
+        return overlap_ratio
+
+
 def optimize_inputs(
     model,
     tokenizer,
@@ -420,7 +458,14 @@ def optimize_inputs(
         "vocab_threshold": vocab_threshold,
         "batch_size": batch_size,
     })
-    wandb_table = wandb.Table(columns=["epoch", "learned_input_ids", "learned_input_str", "generated_output_ids", "generated_output_str"])
+    wandb_table = wandb.Table(columns=[
+        "epoch", 
+        "learned_input_ids", 
+        "learned_input_str", 
+        "generated_output_ids", 
+        "generated_output_str",
+        "token_overlap_measure",
+    ])
 
     if filter_vocab:
       # Build a mapping from full-vocab token id to allowed index
@@ -443,6 +488,11 @@ def optimize_inputs(
     parameters = []
     learnable_inputs = initialize_learnable_inputs(allowed_vocab_size, seq_len, device)
     parameters.append(learnable_inputs)
+    
+    token_overlap_metric = TokenOverlapMetric(
+        target_text=target_text,
+        tokenizer=tokenizer,
+    )
 
     stgs = STGS(
         vocab_size=allowed_vocab_size,
@@ -648,7 +698,6 @@ def optimize_inputs(
         for k, v in losses_dict.items():
             wandb_log[k] = v.item()
 
-        wandb.log(wandb_log)
         # Update wandb_table with generated_output:
         learnable_input_ids = torch.argmax(learnable_inputs, dim=-1)[0]
         generated_output_ids = torch.argmax(generated_logits, dim=-1)
@@ -660,13 +709,23 @@ def optimize_inputs(
         learnable_input_str = tokenizer.decode(learnable_input_ids, skip_special_tokens=False)
         generated_output_str = tokenizer.decode(table_generated_output_ids[0], skip_special_tokens=False)
         #print(learnable_input_str)
+        
+        token_overlap_measure = token_overlap_metric.measure(
+            prompt_tokens=learnable_input_ids,
+        )
+        wandb_log['token_overlap_metric'] = token_overlap_measure
+
         wandb_table.add_data(
             epoch+1, 
             learnable_input_ids.tolist(),
             learnable_input_str,
             table_generated_output_ids[0].tolist(), 
             generated_output_str,
+            token_overlap_measure,
         )
+        
+        wandb.log(wandb_log)
+        
         if epoch % log_table_every == 0:
             wandb.log({"generated_output_table": copy.deepcopy(wandb_table)})
 
