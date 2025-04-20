@@ -190,6 +190,31 @@ class LossClass(object):
                 dim=-1,
             ).to(device=self.embedding_weights_subset.device)
 
+        elif 'embLayer' in self.losses \
+        and 'L2' in self.losses:
+            target_tokens_one_hot = F.one_hot(
+                self.target_tokens_mapped,
+                num_classes=self.vocab_size,
+            ).float()
+            # batch_size x target_seq_len x vocab_size
+            target_embeddings = torch.matmul(target_tokens_one_hot, self.embedding_weights_subset)
+            # batch_size x target_seq_len x embedding_dim
+            l2_norm_diff_target_other = torch.zeros((self.batch_size, self.target_seq_len, self.vocab_size))
+            
+            target_outputs = self.model(
+                inputs_embeds=target_embeddings,
+                output_hidden_states=True,
+                use_cache=False,
+                return_dict=True,
+            )
+
+            self.embedding_layers = [int(number) for number in self.losses.split('embLayer')[1].split('L2')[0].split('+')]
+            
+            self.target_embeddings = { emblayer:target_outputs.hidden_states[emblayer].to(device=self.embedding_weights_subset.device) 
+                for emblayer in self.embedding_layers
+            }
+            # (batch_size x target_seq_len x hidden_state)
+
     def compute_loss(
         self,
         input_dict,
@@ -240,6 +265,32 @@ class LossClass(object):
                 target=self.target_distr.reshape(-1, self.vocab_size).detach(),
             )
             losses_dict['embxentropy'] = loss
+            sumloss += loss
+
+        if 'embLayer' in self.losses \
+        and 'L2' in self.losses:
+            generated_embeddings = {}
+            for emblayer in self.embedding_layers:
+                generated_embeddings[emblayer] = [hs[emblayer][:,-1:] for hs in input_dict['generated_hidden_states']]
+                generated_embeddings[emblayer] = torch.cat(generated_embeddings[emblayer], dim=1)
+                # (batch_size x target_seq_len x hidden-dim)
+
+            loss_fn = torch.nn.MSELoss(size_average=None, reduce=None, reduction='none')#'mean')
+            losses = {}
+            for emblayer in self.embedding_layers:
+                losses[emblayer] = loss_fn(
+                    input=generated_embeddings[emblayer],
+                    target=self.target_embeddings[emblayer].detach(),
+                )
+                # (batch_size x target_seq_len x embedding_size)
+                #loss = loss.mean() #dim=-1).mean(dim=-1)
+                #loss = loss.sum(dim=-1).sqrt().mean()
+                losses[emblayer] = losses[emblayer].sum(dim=-1).mean()
+                # (batch_size
+                losses_dict[f"embLayer{emblayer}L2"] = losses[emblayer]
+
+            loss = sum(losses.values())
+            losses_dict[f"embLayerL2"] = loss
             sumloss += loss
 
         losses_dict['sumloss'] = sumloss
@@ -398,6 +449,7 @@ def optimize_inputs(
     bptt_eps=1e-10,
     vocab_threshold=0.5,  # Hyperparameter for filtering
     filter_vocab=False,
+    max_gradient_norm=0.0,
     batch_size=1,
 ):
     """
@@ -581,6 +633,8 @@ def optimize_inputs(
         
         # Get the logits from the output
         logits = outputs.logits
+        # Get the hidden states from the output
+        hidden_states = outputs.hidden_states
         # Check shape:
         #print(f"Logits shape: {logits.shape}")
         # Restrict logits to allowed vocabulary
@@ -592,6 +646,7 @@ def optimize_inputs(
         # Store all generated token logits
         #all_logits = [logits[:, -1:, :]]  # Start with the last logit from initial forward pass
         all_logits = [logits_allowed[:, -1:, :]]
+        all_hidden_states = [hidden_states]
 
         # Generate additional tokens autoregressively to match target length
         current_length = 1  # We've already generated one token worth of logits
@@ -627,6 +682,7 @@ def optimize_inputs(
             # Add the new logits to our collection
             next_logits = outputs.logits[..., allowed_tokens]
             all_logits.append(next_logits)
+            all_hidden_states.append(outputs.hidden_states)
 
             current_length += 1
 
@@ -649,6 +705,7 @@ def optimize_inputs(
         losses_dict = loss_instance.compute_loss(
             input_dict={
                 'generated_logits':generated_logits,#.reshape(-1,allowed_vocab_size),
+                'generated_hidden_states': all_hidden_states,
             },
         )
         loss = losses_dict['sumloss']
@@ -657,6 +714,11 @@ def optimize_inputs(
         #print(f"Loss shape: {loss.shape}")
         # Backward pass and optimize
         loss.backward()
+
+        #Gradient clipping:
+        if max_gradient_norm != 0.0:
+           torch.nn.utils.clip_grad_norm_(parameters, max_gradient_norm)
+
 
         # Check gradient:
         #print()"Gradient shape: {learnable_inputs.grad.shape}")
@@ -803,9 +865,11 @@ def main():
     #parser.add_argument("--losses", type=str, default="crossentropy")
     #parser.add_argument("--losses", type=str, default="embedded")
     parser.add_argument("--losses", type=str, default="embxentropy")
+    # embLayerxL2
     # +embedded
     # +embxentropy
     parser.add_argument("--learning_rate", type=float, default=1e-2)
+    parser.add_argument("--max_gradient_norm", type=float, default=0.0)
     parser.add_argument("--eps", type=float, default=1e-10)
     parser.add_argument("--bptt_eps", type=float, default=1e-10)
     parser.add_argument("--temperature", type=float, default=1e1)
@@ -863,6 +927,7 @@ def main():
         bptt_eps=config['bptt_eps'],
         vocab_threshold=config['vocab_threshold'],
         filter_vocab=config['filter_vocab'],
+        max_gradient_norm=config['max_gradient_norm'],
         batch_size=config['batch_size'],
     )
 
