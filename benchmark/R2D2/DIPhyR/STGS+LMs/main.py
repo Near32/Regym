@@ -418,6 +418,8 @@ class TokenOverlapMetric(object):
         prompt_text=None,
         prompt_tokens=None,
     ):
+        output_dict = {}
+
         target_tokens = self.tokenizer(
             self.target_text, 
             add_special_tokens=False,
@@ -439,7 +441,18 @@ class TokenOverlapMetric(object):
         max_occ = prompt_tokens.shape[-1]
 
         overlap_ratio = nbr_occ / max_occ
-        return overlap_ratio
+        output_dict['token_overlap_ratio'] = overlap_ratio
+
+        target_set = set(target_tokens.tolist())
+        target_set_size = len(target_set)
+        target_hits = {
+            ttoken: int(t_occ>0)
+            for ttoken, t_occ in tt_occ.items()
+        }
+        target_hits_size = sum(target_hits.values())
+        output_dict['target_hit_ratio'] = float(target_hits_size) / target_set_size
+        
+        return output_dict
 
 
 def optimize_inputs(
@@ -533,7 +546,8 @@ def optimize_inputs(
         "learned_input_str", 
         "generated_output_ids", 
         "generated_output_str",
-        "token_overlap_measure",
+        "token_overlap_ratio",
+        "target_hit_ratio",
     ])
 
     if filter_vocab:
@@ -789,10 +803,11 @@ def optimize_inputs(
         generated_output_str = tokenizer.decode(table_generated_output_ids[0], skip_special_tokens=False)
         #print(learnable_input_str)
         
-        token_overlap_measure = token_overlap_metric.measure(
+        metrics_dict = token_overlap_metric.measure(
             prompt_tokens=learnable_input_ids,
         )
-        wandb_log['token_overlap_metric'] = token_overlap_measure
+        for k,v in metrics_dict.items():
+            wandb_log[k] = v
 
         wandb_table.add_data(
             epoch+1, 
@@ -800,7 +815,8 @@ def optimize_inputs(
             learnable_input_str,
             table_generated_output_ids[0].tolist(), 
             generated_output_str,
-            token_overlap_measure,
+            #token_overlap_measure,
+            *metrics_dict.values(),
         )
         
         wandb.log(wandb_log)
