@@ -149,6 +149,7 @@ class LossClass(object):
         self.embedding_dim = self.embedding_weights_subset.shape[1]
         self.batch_size = self.target_tokens_mapped.shape[0]
         self.target_seq_len = self.target_tokens_mapped.shape[1]
+        self.hidden_state_dim = self.model.config.hidden_size
 
         # EmbXEntropy:
         if 'embxentropy' in self.losses.lower():
@@ -190,8 +191,7 @@ class LossClass(object):
                 dim=-1,
             ).to(device=self.embedding_weights_subset.device)
 
-        elif 'embLayer' in self.losses \
-        and 'L2' in self.losses:
+        elif 'embLayer' in self.losses:
             target_tokens_one_hot = F.one_hot(
                 self.target_tokens_mapped,
                 num_classes=self.vocab_size,
@@ -207,8 +207,13 @@ class LossClass(object):
                 use_cache=False,
                 return_dict=True,
             )
+            
+            if 'L2' in self.losses:
+                loss_type = 'L2'
+            elif 'cos' in self.losses.lower():
+                loss_type = 'Cos'
 
-            self.embedding_layers = [int(number) for number in self.losses.split('embLayer')[1].split('L2')[0].split('+')]
+            self.embedding_layers = [int(number) for number in self.losses.split('embLayer')[1].split(loss_type)[0].split('+')]
             
             self.target_embeddings = { emblayer:target_outputs.hidden_states[emblayer].to(device=self.embedding_weights_subset.device) 
                 for emblayer in self.embedding_layers
@@ -267,30 +272,42 @@ class LossClass(object):
             losses_dict['embxentropy'] = loss
             sumloss += loss
 
-        if 'embLayer' in self.losses \
-        and 'L2' in self.losses:
+        if 'embLayer' in self.losses :
             generated_embeddings = {}
             for emblayer in self.embedding_layers:
                 generated_embeddings[emblayer] = [hs[emblayer][:,-1:] for hs in input_dict['generated_hidden_states']]
                 generated_embeddings[emblayer] = torch.cat(generated_embeddings[emblayer], dim=1)
                 # (batch_size x target_seq_len x hidden-dim)
 
-            loss_fn = torch.nn.MSELoss(size_average=None, reduce=None, reduction='none')#'mean')
             losses = {}
-            for emblayer in self.embedding_layers:
-                losses[emblayer] = loss_fn(
-                    input=generated_embeddings[emblayer],
-                    target=self.target_embeddings[emblayer].detach(),
-                )
-                # (batch_size x target_seq_len x embedding_size)
-                #loss = loss.mean() #dim=-1).mean(dim=-1)
-                #loss = loss.sum(dim=-1).sqrt().mean()
-                losses[emblayer] = losses[emblayer].sum(dim=-1).mean()
-                # (batch_size
-                losses_dict[f"embLayer{emblayer}L2"] = losses[emblayer]
-
+            if 'L2' in self.losses:
+                loss_type = 'L2'
+                loss_fn = torch.nn.MSELoss(size_average=None, reduce=None, reduction='none')#'mean')
+                for emblayer in self.embedding_layers:
+                    losses[emblayer] = loss_fn(
+                        input=generated_embeddings[emblayer],
+                        target=self.target_embeddings[emblayer].detach(),
+                    )
+                    # (batch_size x target_seq_len x embedding_size)
+                    #loss = loss.mean() #dim=-1).mean(dim=-1)
+                    #loss = loss.sum(dim=-1).sqrt().mean()
+                    losses[emblayer] = losses[emblayer].sum(dim=-1).mean()
+                    # (batch_size
+                    losses_dict[f"embLayer{emblayer}L2"] = losses[emblayer]
+            elif 'cos' in self.losses.lower():
+                loss_type = 'Cos'
+                loss_fn = torch.nn.CosineEmbeddingLoss(reduction='mean')
+                target = torch.ones((self.batch_size*self.target_seq_len,), device=self.embedding_weights_subset.device) 
+                for emblayer in self.embedding_layers:
+                    losses[emblayer] = loss_fn(
+                        input1=generated_embeddings[emblayer].reshape(-1,self.hidden_state_dim),
+                        input2=self.target_embeddings[emblayer].detach().reshape(-1, self.hidden_state_dim),
+                        target=target,
+                    )
+                    # scalere because mean over (batch_size * target_seq_len) ?
+                    losses_dict[f"embLayer{emblayer}{loss_type}"] = losses[emblayer]
             loss = sum(losses.values())
-            losses_dict[f"embLayerL2"] = loss
+            losses_dict[f"embLayer{loss_type}"] = loss
             sumloss += loss
 
         losses_dict['sumloss'] = sumloss
