@@ -136,6 +136,7 @@ class LossClass(object):
         target_tokens_mapped,
         model,
         tokenizer,
+        kwargs,
     ):
         self.eps = 1e-8
         self.losses = losses
@@ -150,6 +151,8 @@ class LossClass(object):
         self.batch_size = self.target_tokens_mapped.shape[0]
         self.target_seq_len = self.target_tokens_mapped.shape[1]
         self.hidden_state_dim = self.model.config.hidden_size
+
+        self.kwargs = kwargs
 
         # EmbXEntropy:
         if 'embxentropy' in self.losses.lower():
@@ -219,6 +222,48 @@ class LossClass(object):
                 for emblayer in self.embedding_layers
             }
             # (batch_size x target_seq_len x hidden_state)
+
+    def compute_perplexity(
+        self,
+        all_logits,
+        predictions,
+    ):
+        '''
+        Compute perplexity with log:
+        :param all_logits: batch_size x seq_len x vocab_size
+        :param predictions: batch_size x seq_len 
+        '''
+        lslhd = all_logits 
+        #(batch_size x seq_len x vocab_size)
+        batch_size = all_logits.shape[0]
+        seq_len = all_logits.shape[1]
+        vocab_size = all_logits.shape[2]
+
+        lslhd = lslhd.log_softmax(dim=-1)
+        lslhd = lslhd.gather(
+            dim=-1, 
+            index=predictions.unsqueeze(-1),
+        ).squeeze(-1)
+        # (batch_size x seq_len)
+        #lslhd = lsoftmaxed_pl.gather(dim=-1, index=tokenized_prediction.unsqueeze(-1)).squeeze(-1)
+        if self.tokenizer.pad_token_id is not None:
+            lnotpadding_mask = (predictions != self.tokenizer.pad_token_id).float()
+            #lnotpadding_mask = (tokenized_prediction != self.tokenizer.pad_token_id).float()
+            #options_true_length = (batched_options_inputs.input_ids != self.tokenizer.pad_token_id).long().sum(dim=-1).unsqueeze(-1)
+            #(batch_size x 1)
+            lslhd = lnotpadding_mask * lslhd
+        else:
+            lnotpadding_mask = torch.ones_like(predictions)
+        #torch.pow(slhd, 1.0/options_true_length)
+        #(option_batch_size x option_len)
+        #print('cache option: ', lslhd.shape)
+        #print(lslhd)
+        lsentences_likelihoods = lslhd.sum(dim=-1) #= slhd.cpu().prod(dim=-1).to(slhd.device)
+        #(batch_size )
+        lsentences_perplexities = torch.exp(-lsentences_likelihoods / (lnotpadding_mask.sum(dim=-1)+1e-8)) #1.0/(slhd+1e-8)
+        # (batch_size )
+        
+        return lsentences_perplexities
 
     def compute_loss(
         self,
@@ -310,6 +355,30 @@ class LossClass(object):
             losses_dict[f"embLayer{loss_type}"] = loss
             sumloss += loss
 
+        if 'perplexity' in self.losses.lower():
+            if 'promptPerplexity' in self.losses:
+                promptPLX = self.compute_perplexity(
+                    all_logits=input_dict['prompt_logits'],
+                    predictions=input_dict['prompt_ids'],
+                )
+            else:
+                promptPLX = torch.zeros(self.batch_size)
+
+            if 'completionPerplexity' in self.losses:
+                complPLX = self.compute_perplexity(
+                    all_logits=input_dict['generated_logits'],
+                    predictions=input_dict['completion_ids'],
+                )
+            else:
+                complPLX = torch.zeros(self.batch_size)
+            
+            promptLambda = self.kwargs['promptLambda']
+            complLambda = self.kwargs['complLambda']
+            loss = (complLambda*complPLX + promptLambda*promptPLX).mean()
+            losses_dict[f"PLX-prompt"] = promptPLX.mean()
+            losses_dict[f"PLX-completion"] = complPLX.mean()
+            sumloss += loss
+
         losses_dict['sumloss'] = sumloss
 
         return losses_dict
@@ -393,15 +462,16 @@ class STGS(torch.nn.Module):
         if self.stgs_hard:
           #indices = torch.argmax(y_soft, dim=-1)
           # Sampling from batched distribution y_soft:
-          indices = torch.distributions.Categorical(probs=y_soft).sample()
-          y_hard = F.one_hot(indices, num_classes=self.vocab_size).float()
+          message_ids = torch.distributions.Categorical(probs=y_soft).sample()
+          y_hard = F.one_hot(message_ids, num_classes=self.vocab_size).float()
 
           # Straight-through trick: y_hard - y_soft.detach() + y_soft
           message_one_hot = y_hard - y_soft.detach() + y_soft
         else:
+          message_ids = torch.distributions.Categorical(probs=y_soft).sample()
           message_one_hot = y_soft
         
-        return message_one_hot, eff_temperature
+        return message_ids, message_one_hot, eff_temperature
 
 
 class TokenOverlapMetric(object):
@@ -481,6 +551,7 @@ def optimize_inputs(
     filter_vocab=False,
     max_gradient_norm=0.0,
     batch_size=1,
+    kwargs={},
 ):
     """
     Optimize input embeddings to make the frozen model produce the target output as a completion
@@ -611,6 +682,7 @@ def optimize_inputs(
         losses=losses,
         target_text=target_text,
         target_tokens_mapped=target_tokens_mapped,
+        kwargs=kwargs,
     )
 
     # Training loop
@@ -621,7 +693,9 @@ def optimize_inputs(
 
         # Apply ST-GS:
         message_logits = learnable_inputs.repeat(batch_size, 1, 1)
-        message_one_hot, eff_temperature  = stgs.forward(message_logits)
+        message_ids, message_one_hot, eff_temperature  = stgs.forward(message_logits)
+        
+        prompt_ids = message_ids
 
         # Convert one-hot-like vectors to embeddings by manual matrix multiplication
         # learnable_inputs shape: [batch_size, seq_len, vocab_size]
@@ -671,6 +745,9 @@ def optimize_inputs(
         # Restrict logits to allowed vocabulary
         logits_allowed = logits[..., allowed_tokens]  # (batch, seq_len, allowed_vocab_size)
 
+        prompt_logits = logits_allowed
+        #(batch_size x prompt_seq_len x vocab_size)
+
         # Initialize the past key values for generation
         past_key_values = outputs.past_key_values
 
@@ -681,11 +758,12 @@ def optimize_inputs(
 
         # Generate additional tokens autoregressively to match target length
         current_length = 1  # We've already generated one token worth of logits
-
+        
+        completion_ids = []
         while current_length < target_length:
             # Get the predicted token ID from the last position
             if bptt:
-                next_token_one_hot, bptt_eff_temperature = bptt_stgs(all_logits[-1], hidden_states=outputs.hidden_states)
+                next_token_id, next_token_one_hot, bptt_eff_temperature = bptt_stgs(all_logits[-1], hidden_states=outputs.hidden_states)
                 next_token_embedding = torch.matmul(next_token_one_hot, embedding_weights_subset)  # (batch, seq_len, embed_dim)
             else:
                 bptt_eff_temperature = 0
@@ -697,6 +775,7 @@ def optimize_inputs(
                 else:
                     next_token_embedding = embedding_layer(next_token_id)
             #assert (next_token_embedding == next_token_embedding_2).all()
+            completion_ids.append(next_token_id)
 
             # Forward pass with past key values for efficient generation
             outputs = model(
@@ -722,7 +801,8 @@ def optimize_inputs(
         # Check shape:
         #print(f"Generated logits shape: {generated_logits.shape}")
         #print(f"Target tokens shape: {target_tokens_mapped.shape}")
-
+        completion_ids = torch.cat(completion_ids, dim=1)
+        # (batch_size x target_seq_len)
         # Compute loss against target tokens
         # We want to compare the generated token logits against the target tokens
         '''
@@ -737,6 +817,9 @@ def optimize_inputs(
             input_dict={
                 'generated_logits':generated_logits,#.reshape(-1,allowed_vocab_size),
                 'generated_hidden_states': all_hidden_states,
+                'completion_ids': completion_ids,
+                'prompt_ids': prompt_ids,
+                'prompt_logits': prompt_logits,
             },
         )
         loss = losses_dict['sumloss']
@@ -901,6 +984,9 @@ def main():
     # embLayerxL2
     # +embedded
     # +embxentropy
+    # +perplexityPenalty
+    parser.add_argument("--promptLambda", type=float, default=0.0)
+    parser.add_argument("--complLambda", type=float, default=0.0)
     parser.add_argument("--learning_rate", type=float, default=1e-2)
     parser.add_argument("--max_gradient_norm", type=float, default=0.0)
     parser.add_argument("--eps", type=float, default=1e-10)
@@ -921,6 +1007,9 @@ def main():
     
     args = parser.parse_args()
     config = vars(args)
+   
+    if config['promptLambda'] > 0.0:    config['losses'] += '+promptPerplexity'
+    if config['complLambda'] > 0.0:    config['losses'] += '+completionPerplexity'
 
     # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -962,6 +1051,7 @@ def main():
         filter_vocab=config['filter_vocab'],
         max_gradient_norm=config['max_gradient_norm'],
         batch_size=config['batch_size'],
+        kwargs=config,
     )
 
     wandb.finish()
