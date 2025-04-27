@@ -900,6 +900,8 @@ def optimize_inputs(
         generated_output_str = tokenizer.decode(table_generated_output_ids[0], skip_special_tokens=False)
         #print(learnable_input_str)
         
+        generated_tokens = table_generated_output_ids[0].cpu().tolist()
+
         metrics_dict = token_overlap_metric.measure(
             prompt_tokens=learnable_input_ids,
         )
@@ -916,6 +918,10 @@ def optimize_inputs(
             *metrics_dict.values(),
         )
         
+        #TODO
+        #for k,v in wandb_log.items():
+        #    print(k, type(v))
+        #import ipdb; ipdb.set_trace()
         wandb.log(wandb_log)
         
         if epoch % log_table_every == 0:
@@ -956,9 +962,10 @@ def optimize_inputs(
         if loss.item() < 0.01 \
         or generated_output_str == target_text:
             print(f"Converged at epoch {epoch+1} with loss: {loss.item():.6f}")
+            wandb.log({"generated_output_table": copy.deepcopy(wandb_table)})
             break
 
-    return learnable_inputs, losses
+    return generated_tokens, learnable_inputs, losses
 
 
 def str2bool(instr):
@@ -1045,7 +1052,7 @@ def main():
     torch.manual_seed(config["seed"])
     # Optimize inputs
     print(f"Starting optimization with target: {args.target_text}")
-    optimized_inputs, losses = optimize_inputs(
+    generated_tokens, optimized_inputs, losses = optimize_inputs(
         model,
         tokenizer,
         losses=config['losses'],

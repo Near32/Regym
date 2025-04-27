@@ -58,14 +58,17 @@ def optimize_for_target(target_info, model, tokenizer, device, config, run_id, o
         name=run_name,
         group=run_id,
         job_type="single_target_optimization",
-        config=target_config
+        config=target_config,
+        #reinit="create_new",
+        #reinit="default",
+        reinit="finish_previous",#False,
     ) as target_run:
     
         # Tokenize target for later comparison
         target_tokens = tokenizer(target_text, return_tensors="pt").input_ids[0].cpu().tolist()
         
         # Optimize inputs for this target
-        optimized_inputs, losses = optimize_inputs(
+        generated_tokens, optimized_inputs, losses = optimize_inputs(
             model=model,
             tokenizer=tokenizer,
             device=device,
@@ -97,6 +100,7 @@ def optimize_for_target(target_info, model, tokenizer, device, config, run_id, o
         optimized_text = tokenizer.decode(optimized_tokens)
         
         # Test the optimized prompt by running inference
+        """
         with torch.no_grad():
             # Convert tokens to embeddings
             embedding_layer = model.get_input_embeddings()
@@ -112,8 +116,9 @@ def optimize_for_target(target_info, model, tokenizer, device, config, run_id, o
             )
             
             # Extract generated tokens (excluding prompt tokens)
-            generated_tokens = outputs[0, len(optimized_tokens):].cpu().tolist()
-        
+            generated_tokens = outputs[0].cpu().tolist()
+        """
+
         # Evaluate the generated output
         evaluation_metrics = evaluate_generated_output(generated_tokens, target_tokens, tokenizer)
         

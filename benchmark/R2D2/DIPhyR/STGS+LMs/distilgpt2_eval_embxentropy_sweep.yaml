@@ -62,7 +62,7 @@ parameters:
   seed:
     values: [10, 20, 30]
   batch_size:
-    values: [128]
+    values: [1]
   learning_rate:
     values: [1.0e-2]
                    
