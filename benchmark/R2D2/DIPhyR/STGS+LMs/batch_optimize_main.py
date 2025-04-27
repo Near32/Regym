@@ -54,6 +54,7 @@ def batch_optimize(dataset_path, model_name, output_dir, config, num_workers=1, 
     model, tokenizer = setup_model_and_tokenizer(model_name, device, model_precision=config.get("model_precision", "full"))
     
     # Create output directory
+    output_dir += f"/{run_id}"
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     

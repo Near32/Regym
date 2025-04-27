@@ -953,7 +953,6 @@ def optimize_inputs(
                 print(f"Target: {target_text}")
 
         # Optional: early stopping condition
-        import ipdb; ipdb.set_trace()
         if loss.item() < 0.01 \
         or generated_output_str == target_text:
             print(f"Converged at epoch {epoch+1} with loss: {loss.item():.6f}")

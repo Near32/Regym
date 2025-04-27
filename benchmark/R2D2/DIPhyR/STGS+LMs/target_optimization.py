@@ -39,7 +39,7 @@ def optimize_for_target(target_info, model, tokenizer, device, config, run_id, o
     logger.info(f"Optimizing prompt for target {target_id}: '{target_text}'")
     
     # Create a run name that includes the target information
-    run_name = f"target_{target_id}_k{k_target}"
+    run_name = f"{run_id}_target{target_id}_k{k_target}"
     
     # Initialize W&B for this target
     target_config = config.copy()

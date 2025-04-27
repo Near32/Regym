@@ -14,7 +14,7 @@ parameters:
   dataset_path:
     values: ["./data/distilgpt2_diverse_targets.json"]
   output_dir:
-    values: ["results/distilgpt2_grid_sweep.json"]
+    values: ["results/distilgpt2_grid_sweep_lr1e-2"]
   model_name:
     values: ["distilbert/distilgpt2"]
   model_precision:
@@ -32,7 +32,7 @@ parameters:
   seq_len:
     values: [10, 20, 40]
   epochs:
-    values: [2000]
+    values: [4000]
   eps:
     values: [1e-8]
   temperature:
@@ -64,5 +64,5 @@ parameters:
   batch_size:
     values: [128]
   learning_rate:
-    values: [1.0e-1]
+    values: [1.0e-2]
                    
