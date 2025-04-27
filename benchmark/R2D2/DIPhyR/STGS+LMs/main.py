@@ -11,7 +11,7 @@ import wandb
 import matplotlib.pyplot as plt
 
 
-def setup_model_and_tokenizer(model_name="HuggingFaceM4/tiny-random-LlamaForCausalLM",device='cpu'):
+def setup_model_and_tokenizer(model_name="HuggingFaceM4/tiny-random-LlamaForCausalLM",device='cpu',model_precision='full'):
     """
     Load model and tokenizer
     """
@@ -24,7 +24,9 @@ def setup_model_and_tokenizer(model_name="HuggingFaceM4/tiny-random-LlamaForCaus
         param.requires_grad = False
 
     model = model.to(device)
-
+    if model_precision == "half":
+        model.half()
+    
     # Load tokenizer (only needed for the target sequence)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -463,14 +465,18 @@ class STGS(torch.nn.Module):
           #indices = torch.argmax(y_soft, dim=-1)
           # Sampling from batched distribution y_soft:
           message_ids = torch.distributions.Categorical(probs=y_soft).sample()
-          y_hard = F.one_hot(message_ids, num_classes=self.vocab_size).float()
-
+          y_hard = F.one_hot(message_ids, num_classes=self.vocab_size)
+          # Type: half or full
+          y_hard = y_hard.half() if x.dtype == torch.half else y_hard.float()
           # Straight-through trick: y_hard - y_soft.detach() + y_soft
           message_one_hot = y_hard - y_soft.detach() + y_soft
         else:
           message_ids = torch.distributions.Categorical(probs=y_soft).sample()
           message_one_hot = y_soft
         
+        # Type: half or full
+        message_one_hot = message_one_hot.half() if x.dtype == torch.half else message_one_hot.float()
+
         return message_ids, message_one_hot, eff_temperature
 
 
@@ -502,6 +508,8 @@ class TokenOverlapMetric(object):
                 add_special_tokens=False,
                 return_tensors="pt",
             ).input_ids[0]
+        elif isinstance(prompt_tokens, list):
+            prompt_tokens = torch.Tensor(prompt_tokens) 
         
         tt_occ = {}
         for ttoken in target_tokens:
@@ -556,6 +564,10 @@ def optimize_inputs(
     """
     Optimize input embeddings to make the frozen model produce the target output as a completion
     """
+
+    # Enabling Gradient checkpointing:
+    if kwargs.get("gradient_checkpointing", False):
+        model.gradient_checkpointing_enable()
 
     # Get model's vocabulary size and embedding dimension
     vocab_size = model.config.vocab_size
@@ -693,6 +705,8 @@ def optimize_inputs(
 
         # Apply ST-GS:
         message_logits = learnable_inputs.repeat(batch_size, 1, 1)
+        # Type: half or full
+        message_logits = message_logits.half() if kwargs['model_precision'] == "half" else message_logits
         message_ids, message_one_hot, eff_temperature  = stgs.forward(message_logits)
         
         prompt_ids = message_ids
@@ -939,7 +953,9 @@ def optimize_inputs(
                 print(f"Target: {target_text}")
 
         # Optional: early stopping condition
-        if loss.item() < 0.01:
+        import ipdb; ipdb.set_trace()
+        if loss.item() < 0.01 \
+        or generated_output_str == target_text:
             print(f"Converged at epoch {epoch+1} with loss: {loss.item():.6f}")
             break
 
@@ -973,10 +989,14 @@ def main():
  
     #model_name = "HuggingFaceM4/tiny-random-LlamaForCausalLM"  # For example, using a small LLaMA model
     parser.add_argument("--model_name", type=str, default="HuggingFaceTB/SmolLM-135M")
+    parser.add_argument("--model_precision", type=str, default="full")
+    # full
+    # half
+    parser.add_argument("--gradient_checkpointing", type=str2bool, default=False)
     parser.add_argument("--target_text", type=str, default="The quick brown fox jumps over the lazy dog")
     parser.add_argument("--pre_prompt", type=str, default=None)
     #pre_prompt = "Complete the following: "  # Can be None if not needed
-    parser.add_argument("--seq_len", type=int, default=40)
+    parser.add_argument("--seq_len", type=int, default=20)
     parser.add_argument("--epochs", type=int, default=2000)
     #parser.add_argument("--losses", type=str, default="crossentropy")
     #parser.add_argument("--losses", type=str, default="embedded")
@@ -987,7 +1007,7 @@ def main():
     # +perplexityPenalty
     parser.add_argument("--promptLambda", type=float, default=0.0)
     parser.add_argument("--complLambda", type=float, default=0.0)
-    parser.add_argument("--learning_rate", type=float, default=1e-2)
+    parser.add_argument("--learning_rate", type=float, default=1e-1)
     parser.add_argument("--max_gradient_norm", type=float, default=0.0)
     parser.add_argument("--eps", type=float, default=1e-10)
     parser.add_argument("--bptt_eps", type=float, default=1e-10)
@@ -1016,12 +1036,12 @@ def main():
     print(f"Using device: {device}")
     # Load model and tokenizer
     print(f"Loading model: {config['model_name']}")
-    model, tokenizer = setup_model_and_tokenizer(config['model_name'],device=device)
+    model, tokenizer = setup_model_and_tokenizer(config['model_name'],device=device, model_precision=config['model_precision'])
 
     config['vocab_size'] = model.config.vocab_size
     config['hidden_size'] = model.config.hidden_size
     
-    wandb.init(project="prompt-optimization", config=config)
+    wandb_run = wandb.init(project="prompt-optimization", config=config)
     
     torch.manual_seed(config["seed"])
     # Optimize inputs
@@ -1054,7 +1074,7 @@ def main():
         kwargs=config,
     )
 
-    wandb.finish()
+    wandb_run.finish()
 
 
 if __name__ == '__main__':

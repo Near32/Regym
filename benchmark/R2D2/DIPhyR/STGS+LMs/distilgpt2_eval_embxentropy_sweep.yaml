@@ -1,0 +1,66 @@
+project: PromptOptimisationSTGS 
+entity: kevin-near32-org
+program: batch_optimize_main.py
+command:
+  - ${env}
+  - ../venv/bin/python
+  - ${program}
+  - ${args}
+method: grid
+metric:
+  name: loss
+  goal: minimize 
+parameters:
+  model_name:
+    values: ["distilbert/distilgpt2"]
+  model_precision:
+    values: ["full"]
+  gradient_checkpointing:
+    values: ["True"]
+  pre_prompt:
+    values: [None]
+  max_gradient_norm:
+    values: [0.0]
+  losses:
+    values: ["embxentropy"]
+  complLambda:
+    values: [0.0]
+  promptLambda:
+    values: [0.0]
+  seq_len:
+    values: [10, 20, 40]
+  epochs:
+    values: [2000]
+  eps:
+    values: [1e-8]
+  temperature:
+    values: [1e3]
+  learnable_temperature:
+    values: [True]
+  stgs_hard:
+    values: [False]
+  bptt:
+    values: [False]
+  bptt_eps:
+    values: [1e-20]
+  bptt_temperature:
+    values: [1e3]
+  bptt_learnable_temperature:
+    values: [False]
+  bptt_stgs_hard:
+    values: [False]
+  bptt_hidden_state_conditioning:
+    values: [False]
+  plot_every:
+    values: [100000]
+  filter_vocab:
+    values: [ True]
+  vocab_threshold:
+    values: [-1]
+  seed:
+    values: [10, 20, 30]
+  batch_size:
+    values: [128]
+  learning_rate:
+    values: [1.0e-1]
+                   
