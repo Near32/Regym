@@ -1,0 +1,1 @@
+python -m ipdb -c c batch_optimize_main.py   --model_name distilbert/distilgpt2  --dataset_path data/distilgpt2_diverse_targets.json     --output_dir results/distilgpt2_test_run     --epochs 2 --model_precision full --gradient_checkpointing True --num_workers=2

@@ -1,0 +1,1 @@
+python generate_dataset_with_perplexity.py     --model_name distilbert/distilgpt2     --output_path data/distilgpt2_diverse_targets.json     --k_min 1 --k_max 3 --k_step 1     --num_samples 3     --max_length 10     --noise_factor 0.5
