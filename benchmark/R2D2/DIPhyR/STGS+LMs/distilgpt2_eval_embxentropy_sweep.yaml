@@ -21,8 +21,6 @@ parameters:
     values: ["full"]
   gradient_checkpointing:
     values: ["True"]
-  pre_prompt:
-    values: [None]
   max_gradient_norm:
     values: [0.0]
   losses:

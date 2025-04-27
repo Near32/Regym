@@ -247,29 +247,29 @@ def parse_args():
     # ST-GS parameters
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="Temperature for Gumbel-Softmax")
-    parser.add_argument("--learnable_temperature", action="store_true",
+    parser.add_argument("--learnable_temperature", type=str2bool, default="False",
                         help="Whether to learn the temperature parameter")
-    parser.add_argument("--stgs_hard", action="store_true",
+    parser.add_argument("--stgs_hard", type=str2bool, default="False",
                         help="Whether to use hard ST-GS")
     parser.add_argument("--eps", type=float, default=1e-10,
                         help="Epsilon value for numerical stability")
     
     # BPTT parameters
-    parser.add_argument("--bptt", action="store_true",
+    parser.add_argument("--bptt", type=str2bool, default="False",
                         help="Whether to use backpropagation through time")
     parser.add_argument("--bptt_temperature", type=float, default=1.0,
                         help="Temperature for BPTT Gumbel-Softmax")
-    parser.add_argument("--bptt_learnable_temperature", action="store_true",
+    parser.add_argument("--bptt_learnable_temperature", type=str2bool, default="False",
                         help="Whether to learn the BPTT temperature parameter")
-    parser.add_argument("--bptt_stgs_hard", action="store_true",
+    parser.add_argument("--bptt_stgs_hard", type=str2bool, default="False",
                         help="Whether to use hard ST-GS for BPTT")
-    parser.add_argument("--bptt_hidden_state_conditioning", action="store_true",
+    parser.add_argument("--bptt_hidden_state_conditioning", type=str2bool, default="False",
                         help="Whether to condition BPTT on hidden states")
     parser.add_argument("--bptt_eps", type=float, default=1e-10,
                         help="Epsilon value for BPTT numerical stability")
     
     # Vocabulary parameters
-    parser.add_argument("--filter_vocab", action="store_true",
+    parser.add_argument("--filter_vocab", type=str2bool, default="False",
                         help="Whether to filter the vocabulary")
     parser.add_argument("--vocab_threshold", type=float, default=0.5,
                         help="Threshold for vocabulary filtering")
