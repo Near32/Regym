@@ -11,6 +11,10 @@ metric:
   name: loss
   goal: minimize 
 parameters:
+  dataset_path:
+    values: ["./data/distilgpt2_diverse_targets.json"]
+  output_dir:
+    values: ["results/distilgpt2_grid_sweep.json"]
   model_name:
     values: ["distilbert/distilgpt2"]
   model_precision:
