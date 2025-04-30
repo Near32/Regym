@@ -116,13 +116,18 @@ class MetricsAggregator:
         Compute aggregated metrics across all samples.
         
         Returns:
-            Dictionary of aggregated metrics
+            Dictionary of aggregated metrics following the expected naming convention
         """
         aggregated = {}
         
         for name, values in self.all_metrics.items():
             if values:
-                aggregated[f"avg_{name}"] = sum(values) / len(values)
+                # Use original naming convention for compatibility with existing visualizations
+                if name == "exact_match":
+                    aggregated["success_rate"] = sum(values) / len(values)
+                else:
+                    aggregated[f"avg_{name}"] = sum(values) / len(values)
+                
                 aggregated[f"min_{name}"] = min(values)
                 aggregated[f"max_{name}"] = max(values)
                 aggregated[f"std_{name}"] = np.std(values).item() if len(values) > 1 else 0.0
@@ -145,7 +150,12 @@ class MetricsAggregator:
             
             for name, values in metrics.items():
                 if values:
-                    k_aggregated[f"avg_{name}"] = sum(values) / len(values)
+                    # Match original naming conventions for backward compatibility
+                    if name == "exact_match":
+                        k_aggregated["success_rate"] = sum(values) / len(values)
+                    else:
+                        k_aggregated[f"avg_{name}"] = sum(values) / len(values)
+                    
                     k_aggregated[f"min_{name}"] = min(values)
                     k_aggregated[f"max_{name}"] = max(values)
                     k_aggregated[f"std_{name}"] = np.std(values).item() if len(values) > 1 else 0.0
@@ -185,8 +195,8 @@ class MetricsAggregator:
         
         # Get normalization range
         metric_info = METRIC_RANGES.get(metric_name, {"min": 0, "max": 1})
-        min_y = metric_info["min"]
-        max_y = metric_info["max"]
+        min_y = metric_info.get("min", 0)
+        max_y = metric_info.get("max", 1)
         
         # Compute max possible AUC
         max_k = max(k_values)
@@ -203,14 +213,20 @@ class MetricsAggregator:
         Compute AUC for all metrics.
         
         Returns:
-            Dictionary mapping metric names to AUC values
+            Dictionary mapping metric names to AUC values using the expected naming convention
         """
         auc_results = {}
         
         for metric_name in self.get_metric_names():
             raw_auc, normalized_auc = self.compute_auc(metric_name)
-            auc_results[f"auc_raw_{metric_name}"] = raw_auc
-            auc_results[f"auc_normalized_{metric_name}"] = normalized_auc
+            
+            # Use original naming convention for compatibility with existing visualizations
+            if metric_name == "exact_match":
+                auc_results["AuC/Raw/success_rate"] = raw_auc
+                auc_results["AuC/Normalized/success_rate"] = normalized_auc
+            else:
+                auc_results[f"AuC/Raw/{metric_name}"] = raw_auc
+                auc_results[f"AuC/Normalized/{metric_name}"] = normalized_auc
         
         return auc_results
     

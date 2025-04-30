@@ -64,7 +64,7 @@ class MetricsLogger:
             group=group,
             job_type=job_type,
             config=config,
-            reinit=True
+            reinit="finish_previous",
         )
         
         # Initialize tables
@@ -144,6 +144,35 @@ class MetricsLogger:
         # Log to W&B
         self.wandb_run.log(log_metrics, step=step)
         
+    def log_k_metrics(self, k: int, metrics: Dict[str, Any]):
+        """
+        Log metrics for a specific k value, following the original format for plotting.
+        
+        Args:
+            k: The k value
+            metrics: Dictionary of metrics for this k value
+        """
+        if not self.wandb_run:
+            return
+            
+        log_dict = {}
+        
+        # First, add metrics with k prefix (matches original format)
+        for metric_name, value in metrics.items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                # Format: "k{k}/{metric}" - e.g., "k1/avg_token_accuracy"
+                log_dict[f"k{k}/{metric_name}"] = value
+        
+        # Add k value and raw metrics for scatter plots (matches original format)
+        log_dict["k"] = k
+        for metric_name, value in metrics.items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                # Add without prefix for scatter plots
+                log_dict[metric_name] = value
+                
+        # Log to W&B
+        self.wandb_run.log(log_dict)
+        
     def update_summary_table(self, sample_id: str, target_info: Dict[str, Any], 
                             result: Dict[str, Any], metrics: Dict[str, Any]):
         """
@@ -200,7 +229,9 @@ class MetricsLogger:
             
         # Extract values with safe defaults
         sample_count = metrics.get("sample_count", 0)
-        success_rate = metrics.get("avg_exact_match", 0.0)
+        
+        # For backward compatibility, handle both "success_rate" and "avg_exact_match"
+        success_rate = metrics.get("success_rate", metrics.get("avg_exact_match", 0.0))
         
         # Add row to table
         self.k_summary_table.add_data(
@@ -277,10 +308,11 @@ class MetricsLogger:
         if "overall" in summary:
             self.log_metrics(summary["overall"], prefix="overall")
             
-        # Log metrics by k value
+        # Log metrics by k value with proper formatting for plotting
         if "by_k" in summary:
             for k, metrics in summary["by_k"].items():
-                self.log_metrics(metrics, prefix=f"k{k}")
+                # Use the k_metrics format that preserves the original plotting format
+                self.log_k_metrics(k, metrics)
                 self.update_k_summary_table(k, metrics)
                 
         # Log AUC results

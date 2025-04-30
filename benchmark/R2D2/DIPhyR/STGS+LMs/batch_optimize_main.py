@@ -385,27 +385,6 @@ def batch_optimize(dataset_path: str, model_name: str, output_dir: str,
     # Initialize the metrics aggregator
     metrics_aggregator = MetricsAggregator()
     
-    # Initialize the metrics logger
-    metrics_logger = MetricsLogger(
-        run_id=run_id,
-        output_dir=full_output_dir,
-        wandb_project=config.get("wandb_project"),
-        wandb_entity=config.get("wandb_entity")
-    )
-    
-    # Initialize W&B for batch coordination
-    metrics_logger.init_wandb(
-        config={
-            **config,
-            "dataset_path": dataset_path,
-            "model_name": model_name,
-            "num_targets": len(targets),
-            "metadata": dataset.get("metadata", {})
-        },
-        name=f"batch_optimization_{run_id}",
-        job_type="batch_coordination"
-    )
-    
     # Process targets based on number of workers
     if num_workers == 1:
         results = process_targets_sequential(
@@ -431,6 +410,28 @@ def batch_optimize(dataset_path: str, model_name: str, output_dir: str,
             num_workers=num_workers,
             metric_groups=metric_groups
         )
+    
+    # Initialize the metrics logger
+    metrics_logger = MetricsLogger(
+        run_id=run_id,
+        output_dir=full_output_dir,
+        wandb_project=config.get("wandb_project"),
+        wandb_entity=config.get("wandb_entity")
+    )
+    
+    # Initialize W&B for batch coordination
+    metrics_logger.init_wandb(
+        group=run_id,
+        config={
+            **config,
+            "dataset_path": dataset_path,
+            "model_name": model_name,
+            "num_targets": len(targets),
+            "metadata": dataset.get("metadata", {})
+        },
+        name=f"batch_optimization_{run_id}",
+        job_type="batch_coordination"
+    )
     
     # Get the complete summary
     summary = metrics_aggregator.get_summary()
