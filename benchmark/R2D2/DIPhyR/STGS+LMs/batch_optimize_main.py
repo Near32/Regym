@@ -1,28 +1,345 @@
-import torch
+"""
+Main entry point for batch optimization of prompts for target sentences.
+"""
 import argparse
-import numpy as np
-import wandb
 import logging
+import torch
+import numpy as np
 from pathlib import Path
+from tqdm import tqdm
+import concurrent.futures
+from typing import Dict, List, Any, Optional
+import wandb 
 
-# Import modularized utilities
-from main import setup_model_and_tokenizer, TokenOverlapMetric
-from data_loader import load_dataset, prepare_targets
-from metrics_utils import aggregate_metrics_by_k, compute_auc_metrics, compute_overall_metrics, log_metrics_summary
-from logging_utils import (
-    create_summary_table, create_k_summary_table, log_k_metrics_to_wandb,
-    update_k_summary_table, log_tables_to_wandb, log_auc_results_to_wandb,
-    log_overall_metrics_to_wandb, save_results_to_file, create_and_log_artifact
-)
-from batch_processing import process_targets_sequential, process_targets_parallel
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Import custom modules
+from metrics_registry import compute_all_metrics
+from metrics_aggregator import MetricsAggregator
+from metrics_logging import MetricsLogger
+from evaluation_utils import evaluate_generated_output
+
 logger = logging.getLogger("batch_optimize")
+logging.basicConfig(level=logging.INFO, 
+                  format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-
-def batch_optimize(dataset_path, model_name, output_dir, config, num_workers=1, target_indices=None):
+def setup_model_and_tokenizer(model_name: str, device: str = 'cpu', model_precision: str = 'full'):
     """
-    Optimize prompts for multiple target sentences in parallel.
+    Load model and tokenizer
+    
+    Args:
+        model_name: HuggingFace model name
+        device: Device to run on ('cpu' or 'cuda')
+        model_precision: Precision for model ('full' or 'half')
+        
+    Returns:
+        Tuple of (model, tokenizer)
+    """
+    logger.info(f"Loading model: {model_name}")
+    
+    # Load model and move to device
+    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model.eval()  # Set to evaluation mode (frozen)
+
+    # Freeze model weights
+    for param in model.parameters():
+        param.requires_grad = False
+
+    model = model.to(device)
+    
+    # Convert to half precision if requested
+    if model_precision == "half":
+        model.half()
+    
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    return model, tokenizer
+
+def load_dataset(dataset_path: str) -> Dict[str, Any]:
+    """
+    Load dataset from a JSON file.
+    
+    Args:
+        dataset_path: Path to the dataset file
+        
+    Returns:
+        Dataset dictionary
+    """
+    import json
+    
+    logger.info(f"Loading dataset from {dataset_path}")
+    
+    try:
+        with open(dataset_path, 'r') as f:
+            dataset = json.load(f)
+        
+        logger.info(f"Loaded {len(dataset.get('samples', []))} samples")
+        return dataset
+    except Exception as e:
+        logger.error(f"Error loading dataset: {e}")
+        raise
+
+def prepare_targets(dataset: Dict[str, Any], target_indices: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+    """
+    Prepare the list of targets, optionally filtering by indices.
+    
+    Args:
+        dataset: The loaded dataset
+        target_indices: Optional list of indices to select specific targets
+        
+    Returns:
+        List of prepared target dictionaries
+    """
+    targets = dataset.get("samples", [])
+    
+    # Filter targets if indices are provided
+    if target_indices is not None:
+        targets = [targets[i] for i in target_indices if i < len(targets)]
+        logger.info(f"Selected {len(targets)} targets based on provided indices")
+    
+    return targets
+
+def optimize_for_target(target_info: Dict[str, Any], model, tokenizer, device: str, 
+                       config: Dict[str, Any], run_id: str, output_dir: str, metric_groups: List[str] = None) -> Dict[str, Any]:
+    """
+    Optimize a prompt for a specific target sentence.
+    
+    Args:
+        target_info: Dictionary containing target sentence information
+        model: The language model
+        tokenizer: The tokenizer
+        device: The device to run optimization on
+        config: Dictionary of optimization parameters
+        run_id: Unique identifier for the W&B run
+        output_dir: Directory to save results locally
+        metric_groups: List of metric groups to compute
+        
+    Returns:
+        result: Dictionary containing optimization results
+    """
+    # Import the optimizer here to avoid circular imports
+    from main import optimize_inputs
+    
+    target_id = target_info["id"]
+    target_text = target_info["text"]
+    k_target = target_info["k_target"]
+    
+    # Get pre-computed perplexity from dataset if available
+    target_perplexity = target_info.get("perplexity", None)
+    
+    logger.info(f"Optimizing prompt for target {target_id}: '{target_text}'")
+    
+    # Create a run name that includes the target information
+    run_name = f"{run_id}_target{target_id}_k{k_target}"
+    
+    # Initialize W&B for this target
+    target_config = config.copy()
+    target_config.update({
+        "target_id": target_id,
+        "target_text": target_text,
+        "target_k": k_target,
+        "target_avg_rank": target_info.get("avg_rank", 0),
+        "target_length": target_info.get("length", len(target_text.split())),
+        "target_perplexity": target_perplexity
+    })
+    
+    # Setup metrics logger
+    metrics_logger = MetricsLogger(
+        run_id=f"{run_id}_{target_id}",
+        output_dir=f"{output_dir}/target_{target_id}",
+        wandb_project=config.get("wandb_project"),
+        wandb_entity=config.get("wandb_entity")
+    )
+    
+    metrics_logger.init_wandb(
+        config=target_config,
+        name=run_name,
+        group=run_id,
+        job_type="single_target_optimization"
+    )
+    
+    # Tokenize target for later comparison
+    target_tokens = tokenizer(target_text, return_tensors="pt").input_ids[0].cpu().tolist()
+    
+    # Optimize inputs for this target
+    generated_tokens, optimized_inputs, losses = optimize_inputs(
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+        target_text=target_text,
+        losses=config["losses"],
+        bptt=config.get("bptt", False),
+        seq_len=config["seq_len"],
+        epochs=config["epochs"],
+        learning_rate=config["learning_rate"],
+        temperature=config.get("temperature", 1.0),
+        bptt_temperature=config.get("bptt_temperature", 1.0),
+        learnable_temperature=config.get("learnable_temperature", False),
+        bptt_learnable_temperature=config.get("bptt_learnable_temperature", False),
+        stgs_hard=config.get("stgs_hard", True),
+        bptt_stgs_hard=config.get("bptt_stgs_hard", True),
+        bptt_hidden_state_conditioning=config.get("bptt_hidden_state_conditioning", False),
+        plot_every=config.get("plot_every", 100),
+        eps=config.get("eps", 1e-10),
+        bptt_eps=config.get("bptt_eps", 1e-10),
+        vocab_threshold=config.get("vocab_threshold", 0.5),
+        filter_vocab=config.get("filter_vocab", True),
+        max_gradient_norm=config.get("max_gradient_norm", 0.0),
+        batch_size=config.get("batch_size", 1),
+        kwargs=config,
+    )
+    
+    # Extract the optimized prompt tokens
+    optimized_tokens = torch.argmax(optimized_inputs[0], dim=-1).cpu().tolist()
+    optimized_text = tokenizer.decode(optimized_tokens)
+    
+    # Evaluate the generated output using our centralized metrics system
+    evaluation_metrics = evaluate_generated_output(
+        generated_tokens=generated_tokens, 
+        target_tokens=target_tokens, 
+        tokenizer=tokenizer,
+        metric_groups=metric_groups,
+        device=device
+    )
+    
+    # Log evaluation metrics to W&B
+    metrics_logger.log_metrics(evaluation_metrics)
+    
+    # Create result dictionary
+    result = {
+        "target_id": target_id,
+        "target_text": target_text,
+        "target_k": k_target,
+        "target_perplexity": target_perplexity,
+        "optimized_tokens": optimized_tokens,
+        "optimized_text": optimized_text,
+        "generated_tokens": generated_tokens,
+        "generated_text": evaluation_metrics["generated_text"],
+        "evaluation": evaluation_metrics,
+        "final_loss": float(losses[-1]),
+        "loss_history": [float(loss) for loss in losses]
+    }
+    
+    # Save results to file
+    metrics_logger.save_to_file(result, "result.json")
+    
+    # Save the tensor for future use
+    target_output_dir = Path(f"{output_dir}/target_{target_id}")
+    target_output_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(optimized_inputs, target_output_dir / "optimized_inputs.pt")
+    
+    # Finish logging
+    metrics_logger.finish()
+    
+    logger.info(f"Optimization completed for target {target_id}")
+    logger.info(f"Optimized prompt: '{optimized_text}'")
+    logger.info(f"Final loss: {result['final_loss']}")
+    logger.info(f"Exact match: {evaluation_metrics.get('exact_match', 0)}")
+    logger.info(f"Token accuracy: {evaluation_metrics.get('token_accuracy', 0):.4f}")
+    
+    return result
+
+def process_targets_sequential(targets: List[Dict[str, Any]], model, tokenizer, device: str, 
+                              config: Dict[str, Any], run_id: str, output_dir: str, 
+                              metrics_aggregator: MetricsAggregator,
+                              metric_groups: List[str] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Process targets sequentially.
+    
+    Args:
+        targets: List of target info dictionaries
+        model: Language model
+        tokenizer: Tokenizer
+        device: Device to run on
+        config: Configuration dictionary
+        run_id: Unique run identifier
+        output_dir: Directory to save results
+        metrics_aggregator: Metrics aggregator
+        metric_groups: List of metric groups to compute
+        
+    Returns:
+        results: Dictionary mapping target IDs to optimization results
+    """
+    results = {}
+    
+    for target in tqdm(targets, desc="Optimizing for targets"):
+        result = optimize_for_target(
+            target_info=target,
+            model=model,
+            tokenizer=tokenizer,
+            device=device,
+            config=config,
+            run_id=run_id,
+            output_dir=output_dir,
+            metric_groups=metric_groups
+        )
+        results[target["id"]] = result
+        
+        # Add metrics to aggregator
+        metrics_aggregator.add_sample(result["evaluation"], k_value=target["k_target"])
+    
+    return results
+
+def process_targets_parallel(targets: List[Dict[str, Any]], model, tokenizer, config: Dict[str, Any], 
+                           run_id: str, output_dir: str, metrics_aggregator: MetricsAggregator,
+                           num_workers: int, metric_groups: List[str] = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Process targets in parallel using a ProcessPoolExecutor.
+    
+    Args:
+        targets: List of target info dictionaries
+        model: Language model
+        tokenizer: Tokenizer
+        config: Configuration dictionary
+        run_id: Unique run identifier
+        output_dir: Directory to save results
+        metrics_aggregator: Metrics aggregator
+        num_workers: Number of parallel workers
+        metric_groups: List of metric groups to compute
+        
+    Returns:
+        results: Dictionary mapping target IDs to optimization results
+    """
+    results = {}
+    
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+        future_to_target = {
+            executor.submit(
+                optimize_for_target,
+                target_info=target,
+                model=model,
+                tokenizer=tokenizer,
+                device="cuda" if torch.cuda.is_available() else "cpu",
+                config=config,
+                run_id=run_id,
+                output_dir=output_dir,
+                metric_groups=metric_groups
+            ): target for target in targets
+        }
+        
+        for future in tqdm(concurrent.futures.as_completed(future_to_target), 
+                         total=len(targets), 
+                         desc="Optimizing for targets"):
+            target = future_to_target[future]
+            try:
+                result = future.result()
+                results[target["id"]] = result
+                
+                # Add metrics to aggregator
+                metrics_aggregator.add_sample(result["evaluation"], k_value=target["k_target"])
+
+            except Exception as exc:
+                logger.error(f"Target {target['id']} generated an exception: {exc}")
+    
+    return results
+
+def batch_optimize(dataset_path: str, model_name: str, output_dir: str, 
+                  config: Dict[str, Any], num_workers: int = 1, 
+                  target_indices: Optional[List[int]] = None,
+                  metric_groups: Optional[List[str]] = None) -> Dict[str, Any]:
+    """
+    Optimize prompts for multiple target sentences.
     
     Args:
         dataset_path: Path to the dataset file
@@ -31,9 +348,10 @@ def batch_optimize(dataset_path, model_name, output_dir, config, num_workers=1, 
         config: Dictionary of optimization parameters
         num_workers: Number of parallel workers (if 1, runs sequentially)
         target_indices: Optional list of indices to select specific targets
+        metric_groups: List of metric groups to compute
         
     Returns:
-        results: Dictionary mapping target IDs to optimization results
+        summary: Dictionary with optimization summary
     """
     # Create run ID for grouping
     run_id = wandb.util.generate_id()
@@ -43,182 +361,121 @@ def batch_optimize(dataset_path, model_name, output_dir, config, num_workers=1, 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
     
+    # Set random seeds
+    seed = config.get("seed", 42)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    
     # Load dataset and prepare targets
     dataset = load_dataset(dataset_path)
-    targets = dataset["samples"]
-    if target_indices is not None:
-        targets = [targets[i] for i in target_indices if i < len(targets)]
-        logger.info(f"Selected {len(targets)} targets based on provided indices")
+    targets = prepare_targets(dataset, target_indices)
     
     # Initialize model and tokenizer
-    model, tokenizer = setup_model_and_tokenizer(model_name, device, model_precision=config.get("model_precision", "full"))
+    model, tokenizer = setup_model_and_tokenizer(
+        model_name, 
+        device, 
+        model_precision=config.get("model_precision", "full")
+    )
     
     # Create output directory
-    output_dir += f"/{run_id}"
-    output_path = Path(output_dir)
+    full_output_dir = f"{output_dir}/{run_id}"
+    output_path = Path(full_output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     
+    # Initialize the metrics aggregator
+    metrics_aggregator = MetricsAggregator()
     
-
-    # Create summary tables
-    summary_table = create_summary_table()
-    k_summary_table = create_k_summary_table()
+    # Initialize the metrics logger
+    metrics_logger = MetricsLogger(
+        run_id=run_id,
+        output_dir=full_output_dir,
+        wandb_project=config.get("wandb_project"),
+        wandb_entity=config.get("wandb_entity")
+    )
     
-    # Initialize dictionary to store metrics by k value
-    k_values = sorted(set(target["k_target"] for target in targets))
-    k_metrics = {k: {
-        "perplexities": [],
-        "exact_matches": [],
-        "token_accuracies": [],
-        "final_losses": [],
-        "token_overlap_ratios": [],
-        "target_hit_ratios": [],
-        "lcs_ratios": [],
-        "unigram_overlaps": [],
-        "bigram_overlaps": [],
-        "bertscore_precisions": [],
-        "bertscore_recalls": [],
-        "bertscore_f1s": [],
-        "mauve_scores": [],
-    } for k in k_values}
-    
-    # Process targets based on number of workers
-    if num_workers == 1:
-        results = process_targets_sequential(
-            targets, model, tokenizer, device, config, run_id, output_dir, 
-            summary_table, k_metrics
-        )
-    else:
-        results = process_targets_parallel(
-            targets, model, tokenizer, config, run_id, output_dir, 
-            summary_table, k_metrics, num_workers
-        )
-    
-    # Initialize W&B run for the batch
-    batch_run = wandb.init(
-        project=config["wandb_project"],
-        entity=config.get("wandb_entity"),
-        name=f"batch_optimization_{run_id}",
-        group=run_id,
-        job_type="batch_coordination",
+    # Initialize W&B for batch coordination
+    metrics_logger.init_wandb(
         config={
             **config,
             "dataset_path": dataset_path,
             "model_name": model_name,
             "num_targets": len(targets),
             "metadata": dataset.get("metadata", {})
-        }
-    ) 
-    # Calculate aggregate metrics by k value
-    k_aggregated = {}
-    for k, metrics in k_metrics.items():
-        num_samples = len(metrics["exact_matches"])
-        if num_samples == 0:
-            continue
-            
-        k_aggregated[k] = {
-            "num_samples": num_samples,
-            "success_rate": sum(metrics["exact_matches"]) / num_samples,
-            "avg_token_accuracy": sum(metrics["token_accuracies"]) / num_samples,
-            "avg_final_loss": sum(metrics["final_losses"]) / num_samples,
-            "avg_perplexity": sum(metrics["perplexities"]) / num_samples if metrics["perplexities"] else 0,
-            "avg_token_overlap_ratio": sum(metrics["token_overlap_ratios"]) / num_samples,
-            "avg_target_hit_ratio": sum(metrics["target_hit_ratios"]) / num_samples,
-            "avg_lcs_ratio": sum(metrics["lcs_ratios"]) / num_samples,
-            "avg_unigram_overlap": sum(metrics["unigram_overlaps"]) / num_samples,
-            "avg_bigram_overlap": sum(metrics["bigram_overlaps"]) / num_samples
-        }
-        
-        # Add to k summary table
-        update_k_summary_table(k_summary_table, k, k_aggregated[k])
-        
-        # Log to W&B
-        log_k_metrics_to_wandb(k, k_aggregated[k], batch_run)
-    
-    # Log summary tables to W&B
-    log_tables_to_wandb(summary_table, k_summary_table, batch_run)
-    
-    # Compute AUC metrics
-    auc_results = compute_auc_metrics(k_metrics)
-    
-    # Log AUC results to W&B
-    log_auc_results_to_wandb(auc_results, batch_run)
-    
-    # Calculate overall metrics
-    all_exact_matches = [result["evaluation"]["exact_match"] for result in results.values()]
-    all_token_accuracies = [result["evaluation"]["token_accuracy"] for result in results.values()]
-    all_lcs_ratios = [result["evaluation"]["lcs_ratio"] for result in results.values()]
-    all_unigram_overlaps = [result["evaluation"]["unigram_overlap"] for result in results.values()]
-    all_bigram_overlaps = [result["evaluation"]["bigram_overlap"] for result in results.values()]
-    
-    # Calculate overall averages
-    overall_metrics = {
-        "success_rate": sum(all_exact_matches) / len(all_exact_matches) if all_exact_matches else 0,
-        "avg_token_accuracy": sum(all_token_accuracies) / len(all_token_accuracies) if all_token_accuracies else 0,
-        "avg_lcs_ratio": sum(all_lcs_ratios) / len(all_lcs_ratios) if all_lcs_ratios else 0,
-        "avg_unigram_overlap": sum(all_unigram_overlaps) / len(all_unigram_overlaps) if all_unigram_overlaps else 0,
-        "avg_bigram_overlap": sum(all_bigram_overlaps) / len(all_bigram_overlaps) if all_bigram_overlaps else 0,
-        "num_samples": len(results)
-    }
-    
-    # Add token metrics if available
-    token_overlap_ratios = []
-    target_hit_ratios = []
-    for k, m in k_metrics.items():
-        if m["token_overlap_ratios"]:
-            token_overlap_ratios.extend(m["token_overlap_ratios"])
-        if m["target_hit_ratios"]:
-            target_hit_ratios.extend(m["target_hit_ratios"])
-    
-    if token_overlap_ratios:
-        overall_metrics["avg_token_overlap_ratio"] = sum(token_overlap_ratios) / len(token_overlap_ratios)
-    if target_hit_ratios:
-        overall_metrics["avg_target_hit_ratio"] = sum(target_hit_ratios) / len(target_hit_ratios)
-    
-    # Log overall metrics to W&B
-    log_overall_metrics_to_wandb(overall_metrics, batch_run)
-    
-    # Save results to file
-    save_results_to_file(
-        output_path=output_path,
-        run_id=run_id,
-        results=results,
-        config=config,
-        k_summaries={str(k): metrics for k, metrics in k_aggregated.items()},
-        overall_metrics=overall_metrics,
-        auc_results=auc_results,
-        dataset_metadata=dataset.get("metadata", {})
+        },
+        name=f"batch_optimization_{run_id}",
+        job_type="batch_coordination"
     )
     
-    # Create and log artifact
-    create_and_log_artifact(batch_run, output_path, run_id)
-    
-    # Print summary to console
-    log_metrics_summary(overall_metrics, logger)
-
-    batch_run.finish() 
-    # Return results
-    return results
-
-
-def str2bool(instr):
-    """Convert string to boolean."""
-    if isinstance(instr, bool):
-        return instr
-    if isinstance(instr, str):
-        instr = instr.lower()
-        if 'true' in instr:
-            return True
-        elif 'false' in instr:
-            return False
-        else:
-            raise ValueError(f"Cannot convert '{instr}' to boolean")
+    # Process targets based on number of workers
+    if num_workers == 1:
+        results = process_targets_sequential(
+            targets=targets, 
+            model=model, 
+            tokenizer=tokenizer, 
+            device=device, 
+            config=config, 
+            run_id=run_id, 
+            output_dir=full_output_dir, 
+            metrics_aggregator=metrics_aggregator,
+            metric_groups=metric_groups
+        )
     else:
-        raise TypeError(f"Expected str or bool, got {type(instr)}")
+        results = process_targets_parallel(
+            targets=targets, 
+            model=model, 
+            tokenizer=tokenizer, 
+            config=config, 
+            run_id=run_id, 
+            output_dir=full_output_dir, 
+            metrics_aggregator=metrics_aggregator,
+            num_workers=num_workers,
+            metric_groups=metric_groups
+        )
+    
+    # Get the complete summary
+    summary = metrics_aggregator.get_summary()
+    
+    # Log the summary
+    metrics_logger.log_summary(summary)
+    
+    # Add results to summary
+    summary["results"] = results
+    
+    # Save complete results
+    metrics_logger.save_to_file(
+        data={
+            "run_id": run_id,
+            "summary": summary,
+            "config": config,
+            "dataset_metadata": dataset.get("metadata", {})
+        },
+        filename="batch_results.json"
+    )
+    
+    # Finish logging
+    metrics_logger.finish()
+    
+    return summary
 
+def str2bool(v):
+    """Convert string to boolean."""
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def str2list(v):
+    """Convert comma-separated string to list."""
+    if v is None:
+        return None
+    return [item.strip() for item in v.split(',')]
 
 def parse_args():
-    """Parse command line arguments."""
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Batch optimize prompts for multiple target sentences")
     
     # Dataset parameters
@@ -252,29 +509,29 @@ def parse_args():
     # ST-GS parameters
     parser.add_argument("--temperature", type=float, default=1.0,
                         help="Temperature for Gumbel-Softmax")
-    parser.add_argument("--learnable_temperature", type=str2bool, default="False",
+    parser.add_argument("--learnable_temperature", type=str2bool, default=False,
                         help="Whether to learn the temperature parameter")
-    parser.add_argument("--stgs_hard", type=str2bool, default="False",
+    parser.add_argument("--stgs_hard", type=str2bool, default=True,
                         help="Whether to use hard ST-GS")
     parser.add_argument("--eps", type=float, default=1e-10,
                         help="Epsilon value for numerical stability")
     
     # BPTT parameters
-    parser.add_argument("--bptt", type=str2bool, default="False",
+    parser.add_argument("--bptt", type=str2bool, default=False,
                         help="Whether to use backpropagation through time")
     parser.add_argument("--bptt_temperature", type=float, default=1.0,
                         help="Temperature for BPTT Gumbel-Softmax")
-    parser.add_argument("--bptt_learnable_temperature", type=str2bool, default="False",
+    parser.add_argument("--bptt_learnable_temperature", type=str2bool, default=False,
                         help="Whether to learn the BPTT temperature parameter")
-    parser.add_argument("--bptt_stgs_hard", type=str2bool, default="False",
+    parser.add_argument("--bptt_stgs_hard", type=str2bool, default=False,
                         help="Whether to use hard ST-GS for BPTT")
-    parser.add_argument("--bptt_hidden_state_conditioning", type=str2bool, default="False",
+    parser.add_argument("--bptt_hidden_state_conditioning", type=str2bool, default=False,
                         help="Whether to condition BPTT on hidden states")
     parser.add_argument("--bptt_eps", type=float, default=1e-10,
                         help="Epsilon value for BPTT numerical stability")
     
     # Vocabulary parameters
-    parser.add_argument("--filter_vocab", type=str2bool, default="False",
+    parser.add_argument("--filter_vocab", type=str2bool, default=False,
                         help="Whether to filter the vocabulary")
     parser.add_argument("--vocab_threshold", type=float, default=0.5,
                         help="Threshold for vocabulary filtering")
@@ -282,7 +539,7 @@ def parse_args():
     # Other parameters
     parser.add_argument("--max_gradient_norm", type=float, default=0.0,
                         help="Maximum gradient norm for clipping")
-    parser.add_argument("--plot_every", type=int, default=10000,
+    parser.add_argument("--plot_every", type=int, default=100,
                         help="Frequency of plotting loss curves")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
@@ -307,20 +564,34 @@ def parse_args():
     parser.add_argument("--complLambda", type=float, default=0.0,
                         help="Weight for completion perplexity loss")
     
+    # Metrics parameters
+    parser.add_argument("--metric_groups", type=str, default=None,
+                        help="Comma-separated list of metric groups to compute (None = all)")
+    parser.add_argument("--skip_metric_groups", type=str, default=None,
+                        help="Comma-separated list of metric groups to skip")
+    
+    # SentenceBERT parameters
+    parser.add_argument("--sentencebert_model", type=str, default="all-MiniLM-L6-v2",
+                        help="SentenceBERT model to use for semantic similarity")
+    
+    # BERTScore parameters
+    parser.add_argument("--bertscore_model", type=str, default="distilbert-base-uncased",
+                        help="Model to use for BERTScore computation")
+    
     return parser.parse_args()
 
-
-if __name__ == "__main__":
+def main():
+    """Main entry point."""
     args = parse_args()
-    
-    # Set random seeds
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
     
     # Parse target indices if provided
     target_indices = None
     if args.target_indices:
         target_indices = [int(idx) for idx in args.target_indices.split(",")]
+    
+    # Parse metric groups if provided
+    metric_groups = str2list(args.metric_groups)
+    skip_metric_groups = str2list(args.skip_metric_groups)
     
     # Update losses with perplexity components if needed
     if args.promptLambda > 0.0:
@@ -338,5 +609,9 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         config=config,
         num_workers=args.num_workers,
-        target_indices=target_indices
+        target_indices=target_indices,
+        metric_groups=metric_groups
     )
+
+if __name__ == "__main__":
+    main()

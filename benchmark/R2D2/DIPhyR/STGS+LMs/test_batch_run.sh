@@ -2,6 +2,9 @@ python -m ipdb -c c batch_optimize_main.py   \
 --model_name distilbert/distilgpt2  \
 --dataset_path data/distilgpt2_diverse_targets.json \
 --output_dir results/distilgpt2_test_run \
+--metric_groups "basic,semantic,distribution" \
+--sentencebert_model "all-MiniLM-L6-v2" \
+--bertscore_model "distilbert-base-uncased" \
 --learning_rate=0.1 \
 --epochs 2 \
 --model_precision full \
