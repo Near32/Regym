@@ -75,7 +75,11 @@ def batch_optimize(dataset_path, model_name, output_dir, config, num_workers=1, 
         "target_hit_ratios": [],
         "lcs_ratios": [],
         "unigram_overlaps": [],
-        "bigram_overlaps": []
+        "bigram_overlaps": [],
+        "bertscore_precisions": [],
+        "bertscore_recalls": [],
+        "bertscore_f1s": [],
+        "mauve_scores": [],
     } for k in k_values}
     
     # Process targets based on number of workers

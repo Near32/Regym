@@ -48,7 +48,8 @@ def create_summary_table():
             "target_id", "target_text", "target_k", "target_perplexity", 
             "optimized_text", "final_loss", "exact_match", "token_accuracy",
             "token_overlap_ratio", "target_hit_ratio", "lcs_ratio", 
-            "unigram_overlap", "bigram_overlap"
+            "unigram_overlap", "bigram_overlap", "bertscore_f1",
+            "bertscore_precision", "bertscore_recall", "mauve_score"
         ]
     )
 
@@ -71,7 +72,11 @@ def create_k_summary_table():
         "avg_target_hit_ratio",
         "avg_lcs_ratio",
         "avg_unigram_overlap",
-        "avg_bigram_overlap"
+        "avg_bigram_overlap",
+        "avg_bertscore_f1",
+        "avg_bertscore_precision",
+        "avg_bertscore_recall",
+        "avg_mauve_score"
     ])
 
 
@@ -108,6 +113,12 @@ def update_summary_table(table, target_info, result, token_metrics):
         result: Optimization result for the target
         token_metrics: Token-based metrics
     """
+    # Get BERTScore and MAUVE metrics if available
+    bertscore_f1 = result["evaluation"].get("bertscore_f1", 0)
+    bertscore_precision = result["evaluation"].get("bertscore_precision", 0)
+    bertscore_recall = result["evaluation"].get("bertscore_recall", 0)
+    mauve_score = result["evaluation"].get("mauve_score", 0)
+    
     table.add_data(
         target_info["id"],
         target_info["text"],
@@ -121,7 +132,11 @@ def update_summary_table(table, target_info, result, token_metrics):
         token_metrics.get('target_hit_ratio', 0),
         result["evaluation"]["lcs_ratio"],
         result["evaluation"]["unigram_overlap"],
-        result["evaluation"]["bigram_overlap"]
+        result["evaluation"]["bigram_overlap"],
+        bertscore_f1,
+        bertscore_precision,
+        bertscore_recall,
+        mauve_score
     )
 
 
@@ -145,7 +160,11 @@ def update_k_summary_table(table, k, metrics):
         metrics.get("avg_target_hit_ratio", 0),
         metrics.get("avg_lcs_ratio", 0),
         metrics.get("avg_unigram_overlap", 0),
-        metrics.get("avg_bigram_overlap", 0)
+        metrics.get("avg_bigram_overlap", 0),
+        metrics.get("avg_bertscore_f1", 0),
+        metrics.get("avg_bertscore_precision", 0),
+        metrics.get("avg_bertscore_recall", 0),
+        metrics.get("avg_mauve_score", 0)
     )
 
 

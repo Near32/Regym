@@ -3,6 +3,10 @@ Utilities for computing and processing metrics from batch optimization.
 """
 import numpy as np
 import logging
+import torch
+from collections import defaultdict
+import bert_score
+from mauve import compute_mauve
 
 logger = logging.getLogger("metrics_utils")
 
@@ -17,6 +21,10 @@ METRIC_NORMALIZATION = {
     "avg_unigram_overlap": {"min_y": 0, "max_y": 1},
     "avg_bigram_overlap": {"min_y": 0, "max_y": 1},
     "avg_lcs_ratio": {"min_y": 0, "max_y": 1},
+    "avg_bertscore_f1": {"min_y": 0, "max_y": 1},
+    "avg_bertscore_precision": {"min_y": 0, "max_y": 1},
+    "avg_bertscore_recall": {"min_y": 0, "max_y": 1},
+    "avg_mauve_score": {"min_y": 0, "max_y": 1},
 }
 
 
@@ -73,6 +81,108 @@ def compute_average_metric(values):
     return sum(values) / len(values) if values else 0
 
 
+def compute_bertscore(
+    candidates, 
+    references, 
+    lang="en", 
+    #model_type="microsoft/deberta-xlarge-mnli", 
+    model_type="distilbert-base-uncased",
+    batch_size=32, 
+    device=None,
+):
+    """
+    Compute BERTScore for a batch of candidates against references.
+    
+    Args:
+    - candidates: List of candidate texts
+    - references: List of reference texts
+    - lang: Language code (default: "en")
+    - model_type: Model to use for embeddings (default: "microsoft/deberta-xlarge-mnli")
+    - batch_size: Batch size for processing (default: 32)
+    - device: Device to run on (default: None, will use GPU if available)
+    
+    Returns:
+    - Dictionary with precision, recall, and F1 scores
+    """
+    if not candidates or not references:
+        return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+    
+    try:
+        # Use the bert_score package
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        P, R, F1 = bert_score.score(
+            candidates, references, 
+            lang=lang, 
+            model_type=model_type,
+            batch_size=batch_size,
+            device=device,
+            verbose=False,
+            use_fast_tokenizer=True,
+        )
+        
+        # Convert tensors to float values
+        return {
+            "precision": P.mean().item(),
+            "recall": R.mean().item(),
+            "f1": F1.mean().item()
+        }
+    except Exception as e:
+        logger.error(f"Error computing BERTScore: {e}")
+        return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+
+
+def compute_mauve_score(candidates, references, model_name="gpt2-large", device=None, max_samples=None, verbose=False):
+    """
+    Compute MAUVE score for comparing distributions of generated and reference texts.
+    
+    Args:
+    - candidates: List of candidate (generated) texts
+    - references: List of reference texts
+    - model_name: Model to use for text featurization (default: "gpt2-large")
+    - device: Device to run on (default: None, will use GPU if available)
+    - max_samples: Maximum number of samples to use (default: None, use all)
+    - verbose: Whether to print progress information (default: False)
+    
+    Returns:
+    - MAUVE score
+    """
+    if not candidates or not references:
+        return 0.0
+    
+    # Make sure we have enough samples
+    if len(candidates) < 2 or len(references) < 2:
+        logger.warning("Not enough samples for MAUVE computation. Need at least 2 samples in each set.")
+        return 0.0
+    
+    try:
+        # Limit the number of samples if specified
+        if max_samples is not None:
+            candidates = candidates[:max_samples]
+            references = references[:max_samples]
+        
+        # Use the mauve package
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        # Compute MAUVE score
+        out = compute_mauve(
+            p_text=references, 
+            q_text=candidates,
+            device_id=0 if device == "cuda" else -1,
+            max_text_length=512,
+            verbose=verbose,
+            featurize_model_name=model_name
+        )
+        
+        # Return MAUVE score
+        return out.mauve
+    except Exception as e:
+        logger.error(f"Error computing MAUVE score: {e}")
+        return 0.0
+
+
 def aggregate_metrics_by_k(k_metrics):
     """
     Calculate aggregate metrics for each k value.
@@ -102,7 +212,11 @@ def aggregate_metrics_by_k(k_metrics):
             "avg_target_hit_ratio": compute_average_metric(metrics.get("target_hit_ratios", [])),
             "avg_lcs_ratio": compute_average_metric(metrics.get("lcs_ratios", [])),
             "avg_unigram_overlap": compute_average_metric(metrics.get("unigram_overlaps", [])),
-            "avg_bigram_overlap": compute_average_metric(metrics.get("bigram_overlaps", []))
+            "avg_bigram_overlap": compute_average_metric(metrics.get("bigram_overlaps", [])),
+            "avg_bertscore_precision": compute_average_metric(metrics.get("bertscore_precisions", [])),
+            "avg_bertscore_recall": compute_average_metric(metrics.get("bertscore_recalls", [])),
+            "avg_bertscore_f1": compute_average_metric(metrics.get("bertscore_f1s", [])),
+            "avg_mauve_score": compute_average_metric(metrics.get("mauve_scores", []))
         }
     
     return aggregated
@@ -129,6 +243,10 @@ def compute_auc_metrics(k_metrics):
         "avg_lcs_ratio": [],
         "avg_unigram_overlap": [],
         "avg_bigram_overlap": [],
+        "avg_bertscore_precision": [],
+        "avg_bertscore_recall": [],
+        "avg_bertscore_f1": [],
+        "avg_mauve_score": [],
     }
     
     # Prepare k values and collect metrics for each k
@@ -163,6 +281,14 @@ def compute_auc_metrics(k_metrics):
                 value = compute_average_metric(metrics.get("unigram_overlaps", []))
             elif metric_name == "avg_bigram_overlap":
                 value = compute_average_metric(metrics.get("bigram_overlaps", []))
+            elif metric_name == "avg_bertscore_precision":
+                value = compute_average_metric(metrics.get("bertscore_precisions", []))
+            elif metric_name == "avg_bertscore_recall":
+                value = compute_average_metric(metrics.get("bertscore_recalls", []))
+            elif metric_name == "avg_bertscore_f1":
+                value = compute_average_metric(metrics.get("bertscore_f1s", []))
+            elif metric_name == "avg_mauve_score":
+                value = compute_average_metric(metrics.get("mauve_scores", []))
             else:
                 value = 0
                 
@@ -208,15 +334,34 @@ def compute_overall_metrics(results):
     all_unigram_overlaps = [result["evaluation"]["unigram_overlap"] for result in results.values()]
     all_bigram_overlaps = [result["evaluation"]["bigram_overlap"] for result in results.values()]
     
+    # Extract BERTScore metrics if available
+    all_bertscore_precisions = []
+    all_bertscore_recalls = []
+    all_bertscore_f1s = []
+    all_mauve_scores = []
+    
     # Extract token metrics
     all_token_overlap_ratios = []
     all_target_hit_ratios = []
     
     for result in results.values():
+        # Extract token metrics
         if "token_overlap_ratio" in result:
             all_token_overlap_ratios.append(result["token_overlap_ratio"])
         if "target_hit_ratio" in result:
             all_target_hit_ratios.append(result["target_hit_ratio"])
+            
+        # Extract BERTScore and MAUVE metrics if available
+        if "evaluation" in result:
+            eval_metrics = result["evaluation"]
+            if "bertscore_precision" in eval_metrics:
+                all_bertscore_precisions.append(eval_metrics["bertscore_precision"])
+            if "bertscore_recall" in eval_metrics:
+                all_bertscore_recalls.append(eval_metrics["bertscore_recall"])
+            if "bertscore_f1" in eval_metrics:
+                all_bertscore_f1s.append(eval_metrics["bertscore_f1"])
+            if "mauve_score" in eval_metrics:
+                all_mauve_scores.append(eval_metrics["mauve_score"])
     
     # Compute overall metrics
     overall_metrics = {
@@ -233,6 +378,16 @@ def compute_overall_metrics(results):
         overall_metrics["avg_token_overlap_ratio"] = compute_average_metric(all_token_overlap_ratios)
     if all_target_hit_ratios:
         overall_metrics["avg_target_hit_ratio"] = compute_average_metric(all_target_hit_ratios)
+        
+    # Add BERTScore and MAUVE metrics if available
+    if all_bertscore_precisions:
+        overall_metrics["avg_bertscore_precision"] = compute_average_metric(all_bertscore_precisions)
+    if all_bertscore_recalls:
+        overall_metrics["avg_bertscore_recall"] = compute_average_metric(all_bertscore_recalls)
+    if all_bertscore_f1s:
+        overall_metrics["avg_bertscore_f1"] = compute_average_metric(all_bertscore_f1s)
+    if all_mauve_scores:
+        overall_metrics["avg_mauve_score"] = compute_average_metric(all_mauve_scores)
     
     return overall_metrics
 
@@ -255,3 +410,9 @@ def log_metrics_summary(metrics, logger):
         logger.info(f"Overall token overlap ratio: {metrics['avg_token_overlap_ratio']:.4f}")
     if "avg_target_hit_ratio" in metrics:
         logger.info(f"Overall target hit ratio: {metrics['avg_target_hit_ratio']:.4f}")
+        
+    # Log BERTScore and MAUVE metrics if available
+    if "avg_bertscore_f1" in metrics:
+        logger.info(f"Overall BERTScore F1: {metrics['avg_bertscore_f1']:.4f}")
+    if "avg_mauve_score" in metrics:
+        logger.info(f"Overall MAUVE score: {metrics['avg_mauve_score']:.4f}")

@@ -5,6 +5,7 @@ import concurrent.futures
 import logging
 from tqdm import tqdm
 from pathlib import Path
+import torch
 
 logger = logging.getLogger("batch_processing")
 
@@ -58,7 +59,11 @@ def process_targets_sequential(targets, model, tokenizer, device, config, run_id
                 "target_hit_ratios": [],
                 "lcs_ratios": [],
                 "unigram_overlaps": [],
-                "bigram_overlaps": []
+                "bigram_overlaps": [],
+                "bertscore_precisions": [],
+                "bertscore_recalls": [],
+                "bertscore_f1s": [],
+                "mauve_scores": []
             }
             
         k_metrics[k]["perplexities"].append(target.get("perplexity", 0))
@@ -68,6 +73,16 @@ def process_targets_sequential(targets, model, tokenizer, device, config, run_id
         k_metrics[k]["lcs_ratios"].append(result["evaluation"]["lcs_ratio"])
         k_metrics[k]["unigram_overlaps"].append(result["evaluation"]["unigram_overlap"])
         k_metrics[k]["bigram_overlaps"].append(result["evaluation"]["bigram_overlap"])
+        
+        # Add BERTScore metrics if available
+        if "bertscore_precision" in result["evaluation"]:
+            k_metrics[k]["bertscore_precisions"].append(result["evaluation"]["bertscore_precision"])
+            k_metrics[k]["bertscore_recalls"].append(result["evaluation"]["bertscore_recall"])
+            k_metrics[k]["bertscore_f1s"].append(result["evaluation"]["bertscore_f1"])
+        
+        # Add MAUVE score if available
+        if "mauve_score" in result["evaluation"]:
+            k_metrics[k]["mauve_scores"].append(result["evaluation"]["mauve_score"])
         
         # Add token overlap and target hit metrics
         token_overlap_metric = TokenOverlapMetric(
@@ -146,7 +161,11 @@ def process_targets_parallel(targets, model, tokenizer, config, run_id, output_d
                         "target_hit_ratios": [],
                         "lcs_ratios": [],
                         "unigram_overlaps": [],
-                        "bigram_overlaps": []
+                        "bigram_overlaps": [],
+                        "bertscore_precisions": [],
+                        "bertscore_recalls": [],
+                        "bertscore_f1s": [],
+                        "mauve_scores": []
                     }
                 
                 k_metrics[k]["perplexities"].append(target.get("perplexity", 0))
@@ -156,6 +175,16 @@ def process_targets_parallel(targets, model, tokenizer, config, run_id, output_d
                 k_metrics[k]["lcs_ratios"].append(result["evaluation"]["lcs_ratio"])
                 k_metrics[k]["unigram_overlaps"].append(result["evaluation"]["unigram_overlap"])
                 k_metrics[k]["bigram_overlaps"].append(result["evaluation"]["bigram_overlap"])
+                
+                # Add BERTScore metrics if available
+                if "bertscore_precision" in result["evaluation"]:
+                    k_metrics[k]["bertscore_precisions"].append(result["evaluation"]["bertscore_precision"])
+                    k_metrics[k]["bertscore_recalls"].append(result["evaluation"]["bertscore_recall"])
+                    k_metrics[k]["bertscore_f1s"].append(result["evaluation"]["bertscore_f1"])
+                
+                # Add MAUVE score if available
+                if "mauve_score" in result["evaluation"]:
+                    k_metrics[k]["mauve_scores"].append(result["evaluation"]["mauve_score"])
                 
                 # Add token overlap and target hit metrics
                 token_overlap_metric = TokenOverlapMetric(
