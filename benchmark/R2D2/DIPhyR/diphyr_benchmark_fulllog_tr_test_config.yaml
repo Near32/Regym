@@ -231,6 +231,7 @@ agents:
                     #model_id: "microsoft/Phi-3-mini-4k-instruct"
                     #model_id: "microsoft/Phi-3-mini-128k-instruct"
                     config:
+                        'compute_perplexity_only_over_option': True
                         'output_tokenized_prediction': True
                         'output_last_token_last_hidden_states': False
                         'output_last_hidden_states': False
