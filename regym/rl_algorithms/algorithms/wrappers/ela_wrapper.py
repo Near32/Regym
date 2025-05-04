@@ -581,7 +581,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             )
             
             new_rs = []
-            for idx in tqdm(range(episode_length)):
+            #for idx in tqdm(range(episode_length)):
+            for idx in range(episode_length):
                 s = self.episode_buffer[actor_index][idx]['s']
                 a = self.episode_buffer[actor_index][idx]['a']
                 r = self.episode_buffer[actor_index][idx]['r']
