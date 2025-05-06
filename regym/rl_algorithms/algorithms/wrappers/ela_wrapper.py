@@ -511,6 +511,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
          
         self.episode_buffer[actor_index].append(exp_dict)
         self.nbr_buffered_predictor_experience += 1
+        wandb_log({'obs_count': self.nbr_buffered_predictor_experience}, commit=False)
 
         successful_traj = False
         nbr_stored_exp = 0
@@ -519,6 +520,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.record_metrics(exp_dict, actor_index=actor_index)
 
             self.episode_count += 1
+            wandb_log({'episode_count': self.episode_count}, commit=False)
             episode_length = len(self.episode_buffer[actor_index])
             self.reward_shape = exp_dict['r'].shape
 
