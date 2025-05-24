@@ -403,6 +403,7 @@ def batch_optimize(dataset_path: str, model_name: str, output_dir: str,
             "metadata": dataset.get("metadata", {})
         },
         name=f"batch_optimization_{run_id}",
+        group=run_id,
         job_type="batch_coordination"
     )
     

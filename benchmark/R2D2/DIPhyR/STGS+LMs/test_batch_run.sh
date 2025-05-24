@@ -6,11 +6,11 @@ python -m ipdb -c c batch_optimize_main.py   \
 --sentencebert_model "all-MiniLM-L6-v2" \
 --bertscore_model "distilbert-base-uncased" \
 --learning_rate=0.1 \
---epochs 2 \
+--epochs 2000 \
 --model_precision full \
 --gradient_checkpointing=False \
 --losses=embxentropy \
---batch_size=1 \
+--batch_size=4 \
 --seed=30 \
 --num_workers=1 \
 --seq_len=40 \

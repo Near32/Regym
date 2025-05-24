@@ -39,8 +39,14 @@ class MetricsLogger:
         self.summary_table = None
         self.k_summary_table = None
         
-    def init_wandb(self, config: Dict[str, Any] = None, name: Optional[str] = None, 
-                  group: Optional[str] = None, job_type: Optional[str] = None):
+    def init_wandb(
+        self, 
+        config: Dict[str, Any] = None, 
+        name: Optional[str] = None, 
+        group: Optional[str] = None, 
+        job_type: Optional[str] = None,
+        resume: Optional[str] = 'allow',
+    ):
         """
         Initialize W&B logging.
         
@@ -64,7 +70,10 @@ class MetricsLogger:
             group=group,
             job_type=job_type,
             config=config,
-            reinit=True
+            reinit='finish_previous', #True,
+            #reinit=False,
+            #reinit=True,
+            resume=resume,
         )
         
         # Initialize tables
@@ -142,7 +151,20 @@ class MetricsLogger:
             log_metrics[log_name] = value
             
         # Log to W&B
-        self.wandb_run.log(log_metrics, step=step)
+        try:
+            self.wandb_run.log(log_metrics, step=step)
+        except Exception as e:
+            print(f"Exception caught in metrics logger: {e}")
+            print(f"Resuming W&B Run:")
+            self.wandb_run = wandb.init(
+                entity=self.wandb_run.entity, 
+                project=self.wandb_run.project, 
+                id=self.wandb_run.id, 
+                group=self.wandb_run.group,
+                resume='allow',
+            )
+            self.wandb_run.log(log_metrics, step=step)
+
         
     def update_summary_table(self, sample_id: str, target_info: Dict[str, Any], 
                             result: Dict[str, Any], metrics: Dict[str, Any]):

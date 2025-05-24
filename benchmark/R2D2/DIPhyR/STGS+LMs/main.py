@@ -625,6 +625,7 @@ def optimize_inputs(
     })
     wandb_table = wandb.Table(columns=[
         "epoch", 
+        "target_output_str", 
         "learned_input_ids", 
         "learned_input_str", 
         "generated_output_ids", 
@@ -910,6 +911,7 @@ def optimize_inputs(
 
         wandb_table.add_data(
             epoch+1, 
+            target_text,
             learnable_input_ids.tolist(),
             learnable_input_str,
             table_generated_output_ids[0].tolist(), 

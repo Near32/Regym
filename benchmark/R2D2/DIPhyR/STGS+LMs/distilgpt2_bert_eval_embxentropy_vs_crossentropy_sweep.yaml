@@ -14,7 +14,7 @@ parameters:
   dataset_path:
     values: ["./data/distilgpt2_diverse_targets_k1-5-21.json"]
   output_dir:
-    values: ["results/distilgpt2_grid_sweep"]
+    values: ["results/distilgpt2_grid_sweep_bert_lr0.1_PL10-20-40-80"]
   model_name:
     values: ["distilbert/distilgpt2"]
   model_precision:
@@ -23,6 +23,12 @@ parameters:
     values: ["False"]
   max_gradient_norm:
     values: [0.0]
+  metric_groups:
+    values: ["basic,semantic,distribution"]
+  sentencebert_model:
+    values: ["all-MiniLM-L6-v2"]
+  bertscore_model:
+    values: ["distilbert-base-uncased"]
   losses:
     values: ["embxentropy", "crossentropy"]
   complLambda:
@@ -40,7 +46,7 @@ parameters:
   learnable_temperature:
     values: [True, False]
   stgs_hard:
-    values: [False, True]
+    values: [False]
   bptt:
     values: [False]
   bptt_eps:
@@ -64,5 +70,5 @@ parameters:
   batch_size:
     values: [1]
   learning_rate:
-    values: [1.0e-2, 1.0e-1]
+    values: [1.0e-1]
                    
