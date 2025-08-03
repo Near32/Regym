@@ -1169,6 +1169,20 @@ def main():
     parser.add_argument("--ELA_rg_seed", type=int, default=1)
     parser.add_argument("--ELA_rg_metric_active_factors_only", type=str2bool, default=True)
     
+    #PPO:
+    parser.add_argument("--adam_eps", type=float, default=1.0e-12,) 
+    parser.add_argument("--horizon", type=int, default=128,) 
+    parser.add_argument("--optimization_epochs", type=int, default=4,) 
+    parser.add_argument("--standardized_adv", type=str2bool, default=True,) 
+    parser.add_argument("--discount", type=float, default=0.99,) 
+    parser.add_argument("--use_gae", type=str2bool, default=True,) 
+    parser.add_argument("--gae_tau", type=float, default=0.95,) 
+    parser.add_argument("--ppo_ratio_clip", type=float, default=0.2,) 
+    parser.add_argument("--mini_batch_size", type=int, default=256,) 
+    parser.add_argument("--gradient_clip", type=float, default=5.0,) 
+    parser.add_argument("--value_weight", type=float, default=0.5,) 
+    parser.add_argument("--entropy_weight", type=float, default=0.01,) 
+    
     parser.add_argument("--time_limit", type=int, default=400,) 
     parser.add_argument("--train_observation_budget", 
         type=float, 

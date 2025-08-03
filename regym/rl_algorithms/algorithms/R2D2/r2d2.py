@@ -63,15 +63,16 @@ def _extract_from_hdict(
 
 
 class R2D2Algorithm(DQNAlgorithm):
-    def __init__(self, 
-                 kwargs: Dict[str, Any], 
-                 model: nn.Module,
-                 target_model: Optional[nn.Module] = None,
-                 optimizer=None,
-                 loss_fn: Callable = r2d2_loss.compute_loss,
-                 sum_writer=None,
-                 name='r2d2_algo',
-                 single_storage=True,
+    def __init__(
+        self, 
+        kwargs: Dict[str, Any], 
+        model: nn.Module,
+        target_model: Optional[nn.Module] = None,
+        optimizer=None,
+        loss_fn: Callable = r2d2_loss.compute_loss,
+        sum_writer=None,
+        name='r2d2_algo',
+        single_storage=True,
     ):
         '''
         :params:

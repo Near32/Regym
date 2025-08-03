@@ -3,7 +3,7 @@
 WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --seed=10 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
---use_cuda=False \
+--use_cuda=True \
 --project=EReLELA+RPPO-MultiRoom-Benchmark \
 --success_threshold=0.01 \
 --config=multiroom_N7_S4_symbolic_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA+RPPO_config.yaml \
@@ -32,7 +32,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ETHER_use_ETHER=False --THER_use_THER=False \
 --ELA_with_rg_training=True \
 --ELA_with_rg_optimize=True \
---ELA_rg_use_cuda=False \
+--ELA_rg_use_cuda=True \
 --ELA_rg_dataloader_shuffle=True \
 --ELA_rg_dataloader_num_worker=4 \
 --ELA_rg_graphtype='straight_through_gumbel_softmax' \
@@ -68,7 +68,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_relative_expressivity_threshold=90 \
 --ELA_rg_expressivity_threshold=20 \
 --ELA_rg_nbr_train_distractors=256 --ELA_rg_nbr_test_distractors=3 \
---ELA_replay_capacity=192 --ELA_test_replay_capacity=48 \
+--ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
 --ELA_rg_distractor_sampling_scheme_version=2 \
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
@@ -78,11 +78,11 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --ELA_rg_record_unique_stats=False \
 --BabyAI_Bot_action_override=False \
---n_step=3 --nbr_actor=2 \
+--n_step=3 --nbr_actor=32 \
 --epsstart=1.0 --epsend=0.1 \
 --epsdecay=1000000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=4 \
---min_capacity=4e1 --min_handled_experiences=28e1 --replay_capacity=10e2 --learning_rate=6.25e-5 \
+--min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=10e3 --learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \

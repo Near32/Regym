@@ -818,6 +818,7 @@ class ActorCriticNet(nn.Module):
         critic_body, 
         use_intrinsic_critic=False, 
         extra_inputs_infos: Dict={},
+        extra_bodies: Dict={},
         layer_init_fn=layer_init):
         """
         :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
@@ -831,7 +832,9 @@ class ActorCriticNet(nn.Module):
         self.phi_body = phi_body
         self.actor_body = actor_body
         self.critic_body = critic_body
-        
+        self.extra_bodies = extra_bodies
+        # TODO: figure out how to  integrate extra_bodies between actor and critic
+
         fc_critic_input_shape = self.critic_body.get_feature_shape()
         fc_actor_input_shape = self.actor_body.get_feature_shape()
         
@@ -964,7 +967,10 @@ class CategoricalActorCriticNet(ActorCriticNet):
         actor_body=None,
         critic_body=None,
         use_intrinsic_critic=False,
-        extra_inputs_infos: Dict={}):
+        layer_init_fn=layer_init,
+        extra_inputs_infos: Dict={},
+        extra_bodies: Dict={},
+):
         """
         :param extra_inputs_infos: Dictionnary containing the shape of the lstm-relevant extra inputs.
         """
@@ -976,7 +982,9 @@ class CategoricalActorCriticNet(ActorCriticNet):
             actor_body=actor_body, 
             critic_body=critic_body,
             use_intrinsic_critic=use_intrinsic_critic,
+            layer_init_fn=layer_init_fn,
             extra_inputs_infos=extra_inputs_infos,
+            extra_bodies=extra_bodies,
         )
 
     def forward(self, obs, action=None, rnn_states=None):
@@ -985,7 +993,8 @@ class CategoricalActorCriticNet(ActorCriticNet):
 
         next_rnn_states = None 
         if rnn_states is not None:
-            next_rnn_states = {k: None for k in rnn_states}
+            #next_rnn_states = {k: None for k in rnn_states}
+            next_rnn_states = copy_hdict(rnn_states)
 
         if rnn_states is not None and 'phi_body' in rnn_states:
             phi, next_rnn_states['phi_body'] = self.phi_body( (obs, rnn_states['phi_body']) )

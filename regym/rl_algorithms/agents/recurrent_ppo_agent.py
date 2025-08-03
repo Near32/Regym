@@ -109,7 +109,7 @@ class RecurrentPPOAgent(R2D2Agent):
 
         return actions
 
-    def train(self):
+    def train(self, nbr_stored_exp=0):
         '''
         Trains like PPOAgent.
         '''
