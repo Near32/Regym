@@ -12,11 +12,15 @@ from regym.rl_algorithms.utils import is_leaf, copy_hdict, _concatenate_list_hdi
 from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 
 import wandb 
+from regym.util import wandb_log
 
-from regym.rl_algorithms.algorithms.R2D2.r2d2_loss import archi_assign_fn
-from regym.rl_algorithms.algorithms.R2D2.r2d2_loss import extract_rnn_states_from_time_indices
-from regym.rl_algorithms.algorithms.R2D2.r2d2_loss import replace_rnn_states_at_time_indices
-from regym.rl_algorithms.algorithms.R2D2.r2d2_loss import roll_sequences, batched_unrolled_inferences
+from regym.rl_algorithms.algorithms.R2D2.r2d2_loss import (
+    archi_assign_fn,
+    extract_rnn_states_from_time_indices,
+    replace_rnn_states_at_time_indices,
+    roll_sequences, 
+    batched_unrolled_inferences,
+)
 
 use_BPTT = True
 
@@ -281,23 +285,23 @@ def compute_loss(
     # Mean over unroll_length :
     #total_loss = total_loss.mean(-1)
 
-    wandb.log({'Training/ExplainedVariance': xvar.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/ApproxKL': approx_kl.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/ClipFracs': clipfracs.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/ExplainedVariance': xvar.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/ApproxKL': approx_kl.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/ClipFracs': clipfracs.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/RatioMean': ratio.mean().cpu().item(), "training_step": iteration_count}, commit=False)
     #summary_writer.add_histogram('Training/Ratio', ratio.cpu(), iteration_count)
-    wandb.log({'Training/AdvantageMean': training_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/AdvantageStd': training_advantages.std().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/AdvantageMean': training_advantages.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/AdvantageStd': training_advantages.std().cpu().item(), "training_step": iteration_count}, commit=False)
     #summary_writer.add_histogram('Training/Advantage', advantages.cpu(), iteration_count)
-    wandb.log({'Training/MeanVValues': training_predictions['v'].cpu().mean().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/MeanReturns': returns.cpu().mean().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/StdVValues': training_predictions['v'].cpu().std().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/StdReturns': training_returns.cpu().std().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/ValueLoss': value_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/PolicyVal': policy_val.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/EntropyVal': entropy_val.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/PolicyLoss': policy_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
-    wandb.log({'Training/TotalLoss': total_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/MeanVValues': training_predictions['v'].cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/MeanReturns': returns.cpu().mean().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/StdVValues': training_predictions['v'].cpu().std().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/StdReturns': training_returns.cpu().std().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/ValueLoss': value_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/PolicyVal': policy_val.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/EntropyVal': entropy_val.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/PolicyLoss': policy_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
+    wandb_log({'Training/TotalLoss': total_loss.mean().cpu().item(), "training_step": iteration_count}, commit=False)
         
     '''
     if weights_entropy_reg_alpha > 1.0e-12:
@@ -362,9 +366,9 @@ def compute_loss(
                 ]
             )
 
-        wandb.log({f"Training/RecurrentPPOStimuliTable":sample_table}, commit=False)
+        wandb_log({f"Training/RecurrentPPOStimuliTable":sample_table}, commit=False)
 
-    wandb.log({}, commit=True)
+    wandb_log({}, commit=True)
     #wandb.run.history._data = wandb_data
 
     return total_loss.mean(), total_loss

@@ -29,6 +29,67 @@ import wandb
 from regym.util import wandb_log
 
 
+class ContextObj(object):
+    '''
+    ContextObj is a class that is used to store the context for forked processes.
+    Its methods are local methods that needed to be pickle-able.
+    '''
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    # topo_speaker_filtering_fn:
+    def topo_speaker_filtering_fn(self, kwargs):
+        return self.speaker.role=="speaker"
+
+    # listener_filtering_fn:
+    def listener_filtering_fn(self, kwargs):
+        return self.listener.role=="speaker"
+
+    # topo_preprocess_fn:
+    def topo_preprocess_fn(self, x):
+        return self.speaker._sense(self.agent_preprocess_fn(x))
+
+    # true_filtering_fn:
+    def true_filtering_fn(self, kwargs):
+        return True
+
+    # dynamic_filtering_fn:
+    def dynamic_filtering_fn(self, input_streams_dict):
+        return input_streams_dict['mode']=='test' # ONLY COMPUTE OVER TEST STIMULI
+
+    # modularity_preprocess_fn:
+    def modularity_preprocess_fn(self, x):
+        return x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x
+
+    # modularity_postprocess_fn:
+    def modularity_postprocess_fn(self, x):
+        return x[2].cpu().detach().numpy() if "BetaVAE" in self.agent_config["architecture"] else x.cpu().detach().numpy()
+
+    # agent_preprocess_fn:
+    def agent_preprocess_fn(self, x):
+        x = x[1].cpu().detach()
+        x = x.reshape((x.shape[0],-1)).numpy()
+        return x
+
+    # agent_postprocess_fn:
+    def agent_postprocess_fn(self, x):
+        x = x[1].cpu().detach()
+        x = x.reshape((x.shape[0],-1)).numpy()
+        return x
+
+    # agent_features_postprocess_fn:
+    def agent_features_postprocess_fn(self, x):
+        x = x[-1].cpu().detach()
+        x = x.reshape((x.shape[0],-1)).numpy()
+        return x
+
+    # sentences_widx_postprocess_fn:
+    def sentences_widx_postprocess_fn(self, x):
+        return x["sentences_widx"].cpu().detach().numpy()
+
+
+    
+        
 # Adapted from: 
 # https://github.com/facebookresearch/EGG/blob/424c9aa2d56f9d5cc17e78f0ba94e1b7a9810add/egg/zoo/language_bottleneck/intervention.py#L37
 def ht(t):
@@ -66,6 +127,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         self.kwargs = algorithm.kwargs
         self.feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
         self.visited_captions = {}
+        self.need_training = False
 
         self.hook_fns = []
         self.nbr_episode_success_range = 32 #256
@@ -292,10 +354,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             dim=0,
         )
         
+        def identify_fn(x):
+            return x
+ 
         rnn_states = _concatenate_list_hdict(
             lhds=[e['next_rnn_states'] for e in exp], 
             concat_fn=archi_concat_fn,
-            preprocess_fn=(lambda x:x),
+            #preprocess_fn=(lambda x:x),
+            preprocess_fn= identify_fn,
         )
         with torch.no_grad():
             training = self.predictor.training
@@ -428,7 +494,12 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         )
         return 
     
-    def store(self, exp_dict, actor_index=0) -> int:
+    def store(self, exp_dict, actor_index=0, minimal:bool=False) -> int:
+        '''
+        
+        :param minimal: bool that decides whether to only store for RG training
+        as opposed to also store in algorithm and compute all intrinsic rewards.
+        '''
         #################
         #################
         # Vocabulary logging:
@@ -440,6 +511,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
          
         self.episode_buffer[actor_index].append(exp_dict)
         self.nbr_buffered_predictor_experience += 1
+        wandb_log({'obs_count': self.nbr_buffered_predictor_experience}, commit=False)
 
         successful_traj = False
         nbr_stored_exp = 0
@@ -448,6 +520,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             self.record_metrics(exp_dict, actor_index=actor_index)
 
             self.episode_count += 1
+            wandb_log({'episode_count': self.episode_count}, commit=False)
             episode_length = len(self.episode_buffer[actor_index])
             self.reward_shape = exp_dict['r'].shape
 
@@ -510,7 +583,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             )
             
             new_rs = []
-            for idx in tqdm(range(episode_length)):
+            #for idx in tqdm(range(episode_length)):
+            for idx in range(episode_length):
                 s = self.episode_buffer[actor_index][idx]['s']
                 a = self.episode_buffer[actor_index][idx]['a']
                 r = self.episode_buffer[actor_index][idx]['r']
@@ -556,13 +630,17 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                         negative=False,
                         self=self,
                     )
-                # Adding all the other elements back into the dict
-                # e.g. v values , and entropy ...
-                for key, value in self.episode_buffer[actor_index][idx].items():
-                    if key not in d2store_ela:
-                        d2store_ela[key] = value
-                nbr_stored_exp += self.algorithm.store(d2store_ela, actor_index=actor_index)
                 
+                if not minimal:
+                    # Adding all the other elements back into the dict
+                    # e.g. v values , and entropy ...
+                    for key, value in self.episode_buffer[actor_index][idx].items():
+                        if key not in d2store_ela:
+                            d2store_ela[key] = value
+                    nbr_stored_exp += self.algorithm.store(d2store_ela, actor_index=actor_index)
+                else:
+                    nbr_stored_exp = 0
+
                 if idx==(episode_length-1):
                     wandb_log({'PerEpisode/ExtrinsicWeight': self.extrinsic_weight}, commit=True)
                     wandb_log({'PerEpisode/IntrinsicWeight': self.intrinsic_weight}, commit=True)
@@ -590,7 +668,11 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                         self.algorithm.unwrapped.summary_writer.add_scalar('PerEpisode/Success', (self.rewards['success']==her_r).float().mean().item(), self.episode_count)
                         self.algorithm.unwrapped.summary_writer.add_histogram('PerEpisode/Rewards', episode_rewards, self.episode_count)
             self.episode_buffer[actor_index] = []
-        self.update_predictor(successful_traj=successful_traj)
+        
+        self.update_predictor(
+            successful_traj=successful_traj,
+            minimal=minimal,
+        )
        
         return nbr_stored_exp
 
@@ -1054,6 +1136,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "indices":"current_dataloader:sample:speaker_indices", 
         }
         
+        self.context = ContextObj(
+            kwargs=self.kwargs,
+            speaker=speaker,
+            listener=listener,
+            agent_config=agent_config,
+        )
+
+        '''
         def agent_preprocess_fn(x):
             if self.kwargs["ELA_rg_use_cuda"]:
                 x = x.cuda()
@@ -1071,22 +1161,34 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             x = x.reshape((x.shape[0],-1)).numpy()
             return x 
         
+        def topo_speaker_filtering_fn(kwargs):
+            return speaker.role=="speaker"
+        #def speaker_filtering_fn(sp, kwargs):
+        #    return sp.role=="speaker"
+        #topo_speaker_filtering_fn = partial(speaker_filtering_fn, sp=speaker)
+        
+        def topo_preprocess_fn(x):
+            return speaker._sense(agent_preprocess_fn(x))
+        '''
+
         speaker_topo_sim_metric_module = rg_modules.build_TopographicSimilarityMetricModule2(
             id=speaker_topo_sim_metric_id,
             config = {
                 "metric_fast": self.kwargs["ELA_rg_metric_fast"],
                 "pvalue_significance_threshold": 0.05,
                 "parallel_TS_computation_max_workers":self.kwargs["ELA_rg_parallel_TS_worker"],
-                "filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+                #"filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+                "filtering_fn": self.context.topo_speaker_filtering_fn,
                 #"postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
                 # cf outputs of _utter:
-                "postprocess_fn": agent_postprocess_fn, #(lambda x: x[1].cpu().detach().numpy()),
+                "postprocess_fn": self.context.agent_postprocess_fn, #(lambda x: x[1].cpu().detach().numpy()),
                 # not necessary if providing a preprocess_fn, 
                 # that computes the features/_sense output, but here it is in order to deal with shapes:
-                "features_postprocess_fn": agent_features_postprocess_fn, #(lambda x: x[-1].cpu().detach().numpy()),
+                "features_postprocess_fn": self.context.agent_features_postprocess_fn, #(lambda x: x[-1].cpu().detach().numpy()),
                 #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
                 # cf _sense:
-                "preprocess_fn": (lambda x: speaker._sense(agent_preprocess_fn(x))),
+                #"preprocess_fn": (lambda x: speaker._sense(agent_preprocess_fn(x))),
+                "preprocess_fn": self.context.topo_preprocess_fn,
                 #"epoch_period":args.epoch-1, 
                 "epoch_period": self.kwargs["ELA_rg_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
@@ -1111,15 +1213,27 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "latent_representations":f"modules:{current_speaker_id}:ref:ref_agent:exp_latents", 
             "indices":f"modules:{current_speaker_id}:ref:ref_agent:indices", 
         }
+        
+        '''
+        def modularity_postprocess_fn(x):
+            return x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()
+        
+        def modularity_preprocess_fn(x):
+            return x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x
+        '''
+
         speaker_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
             id=speaker_modularity_disentanglement_metric_id,
             input_stream_ids=speaker_modularity_disentanglement_metric_input_stream_ids,
             config = {
-                "filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+                #"filtering_fn":(lambda kwargs: speaker.role=="speaker"),
+                "filtering_fn": self.context.topo_speaker_filtering_fn,
                 #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
                 # dealing with extracting z (mu in pos 1):
-                "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "postprocess_fn": self.context.modularity_postprocess_fn,
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs["ELA_rg_dis_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1142,15 +1256,22 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "latent_representations":f"modules:{current_listener_id}:ref:ref_agent:exp_latents", 
             "indices":f"modules:{current_listener_id}:ref:ref_agent:indices", 
         }
+        
+        def listener_filtering_fn(kwargs):
+            return listener.role=="speaker"
+        
         listener_modularity_disentanglement_metric_module = rg_modules.build_ModularityDisentanglementMetricModule(
             id=listener_modularity_disentanglement_metric_id,
             input_stream_ids=listener_modularity_disentanglement_metric_input_stream_ids,
             config = {
-                "filtering_fn": (lambda kwargs: listener.role=="speaker"),
+                #"filtering_fn": (lambda kwargs: listener.role=="speaker"),
+                "filtering_fn": self.context.listener_filtering_fn,
                 #"filtering_fn": (lambda kwargs: True),
                 #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-                "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "postprocess_fn": self.context.modularity_postprocess_fn, 
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs["ELA_rg_dis_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1188,20 +1309,32 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             "listener_indices":"current_dataloader:sample:listener_indices",
         }
         
+        '''
+        def dynamic_filtering_fn(input_streams_dict):
+            return input_streams_dict['mode']=='test' # ONLY COMPUTE OVER TEST STIMULI
+        '''
+
         language_dynamic_metric_id = f"language_dynamic_metric"
         language_dynamic_metric_module = rg_modules.LanguageDynamicMetricModule(
             id=language_dynamic_metric_id,
             config = {
                 "epoch_period":self.kwargs.get("ELA_rg_language_dynamic_metric_epoch_period", 1),
-                "filtering_fn":(lambda input_streams_dict: input_streams_dict['mode']=='test'), # ONLY COMPUTE OVER TEST STIMULI
+                #"filtering_fn":(lambda input_streams_dict: input_streams_dict['mode']=='test'), # ONLY COMPUTE OVER TEST STIMULI
+                "filtering_fn": self.context.dynamic_filtering_fn,
             },
         )
         modules[language_dynamic_metric_id] = language_dynamic_metric_module
         
+        '''
+        def true_filtering_fn(kwargs):
+            return True
+        '''
+
         inst_coord_metric_module = rg_modules.build_InstantaneousCoordinationMetricModule(
             id=inst_coord_metric_id,
             config = {
-                "filtering_fn":(lambda kwargs: True),
+                #"filtering_fn":(lambda kwargs: True),
+                "filtering_fn": self.context.true_filtering_fn,
                 "epoch_period":1, #self.kwargs.get("ELA_rg_language_dynamic_metric_epoch_period", 1),
             },
             input_stream_ids=inst_coord_input_stream_ids,
@@ -1222,11 +1355,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             id=speaker_factor_vae_disentanglement_metric_id,
             input_stream_ids=speaker_factor_vae_disentanglement_metric_input_stream_ids,
             config = {
-                "filtering_fn": (lambda kwargs: speaker.role=="speaker"),
+                #"filtering_fn": (lambda kwargs: speaker.role=="speaker"),
                 #"filtering_fn": (lambda kwargs: True),
                 #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-                "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "filtering_fn": self.context.topo_speaker_filtering_fn,
+                "postprocess_fn": self.context.modularity_postprocess_fn,
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs["ELA_rg_dis_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points": self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1253,11 +1389,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             id=listener_factor_vae_disentanglement_metric_id,
             input_stream_ids=listener_factor_vae_disentanglement_metric_input_stream_ids,
             config = {
-                "filtering_fn": (lambda kwargs: listener.role=="speaker"),
+                #"filtering_fn": (lambda kwargs: listener.role=="speaker"),
                 #"filtering_fn": (lambda kwargs: True),
                 #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-                "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "filtering_fn": self.context.listener_filtering_fn,
+                "postprocess_fn": self.context.modularity_postprocess_fn,
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs["ELA_rg_dis_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points": self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1284,11 +1423,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             id=speaker_mig_disentanglement_metric_id,
             input_stream_ids=speaker_mig_disentanglement_metric_input_stream_ids,
             config = {
-                "filtering_fn": (lambda kwargs: speaker.role=="speaker"),
+                #"filtering_fn": (lambda kwargs: speaker.role=="speaker"),
                 #"filtering_fn": (lambda kwargs: True),
                 #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-                "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "filtering_fn": self.context.topo_speaker_filtering_fn,
+                "postprocess_fn": self.context.modularity_postprocess_fn,
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs["ELA_rg_dis_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1314,11 +1456,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             id=listener_mig_disentanglement_metric_id,
             input_stream_ids=listener_mig_disentanglement_metric_input_stream_ids,
             config = {
-                "filtering_fn": (lambda kwargs: listener.role=="speaker"),
+                #"filtering_fn": (lambda kwargs: listener.role=="speaker"),
                 #"filtering_fn": (lambda kwargs: True),
                 #"postprocess_fn": (lambda x: x.cpu().detach().numpy()),
-                "postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x[2].cpu().detach().numpy() if "BetaVAE" in agent_config["architecture"] else x.cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "filtering_fn": self.context.listener_filtering_fn,
+                "postprocess_fn": self.context.modularity_postprocess_fn,
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs["ELA_rg_dis_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1350,6 +1495,11 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         if "natural" in self.kwargs.get("ELA_rg_compactness_ambiguity_metric_language_specs", "emergent"):
             compactness_ambiguity_metric_input_stream_ids["natural_representations"] = "current_dataloader:sample:speaker_natural_language_sentences_widx"        
         
+        '''
+        def sentences_widx_postprocess_fn(x):
+            return x["sentences_widx"].cpu().detach().numpy()
+        '''
+
         compactness_ambiguity_metric_module = rg_modules.build_CompactnessAmbiguityMetricModule(
             id=compactness_ambiguity_metric_id,
             input_stream_ids=compactness_ambiguity_metric_input_stream_ids,
@@ -1358,8 +1508,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "use_cumulative_scores": self.kwargs["ELA_rg_compactness_ambiguity_metric_use_cumulative_scores"],
                 'sanity_check_shuffling': False,
                 "show_stimuli": False, #True,
-                "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "postprocess_fn": self.context.sentences_widx_postprocess_fn,
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs.get("ELA_rg_compactness_ambiguity_metric_epoch_period", 1),
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1392,8 +1544,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             id=posbosdis_disentanglement_metric_id,
             input_stream_ids=posbosdis_disentanglement_metric_input_stream_ids,
             config = {
-                "postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
-                "preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                #"postprocess_fn": (lambda x: x["sentences_widx"].cpu().detach().numpy()),
+                #"preprocess_fn": (lambda x: x.cuda() if self.kwargs["ELA_rg_use_cuda"] else x),
+                "postprocess_fn": self.context.sentences_widx_postprocess_fn,
+                "preprocess_fn": self.context.modularity_preprocess_fn,
                 "epoch_period":self.kwargs["ELA_rg_metric_epoch_period"],
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
@@ -1573,11 +1727,18 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
 
         self.dataset_args = dataset_args
 
-    def update_predictor(self, successful_traj=False):
+    def update_predictor(
+        self, 
+        successful_traj=False,
+        minimal=False,
+    ):
         '''
         Every training_period:
             - reset the previous period count check to the current count
             - so that it is possible to update the training_period adaptively if needs be.
+
+        :param minimal: bool that decides whether to simply record that training is necessary
+        or also perform it.
         '''
         # RG Update:
         period_check = self.kwargs['ELA_rg_training_period']
@@ -1594,7 +1755,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             #self.previous_ELA_quotient = quotient
             self.previous_ELA_period_count_check = self.nbr_buffered_predictor_experience
             if self.kwargs['ELA_use_ELA']:
-                self._rg_training()
+                if minimal:
+                    self.need_training = True
+                else:
+                    self._rg_training()
         
         wandb_log({'Training/ELA/storage_length': len(self.rg_storages[0])}, commit=True)
 

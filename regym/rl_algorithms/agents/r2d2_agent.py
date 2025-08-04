@@ -162,9 +162,11 @@ class R2D2Agent(ExtraInputsHandlingAgent, DQNAgent):
         return clone
 
 
-def build_R2D2_Agent(task: 'regym.environments.Task',
-                     config: Dict,
-                     agent_name: str):
+def build_R2D2_Agent(
+    task: 'regym.environments.Task',
+    config: Dict,
+    agent_name: str,
+):
     '''
     TODO: say that config is the same as DQN agent except for
     - expert_demonstrations: ReplayStorage object with expert demonstrations

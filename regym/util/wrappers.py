@@ -2532,7 +2532,12 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         return observation
 
 
-from minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
+try:
+    from minigrid.core.constants import IDX_TO_COLOR, IDX_TO_OBJECT
+except Exception as e:
+    from gym_minigrid.minigrid import IDX_TO_COLOR, IDX_TO_OBJECT
+    print(e)
+
 
 class BehaviourDescriptionWrapper(gym.ObservationWrapper):
     def __init__(
@@ -3265,7 +3270,25 @@ except Exception as e:
             )
         
         def observation(self, obs):
-            rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+            if hasattr(self.unwrapped, 'get_frame'):
+                rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+            else:
+                '''
+                # Full observation / north-oriented:
+                rgb_img_partial1 = self.unwrapped.render(
+                    mode='rgb_array',
+                    highlight=False, #whether to overlay an alpha-ed over the egocentric partial view.
+                    tile_size=self.tile_size
+                )
+                # 200 x 200 x 3
+                '''
+                # Partial observation / egocentric:
+                rgb_img_partial = self.unwrapped.get_obs_render(
+                    obs=obs['image'],
+                    tile_size=self.tile_size,
+                )
+                # 56 x 56 x 3
+
             if isinstance(obs, tuple):
                 assert len(obs) == 2
                 # reset:
@@ -3286,6 +3309,7 @@ except Exception as e:
 
 try:
     import gymnasium
+    from gymnasium.utils import seeding
 except Exception as e:
     print(f"Gymnasium could not be imported : {e}")
 
@@ -3294,10 +3318,7 @@ except Exception as e:
 
 from typing import Any, Callable
 
-#from gymnasium import spaces
-import gymnasium
 from gym import spaces
-from gymnasium.utils import seeding
 
 
 def check_if_no_duplicate(duplicate_list: list) -> bool:
@@ -3548,7 +3569,25 @@ class GymRGBImgPartialObsWrapper(gym.ObservationWrapper):
         )
     
     def observation(self, obs):
-        rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+        if hasattr(self.unwrapped, 'get_frame'):
+            rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+        else:
+            '''
+            # Full observation / north-oriented:
+            rgb_img_partial1 = self.unwrapped.render(
+                mode='rgb_array',
+                highlight=False, #whether to overlay an alpha-ed over the egocentric partial view.
+                tile_size=self.tile_size
+            )
+            # 200 x 200 x 3
+            '''
+            # Partial observation / egocentric:
+            rgb_img_partial = self.unwrapped.get_obs_render(
+                obs=obs['image'],
+                tile_size=self.tile_size,
+            )
+            # 56 x 56 x 3
+        
         if isinstance(obs, tuple):
             assert len(obs) == 2
             # reset:
@@ -3787,6 +3826,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             PickupRatio = float(self.pickup_count)/self.episode_length
             next_infos['metrics']['pickup_ratio'] = PickupRatio
             next_infos['metrics']['episode_length'] = self.episode_length
+            wandb.log(next_infos['metrics'], commit=False)
 
         return next_observation, reward, done, next_infos
 

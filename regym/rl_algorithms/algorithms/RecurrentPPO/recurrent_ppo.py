@@ -11,8 +11,6 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 
-import matplotlib.pyplot as plt 
-
 import regym
 from regym.rl_algorithms.networks import random_sample
 from regym.rl_algorithms.algorithms.algorithm import Algorithm
@@ -35,6 +33,7 @@ from regym.rl_algorithms.utils import (
 from regym.thirdparty.Archi.Archi.model import Model as ArchiModel
 
 import wandb
+from regym.util import wandb_log
 summary_writer = None 
 
 
@@ -119,7 +118,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         loss_fn: Callable = recurrent_ppo_loss.compute_loss,
         sum_writer=None,
         name='recurrent_ppo_algo',
-        single_storage=False,
+        single_storage=True,
     ):
         '''
         Refer to original paper for further explanation: https://arxiv.org/pdf/1707.06347.pdf
@@ -139,6 +138,10 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         ''' 
         Algorithm.__init__(self=self, name=name)
         self.single_storage = single_storage
+        
+        self.nbr_categorized_storages = kwargs.get('recurrent_ppo_nbr_categorized_storages', 1)
+        if self.nbr_categorized_storages > 1 and self.single_storage:
+            print(f"WARNING: single_storage hyperparam is overriden by usage of categorized storages on PER.")
         
         print(kwargs)
 
@@ -462,7 +465,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
                 self.compute_int_advantages_and_int_returns(storage_idx=idx, non_episodic=self.kwargs['rnd_non_episodic_int_r'])
             '''
         end = time.time()
-        wandb.log({'PerUpdate/TimeComplexity/ComputeReturnsAdvantagesFn':  end-start}, commit=False) # self.param_update_counter)
+        wandb_log({'PerUpdate/TimeComplexity/ComputeReturnsAdvantagesFn':  end-start}, commit=False) # self.param_update_counter)
         
         # Update observations running mean and std: 
         '''
@@ -472,7 +475,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
                 if len(storage) <= 1: continue
                 self.obs_rms.update(storage.s)
             end = time.time()
-            wandb.log({'PerUpdate/TimeComplexity/UpdateObsMeanStdFn':  end-start}, commit=False) # self.param_update_counter)
+            wandb_log({'PerUpdate/TimeComplexity/UpdateObsMeanStdFn':  end-start}, commit=False) # self.param_update_counter)
             self.obs_mean = self.obs_rms.mean
             self.obs_std = self.obs_rms.std
             # (1, *obs_shape)
@@ -488,7 +491,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         samples = self.retrieve_values_from_storages(minibatch_size=len(self.storages[0]))
         end = time.time()
 
-        wandb.log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
+        wandb_log({'PerUpdate/TimeComplexity/RetrieveValuesFn':  end-start}, commit=False) # self.param_update_counter)
 
         #if self.recurrent: rnn_states = self.reformat_rnn_states(rnn_states)
         
@@ -502,7 +505,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             )
         end = time.time()
         
-        wandb.log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
+        wandb_log({'PerUpdate/TimeComplexity/OptimizeModelFn':  end-start}, commit=False) # self.param_update_counter)
         
         self.reset_storages()
         
@@ -607,7 +610,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
                 sampled_losses_per_item.append(loss_per_item)
                 #wandb_data = copy.deepcopy(wandb.run.history._data)
                 #wandb.run.history._data = {}
-                wandb.log({
+                wandb_log({
                     'PerUpdate/ImportanceSamplingMean':  sampled_samples['importanceSamplingWeights'].cpu().mean().item(),
                     'PerUpdate/ImportanceSamplingStd':  sampled_samples['importanceSamplingWeights'].cpu().std().item(),
                     'PerUpdate/PER_Beta':  beta
@@ -640,7 +643,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
             )
 
         end = time.time()
-        wandb.log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
+        wandb_log({'PerUpdate/TimeComplexity/OptimizationLoss':  end-start}, commit=False) # self.param_update_counter)
 
 
     def clone(self, with_replay_buffer: bool=False, clone_proxies: bool=False, minimal=False):        
