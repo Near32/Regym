@@ -60,11 +60,11 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_learning_rate=3e-4 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
---ELA_rg_training_period=256000 \
+--ELA_rg_training_period=32768 \
 --ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=64 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=1024 --ELA_rg_accuracy_threshold=80 \
 --ELA_rg_relative_expressivity_threshold=90 \
 --ELA_rg_expressivity_threshold=20 \
 --ELA_rg_nbr_train_distractors=256 --ELA_rg_nbr_test_distractors=3 \
@@ -81,13 +81,14 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --n_step=3 --nbr_actor=32 \
 --epsstart=1.0 --epsend=0.1 \
 --epsdecay=1000000 --eps_greedy_alpha=2.0 \
---nbr_minibatches=1 --batch_size=4 \
---min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=10e3 --learning_rate=6.25e-5 \
+--nbr_minibatches=1 --batch_size=64 \
+--min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=10e3 \
+--learning_rate=1.0e-4 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
---adam_weight_decay=0.01 --ther_adam_weight_decay=0.0 \
+--adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --training_iteration_use_nbr_stored_exp=False \
 --training_iteration_stored_exp_period=864 \
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
@@ -101,7 +102,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --use_gae=True \
 --gae_tau=0.95 \
 --ppo_ratio_clip=0.2 \
---mini_batch_size=2 \
+--mini_batch_size=32 \
 --gradient_clip=5.0 \
 --value_weight=0.5 \
 --entropy_weight=0.01 \
