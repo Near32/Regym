@@ -87,7 +87,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
---adam_weight_decay=0.01 --ther_adam_weight_decay=0.0 \
+--adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
 --training_iteration_use_nbr_stored_exp=False \
 --training_iteration_stored_exp_period=864 \
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
