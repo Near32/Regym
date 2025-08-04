@@ -64,7 +64,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=1024 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=90 \
 --ELA_rg_relative_expressivity_threshold=90 \
 --ELA_rg_expressivity_threshold=20 \
 --ELA_rg_nbr_train_distractors=128 --ELA_rg_nbr_test_distractors=3 \
