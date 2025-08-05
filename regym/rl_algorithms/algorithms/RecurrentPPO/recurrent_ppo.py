@@ -243,14 +243,15 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         self.storages = None
         self.use_mp = False 
+        # WARNING: forcing overlap length to 0:
         self.sequence_replay_overlap_length = 0
         self.kwargs['sequence_replay_overlap_length'] = 0
         
-        # PREVIOUSLY : when forcing the unroll lenght:
-        #self.sequence_replay_unroll_length = self.horizon
-        #self.kwargs['sequence_replay_unroll_length'] = self.horizon
-        # NOW: letting it be set by user:
-        self.sequence_replay_unroll_length = self.kwargs['sequence_replay_unroll_length']
+        # NOW: when forcing the unroll lenght:
+        self.sequence_replay_unroll_length = self.horizon
+        self.kwargs['sequence_replay_unroll_length'] = self.horizon
+        # PREVIOUSLY : letting it be set by user:
+        # self.sequence_replay_unroll_length = self.kwargs['sequence_replay_unroll_length']
 
         self.sequence_replay_store_on_terminal = False
         self.sequence_replay_burn_in_ratio = self.kwargs['sequence_replay_burn_in_ratio']
@@ -336,7 +337,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         # sidx contains the last segment of temporally-ordered data
         succ_s = self.storages[storage_idx].succ_s[0][sidx][0]
         rnn_states = self.storages[storage_idx].rnn_states[0][sidx]
-
+        
         out_d = self._compute_advantages_and_returns(
             r=r,
             v=v,
@@ -409,6 +410,8 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
                     rnn_states, 
                     seq_indices, 
                     use_cuda=self.kwargs['use_cuda'],
+                    filter_fn=(lambda x: True),
+                    #preprocess_fn= (lambda x: x.unsqueeze(0)),
                 )
             final_prediction = next_state_value = self.model(
                 next_state, 

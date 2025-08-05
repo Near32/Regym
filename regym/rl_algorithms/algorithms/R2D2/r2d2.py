@@ -274,7 +274,8 @@ class R2D2Algorithm(DQNAlgorithm):
                     #concat_fn=(lambda x: torch.cat(x, dim=1) if x[0].shape==x[1].shape else np.array(x, dtype=object)),
                     concat_fn=concat_fn,
                     #concat_fn=archi_concat_fn,
-                    preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
+                    #preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
+                    preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape),
                 )
             else:
                 value = torch.cat(

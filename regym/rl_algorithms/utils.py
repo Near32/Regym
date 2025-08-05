@@ -258,6 +258,7 @@ def _extract_rnn_states_from_batch_indices(
     pin_memory: bool=False,
     cuda_non_blocking: bool=False,
     map_keys: Optional[List]=None,
+    squeeze_dim: Optional[int]=None,
 ): 
     if rnn_states_batched is None:  return None
 
@@ -283,6 +284,8 @@ def _extract_rnn_states_from_batch_indices(
                             new_value = new_value.cuda(non_blocking=cuda_non_blocking)
                         if sparse_v:
                             new_value = new_value.to_sparse()
+                        if squeeze_dim is not None:
+                            new_value = new_value.squeeze(squeeze_dim)
                         rnn_states[recurrent_submodule_name][key].append(new_value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_batch_indices(
@@ -291,7 +294,8 @@ def _extract_rnn_states_from_batch_indices(
                 use_cuda=use_cuda,
                 pin_memory=pin_memory,
                 cuda_non_blocking=cuda_non_blocking,
-                map_keys=map_keys
+                map_keys=map_keys,
+                squeeze_dim=squeeze_dim,
             )
     return rnn_states
 
@@ -300,6 +304,7 @@ def _extract_rnn_states_from_seq_indices(
     rnn_states_batched: Dict,
     seq_indices: torch.Tensor,
     use_cuda: bool=False,
+    preprocess_fn: Optional[Callable] = (lambda x:x),
     map_keys: Optional[List]=None,
     filter_fn: Callable=None,
 ): 
@@ -319,21 +324,29 @@ def _extract_rnn_states_from_seq_indices(
                         if value.is_sparse:
                             sparse_v = True
                             value = value.to_dense()
+                        
+                        # Only select on specific key values:
                         if filter_fn is not None \
                         and filter_fn(value):
                             new_value = value[:, seq_indices,...]
                         else:
                             new_value = value
+
+                        # If we only select one sequence index,
+                        # then we squeeze out the sequence dim:
                         if len(seq_indices) == 1:
                             new_value = new_value.squeeze(1)
                         if use_cuda: new_value = new_value.cuda()
                         if sparse_v:
                             new_value = new_value.to_sparse()
+                        new_value = preprocess_fn(new_value)
                         rnn_states[recurrent_submodule_name][key].append(new_value)
         else:
             rnn_states[recurrent_submodule_name] = _extract_rnn_states_from_seq_indices(
                 rnn_states_batched=rnn_states_batched[recurrent_submodule_name],
                 seq_indices=seq_indices,
+                filter_fn=filter_fn,
+                preprocess_fn=preprocess_fn,
                 use_cuda=use_cuda,
                 map_keys=map_keys
             )
