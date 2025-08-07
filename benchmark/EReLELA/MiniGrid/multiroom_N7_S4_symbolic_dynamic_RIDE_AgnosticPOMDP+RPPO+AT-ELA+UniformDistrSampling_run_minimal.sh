@@ -1,7 +1,7 @@
 #/bin/bash
 #--config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
 WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=10 --env_seed=12 --static_envs=False \
+--seed=20 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA+AT+RPPO-MultiRoom-Symbolic-Benchmark \
@@ -64,15 +64,15 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=8 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=8 --ELA_rg_accuracy_threshold=80 \
 --ELA_rg_relative_expressivity_threshold=90 \
 --ELA_rg_expressivity_threshold=20 \
---ELA_rg_nbr_train_distractors=128 --ELA_rg_nbr_test_distractors=3 \
+--ELA_rg_nbr_train_distractors=15 --ELA_rg_nbr_test_distractors=3 \
 --ELA_replay_capacity=2048 --ELA_test_replay_capacity=512 \
 --ELA_rg_distractor_sampling_scheme_version=2 \
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
---ELA_rg_same_episode_target=True \
+--ELA_rg_same_episode_target=False \
 --ELA_reward_extrinsic_weight=20.0 --ELA_reward_intrinsic_weight=0.1 \
 --ELA_feedbacks_type='across-training-1.0' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
