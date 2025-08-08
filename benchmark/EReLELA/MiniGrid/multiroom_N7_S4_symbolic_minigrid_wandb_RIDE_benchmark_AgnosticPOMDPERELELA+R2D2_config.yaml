@@ -706,13 +706,13 @@ agents:
                         #input3: "inputs:critic_body:extra_inputs:previous_reward"
 
                 'RLHead':
-                    type: RLCategoricalActorCriticHeadModule
-                    #type: RLCategoricalHeadModule
+                    #type: RLCategoricalActorCriticHeadModule
+                    type: RLCategoricalHeadModule
                     state_dim: *rlhead_state_dim 
                     action_dim: *action_dim
                     #use_intrinsic_critic: False
-                    #noisy: False
-                    #dueling: True
+                    noisy: False
+                    dueling: True
                     #config: 
                     #    mlp_nbr_layers: 2
                     input_stream_ids: 
