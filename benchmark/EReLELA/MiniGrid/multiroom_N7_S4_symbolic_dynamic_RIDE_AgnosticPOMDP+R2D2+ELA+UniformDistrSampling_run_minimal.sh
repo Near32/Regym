@@ -1,7 +1,7 @@
 #/bin/bash
 #--config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
 WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=30 --env_seed=12 --static_envs=False \
+--seed=10 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA+R2D2-MultiRoom-Symbolic-Benchmark \
@@ -64,15 +64,15 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=8 --ELA_rg_accuracy_threshold=80 \
 --ELA_rg_relative_expressivity_threshold=90 \
 --ELA_rg_expressivity_threshold=20 \
---ELA_rg_nbr_train_distractors=128 --ELA_rg_nbr_test_distractors=3 \
---ELA_replay_capacity=2048 --ELA_test_replay_capacity=512 \
+--ELA_rg_nbr_train_distractors=15 --ELA_rg_nbr_test_distractors=3 \
+--ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
 --ELA_rg_distractor_sampling_scheme_version=2 \
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
---ELA_rg_same_episode_target=True \
+--ELA_rg_same_episode_target=False \
 --ELA_reward_extrinsic_weight=20.0 --ELA_reward_intrinsic_weight=0.1 \
 --ELA_feedbacks_type='normal' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
@@ -80,10 +80,10 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
 --epsstart=1.0 --epsend=0.1 \
---epsdecay=1000000 --eps_greedy_alpha=2.0 \
---nbr_minibatches=1 --batch_size=32 \
+--epsdecay=100000 --eps_greedy_alpha=2.0 \
+--nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=20e3 \
---learning_rate=1.0e-4 \
+--learning_rate=6.25e-5 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
 --sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \

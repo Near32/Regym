@@ -1,7 +1,7 @@
 #/bin/bash
 #--config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
 WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=30 --env_seed=12 --static_envs=False \
+--seed=50 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA+RPPO-MultiRoom-Benchmark \
@@ -64,7 +64,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=32 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=8 --ELA_rg_accuracy_threshold=80 \
 --ELA_rg_relative_expressivity_threshold=90 \
 --ELA_rg_expressivity_threshold=20 \
 --ELA_rg_nbr_train_distractors=128 --ELA_rg_nbr_test_distractors=3 \
@@ -105,7 +105,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --mini_batch_size=32 \
 --gradient_clip=5.0 \
 --value_weight=0.5 \
---entropy_weight=0.01 \
+--entropy_weight=0.1 \
 --time_limit=0 \
 --benchmarking_record_episode_interval=100000 \
 --benchmarking_interval=1.0e4 \
