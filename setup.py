@@ -48,8 +48,8 @@ setup(
       # PREVIOUSLY: 'torch',#==1.8.1',
       # THEN : 'torch==1.12.0',
       # NOW:
-      'torch==1.13.1',
-      'torchvision==0.14.1',
+      'torch>=1.13.1',
+      'torchvision>=0.14.1',
       'cvxopt',
       'scipy',
       #'minerl',
