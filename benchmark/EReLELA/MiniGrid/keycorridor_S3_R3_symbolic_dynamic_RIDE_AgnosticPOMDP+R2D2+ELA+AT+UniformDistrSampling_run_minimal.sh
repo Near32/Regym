@@ -59,7 +59,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_object_centric_version=2 --ELA_rg_descriptive_version=1 \
 --ELA_rg_learning_rate=3e-4 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
---ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=4 \
+--ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
 --ELA_rg_training_period=256000 \
 --ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
