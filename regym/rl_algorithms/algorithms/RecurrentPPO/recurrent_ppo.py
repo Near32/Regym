@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 import torch.nn as nn
+from tqdm import tqdm
 
 import regym
 from regym.rl_algorithms.networks import random_sample
@@ -500,7 +501,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         
         start = time.time()
         #self.optimize_model(minibatch_size, samples)
-        for it in range(self.kwargs['optimization_epochs']):
+        for it in tqdm(range(self.kwargs['optimization_epochs'])):
             self.optimize_model(
                 nbr_minibatches=4, #TODO: bring it up
                 #minibatch_size=self.nbr_actor,
@@ -556,7 +557,7 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         sampled_losses_per_item = []
         
         #self.optimizer.zero_grad()
-        for batch_indices in sampler:
+        for batch_indices in tqdm(sampler):
             batch_indices = torch.from_numpy(batch_indices).long()
             sampled_batch_indices.append(batch_indices)
 
