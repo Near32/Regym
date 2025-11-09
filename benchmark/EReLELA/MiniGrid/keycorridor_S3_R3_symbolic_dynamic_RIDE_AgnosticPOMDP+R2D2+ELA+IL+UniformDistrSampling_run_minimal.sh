@@ -9,7 +9,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --seed=120 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
---project=EReLELA+AT+R2D2-KeyCorridor-Symbolic-Benchmark \
+--project="EReLELA+IL+R2D2-KeyCorridor-Symbolic-Benchmark" \
 --success_threshold=0.01 \
 --config=keycorridor_S3_R3_symbolic_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA+R2D2_config.yaml \
 --language_guided_curiosity=False \
@@ -30,6 +30,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --PER_use_rewards_in_priority=False \
 --sequence_replay_PER_eta=0.9 \
 --PER_compute_initial_priority=True \
+--use_PER=True \
 --use_ETHER=False --use_THER=False \
 --use_RP=False --RP_use_RP=True \
 --use_ELA=True --ELA_use_ELA=True \
@@ -79,7 +80,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
 --ELA_reward_extrinsic_weight=40.0 --ELA_reward_intrinsic_weight=0.1 \
---ELA_feedbacks_type='across-training-1.0' \
+--ELA_feedbacks_type='normal' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --ELA_rg_record_unique_stats=False \
 --BabyAI_Bot_action_override=False \
