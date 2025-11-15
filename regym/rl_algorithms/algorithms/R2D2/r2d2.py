@@ -63,15 +63,16 @@ def _extract_from_hdict(
 
 
 class R2D2Algorithm(DQNAlgorithm):
-    def __init__(self, 
-                 kwargs: Dict[str, Any], 
-                 model: nn.Module,
-                 target_model: Optional[nn.Module] = None,
-                 optimizer=None,
-                 loss_fn: Callable = r2d2_loss.compute_loss,
-                 sum_writer=None,
-                 name='r2d2_algo',
-                 single_storage=True,
+    def __init__(
+        self, 
+        kwargs: Dict[str, Any], 
+        model: nn.Module,
+        target_model: Optional[nn.Module] = None,
+        optimizer=None,
+        loss_fn: Callable = r2d2_loss.compute_loss,
+        sum_writer=None,
+        name='r2d2_algo',
+        single_storage=True,
     ):
         '''
         :params:
@@ -273,7 +274,8 @@ class R2D2Algorithm(DQNAlgorithm):
                     #concat_fn=(lambda x: torch.cat(x, dim=1) if x[0].shape==x[1].shape else np.array(x, dtype=object)),
                     concat_fn=concat_fn,
                     #concat_fn=archi_concat_fn,
-                    preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
+                    #preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape[1:]),
+                    preprocess_fn=lambda x: x.clone().reshape(1, 1, *x.shape),
                 )
             else:
                 value = torch.cat(

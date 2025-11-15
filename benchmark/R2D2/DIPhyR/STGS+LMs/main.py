@@ -9,6 +9,18 @@ import argparse
 import copy
 import wandb
 import matplotlib.pyplot as plt
+from functools import partial
+from typing import Dict
+
+from gradient_estimators import (
+    STGS,
+    ReinforceEstimator,
+    stgs_forward_pass,
+    reinforce_forward_pass,
+    estimate_stgs_gradient_variance,
+    estimate_stgs_gradient_bias,
+    estimate_reinforce_gradient_variance,
+)
 
 
 def setup_model_and_tokenizer(model_name="HuggingFaceM4/tiny-random-LlamaForCausalLM",device='cpu',model_precision='full'):
@@ -385,101 +397,6 @@ class LossClass(object):
 
         return losses_dict
 
-class STGS(torch.nn.Module):
-    def __init__(
-        self,
-        vocab_size,
-        stgs_hard=False,
-        init_temperature=1.0,
-        learnable_temperature=False,
-        conditioning_dim=0,
-        eps=1e-12,
-        device="cpu",
-    ):
-        super(STGS,self).__init__()
-        self.vocab_size = vocab_size
-        self.stgs_hard = stgs_hard
-        self.init_temperature = init_temperature
-        self.learnable_temperature = learnable_temperature
-        self.conditioning_dim = conditioning_dim
-        self.eps = eps
-        self.device = device
-
-        if self.learnable_temperature:
-            #self.register_parameter(name="temperature_param", param=torch.nn.Parameter(torch.rand(1, requires_grad=True, device=self.device)))
-            if self.conditioning_dim < 1:
-                self.temperature_param = torch.nn.Parameter(torch.rand(1, requires_grad=True, device=self.device))
-            else:
-                self.tau_fc = nn.Sequential(
-                    nn.Linear(self.conditioning_dim, 1,bias=False),
-                    nn.Softplus()
-                )
-                self.tau_fc = self.tau_fc.to(device=device)
-
-    def forward(self, x, hidden_states=None):
-        if self.learnable_temperature:
-            if self.conditioning_dim < 1:
-                eff_temperature = self.eps + 1. / (F.softplus(self.temperature_param)+1.0/(self.eps+self.init_temperature))
-            else:
-                assert hidden_states is not None
-                batch_size = x.shape[0]
-                seq_len = x.shape[1]
-                last_hidden_state = hidden_states[-1][:,-1,:].reshape(batch_size, self.conditioning_dim)
-                self.inv_tau0 = 1.0/(self.eps+self.init_temperature)
-                eff_temperature = self.eps + 1. / ( self.tau_fc(last_hidden_state)+self.inv_tau0).reshape(batch_size, -1, 1)
-                # repeat for seq len:
-                eff_temperature = eff_temperature.repeat(1,seq_len,1)
-        else:
-          eff_temperature = torch.tensor([self.init_temperature], device=self.device)
-        
-        # Add Gumbel noise for exploration during training
-        '''
-        gumbel_dist = torch.distributions.gumbel.Gumbel(
-            torch.zeros_like(message_logits),
-            torch.ones_like(message_logits)
-        )
-
-        gss = []
-        for bidx in range(batch_size):
-          gumbel_sample = gumbel_dist.sample()
-          # (1, allowed_vocab, seq_len)
-          #print(gumbel_sample.shape)
-          gss.append(gumbel_sample)
-        gumbel_sample = torch.concat(gss, dim=0)
-        #gumbel_logits = message_logits + gumbel_sample
-        gumbel_logits = message_logits.repeat(batch_size, 1, 1) + gumbel_sample
-        '''
-        u = torch.rand_like(x)*(0.999-self.eps)+self.eps
-        gumbels = -torch.log( -torch.log(u))
-
-        gumbel_logits = (x + gumbels) #/ (tau+eps)  # ~Gumbel(logits,tau)
-        # Check shape:
-        #print(f"Gumbel logits shape: {gumbel_logits.shape}")
-
-        # Softmax with temperature
-        # (batch_size x seq_len x vocab_dim )
-        y_soft = F.softmax(gumbel_logits / eff_temperature, dim=-1)
-
-        # Straight-through: use hard in forward, soft in backward
-        if self.stgs_hard:
-          #indices = torch.argmax(y_soft, dim=-1)
-          # Sampling from batched distribution y_soft:
-          message_ids = torch.distributions.Categorical(probs=y_soft).sample()
-          y_hard = F.one_hot(message_ids, num_classes=self.vocab_size)
-          # Type: half or full
-          y_hard = y_hard.half() if x.dtype == torch.half else y_hard.float()
-          # Straight-through trick: y_hard - y_soft.detach() + y_soft
-          message_one_hot = y_hard - y_soft.detach() + y_soft
-        else:
-          message_ids = torch.distributions.Categorical(probs=y_soft).sample()
-          message_one_hot = y_soft
-        
-        # Type: half or full
-        message_one_hot = message_one_hot.half() if x.dtype == torch.half else message_one_hot.float()
-
-        return message_ids, message_one_hot, eff_temperature
-
-
 class TokenOverlapMetric(object):
     def __init__(
         self,
@@ -553,6 +470,21 @@ def optimize_inputs(
     bptt_hidden_state_conditioning=False,
     plot_every=10,
     log_table_every=100,
+    stgs_grad_variance_samples=0,
+    stgs_grad_variance_period=1,
+    stgs_grad_bias_samples=0,
+    stgs_grad_bias_period=1,
+    stgs_grad_bias_reference_samples=0,
+    stgs_grad_bias_reference_batch_size=None,
+    stgs_grad_bias_reference_use_baseline=True,
+    stgs_grad_bias_reference_reward_scale=1.0,
+    stgs_grad_bias_reference_baseline_beta=0.9,
+    gradient_estimator="stgs",
+    reinforce_grad_variance_samples=0,
+    reinforce_grad_variance_period=1,
+    reinforce_reward_scale=1.0,
+    reinforce_use_baseline=True,
+    reinforce_baseline_beta=0.9,
     eps=1e-10,
     bptt_eps=1e-10,
     vocab_threshold=0.5,  # Hyperparameter for filtering
@@ -597,6 +529,12 @@ def optimize_inputs(
     # W&B log a table of the allowed tokens and the target_text tokens:
     allowed_tokens_list = allowed_tokens.tolist()
     target_tokens_list = target_tokens[0].tolist()
+    bias_reference_batch_size_value = (
+        stgs_grad_bias_reference_batch_size
+        if stgs_grad_bias_reference_batch_size and stgs_grad_bias_reference_batch_size > 0
+        else batch_size
+    )
+
     wandb.log({
         "allowed_tokens": allowed_tokens_list,
         "target_tokens": target_tokens_list,
@@ -622,6 +560,21 @@ def optimize_inputs(
         "bptt_eps": bptt_eps,
         "vocab_threshold": vocab_threshold,
         "batch_size": batch_size,
+        "stgs_grad_variance_samples_cfg": stgs_grad_variance_samples,
+        "stgs_grad_variance_period_cfg": stgs_grad_variance_period,
+        "reinforce_grad_variance_samples_cfg": reinforce_grad_variance_samples,
+        "reinforce_grad_variance_period_cfg": reinforce_grad_variance_period,
+        "stgs_grad_bias_samples_cfg": stgs_grad_bias_samples,
+        "stgs_grad_bias_period_cfg": stgs_grad_bias_period,
+        "stgs_grad_bias_reference_samples_cfg": stgs_grad_bias_reference_samples,
+        "stgs_grad_bias_reference_batch_size_cfg": bias_reference_batch_size_value,
+        "stgs_grad_bias_reference_use_baseline_cfg": stgs_grad_bias_reference_use_baseline,
+        "stgs_grad_bias_reference_reward_scale_cfg": stgs_grad_bias_reference_reward_scale,
+        "stgs_grad_bias_reference_baseline_beta_cfg": stgs_grad_bias_reference_baseline_beta,
+        "gradient_estimator": gradient_estimator,
+        "reinforce_reward_scale": reinforce_reward_scale,
+        "reinforce_use_baseline": reinforce_use_baseline,
+        "reinforce_baseline_beta": reinforce_baseline_beta,
     })
     wandb_table = wandb.Table(columns=[
         "epoch", 
@@ -661,32 +614,6 @@ def optimize_inputs(
         tokenizer=tokenizer,
     )
 
-    stgs = STGS(
-        vocab_size=allowed_vocab_size,
-        stgs_hard=stgs_hard,
-        init_temperature=temperature,
-        learnable_temperature=learnable_temperature,
-        eps=eps,
-        device=device,
-    )
-    parameters += list(stgs.parameters())
-    # check parameters contain stgs 
-
-    if bptt:
-        bptt_stgs = STGS(
-            vocab_size=allowed_vocab_size,
-            stgs_hard=bptt_stgs_hard,
-            init_temperature=bptt_temperature,
-            learnable_temperature=bptt_learnable_temperature,
-            eps=bptt_eps,
-            conditioning_dim=hidden_state_dim if bptt_hidden_state_conditioning else 0,
-            device=device,
-        )
-        parameters += list(bptt_stgs.parameters())
-
-    # Set up optimizer
-    optimizer = optim.Adam(parameters, lr=learning_rate)
-
     # Set up loss function
     loss_instance = LossClass(
         model=model,
@@ -698,215 +625,267 @@ def optimize_inputs(
         kwargs=kwargs,
     )
 
+    estimator_choice = gradient_estimator.lower()
+    stgs_module = None
+    bptt_stgs_module = None
+    reinforce_helper = None
+
+    if estimator_choice == "stgs":
+        stgs_module = STGS(
+            vocab_size=allowed_vocab_size,
+            stgs_hard=stgs_hard,
+            init_temperature=temperature,
+            learnable_temperature=learnable_temperature,
+            eps=eps,
+            device=device,
+        )
+        parameters += list(stgs_module.parameters())
+
+        if bptt:
+            bptt_stgs_module = STGS(
+                vocab_size=allowed_vocab_size,
+                stgs_hard=bptt_stgs_hard,
+                init_temperature=bptt_temperature,
+                learnable_temperature=bptt_learnable_temperature,
+                eps=bptt_eps,
+                conditioning_dim=hidden_state_dim if bptt_hidden_state_conditioning else 0,
+                device=device,
+            )
+            parameters += list(bptt_stgs_module.parameters())
+    elif estimator_choice == "reinforce":
+        if bptt:
+            raise ValueError("BPTT is currently not supported with the REINFORCE estimator.")
+        reinforce_helper = ReinforceEstimator(
+            reward_scale=kwargs.get("reinforce_reward_scale", reinforce_reward_scale),
+            use_baseline=kwargs.get("reinforce_use_baseline", reinforce_use_baseline),
+            baseline_beta=kwargs.get("reinforce_baseline_beta", reinforce_baseline_beta),
+        )
+    else:
+        raise ValueError(f"Unknown gradient estimator '{gradient_estimator}'.")
+
+    optimizer = optim.Adam(parameters, lr=learning_rate)
+
+    if estimator_choice == "stgs":
+        forward_pass_callable = partial(
+            stgs_forward_pass,
+            model=model,
+            tokenizer=tokenizer,
+            loss_instance=loss_instance,
+            learnable_inputs=learnable_inputs,
+            stgs_module=stgs_module,
+            embedding_weights_subset=embedding_weights_subset,
+            allowed_tokens=allowed_tokens,
+            target_length=target_length,
+            batch_size=batch_size,
+            device=device,
+            model_precision=kwargs.get("model_precision", "full"),
+            pre_prompt=pre_prompt,
+            bptt=bptt,
+            bptt_stgs=bptt_stgs_module,
+            filter_vocab=filter_vocab,
+        )
+    else:
+        forward_pass_callable = partial(
+            reinforce_forward_pass,
+            model=model,
+            tokenizer=tokenizer,
+            loss_instance=loss_instance,
+            learnable_inputs=learnable_inputs,
+            embedding_weights_subset=embedding_weights_subset,
+            allowed_tokens=allowed_tokens,
+            target_length=target_length,
+            batch_size=batch_size,
+            device=device,
+            model_precision=kwargs.get("model_precision", "full"),
+            pre_prompt=pre_prompt,
+            filter_vocab=filter_vocab,
+            reinforce_helper=reinforce_helper,
+        )
+
+    estimator_is_stgs = estimator_choice == "stgs"
+
     # Training loop
     losses = []
     pbar = tqdm(range(epochs))
     for epoch in pbar:
         optimizer.zero_grad()
 
-        # Apply ST-GS:
-        message_logits = learnable_inputs.repeat(batch_size, 1, 1)
-        # Type: half or full
-        message_logits = message_logits.half() if kwargs['model_precision'] == "half" else message_logits
-        message_ids, message_one_hot, eff_temperature  = stgs.forward(message_logits)
-        
-        prompt_ids = message_ids
+        step_result = forward_pass_callable()
+        loss = step_result.loss
+        backward_loss = step_result.backward_loss
+        losses_dict = step_result.losses_dict
+        generated_logits = step_result.generated_logits
+        estimator_state = step_result.estimator_state
 
-        # Convert one-hot-like vectors to embeddings by manual matrix multiplication
-        # learnable_inputs shape: [batch_size, seq_len, vocab_size]
-        # embedding_weights shape: [vocab_size, embedding_dim]
-        # Result shape: [batch_size, seq_len, embedding_dim]
-        #input_embeddings = torch.matmul(learnable_inputs, embedding_weights)
-        #input_embeddings = torch.matmul(message_one_hot, embedding_weights)
-        # Convert learnable one-hot-like vectors to embeddings using the allowed subset
-        # WARNING: TODO : PREVIOUSLY:
-        #input_embeddings = torch.matmul(learnable_inputs, embedding_weights_subset)  # (batch, seq_len, embed_dim)
-        input_embeddings = torch.matmul(message_one_hot, embedding_weights_subset)  # (batch, seq_len, embed_dim)
+        backward_loss.backward()
 
-        # Get the model's embedding layer
-        embedding_layer = model.get_input_embeddings()
-
-        # Process pre-prompt if provided and combine with learnable embeddings
-        if pre_prompt is not None:
-            # Tokenize the pre-prompt
-            pre_prompt_tokens = tokenizer(pre_prompt, return_tensors="pt").input_ids.to(device)
-
-            # Convert tokens to embeddings
-            pre_prompt_embeds = embedding_layer(pre_prompt_tokens).repeat(batch_size, 1, 1)
-
-            # Combine pre-prompt embeddings with learnable embeddings
-            # [batch_size, pre_prompt_length + learnable_length, hidden_size]
-            combined_embeds = torch.cat([pre_prompt_embeds, input_embeddings], dim=1)
-            current_embeds = combined_embeds
-        else:
-            # Use just the learnable embeddings
-            current_embeds = input_embeddings
-
-        # Generate completions from the model
-        # Forward pass through the model with our embeddings
-        outputs = model(
-            inputs_embeds=current_embeds,
-            output_hidden_states=True,
-            use_cache=True,
-            return_dict=True,
-        )
-        
-        # Get the logits from the output
-        logits = outputs.logits
-        # Get the hidden states from the output
-        hidden_states = outputs.hidden_states
-        # Check shape:
-        #print(f"Logits shape: {logits.shape}")
-        # Restrict logits to allowed vocabulary
-        logits_allowed = logits[..., allowed_tokens]  # (batch, seq_len, allowed_vocab_size)
-
-        prompt_logits = logits_allowed
-        #(batch_size x prompt_seq_len x vocab_size)
-
-        # Initialize the past key values for generation
-        past_key_values = outputs.past_key_values
-
-        # Store all generated token logits
-        #all_logits = [logits[:, -1:, :]]  # Start with the last logit from initial forward pass
-        all_logits = [logits_allowed[:, -1:, :]]
-        all_hidden_states = [hidden_states]
-
-        # Generate additional tokens autoregressively to match target length
-        current_length = 1  # We've already generated one token worth of logits
-        
-        completion_ids = []
-        while current_length < target_length:
-            # Get the predicted token ID from the last position
-            if bptt:
-                next_token_id, next_token_one_hot, bptt_eff_temperature = bptt_stgs(all_logits[-1], hidden_states=outputs.hidden_states)
-                next_token_embedding = torch.matmul(next_token_one_hot, embedding_weights_subset)  # (batch, seq_len, embed_dim)
-            else:
-                bptt_eff_temperature = 0
-                next_token_id = torch.argmax(all_logits[-1], dim=-1)
-                # Get the embedding for this token
-                if filter_vocab:
-                    #checked that these are equivalent when not doing filtering...
-                    next_token_embedding = embedding_weights_subset[next_token_id]
-                else:
-                    next_token_embedding = embedding_layer(next_token_id)
-            #assert (next_token_embedding == next_token_embedding_2).all()
-            completion_ids.append(next_token_id)
-
-            # Forward pass with past key values for efficient generation
-            outputs = model(
-                inputs_embeds=next_token_embedding,
-                past_key_values=past_key_values,
-                output_hidden_states=True,
-                use_cache=True,
-                return_dict=True,
+        estimator_metrics: Dict[str, float] = {}
+        if estimator_is_stgs:
+            measure_grad_variance = (
+                stgs_grad_variance_samples >= 2
+                and stgs_grad_variance_period > 0
+                and (epoch % stgs_grad_variance_period == 0)
+            )
+            measure_grad_bias = (
+                stgs_grad_bias_samples >= 1
+                and stgs_grad_bias_reference_samples >= 1
+                and stgs_grad_bias_period > 0
+                and (epoch % stgs_grad_bias_period == 0)
             )
 
-            # Update past key values for next iteration
-            past_key_values = outputs.past_key_values
+            need_baseline_grad = (
+                (measure_grad_variance or measure_grad_bias)
+                and learnable_inputs.grad is not None
+            )
+            baseline_grad = None
+            if need_baseline_grad:
+                baseline_grad = learnable_inputs.grad.detach().clone()
 
-            # Add the new logits to our collection
-            next_logits = outputs.logits[..., allowed_tokens]
-            all_logits.append(next_logits)
-            all_hidden_states.append(outputs.hidden_states)
+            if measure_grad_variance and baseline_grad is not None:
+                estimator_metrics.update(
+                    estimate_stgs_gradient_variance(
+                        stgs_grad_variance_samples,
+                        baseline_grad,
+                        forward_pass_callable,
+                        learnable_inputs,
+                    )
+                )
 
-            current_length += 1
+            if measure_grad_bias and baseline_grad is not None:
+                bias_reinforce_helper = ReinforceEstimator(
+                    reward_scale=stgs_grad_bias_reference_reward_scale,
+                    use_baseline=stgs_grad_bias_reference_use_baseline,
+                    baseline_beta=stgs_grad_bias_reference_baseline_beta,
+                )
+                bias_reinforce_forward = partial(
+                    reinforce_forward_pass,
+                    model=model,
+                    tokenizer=tokenizer,
+                    loss_instance=loss_instance,
+                    learnable_inputs=learnable_inputs,
+                    embedding_weights_subset=embedding_weights_subset,
+                    allowed_tokens=allowed_tokens,
+                    target_length=target_length,
+                    batch_size=bias_reference_batch_size_value,
+                    device=device,
+                    model_precision=kwargs.get("model_precision", "full"),
+                    pre_prompt=pre_prompt,
+                    filter_vocab=filter_vocab,
+                    reinforce_helper=bias_reinforce_helper,
+                )
 
-        # Concatenate all logits
-        generated_logits = torch.cat(all_logits, dim=1)
-        # Check shape:
-        #print(f"Generated logits shape: {generated_logits.shape}")
-        #print(f"Target tokens shape: {target_tokens_mapped.shape}")
-        completion_ids = torch.cat(completion_ids, dim=1)
-        # (batch_size x target_seq_len)
-        # Compute loss against target tokens
-        # We want to compare the generated token logits against the target tokens
-        '''
-        loss = loss_fn(
-            #generated_logits.reshape(-1, vocab_size),
-            generated_logits.reshape(-1, allowed_vocab_size),
-            target_tokens_mapped.reshape(-1), #.reshape(1, -1).repeat(batch_size, 1),
-            #target_tokens.reshape(-1)
-        )
-        '''
-        losses_dict = loss_instance.compute_loss(
-            input_dict={
-                'generated_logits':generated_logits,#.reshape(-1,allowed_vocab_size),
-                'generated_hidden_states': all_hidden_states,
-                'completion_ids': completion_ids,
-                'prompt_ids': prompt_ids,
-                'prompt_logits': prompt_logits,
-            },
-        )
-        loss = losses_dict['sumloss']
+                bias_metrics = estimate_stgs_gradient_bias(
+                    stgs_num_samples=stgs_grad_bias_samples,
+                    reinforce_num_samples=stgs_grad_bias_reference_samples,
+                    baseline_grad=baseline_grad,
+                    stgs_forward_pass_fn=forward_pass_callable,
+                    reinforce_forward_pass_fn=bias_reinforce_forward,
+                    learnable_inputs=learnable_inputs,
+                    reinforce_update_baseline=stgs_grad_bias_reference_use_baseline,
+                )
+                estimator_metrics.update(bias_metrics)
+        else:
+            measure_grad_variance = (
+                reinforce_grad_variance_samples >= 2
+                and reinforce_grad_variance_period > 0
+                and (epoch % reinforce_grad_variance_period == 0)
+            )
+            baseline_grad = None
+            if measure_grad_variance and learnable_inputs.grad is not None:
+                baseline_grad = learnable_inputs.grad.detach().clone()
+            if measure_grad_variance and baseline_grad is not None:
+                estimator_metrics.update(
+                    estimate_reinforce_gradient_variance(
+                        reinforce_grad_variance_samples,
+                        baseline_grad,
+                        forward_pass_callable,
+                        learnable_inputs,
+                    )
+                )
 
-        # Check shape: expect none because reduction=mean is default
-        #print(f"Loss shape: {loss.shape}")
-        # Backward pass and optimize
-        loss.backward()
-
-        #Gradient clipping:
         if max_gradient_norm != 0.0:
-           torch.nn.utils.clip_grad_norm_(parameters, max_gradient_norm)
+            torch.nn.utils.clip_grad_norm_(parameters, max_gradient_norm)
 
-
-        # Check gradient:
-        #print()"Gradient shape: {learnable_inputs.grad.shape}")
-        info = f"Gradient norm: {learnable_inputs.grad.norm().item():.6f} / Tau = {eff_temperature.item():.6f} / Allowed vocab size: {allowed_vocab_size}"
-
-        # Check if any gradients are non-zero
-        non_zero_grads = (learnable_inputs.grad != 0).sum().item()
-        #print(f"Number of non-zero gradients: {non_zero_grads}")
-
-        if non_zero_grads > 0:
-            # Show some stats about the gradient distribution
-            grad_abs = learnable_inputs.grad.abs()
-            #print(f"Mean absolute gradient: {grad_abs.mean().item():.8f}")
-            #print(f"Max absolute gradient: {grad_abs.max().item():.8f}")
-            #print(f"Min absolute gradient (non-zero): {grad_abs[grad_abs > 0].min().item() if (grad_abs > 0).any() else 0:.8f}")
-
-        # Optimisation
         optimizer.step()
 
-        # Update progress bar
+        grad_tensor = learnable_inputs.grad
+        grad_norm = grad_tensor.norm().item() if grad_tensor is not None else 0.0
+        non_zero_grads = int((grad_tensor != 0).sum().item()) if grad_tensor is not None else 0
+        grad_mean = grad_tensor.mean().item() if grad_tensor is not None else 0.0
+        grad_max = grad_tensor.max().item() if grad_tensor is not None else 0.0
+        grad_std = grad_tensor.std().item() if grad_tensor is not None else 0.0
+        if grad_tensor is not None:
+            grad_abs = grad_tensor.abs()
+            grad_min = grad_abs[grad_abs > 0].min().item() if (grad_abs > 0).any() else 0.0
+        else:
+            grad_min = 0.0
+
+        eff_temperature = estimator_state.get("eff_temperature")
+        bptt_eff_temperature = estimator_state.get("bptt_eff_temperature")
+        reinforce_baseline_state = estimator_state.get("reinforce_baseline")
+
+        info_components = [f"Gradient norm: {grad_norm:.6f}", f"Allowed vocab size: {allowed_vocab_size}"]
+        if torch.is_tensor(eff_temperature):
+            info_components.insert(1, f"Tau = {eff_temperature.mean().item():.6f}")
+        if reinforce_baseline_state is not None and torch.is_tensor(reinforce_baseline_state):
+            info_components.append(f"Baseline: {reinforce_baseline_state.item():.6f}")
+        info = " / ".join(info_components)
+
         losses.append(loss.item())
         pbar.set_description(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f} / {info}")
-        # Log metrics to wandb
+
         wandb_log = {
-            "epoch": epoch+1,
+            "epoch": epoch + 1,
             "loss": loss.item(),
-            "effective_temperature": eff_temperature.item(),
-            "bptt_effective_temperature": bptt_eff_temperature.mean().item() if isinstance(bptt_eff_temperature, torch.Tensor) else bptt_eff_temperature,
             "allowed_vocab_size": allowed_vocab_size,
             "non_zero_grads": non_zero_grads,
-            "grad_mean": learnable_inputs.grad.mean().item() if learnable_inputs.grad is not None else 0.0,
-            "grad_max": learnable_inputs.grad.max().item() if learnable_inputs.grad is not None else 0.0,
-            "grad_min": (grad_abs[grad_abs > 0].min().item() if (grad_abs > 0).any() else 0.0),
-            "grad_norm": learnable_inputs.grad.norm().item() if learnable_inputs.grad is not None else 0.0,
-            "grad_std": learnable_inputs.grad.std().item() if learnable_inputs.grad is not None else 0.0,
+            "grad_mean": grad_mean,
+            "grad_max": grad_max,
+            "grad_min": grad_min,
+            "grad_norm": grad_norm,
+            "grad_std": grad_std,
             "vocab_size": model.config.vocab_size,
-
         }
+
         for k, v in losses_dict.items():
             wandb_log[k] = v.item()
+
+        if estimator_is_stgs:
+            if torch.is_tensor(eff_temperature):
+                wandb_log["effective_temperature"] = eff_temperature.mean().item()
+            if torch.is_tensor(bptt_eff_temperature):
+                wandb_log["bptt_effective_temperature"] = bptt_eff_temperature.mean().item()
+            elif isinstance(bptt_eff_temperature, (float, int)):
+                wandb_log["bptt_effective_temperature"] = float(bptt_eff_temperature)
+            wandb_log.update(estimator_metrics)
+        else:
+            advantage_val = estimator_state.get("reinforce_advantage")
+            if torch.is_tensor(advantage_val):
+                wandb_log["reinforce_advantage"] = advantage_val.item()
+            baseline_val = estimator_state.get("reinforce_baseline")
+            if torch.is_tensor(baseline_val):
+                wandb_log["reinforce_baseline"] = baseline_val.item()
+            log_prob_mean = estimator_state.get("reinforce_log_prob_mean")
+            if torch.is_tensor(log_prob_mean):
+                wandb_log["reinforce_log_prob_mean"] = log_prob_mean.item()
+            log_prob_sum_mean = estimator_state.get("reinforce_log_prob_sum_mean")
+            if torch.is_tensor(log_prob_sum_mean):
+                wandb_log["reinforce_log_prob_sum_mean"] = log_prob_sum_mean.item()
+            wandb_log.update(estimator_metrics)
 
         # Update wandb_table with generated_output:
         learnable_input_ids = torch.argmax(learnable_inputs, dim=-1)[0]
         generated_output_ids = torch.argmax(generated_logits, dim=-1)
-        # Check shape:
-        #print(f"Generated output ids shape: {generated_output_ids.shape}")
-        # Remapping from allowed ids to original ids:
-        table_generated_output_ids = generated_output_ids[0:1]
-        table_generated_output_ids = torch.gather(allowed_tokens.unsqueeze(0), dim=1, index=table_generated_output_ids)
+        table_generated_output_ids = torch.gather(allowed_tokens.unsqueeze(0), dim=1, index=generated_output_ids[0:1])
         learnable_input_str = tokenizer.decode(learnable_input_ids, skip_special_tokens=False)
         generated_output_str = tokenizer.decode(table_generated_output_ids[0], skip_special_tokens=False)
-        #print(learnable_input_str)
-        
+
         generated_tokens = table_generated_output_ids[0].cpu().tolist()
 
         metrics_dict = token_overlap_metric.measure(
             prompt_tokens=learnable_input_ids,
         )
-        for k,v in metrics_dict.items():
+        for k, v in metrics_dict.items():
             wandb_log[k] = v
 
         wandb_table.add_data(
@@ -914,16 +893,11 @@ def optimize_inputs(
             target_text,
             learnable_input_ids.tolist(),
             learnable_input_str,
-            table_generated_output_ids[0].tolist(), 
+            table_generated_output_ids[0].tolist(),
             generated_output_str,
-            #token_overlap_measure,
             *metrics_dict.values(),
         )
-        
-        #TODO
-        #for k,v in wandb_log.items():
-        #    print(k, type(v))
-        #import ipdb; ipdb.set_trace()
+
         wandb.log(wandb_log)
         
         if epoch % log_table_every == 0:
@@ -1028,6 +1002,21 @@ def main():
     parser.add_argument("--bptt_stgs_hard", type=str2bool, default=False)
     parser.add_argument("--bptt_hidden_state_conditioning", type=str2bool, default=False)
     parser.add_argument("--plot_every", type=int, default=100000)
+    parser.add_argument("--stgs_grad_variance_samples", type=int, default=0)
+    parser.add_argument("--stgs_grad_variance_period", type=int, default=1)
+    parser.add_argument("--stgs_grad_bias_samples", type=int, default=0)
+    parser.add_argument("--stgs_grad_bias_period", type=int, default=1)
+    parser.add_argument("--stgs_grad_bias_reference_samples", type=int, default=0)
+    parser.add_argument("--stgs_grad_bias_reference_batch_size", type=int, default=0)
+    parser.add_argument("--stgs_grad_bias_reference_use_baseline", type=str2bool, default=True)
+    parser.add_argument("--stgs_grad_bias_reference_reward_scale", type=float, default=1.0)
+    parser.add_argument("--stgs_grad_bias_reference_baseline_beta", type=float, default=0.9)
+    parser.add_argument("--reinforce_grad_variance_samples", type=int, default=0)
+    parser.add_argument("--reinforce_grad_variance_period", type=int, default=1)
+    parser.add_argument("--gradient_estimator", type=str, default="stgs", choices=["stgs", "reinforce"])
+    parser.add_argument("--reinforce_reward_scale", type=float, default=1.0)
+    parser.add_argument("--reinforce_use_baseline", type=str2bool, default=True)
+    parser.add_argument("--reinforce_baseline_beta", type=float, default=0.9)
     parser.add_argument("--filter_vocab", type=str2bool, default= True)
     parser.add_argument("--vocab_threshold", type=float, default=-1)
     parser.add_argument("--seed", type=int, default=42)
@@ -1073,6 +1062,21 @@ def main():
         bptt_stgs_hard=config['bptt_stgs_hard'],
         bptt_hidden_state_conditioning=config['bptt_hidden_state_conditioning'],
         plot_every=config['plot_every'],
+        stgs_grad_variance_samples=config['stgs_grad_variance_samples'],
+        stgs_grad_variance_period=config['stgs_grad_variance_period'],
+        stgs_grad_bias_samples=config['stgs_grad_bias_samples'],
+        stgs_grad_bias_period=config['stgs_grad_bias_period'],
+        stgs_grad_bias_reference_samples=config['stgs_grad_bias_reference_samples'],
+        stgs_grad_bias_reference_batch_size=config['stgs_grad_bias_reference_batch_size'],
+        stgs_grad_bias_reference_use_baseline=config['stgs_grad_bias_reference_use_baseline'],
+        stgs_grad_bias_reference_reward_scale=config['stgs_grad_bias_reference_reward_scale'],
+        stgs_grad_bias_reference_baseline_beta=config['stgs_grad_bias_reference_baseline_beta'],
+        reinforce_grad_variance_samples=config['reinforce_grad_variance_samples'],
+        reinforce_grad_variance_period=config['reinforce_grad_variance_period'],
+        gradient_estimator=config['gradient_estimator'],
+        reinforce_reward_scale=config['reinforce_reward_scale'],
+        reinforce_use_baseline=config['reinforce_use_baseline'],
+        reinforce_baseline_beta=config['reinforce_baseline_beta'],
         eps=config['eps'],
         bptt_eps=config['bptt_eps'],
         vocab_threshold=config['vocab_threshold'],
@@ -1087,4 +1091,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

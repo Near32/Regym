@@ -1,12 +1,12 @@
 #/bin/bash
 #--config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
 WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=20 --env_seed=12 --static_envs=False \
+--seed=50 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
---project=EReLELA-KeyCorridor-Benchmark \
+--project=EReLELA+RPPO-MultiRoom-Benchmark \
 --success_threshold=0.01 \
---config=keycorridor_S3_R2_symbolic_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA_config.yaml \
+--config=multiroom_N7_S4_symbolic_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA+RPPO_config.yaml \
 --language_guided_curiosity=False \
 --language_guided_curiosity_descr_type='descr' \
 --language_guided_curiosity_extrinsic_weight=10.0 \
@@ -60,20 +60,20 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --ELA_rg_learning_rate=3e-4 --ELA_rg_weight_decay=0.0 \
 --ELA_rg_l1_weight_decay=0.0 --ELA_rg_l2_weight_decay=0.0 \
 --ELA_rg_vocab_size=64 --ELA_rg_max_sentence_length=128 \
---ELA_rg_training_period=256000 \
+--ELA_rg_training_period=32768 \
 --ELA_rg_training_max_skip=32 \
 --ELA_rg_training_adaptive_period=False \
 --ELA_rg_descriptive=True --ELA_rg_use_curriculum_nbr_distractors=False \
---ELA_rg_nbr_epoch_per_update=64 --ELA_rg_accuracy_threshold=90 \
+--ELA_rg_nbr_epoch_per_update=8 --ELA_rg_accuracy_threshold=80 \
 --ELA_rg_relative_expressivity_threshold=90 \
 --ELA_rg_expressivity_threshold=20 \
---ELA_rg_nbr_train_distractors=256 --ELA_rg_nbr_test_distractors=3 \
---ELA_replay_capacity=8192 --ELA_test_replay_capacity=2048 \
+--ELA_rg_nbr_train_distractors=128 --ELA_rg_nbr_test_distractors=3 \
+--ELA_replay_capacity=2048 --ELA_test_replay_capacity=512 \
 --ELA_rg_distractor_sampling_scheme_version=2 \
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
---ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.1 \
+--ELA_reward_extrinsic_weight=20.0 --ELA_reward_intrinsic_weight=0.1 \
 --ELA_feedbacks_type='normal' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --ELA_rg_record_unique_stats=False \
@@ -81,10 +81,11 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --n_step=3 --nbr_actor=32 \
 --epsstart=1.0 --epsend=0.1 \
 --epsdecay=1000000 --eps_greedy_alpha=2.0 \
---nbr_minibatches=1 --batch_size=64 \
---min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=10e3 --learning_rate=6.25e-5 \
+--nbr_minibatches=1 --batch_size=32 \
+--min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=20e3 \
+--learning_rate=1.0e-4 \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \
---sequence_replay_unroll_length=20 --sequence_replay_overlap_length=10 \
+--sequence_replay_unroll_length=128 --sequence_replay_overlap_length=0 \
 --sequence_replay_use_online_states=True --sequence_replay_use_zero_initial_states=False \
 --sequence_replay_store_on_terminal=False --HER_target_clamping=False \
 --adam_weight_decay=0.0 --ther_adam_weight_decay=0.0 \
@@ -93,6 +94,18 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \
+--adam_eps=1.0e-12 \
+--horizon=128 \
+--optimization_epochs=4 \
+--standardized_adv=True \
+--discount=0.99 \
+--use_gae=True \
+--gae_tau=0.95 \
+--ppo_ratio_clip=0.2 \
+--mini_batch_size=32 \
+--gradient_clip=5.0 \
+--value_weight=0.5 \
+--entropy_weight=0.1 \
 --time_limit=0 \
 --benchmarking_record_episode_interval=100000 \
 --benchmarking_interval=1.0e4 \

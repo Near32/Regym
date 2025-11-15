@@ -706,6 +706,7 @@ def main():
     #)
     parser.add_argument("--r2d2_use_value_function_rescaling", type=str2bool, default="False",)
     
+    parser.add_argument("--use_PER", type=str2bool, default="True")
     parser.add_argument("--PER_use_rewards_in_priority", type=str2bool, default="False")
     parser.add_argument("--PER_alpha", type=float, default=0.9)
     parser.add_argument("--PER_beta", type=float, default=0.6)
@@ -1050,7 +1051,8 @@ def main():
     parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_feedbacks_type", type=str, default='normal', choices=[
-        'normal','count-based', 'hurry-140', 'across-training-1.0'],)
+        'normal','count-based', 'hurry-140', 'across-training-1.0',
+        'count-based+across-training-1.0',],)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
     parser.add_argument("--ELA_rg_dataloader_shuffle", type=str2bool, default=True,)
@@ -1168,6 +1170,20 @@ def main():
     parser.add_argument("--ELA_rg_dis_metric_resampling", type=str2bool, default=True)
     parser.add_argument("--ELA_rg_seed", type=int, default=1)
     parser.add_argument("--ELA_rg_metric_active_factors_only", type=str2bool, default=True)
+    
+    #PPO:
+    parser.add_argument("--adam_eps", type=float, default=1.0e-12,) 
+    parser.add_argument("--horizon", type=int, default=128,) 
+    parser.add_argument("--optimization_epochs", type=int, default=4,) 
+    parser.add_argument("--standardized_adv", type=str2bool, default=True,) 
+    parser.add_argument("--discount", type=float, default=0.99,) 
+    parser.add_argument("--use_gae", type=str2bool, default=True,) 
+    parser.add_argument("--gae_tau", type=float, default=0.95,) 
+    parser.add_argument("--ppo_ratio_clip", type=float, default=0.2,) 
+    parser.add_argument("--mini_batch_size", type=int, default=256,) 
+    parser.add_argument("--gradient_clip", type=float, default=5.0,) 
+    parser.add_argument("--value_weight", type=float, default=0.5,) 
+    parser.add_argument("--entropy_weight", type=float, default=0.01,) 
     
     parser.add_argument("--time_limit", type=int, default=400,) 
     parser.add_argument("--train_observation_budget", 

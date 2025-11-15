@@ -109,13 +109,14 @@ class RecurrentPPOAgent(R2D2Agent):
 
         return actions
 
-    def train(self):
+    def train(self, nbr_stored_exp=0):
         '''
         Trains like PPOAgent.
         '''
         nbr_updates = 0
 
         if self.training \
+        and self.handled_experiences > self.kwargs['min_handled_experiences'] \
         and self.algorithm.unwrapped.stored_experiences() >= self.algorithm.unwrapped.kwargs['horizon']*self.nbr_actor:
             self.algorithm.train()
             

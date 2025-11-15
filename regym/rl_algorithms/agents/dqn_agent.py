@@ -252,13 +252,13 @@ class DQNAgent(Agent):
                 exp_dict['rnn_states'] = _extract_from_rnn_states(
                     prediction['rnn_states'],
                     actor_index,
-                    post_process_fn=(lambda x: x.detach().cpu())
+                    post_process_fn=(lambda x: x.detach().cpu().squeeze(0))
                 )
 
                 exp_dict['next_rnn_states'] = _extract_from_rnn_states(
                     prediction['next_rnn_states'],
                     actor_index,
-                    post_process_fn=(lambda x: x.detach().cpu())
+                    post_process_fn=(lambda x: x.detach().cpu().squeeze(0))
                 )
 
             nbr_stored_exp += self.algorithm.store(exp_dict, actor_index=actor_index)

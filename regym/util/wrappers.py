@@ -3826,6 +3826,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             PickupRatio = float(self.pickup_count)/self.episode_length
             next_infos['metrics']['pickup_ratio'] = PickupRatio
             next_infos['metrics']['episode_length'] = self.episode_length
+            wandb.log(next_infos['metrics'], commit=False)
 
         return next_observation, reward, done, next_infos
 

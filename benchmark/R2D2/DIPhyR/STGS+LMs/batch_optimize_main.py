@@ -18,6 +18,7 @@ from metrics_registry import compute_all_metrics
 from metrics_aggregator import MetricsAggregator
 from metrics_logging import MetricsLogger
 from evaluation_utils import evaluate_generated_output
+from main import optimize_inputs
 
 logger = logging.getLogger("batch_optimize")
 logging.basicConfig(level=logging.INFO, 
@@ -118,8 +119,6 @@ def optimize_for_target(target_info: Dict[str, Any], model, tokenizer, device: s
     Returns:
         result: Dictionary containing optimization results
     """
-    # Import the optimizer here to avoid circular imports
-    from main import optimize_inputs
     
     target_id = target_info["id"]
     target_text = target_info["text"]
@@ -181,6 +180,21 @@ def optimize_for_target(target_info: Dict[str, Any], model, tokenizer, device: s
         bptt_stgs_hard=config.get("bptt_stgs_hard", True),
         bptt_hidden_state_conditioning=config.get("bptt_hidden_state_conditioning", False),
         plot_every=config.get("plot_every", 100),
+        stgs_grad_variance_samples=config.get("stgs_grad_variance_samples", 0),
+        stgs_grad_variance_period=config.get("stgs_grad_variance_period", 1),
+        stgs_grad_bias_samples=config.get("stgs_grad_bias_samples", 0),
+        stgs_grad_bias_period=config.get("stgs_grad_bias_period", 1),
+        stgs_grad_bias_reference_samples=config.get("stgs_grad_bias_reference_samples", 0),
+        stgs_grad_bias_reference_batch_size=config.get("stgs_grad_bias_reference_batch_size", 0),
+        stgs_grad_bias_reference_use_baseline=config.get("stgs_grad_bias_reference_use_baseline", True),
+        stgs_grad_bias_reference_reward_scale=config.get("stgs_grad_bias_reference_reward_scale", 1.0),
+        stgs_grad_bias_reference_baseline_beta=config.get("stgs_grad_bias_reference_baseline_beta", 0.9),
+        reinforce_grad_variance_samples=config.get("reinforce_grad_variance_samples", 0),
+        reinforce_grad_variance_period=config.get("reinforce_grad_variance_period", 1),
+        gradient_estimator=config.get("gradient_estimator", "stgs"),
+        reinforce_reward_scale=config.get("reinforce_reward_scale", 1.0),
+        reinforce_use_baseline=config.get("reinforce_use_baseline", True),
+        reinforce_baseline_beta=config.get("reinforce_baseline_beta", 0.9),
         eps=config.get("eps", 1e-10),
         bptt_eps=config.get("bptt_eps", 1e-10),
         vocab_threshold=config.get("vocab_threshold", 0.5),
@@ -385,28 +399,6 @@ def batch_optimize(dataset_path: str, model_name: str, output_dir: str,
     # Initialize the metrics aggregator
     metrics_aggregator = MetricsAggregator()
     
-    # Initialize the metrics logger
-    metrics_logger = MetricsLogger(
-        run_id=run_id,
-        output_dir=full_output_dir,
-        wandb_project=config.get("wandb_project"),
-        wandb_entity=config.get("wandb_entity")
-    )
-    
-    # Initialize W&B for batch coordination
-    metrics_logger.init_wandb(
-        config={
-            **config,
-            "dataset_path": dataset_path,
-            "model_name": model_name,
-            "num_targets": len(targets),
-            "metadata": dataset.get("metadata", {})
-        },
-        name=f"batch_optimization_{run_id}",
-        group=run_id,
-        job_type="batch_coordination"
-    )
-    
     # Process targets based on number of workers
     if num_workers == 1:
         results = process_targets_sequential(
@@ -432,6 +424,28 @@ def batch_optimize(dataset_path: str, model_name: str, output_dir: str,
             num_workers=num_workers,
             metric_groups=metric_groups
         )
+    
+    # Initialize the metrics logger
+    metrics_logger = MetricsLogger(
+        run_id=run_id,
+        output_dir=full_output_dir,
+        wandb_project=config.get("wandb_project"),
+        wandb_entity=config.get("wandb_entity")
+    )
+    
+    # Initialize W&B for batch coordination
+    metrics_logger.init_wandb(
+        group=run_id,
+        config={
+            **config,
+            "dataset_path": dataset_path,
+            "model_name": model_name,
+            "num_targets": len(targets),
+            "metadata": dataset.get("metadata", {})
+        },
+        name=f"batch_optimization_{run_id}",
+        job_type="batch_coordination"
+    )
     
     # Get the complete summary
     summary = metrics_aggregator.get_summary()
@@ -517,6 +531,16 @@ def parse_args():
     parser.add_argument("--eps", type=float, default=1e-10,
                         help="Epsilon value for numerical stability")
     
+    # Gradient estimator parameters
+    parser.add_argument("--gradient_estimator", type=str, default="stgs", choices=["stgs", "reinforce"],
+                        help="Gradient estimator to use for optimizing the discrete inputs")
+    parser.add_argument("--reinforce_reward_scale", type=float, default=1.0,
+                        help="Scaling factor applied to the REINFORCE policy loss")
+    parser.add_argument("--reinforce_use_baseline", type=str2bool, default=True,
+                        help="Enable running baseline to reduce REINFORCE variance")
+    parser.add_argument("--reinforce_baseline_beta", type=float, default=0.9,
+                        help="Exponential moving average coefficient for the REINFORCE baseline")
+    
     # BPTT parameters
     parser.add_argument("--bptt", type=str2bool, default=False,
                         help="Whether to use backpropagation through time")
@@ -542,6 +566,28 @@ def parse_args():
                         help="Maximum gradient norm for clipping")
     parser.add_argument("--plot_every", type=int, default=100,
                         help="Frequency of plotting loss curves")
+    parser.add_argument("--stgs_grad_variance_samples", type=int, default=0,
+                        help="Number of STGS gradient samples to use when estimating variance (>=2 enables metric)")
+    parser.add_argument("--stgs_grad_variance_period", type=int, default=1,
+                        help="Epoch interval between two gradient variance measurements")
+    parser.add_argument("--stgs_grad_bias_samples", type=int, default=0,
+                        help="Number of STGS gradient samples to average when estimating bias (>=1 enables metric)")
+    parser.add_argument("--stgs_grad_bias_period", type=int, default=1,
+                        help="Epoch interval between two STGS bias measurements")
+    parser.add_argument("--stgs_grad_bias_reference_samples", type=int, default=0,
+                        help="Number of REINFORCE reference samples per bias estimate (>=1 enables metric)")
+    parser.add_argument("--stgs_grad_bias_reference_batch_size", type=int, default=0,
+                        help="Batch size for REINFORCE reference bias runs (0 reuses training batch size)")
+    parser.add_argument("--stgs_grad_bias_reference_use_baseline", type=str2bool, default=True,
+                        help="Enable REINFORCE baseline when computing STGS bias")
+    parser.add_argument("--stgs_grad_bias_reference_reward_scale", type=float, default=1.0,
+                        help="Reward scale to apply in the reference REINFORCE bias estimator")
+    parser.add_argument("--stgs_grad_bias_reference_baseline_beta", type=float, default=0.9,
+                        help="EMA beta for the reference REINFORCE baseline during bias estimation")
+    parser.add_argument("--reinforce_grad_variance_samples", type=int, default=0,
+                        help="Number of REINFORCE gradient samples to use when estimating variance (>=2 enables metric)")
+    parser.add_argument("--reinforce_grad_variance_period", type=int, default=1,
+                        help="Epoch interval between two REINFORCE gradient variance measurements")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
     
