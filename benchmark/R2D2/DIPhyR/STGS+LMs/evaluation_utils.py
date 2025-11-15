@@ -4,6 +4,9 @@ Utilities for evaluating generated outputs against targets.
 import logging
 from typing import Dict, List, Any, Optional
 
+import numpy as np
+import torch
+
 # Import compute_all_metrics but provide a fallback implementation in case metrics_registry isn't available
 try:
     from metrics_registry import compute_all_metrics
@@ -13,6 +16,25 @@ except ImportError:
     logging.warning("metrics_registry not available, using fallback implementation")
 
 logger = logging.getLogger("evaluation_utils")
+
+
+def _to_serializable(obj: Any) -> Any:
+    """
+    Convert objects (numpy scalars/arrays, torch tensors) to JSON-serializable representations.
+    """
+    if isinstance(obj, dict):
+        return {k: _to_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_serializable(v) for v in obj]
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.generic):
+        return obj.item()
+    if isinstance(obj, torch.Tensor):
+        if obj.ndim == 0:
+            return obj.item()
+        return obj.detach().cpu().tolist()
+    return obj
 
 def compute_sentencebert_similarity(generated_text, reference_text, model_name="all-MiniLM-L6-v2", batch_size=32, device=None):
     """
@@ -271,7 +293,7 @@ def evaluate_generated_output(
     metrics["generated_text"] = generated_text
     metrics["target_text"] = target_text
     
-    return metrics
+    return _to_serializable(metrics)
 
 def evaluate_batch_outputs(
     generated_batch, 

@@ -1051,7 +1051,8 @@ def main():
     parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_feedbacks_type", type=str, default='normal', choices=[
-        'normal','count-based', 'hurry-140', 'across-training-1.0'],)
+        'normal','count-based', 'hurry-140', 'across-training-1.0',
+        'count-based+across-training-1.0',],)
     parser.add_argument("--ELA_feedbacks_failure_reward", type=float, default=0,)
     parser.add_argument("--ELA_feedbacks_success_reward", type=float, default=1,)
     parser.add_argument("--ELA_rg_dataloader_shuffle", type=str2bool, default=True,)

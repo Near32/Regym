@@ -1,6 +1,11 @@
 #/bin/bash
 #--config=keycorridor_S3_R3_minigrid_wandb_benchmark_AgnosticPOMDPERELELA_config.yaml \
-WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" python -m ipdb -c c ../benchmark_wandb_erelela.py \
+#WANDB_SYNC_FREQUENCY=300 \
+WANDB_STATS_SAMPLE_RATE_SECONDS=60 \
+WANDB_CACHE_DIR=./wandb_cache/ \
+WANDB_DATA_DIR=./wandb_data_dir/ \
+xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" \
+python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --seed=110 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
@@ -105,7 +110,7 @@ WANDB_CACHE_DIR=./wandb_cache/ WANDB_DATA_DIR=./wandb_data_dir/ xvfb-run -a -s "
 --mini_batch_size=32 \
 --gradient_clip=5.0 \
 --value_weight=0.5 \
---entropy_weight=0.1 \
+--entropy_weight=0.0001 \
 --time_limit=0 \
 --benchmarking_record_episode_interval=10000000 \
 --benchmarking_interval=1.0e5 \
