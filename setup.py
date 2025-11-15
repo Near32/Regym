@@ -8,9 +8,13 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as readme:
     long_description = readme.read()
 
-test_requirements = ['dill', 'tqdm', 'pytest',
-                     #'gym-rock-paper-scissors==0.1', 'gym-kuhn-poker==0.1'
-                     ]
+test_requirements = [
+        'dill', 
+        'tqdm', 
+        'pytest',
+        #'gym-rock-paper-scissors==0.1', 
+        #'gym-kuhn-poker==0.1'
+    ]
 
 setup(
     name='regym',
@@ -32,7 +36,7 @@ setup(
     zip_safe=False,
 
     install_requires=[
-      'numpy',#==1.26.4',
+      #'numpy',#==1.26.4',
       'gym==0.25',
       'ray',
       'coloredlogs',
@@ -41,6 +45,7 @@ setup(
       'moviepy',
       'imageio',
       'matplotlib',
+      #'docopt',
       'pyyaml',
       'pip',
       'tensorboardx',
