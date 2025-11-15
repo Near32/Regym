@@ -4,6 +4,3 @@
 [submodule "regym/thirdparty/Archi"]
 	path = regym/thirdparty/Archi
 	url = https://github.com/Near32/Archi
-[submodule "benchmark/R2D2/DIPhyR/STGS+LMs/discrete-differentiable-prompts"]
-	path = benchmark/R2D2/DIPhyR/STGS+LMs/discrete-differentiable-prompts
-	url = https://github.com/Near32/discrete-differentiable-prompts.git
