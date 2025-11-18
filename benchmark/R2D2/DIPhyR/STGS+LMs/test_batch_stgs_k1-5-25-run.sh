@@ -3,7 +3,7 @@ python -m ipdb -c c batch_optimize_main.py  \
 --dataset_path data/distilgpt2_diverse_targets_k1-5-25 \
 --output_dir results/distilgpt2_STGS+Soft+LearnTau+SoftBPTT+LearnBTau+BS=32+LR=1e-1_test_k1-5-25-run \
 --learning_rate=0.1  \
---epochs 2000 \
+--epochs 1000 \
 --model_precision full \
 --gradient_checkpointing=False \
 --losses=crossentropy \
@@ -18,7 +18,7 @@ python -m ipdb -c c batch_optimize_main.py  \
 --stgs_grad_bias_reference_reward_scale=1.0 \
 --stgs_grad_bias_reference_baseline_beta=0.9 \
 --batch_size=64 \
---seed=1 \
+--seed=2 \
 --num_workers=1 \
 --seq_len=80 \
 --stgs_hard=False \
@@ -28,8 +28,8 @@ python -m ipdb -c c batch_optimize_main.py  \
 --bptt=True \
 --bptt_stgs_hard=False \
 --bptt_learnable_temperature=True \
---bptt_hidden_state_conditioning=True \
---bptt_temperature=10.0 
-#--target_indices=1 
+--bptt_hidden_state_conditioning=False \
+--bptt_temperature=100.0 
+#--target_indices="0,1" 
 
 #--losses=embxentropy \

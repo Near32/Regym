@@ -1,0 +1,79 @@
+project: PromptOptimisationSTGS 
+entity: kevin-near32-org
+program: batch_optimize_main.py
+command:
+  - ${env}
+  - ./plm_venv/bin/python
+  - ${program}
+  - ${args}
+method: grid
+metric:
+  name: loss
+  goal: minimize 
+parameters:
+  dataset_path:
+    values: ["./data/distilgpt2_diverse_targets_k1-5-25"]
+  output_dir:
+    values: ["results/distilgpt2_bptt_grid_sweep"]
+  model_name:
+    values: ["distilbert/distilgpt2"]
+  model_precision:
+    values: ["full"]
+  gradient_checkpointing:
+    values: ["False"]
+  losses:
+    values: ["embxentropy", "crossentropy"]
+  seq_len:
+    values: [10, 20, 80]
+  gradient_estimator:
+    values: ['stgs']
+  stgs_grad_variance_samples:
+    values: [10]
+  stgs_grad_variance_period:
+    values: [20]
+  stgs_grad_bias_samples:
+    values: [10]
+  stgs_grad_bias_period:
+    values: [50]
+  stgs_grad_bias_reference_samples:
+    values: [10]
+  stgs_grad_bias_reference_batch_size:
+    values: [64]
+  stgs_grad_bias_reference_use_baseline:
+    values: [True]
+  stgs_grad_bias_reference_reward_scale:
+    values: [1.0]
+  stgs_grad_bias_reference_baseline_beta:
+    values: [0.9]
+  epochs:
+    values: [1000]
+  temperature:
+    values: [100]
+  decouple_learnable_temperature:
+    values: [True]
+  learnable_temperature:
+    values: [True]
+  stgs_hard:
+    values: [False, True]
+  bptt:
+    values: [False, True]
+  bptt_temperature:
+    values: [100]
+  bptt_learnable_temperature:
+    values: [True]
+  bptt_stgs_hard:
+    values: [False, True]
+  bptt_hidden_state_conditioning:
+    values: [False, True]
+  plot_every:
+    values: [100000]
+  seed:
+    values: [10, 20, 30, 40, 50]
+  batch_size:
+    values: [64]
+  learning_rate:
+    values: [1.0e-1]
+  num_workers:
+    values: [1]
+
+                   
