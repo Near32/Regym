@@ -14,6 +14,7 @@ class STGS(nn.Module):
         stgs_hard: bool = False,
         init_temperature: float = 1.0,
         learnable_temperature: bool = False,
+        nbr_learnable_temperatures: Optional[int] = None,
         conditioning_dim: int = 0,
         eps: float = 1e-12,
         device: str = "cpu",
@@ -23,16 +24,20 @@ class STGS(nn.Module):
         self.stgs_hard = stgs_hard
         self.init_temperature = init_temperature
         self.learnable_temperature = learnable_temperature
+        self.nbr_learnable_temperatures = nbr_learnable_temperatures
+        if self.learnable_temperature:
+            if self.nbr_learnable_temperatures is None:
+                self.nbr_learnable_temperatures = 1
         self.conditioning_dim = conditioning_dim
         self.eps = eps
         self.device = device
 
         if self.learnable_temperature:
             if self.conditioning_dim < 1:
-                self.temperature_param = nn.Parameter(torch.rand(1, requires_grad=True, device=self.device))
+                self.temperature_param = nn.Parameter(torch.rand(self.nbr_learnable_temperatures, requires_grad=True, device=self.device))
             else:
                 self.tau_fc = nn.Sequential(
-                    nn.Linear(self.conditioning_dim, 1, bias=False),
+                    nn.Linear(self.conditioning_dim, self.nbr_learnable_temperatures, bias=False),
                     nn.Softplus(),
                 ).to(device=device)
 
@@ -40,6 +45,9 @@ class STGS(nn.Module):
         if self.learnable_temperature:
             if self.conditioning_dim < 1:
                 eff_temperature = self.eps + 1.0 / (F.softplus(self.temperature_param) + 1.0 / (self.eps + self.init_temperature))
+                eff_temperature = eff_temperature.reshape(1, -1, 1)
+                batch_size = x.shape[0]
+                eff_temperature = eff_temperature.repeat(batch_size, 1, 1)
             else:
                 assert hidden_states is not None
                 batch_size = x.shape[0]
@@ -47,7 +55,9 @@ class STGS(nn.Module):
                 last_hidden_state = hidden_states[-1][:, -1, :].reshape(batch_size, self.conditioning_dim)
                 inv_tau0 = 1.0 / (self.eps + self.init_temperature)
                 eff_temperature = self.eps + 1.0 / (self.tau_fc(last_hidden_state) + inv_tau0).reshape(batch_size, -1, 1)
-                eff_temperature = eff_temperature.repeat(1, seq_len, 1)
+                if self.nbr_learnable_temperatures==1 \
+                and self.nbr_learnable_temperatures != seq_len:
+                    eff_temperature = eff_temperature.repeat(1, seq_len, 1)
         else:
             eff_temperature = torch.tensor([self.init_temperature], device=self.device)
 

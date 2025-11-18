@@ -9,9 +9,9 @@ python -m ipdb -c c batch_optimize_main.py  \
 --losses=crossentropy \
 --gradient_estimator=stgs \
 --stgs_grad_variance_samples=10 \
---stgs_grad_variance_period=10 \
+--stgs_grad_variance_period=20 \
 --stgs_grad_bias_samples=10 \
---stgs_grad_bias_period=20 \
+--stgs_grad_bias_period=50 \
 --stgs_grad_bias_reference_samples=10 \
 --stgs_grad_bias_reference_batch_size=64 \
 --stgs_grad_bias_reference_use_baseline=True \
@@ -23,12 +23,13 @@ python -m ipdb -c c batch_optimize_main.py  \
 --seq_len=80 \
 --stgs_hard=False \
 --learnable_temperature=True \
---temperature=1.5 \
+--decouple_learnable_temperature=True \
+--temperature=10.0 \
 --bptt=True \
 --bptt_stgs_hard=False \
 --bptt_learnable_temperature=True \
---bptt_hidden_state_conditioning=False \
---bptt_temperature=3.0 
+--bptt_hidden_state_conditioning=True \
+--bptt_temperature=10.0 
 #--target_indices=1 
 
 #--losses=embxentropy \

@@ -464,6 +464,7 @@ def optimize_inputs(
     temperature = 0.5,
     bptt_temperature = 0.5,
     learnable_temperature=False,
+    decouple_learnable_temperature=False,
     bptt_learnable_temperature=False,
     stgs_hard=True,
     bptt_stgs_hard=True,
@@ -551,6 +552,7 @@ def optimize_inputs(
         "temperature": temperature,
         "bptt_temperature": bptt_temperature,
         "learnable_temperature": learnable_temperature,
+        "decouple_learnable_temperature": decouple_learnable_temperature,
         "bptt_learnable_temperature": bptt_learnable_temperature,
         "stgs_hard": stgs_hard,
         "bptt_stgs_hard": bptt_stgs_hard,
@@ -636,6 +638,7 @@ def optimize_inputs(
             stgs_hard=stgs_hard,
             init_temperature=temperature,
             learnable_temperature=learnable_temperature,
+            nbr_learnable_temperatures=seq_len if decouple_learnable_temperature else None,
             eps=eps,
             device=device,
         )
@@ -853,6 +856,9 @@ def optimize_inputs(
         if estimator_is_stgs:
             if torch.is_tensor(eff_temperature):
                 wandb_log["effective_temperature"] = eff_temperature.mean().item()
+                if decouple_learnable_temperature:
+                    for sidx in range(eff_temperature.shape[1]):
+                        wandb_log[f"effective_temperature_{sidx}"] = eff_temperature[:, sidx].mean().item()
             if torch.is_tensor(bptt_eff_temperature):
                 wandb_log["bptt_effective_temperature"] = bptt_eff_temperature.mean().item()
             elif isinstance(bptt_eff_temperature, (float, int)):

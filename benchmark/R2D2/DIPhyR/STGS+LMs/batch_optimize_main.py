@@ -175,6 +175,7 @@ def optimize_for_target(target_info: Dict[str, Any], model, tokenizer, device: s
         temperature=config.get("temperature", 1.0),
         bptt_temperature=config.get("bptt_temperature", 1.0),
         learnable_temperature=config.get("learnable_temperature", False),
+        decouple_learnable_temperature=config.get("decouple_learnable_temperature", False),
         bptt_learnable_temperature=config.get("bptt_learnable_temperature", False),
         stgs_hard=config.get("stgs_hard", True),
         bptt_stgs_hard=config.get("bptt_stgs_hard", True),
@@ -526,6 +527,8 @@ def parse_args():
                         help="Temperature for Gumbel-Softmax")
     parser.add_argument("--learnable_temperature", type=str2bool, default=False,
                         help="Whether to learn the temperature parameter")
+    parser.add_argument("--decouple_learnable_temperature", type=str2bool, default=False,
+                        help="Whether to learn multiple decouple temperature parameters, one for each learnable input.")
     parser.add_argument("--stgs_hard", type=str2bool, default=True,
                         help="Whether to use hard ST-GS")
     parser.add_argument("--eps", type=float, default=1e-10,
