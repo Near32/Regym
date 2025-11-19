@@ -52,10 +52,11 @@ setup(
       'opencv-python',
       # PREVIOUSLY: 'torch',#==1.8.1',
       # THEN : 'torch==1.12.0',
-      # THEN: 'torch==1.13.1',
-      #'torchvision==0.14.1',
+      # THEN:'torch==1.13.1',
       # NOW:
       #'torch',
+      #PREVIOUSLY: 'torchvision==0.14.1',
+      #NOW:
       #'torchvision',
       'cvxopt',
       'scipy',

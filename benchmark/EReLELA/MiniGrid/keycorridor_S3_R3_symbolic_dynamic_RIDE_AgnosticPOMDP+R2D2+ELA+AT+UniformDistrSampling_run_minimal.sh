@@ -6,7 +6,7 @@ WANDB_CACHE_DIR=./wandb_cache/ \
 WANDB_DATA_DIR=./wandb_data_dir/ \
 xvfb-run -a -s "-screen 0 1024x768x24 -ac +extension GLX +render -noreset" \
 python -m ipdb -c c ../benchmark_wandb_erelela.py \
---seed=120 --env_seed=12 --static_envs=False \
+--seed=130 --env_seed=12 --static_envs=False \
 --with_early_stopping=False \
 --use_cuda=True \
 --project=EReLELA+AT+R2D2-KeyCorridor-Symbolic-Benchmark \
@@ -34,6 +34,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --PER_use_rewards_in_priority=False \
 --sequence_replay_PER_eta=0.9 \
 --PER_compute_initial_priority=True \
+--use_PER=True \
 --use_ETHER=False --use_THER=False \
 --use_RP=False --RP_use_RP=True \
 --use_ELA=True --ELA_use_ELA=True \

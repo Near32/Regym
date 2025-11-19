@@ -1920,15 +1920,18 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             
         if update:
             self.update_datasets()
-            if self.rg_iteration==0:
-                self.referential_game = ReferentialGym.make(
-                    config=self.rg_config, 
-                    dataset_args=self.dataset_args,
-                    save_path=self.save_path,
-                )
-            else:
-                self.referential_game.update_datasets(dataset_args=self.dataset_args)
-         
+            try:
+                if self.rg_iteration==0:
+                    self.referential_game = ReferentialGym.make(
+                        config=self.rg_config, 
+                        dataset_args=self.dataset_args,
+                        save_path=self.save_path,
+                    )
+                else:
+                    self.referential_game.update_datasets(dataset_args=self.dataset_args)
+            except Exception as e:
+                print(f"Exception caught while trying to update RG dataset: {e}")
+                import ipdb; ipdb.set_trace()
         start = time.time()
         #self.launch_referential_game(nbr_epoch=self.kwargs["ELA_rg_nbr_epoch_per_update"])
         self.launch_referential_game(nbr_epoch=1)
