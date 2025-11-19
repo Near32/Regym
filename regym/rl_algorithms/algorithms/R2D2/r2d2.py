@@ -191,7 +191,9 @@ class R2D2Algorithm(DQNAlgorithm):
         
         self.storages = []
         beta_increase_interval = None
-        if 'PER_beta_increase_interval' in self.kwargs and self.kwargs['PER_beta_increase_interval']!='None':
+        if 'PER_beta_increase_interval' in self.kwargs \
+        and self.kwargs['PER_beta_increase_interval'] is not None \
+        and self.kwargs['PER_beta_increase_interval']!='None':
             beta_increase_interval = float(self.kwargs['PER_beta_increase_interval'])  
 
         self.pre_storage_sequence_exp_dict = []
@@ -215,7 +217,9 @@ class R2D2Algorithm(DQNAlgorithm):
                         circular_keys=self.circular_keys,                 
                         circular_offsets=self.circular_offsets,
                         use_rewards_in_priority=self.kwargs.get('PER_use_rewards_in_priority', False),
-                    )
+                        normalize_IS=self.kwargs.get('PER_normalize_IS', False),
+                        epsilon=1e-4,
+                        )
                 else:
                     if self.use_mp:
                         rp_fn = regym.AlgoManager.PrioritizedReplayStorage
@@ -231,7 +235,9 @@ class R2D2Algorithm(DQNAlgorithm):
                             circular_keys=self.circular_keys,
                             circular_offsets=self.circular_offsets,
                             use_rewards_in_priority=self.kwargs.get('PER_use_rewards_in_priority', False),
-                        )
+                            normalize_IS=self.kwargs.get('PER_normalize_IS', False),
+                            epsilon=1e-4,
+                    )
                 self.storages.append(storage)
             else:
                 self.storages.append(

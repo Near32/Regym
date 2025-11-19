@@ -402,6 +402,8 @@ class DQNAlgorithm(Algorithm):
                     circular_keys=circular_keys,                 
                     circular_offsets=circular_offsets,
                     use_rewards_in_priority=self.kwargs.get('PER_use_rewards_in_priority', False),
+                    normalize_IS=self.kwargs.get('PER_normalize_IS', False),
+                    epsilon=1e-4,
                 )
             else:
                 rp = ReplayStorage(
