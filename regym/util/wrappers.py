@@ -3569,8 +3569,20 @@ class GymRGBImgPartialObsWrapper(gym.ObservationWrapper):
         )
     
     def observation(self, obs):
+        is_reset = False
+        if isinstance(obs, tuple):
+            assert len(obs) == 2
+            # reset:
+            is_reset = True
+            t_obs = obs
+            obs = t_obs[0]
+            infos = t_obs[1]
+        
         if hasattr(self.unwrapped, 'get_frame'):
-            rgb_img_partial = self.unwrapped.get_frame(tile_size=self.tile_size, agent_pov=True)
+            rgb_img_partial = self.unwrapped.get_frame(
+                tile_size=self.tile_size, 
+                agent_pov=True,
+            )
         else:
             '''
             # Full observation / north-oriented:
@@ -3588,12 +3600,7 @@ class GymRGBImgPartialObsWrapper(gym.ObservationWrapper):
             )
             # 56 x 56 x 3
         
-        if isinstance(obs, tuple):
-            assert len(obs) == 2
-            # reset:
-            t_obs = obs
-            obs = t_obs[0]
-            infos = t_obs[1]
+        if is_reset:
             assert isinstance(obs, dict)
             obs['symbolic_image'] = obs['image']
             obs["image"] = rgb_img_partial
@@ -4023,6 +4030,7 @@ def baseline_ther_wrapper(
     language_guided_curiosity_densify=False,
     coverage_manipulation_metric=False,
     descr_type='pickup_only', #'precise-descr',
+    **kwargs,
     ):
     
     if miniworld_entity_visibility_oracle \

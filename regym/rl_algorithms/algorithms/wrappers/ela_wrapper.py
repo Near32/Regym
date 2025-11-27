@@ -27,6 +27,7 @@ from ReferentialGym.agents import DiscriminativeListener, LSTMCNNListener
 
 import wandb 
 from regym.util import wandb_log
+from regym.rl_algorithms.utils import RunningMeanStd
 
 
 class ContextObj(object):
@@ -126,6 +127,10 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         
         self.kwargs = algorithm.kwargs
         self.feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
+        self.int_rew_momentum = self.kwargs.get('ELA_int_rew_norm_momentum', 0.90)
+        self.int_rew_stats = RunningMeanStd(momentum=self.int_rew_momentum)
+        self.int_rew_eps = self.kwargs.get('ELA_int_rew_norm_eps', 1e-8)
+
         self.visited_captions = {}
         self.need_training = False
 
@@ -607,6 +612,31 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 }, 
                 commit=True,
             )
+
+            if self.kwargs.get('ELA_normalize_IR', False):
+                # Update intrinsic reward statistics: 
+                self.int_rew_stats.update(batched_new_r.reshape(-1))
+                self.int_rew_mean = self.int_rew_stats.mean
+                self.int_rew_std = self.int_rew_stats.std
+                # Normalize intrinsic rewards:
+                batched_new_r = (batched_new_r - self.int_rew_mean) / (self.int_rew_std + self.int_rew_eps)
+            else:
+                # No normalization, keep original scale
+                self.int_rew_mean = 0.0
+                self.int_rew_std = 1.0
+            
+            wandb_log({
+                "PerEpisode/ELA_Predicate/IRRollingMean": float(self.int_rew_mean),
+                "PerEpisode/ELA_Predicate/IRRollingStd": float(self.int_rew_std),
+                "PerEpisode/ELA_Predicate/EpIRMin": float(batched_new_r.min()),
+                "PerEpisode/ELA_Predicate/EpIRMax": float(batched_new_r.max()),
+                "PerEpisode/ELA_Predicate/EpIRStd": float(batched_new_r.std()),
+                "PerEpisode/ELA_Predicate/EpIRMean": float(torch.mean(batched_new_r)),
+                "PerEpisode/ELA_Predicate/EpIRMedian": float(torch.median(batched_new_r)),
+                "PerEpisode/ELA_Predicate/EpIRQ1": float(torch.quantile(batched_new_r, 0.25)),
+                "PerEpisode/ELA_Predicate/EpIRQ3": float(torch.quantile(batched_new_r, 0.75)),
+                "PerEpisode/ELA_Predicate/EpIRIQR": float(torch.quantile(batched_new_r, 0.75) - torch.quantile(batched_new_r, 0.25)),
+            }, commit=False)
             
             new_rs = []
             #for idx in tqdm(range(episode_length)):
