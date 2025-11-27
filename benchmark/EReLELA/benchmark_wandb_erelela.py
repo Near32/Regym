@@ -1053,6 +1053,9 @@ def main():
     parser.add_argument("--ELA_use_ELA", type=str2bool, default="False",)
     parser.add_argument("--ELA_with_rg_training", type=str2bool, default="True",)
     parser.add_argument("--ELA_with_rg_optimize", type=str2bool, default="True",)
+    parser.add_argument("--ELA_normalize_IR", type=str2bool, default="False",)
+    parser.add_argument("--ELA_int_rew_norm_momentum", type=float, default=0.9,)
+    parser.add_argument("--ELA_int_rew_norm_eps", type=float, default=1e-8,)
     parser.add_argument("--ELA_reward_extrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_reward_intrinsic_weight", type=float, default=1.0,)
     parser.add_argument("--ELA_feedbacks_type", type=str, default='normal', choices=[
