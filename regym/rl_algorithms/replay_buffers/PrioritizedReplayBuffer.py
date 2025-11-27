@@ -571,6 +571,8 @@ class PrioritizedReplayStorage(ReplayStorage):
         circular_keys={'succ_s':'s'},
         circular_offsets={'succ_s':1},
         use_rewards_in_priority=False,
+        normalize_IS=False,
+        epsilon=1e-4,
     ):
         super(PrioritizedReplayStorage, self).__init__(
             capacity=capacity,
@@ -585,7 +587,8 @@ class PrioritizedReplayStorage(ReplayStorage):
         
         self.eta = eta
         self.use_rewards_in_priority = use_rewards_in_priority
-        self.epsilon = 1e-4
+        self.normalize_IS = normalize_IS
+        self.epsilon = epsilon
 
         
         if regym.RegymManager is not None:
@@ -805,6 +808,10 @@ class PrioritizedReplayStorage(ReplayStorage):
         # Importance Sampling Weighting:
         priorities = np.array(priorities, dtype=np.float32).reshape(-1)
         self.importanceSamplingWeights = np.power( len(self) * priorities , -self.beta)
+        
+        # IS Normalization:
+        if self.normalize_IS:
+            self.importanceSamplingWeights /= self.max_priority
 
         data_indices = np.array([tidx-self.capacity+1 for tidx in self.tree_indices])
         data = self.cat(keys=keys, indices=data_indices)

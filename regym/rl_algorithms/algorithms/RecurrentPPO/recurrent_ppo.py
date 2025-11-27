@@ -249,10 +249,10 @@ class RecurrentPPOAlgorithm(R2D2Algorithm):
         self.kwargs['sequence_replay_overlap_length'] = 0
         
         # NOW: when forcing the unroll lenght:
-        self.sequence_replay_unroll_length = self.horizon
-        self.kwargs['sequence_replay_unroll_length'] = self.horizon
+        #self.sequence_replay_unroll_length = self.horizon
+        #self.kwargs['sequence_replay_unroll_length'] = self.horizon
         # PREVIOUSLY : letting it be set by user:
-        # self.sequence_replay_unroll_length = self.kwargs['sequence_replay_unroll_length']
+        self.sequence_replay_unroll_length = self.kwargs['sequence_replay_unroll_length']
 
         self.sequence_replay_store_on_terminal = False
         self.sequence_replay_burn_in_ratio = self.kwargs['sequence_replay_burn_in_ratio']

@@ -26,7 +26,11 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --MiniWorld_entity_visibility_oracle_include_discrete_depth=True \
 --MiniWorld_entity_visibility_oracle_include_depth_precision=-1 \
 --MiniWorld_entity_visibility_oracle_top_view=False \
---PER_alpha=0.9 --PER_beta=0.4 \
+--use_PER=True \
+--PER_normalize_IS=True \
+--PER_alpha=0.9 \
+--PER_beta=0.4 \
+--PER_beta_increase_interval=None \
 --PER_use_rewards_in_priority=False \
 --sequence_replay_PER_eta=0.9 \
 --PER_compute_initial_priority=True \
@@ -86,7 +90,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --BabyAI_Bot_action_override=False \
 --n_step=3 --nbr_actor=32 \
 --epsstart=0.4 --epsend=0.4 \
---epsdecay=1000000 --eps_greedy_alpha=7.0 \
+--epsdecay=1000000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
 --min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=80e3 \
 --learning_rate=6.25e-5 \

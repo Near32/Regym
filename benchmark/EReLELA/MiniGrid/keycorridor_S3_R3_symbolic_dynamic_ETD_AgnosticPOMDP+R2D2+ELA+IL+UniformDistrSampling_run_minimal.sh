@@ -11,7 +11,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --use_cuda=True \
 --project="EReLELA+IL+R2D2-KeyCorridor-Symbolic-Benchmark" \
 --success_threshold=0.01 \
---config=keycorridor_S3_R3_symbolic_minigrid_wandb_RIDE_benchmark_AgnosticPOMDPERELELA+R2D2_config.yaml \
+--config=keycorridor_S3_R3_symbolic_minigrid_wandb_ETD_benchmark_AgnosticPOMDPERELELA+R2D2_config.yaml \
 --language_guided_curiosity=False \
 --language_guided_curiosity_descr_type='descr' \
 --language_guided_curiosity_extrinsic_weight=10.0 \
@@ -104,7 +104,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --nbr_training_iteration_per_cycle=2 --nbr_episode_per_cycle=0 \
 --single_pick_episode=False \
 --terminate_on_completion=True \
---adam_eps=1.0e-12 \
+--adam_eps=1.0e-5 \
 --horizon=128 \
 --optimization_epochs=4 \
 --standardized_adv=True \

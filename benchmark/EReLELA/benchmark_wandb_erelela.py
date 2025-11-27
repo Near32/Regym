@@ -650,6 +650,9 @@ def str2bool(instr):
 def intOrNone(instr):
     if instr is None:
         return None
+    if isinstance(instr, str) \
+    and 'none' in instr.lower():
+        return None
     return int(instr)
 
 def main():
@@ -708,8 +711,10 @@ def main():
     
     parser.add_argument("--use_PER", type=str2bool, default="True")
     parser.add_argument("--PER_use_rewards_in_priority", type=str2bool, default="False")
+    parser.add_argument("--PER_normalize_IS", type=str2bool, default="False")
     parser.add_argument("--PER_alpha", type=float, default=0.9)
     parser.add_argument("--PER_beta", type=float, default=0.6)
+    parser.add_argument("--PER_beta_increase_interval", type=intOrNone, default=None)
     parser.add_argument("--sequence_replay_PER_eta", type=float, default=0.9)
     parser.add_argument("--PER_compute_initial_priority", type=str2bool, default="False")
     parser.add_argument("--learning_rate", 
