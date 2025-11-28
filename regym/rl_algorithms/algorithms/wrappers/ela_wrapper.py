@@ -558,7 +558,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             previous_d2stores = [] 
 
             self.nbr_relabelled_traj += 1
-            if self.kwargs['ELA_use_ELA']:
+            if not minimal \
+            and self.kwargs['ELA_use_ELA']:
                 feedbacks_type =  self.kwargs.get('ELA_feedbacks_type', 'normal')
                 # We process the whole episode at once:
                 batched_exp = self.episode_buffer[actor_index]
@@ -613,7 +614,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 commit=True,
             )
 
-            if self.kwargs.get('ELA_normalize_IR', False):
+            if not minimal \
+            and self.kwargs.get('ELA_normalize_IR', False):
                 # Update intrinsic reward statistics: 
                 self.int_rew_stats.update(batched_new_r.reshape(-1))
                 self.int_rew_mean = self.int_rew_stats.mean
@@ -625,18 +627,21 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 self.int_rew_mean = 0.0
                 self.int_rew_std = 1.0
             
-            wandb_log({
-                "PerEpisode/ELA_Predicate/IRRollingMean": float(self.int_rew_mean),
-                "PerEpisode/ELA_Predicate/IRRollingStd": float(self.int_rew_std),
-                "PerEpisode/ELA_Predicate/EpIRMin": float(batched_new_r.min()),
-                "PerEpisode/ELA_Predicate/EpIRMax": float(batched_new_r.max()),
-                "PerEpisode/ELA_Predicate/EpIRStd": float(batched_new_r.std()),
-                "PerEpisode/ELA_Predicate/EpIRMean": float(torch.mean(batched_new_r)),
-                "PerEpisode/ELA_Predicate/EpIRMedian": float(torch.median(batched_new_r)),
-                "PerEpisode/ELA_Predicate/EpIRQ1": float(torch.quantile(batched_new_r, 0.25)),
-                "PerEpisode/ELA_Predicate/EpIRQ3": float(torch.quantile(batched_new_r, 0.75)),
-                "PerEpisode/ELA_Predicate/EpIRIQR": float(torch.quantile(batched_new_r, 0.75) - torch.quantile(batched_new_r, 0.25)),
-            }, commit=False)
+            if not minimal:
+                wandb_log({
+                    "PerEpisode/ELA_Predicate/IRRollingMean": float(self.int_rew_mean),
+                    "PerEpisode/ELA_Predicate/IRRollingStd": float(self.int_rew_std),
+                    "PerEpisode/ELA_Predicate/EpIRMin": float(batched_new_r.min()),
+                    "PerEpisode/ELA_Predicate/EpIRMax": float(batched_new_r.max()),
+                    "PerEpisode/ELA_Predicate/EpIRStd": float(batched_new_r.std()),
+                    "PerEpisode/ELA_Predicate/EpIRMean": float(torch.mean(batched_new_r)),
+                    "PerEpisode/ELA_Predicate/EpIRMedian": float(torch.median(batched_new_r)),
+                    "PerEpisode/ELA_Predicate/EpIRQ1": float(torch.quantile(batched_new_r, 0.25)),
+                    "PerEpisode/ELA_Predicate/EpIRQ3": float(torch.quantile(batched_new_r, 0.75)),
+                    "PerEpisode/ELA_Predicate/EpIRIQR": float(torch.quantile(batched_new_r, 0.75) - torch.quantile(batched_new_r, 0.25)),
+                    }, 
+                    commit=False,
+                )
             
             new_rs = []
             #for idx in tqdm(range(episode_length)):
@@ -646,7 +651,8 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 r = self.episode_buffer[actor_index][idx]['r']
                 
                 new_r = self.extrinsic_weight*r
-                if self.kwargs['ELA_use_ELA']:
+                if not minimal \
+                and self.kwargs['ELA_use_ELA']:
                     new_r += self.intrinsic_weight*batched_new_r[idx:idx+1]
                 else:
                     assert self.extrinsic_weight > 0

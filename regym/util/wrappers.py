@@ -3761,7 +3761,8 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         CoverageRatio = float(self.coverage_count)/self.nbr_coverage_points
         ManipulationRatio = float(self.manipulation_count)/self.episode_length
         PickupRatio = float(self.pickup_count)/self.episode_length
-        wandb.log({
+        if wandb.run is not None:
+            wandb.log({
             f"Wrappers/CoverageManipulationMetric/CoverageRatio":CoverageRatio,
             f"Wrappers/CoverageManipulationMetric/CoverageCount":self.coverage_count,
             f"Wrappers/CoverageManipulationMetric/ManipulationCount":self.manipulation_count,
@@ -3775,7 +3776,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             f"Wrappers/CoverageManipulationMetric/PickupRatio": PickupRatio,
             },
             commit=False,
-        )
+            )
 
         self.reward_hist = []
         self.manipulation_count = 0
@@ -3833,7 +3834,7 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             PickupRatio = float(self.pickup_count)/self.episode_length
             next_infos['metrics']['pickup_ratio'] = PickupRatio
             next_infos['metrics']['episode_length'] = self.episode_length
-            wandb.log(next_infos['metrics'], commit=False)
+            if wandb.run is not None: wandb.log(next_infos['metrics'], commit=False)
 
         return next_observation, reward, done, next_infos
 
@@ -3915,11 +3916,13 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
             f"Wrappers/LanguageGuidedCuriosity/VisitationCountHistogram":visitation_count_hist,
             },
         )
-        wandb.log(
-            wandb_dict,
-            #step=self.episode_idx,
-            commit=False,
-        )
+        if wandb.run is not None:
+            wandb.log(
+                wandb_dict,
+                #step=self.episode_idx,
+                commit=False,
+            )
+
         self.intrinsic_return = 0
         self.extrinsic_return = 0
         self.episode_idx += 1
