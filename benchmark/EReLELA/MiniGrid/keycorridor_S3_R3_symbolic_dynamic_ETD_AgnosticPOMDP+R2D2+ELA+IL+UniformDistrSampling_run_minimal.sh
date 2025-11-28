@@ -82,7 +82,10 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --ELA_rg_distractor_sampling_with_replacement=True \
 --ELA_rg_distractor_sampling='uniform' \
 --ELA_rg_same_episode_target=True \
---ELA_reward_extrinsic_weight=40.0 --ELA_reward_intrinsic_weight=0.1 \
+--ELA_normalize_IR=True \
+--ELA_int_rew_norm_momentum=0.9 \
+--ELA_int_rew_norm_eps=1e-5 \
+--ELA_reward_extrinsic_weight=10.0 --ELA_reward_intrinsic_weight=0.01 \
 --ELA_feedbacks_type='normal' \
 --ELA_feedbacks_failure_reward=0.0 --ELA_feedbacks_success_reward=1 \
 --ELA_rg_record_unique_stats=False \
@@ -91,7 +94,7 @@ python -m ipdb -c c ../benchmark_wandb_erelela.py \
 --epsstart=0.4 --epsend=0.4 \
 --epsdecay=1000000 --eps_greedy_alpha=2.0 \
 --nbr_minibatches=1 --batch_size=64 \
---min_capacity=4e3 --min_handled_experiences=28e3 --replay_capacity=80e3 \
+--min_capacity=28e3 --min_handled_experiences=28e3 --replay_capacity=80e3 \
 --learning_rate=6.25e-5 \
 --r2d2_use_value_function_rescaling=True \
 --sequence_replay_burn_in_ratio=0.5 --weights_entropy_lambda=0.0 \

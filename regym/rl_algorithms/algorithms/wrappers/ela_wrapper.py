@@ -617,9 +617,9 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             if not minimal \
             and self.kwargs.get('ELA_normalize_IR', False):
                 # Update intrinsic reward statistics: 
-                self.int_rew_stats.update(batched_new_r.reshape(-1))
-                self.int_rew_mean = self.int_rew_stats.mean
-                self.int_rew_std = self.int_rew_stats.std
+                self.int_rew_stats.update(batched_new_r.reshape(-1).numpy())
+                self.int_rew_mean = float(self.int_rew_stats.mean)
+                self.int_rew_std = float(self.int_rew_stats.std)
                 # Normalize intrinsic rewards:
                 batched_new_r = (batched_new_r - self.int_rew_mean) / (self.int_rew_std + self.int_rew_eps)
             else:
