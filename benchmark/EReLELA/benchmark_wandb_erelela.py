@@ -1069,6 +1069,7 @@ def main():
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_with_ordering", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_use_cumulative_scores", type=str2bool, default=True)
     parser.add_argument("--ELA_rg_compactness_ambiguity_metric_language_specs", type=str, default="emergent")
+    parser.add_argument("--ELA_rg_compactness_ambiguity_metric_resampling", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_sanity_check_compactness_ambiguity_metric", type=str2bool, default=False)
     parser.add_argument("--ELA_rg_training_period", type=int, default=1024)
     parser.add_argument("--ELA_rg_training_max_skip", type=int, default=-1)

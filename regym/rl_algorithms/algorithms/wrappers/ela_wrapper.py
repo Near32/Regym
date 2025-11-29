@@ -1578,7 +1578,7 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "batch_size":self.kwargs["ELA_rg_metric_batch_size"],#5,
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
                 "nbr_eval_points":self.kwargs["ELA_rg_nbr_eval_points"],#2000,
-                "resample": False, #self.kwargs["ELA_rg_metric_resampling"],
+                "resample": self.kwargs.get("ELA_rg_compactness_ambiguity_metric_resampling", False),
                 "threshold":5e-2,#0.0,#1.0,
                 "random_state_seed":self.kwargs["ELA_rg_seed"],
                 "nbr_shuffled_entities":4,
@@ -1995,4 +1995,3 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
             predictor=self.predictor, 
         ) 
         return cloned_algo
-
