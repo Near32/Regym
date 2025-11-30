@@ -1710,9 +1710,11 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
         elif 'similarity-' in self.rg_config['distractor_sampling']:
             assert self.kwargs['ELA_rg_same_episode_target']
         
-        extra_keys_dict = {
-            "grounding_signal":self.kwargs.get("ELA_grounding_signal_key", None),
-        }
+        extra_keys_dict = {}
+        if self.kwargs.get("ELA_grounding_signal_key", None) is not None \
+        and self.kwargs.get("ELA_grounding_signal_key", None) != "None" :
+            extra_keys_dict["grounding_signal"] = self.kwargs.get("ELA_grounding_signal_key", None)
+        
         if self.kwargs.get("ELA_rg_sanity_check_compactness_ambiguity_metric", False):
             extra_keys_dict.update({
                 "top_view":"info:top_view",
