@@ -4125,13 +4125,16 @@ def baseline_ther_wrapper(
     if faceupobject_oracle:
         observation_keys_mapping['achieved_goal'] = 'achieved_goal'
 
-    env = TextualGoal2IdxWrapper(
-        env=env,
-        max_sentence_length=max_sentence_length,
-        vocabulary=vocabulary,
-        vocab_size=vocab_size,
-        observation_keys_mapping=observation_keys_mapping,
-    )
+    if observation_key == 'None':
+        observation_key = None
+    if observation_key is not None:
+        env = TextualGoal2IdxWrapper(
+            env=env,
+            max_sentence_length=max_sentence_length,
+            vocabulary=vocabulary,
+            vocab_size=vocab_size,
+            observation_keys_mapping=observation_keys_mapping,
+        )
 
     if language_guided_curiosity:
         env = LanguageGuidedCuriosityWrapper(
