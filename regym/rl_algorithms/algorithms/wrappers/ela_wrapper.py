@@ -1579,6 +1579,14 @@ class ELAAlgorithmWrapper(AlgorithmWrapper):
                 "nbr_train_points":self.kwargs["ELA_rg_nbr_train_points"],#3000,
                 "nbr_eval_points":self.kwargs["ELA_rg_nbr_eval_points"],#2000,
                 "resample": self.kwargs.get("ELA_rg_compactness_ambiguity_metric_resampling", False),
+                "resample_batch_size": self.kwargs.get(
+                    "ELA_rg_compactness_ambiguity_metric_resample_batch_size",
+                    64,
+                ),
+                "resample_progress": self.kwargs.get(
+                    "ELA_rg_compactness_ambiguity_metric_resample_progress",
+                    True,
+                ),
                 "threshold":5e-2,#0.0,#1.0,
                 "random_state_seed":self.kwargs["ELA_rg_seed"],
                 "nbr_shuffled_entities":4,

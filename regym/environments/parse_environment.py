@@ -49,19 +49,22 @@ def generate_task(env_name: str,
     :returns: Task created from :param: env_name
     '''
     if env_name is None: raise ValueError('Parameter \'env_name\' was None')
-    try:
-        is_gym_environment = any([env_name == spec.id for spec in gym.envs.registry.all()]) # Checks if :param: env_name was registered
-    except Exception as e:
-        print(f"WARNING: OpenAI gym version does not allow access to registry.all(): {e}")
-        print(F"WARNING: trying while assuming it is a dict...")
-        is_gym_environment = any([env_name == spec for spec in gym.envs.registry.keys()])
-
     is_gymnasium_environment = False
     try:
         import gymnasium
         is_gymnasium_environment = any([env_name == spec for spec in gymnasium.envs.registry.keys()]) # Checks if :param: env_name was registered
     except Exception as e:
         print(f"WARNING: exception while checking whether the environment is from gymnasium : {e}")
+    if not is_gymnasium_environment:
+        try:
+            is_gym_environment = any([env_name == spec.id for spec in gym.envs.registry.all()]) # Checks if :param: env_name was registered
+        except Exception as e:
+            print(f"WARNING: OpenAI gym version does not allow access to registry.all(): {e}")
+            print(F"WARNING: trying while assuming it is a dict...")
+            is_gym_environment = any([env_name == spec for spec in gym.envs.registry.keys()])
+    else:
+        is_gym_environment = False
+
     is_unity_environment = check_for_unity_executable(env_name)
 
     task = None

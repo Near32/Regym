@@ -12,8 +12,13 @@ import cv2
 #cv2.setNumThreads(0)
 import numpy as np
 
+try:
+    from stable_baselines3.common.vec_env.patch_gym import _patch_env
+except Exception as e:
+    _patch_env = None 
 
-import gym
+import gym as classic_gym
+import gymnasium as gym
 from gym.wrappers import TimeLimit
 
 import logging
@@ -2492,7 +2497,10 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
         
         for obs_key, map_key in self.observation_keys_mapping.items():
             self.observation_space.spaces[map_key] = gym.spaces.MultiDiscrete([len(self.vocabulary)]*self.max_sentence_length)
-        
+
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+    
     def observation(self, observation):
         """
         Transforms textual obvservations into word indices vectors.
@@ -2509,6 +2517,7 @@ class TextualGoal2IdxWrapper(gym.ObservationWrapper):
             t_goal = [w for w in re.findall(r'\d|\w+|\.', observation[obs_key])]
             for w in t_goal:
                 if w not in self.vocabulary:
+                    print(t_goal)
                     import ipdb; ipdb.set_trace()
                     self.vocabulary.append(w)
                     self.w2idx[w] = len(self.vocabulary)-1
@@ -2564,6 +2573,9 @@ class BehaviourDescriptionWrapper(gym.ObservationWrapper):
             self.observation_space_name = 'visible_entities'
         self.observation_space.spaces[self.observation_space_name] = gym.spaces.MultiDiscrete([100]*self.max_sentence_length)
 
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+    
     def observation( self, observation):
         need_to_return_info = False
         if isinstance(observation, tuple):
@@ -2804,15 +2816,26 @@ class BabyAIMissionWrapper(gym.Wrapper):
         return obs, infos 
     
     def step(self, action):
-        next_observation, reward, done, next_infos = self.env.step(action)
+        step_output = self.env.step(action)
+        if len(step_output) == 4:
+            next_observation, reward, done, next_infos = step_output
+        elif len(step_output) == 5:
+            next_observation, reward, done, truncated, next_infos = step_output
+        else:
+            raise NotImplementedError
         nbr_agent = len(next_infos)
         assert nbr_agent == 1
 
         for info_idx in range(len(next_infos)):
             #next_infos[info_idx] = copy.deepcopy(self.add_mission(next_infos[info_idx]))
             next_infos[info_idx] = self.add_mission(next_infos[info_idx])
-        
-        return next_observation, reward, done, next_infos
+
+        if len(step_output) == 4:
+            return next_observation, reward, done, next_infos
+        elif len(step_output) == 5:
+            return next_observation, reward, done, truncated, next_infos
+        else:
+            raise NotImplementedError
 
 
 class DictObservationSpaceReMapping(gym.ObservationWrapper):
@@ -2989,7 +3012,13 @@ class DictFrameStack(gym.Wrapper):
         return self._get_obs(obs), infos
     
     def step(self, action):
-        obs, reward, done, infos = self.env.step(action)
+        step_output = self.env.step(action)
+        if len(step_output) == 4:
+            obs, reward, done, infos = step_output
+        elif len(step_output) == 5:
+            obs, reward, done, truncated, infos = step_output
+        else:
+            raise NotImplementedError
         
         self.previous_action = action
         if isinstance(action, int):
@@ -3030,7 +3059,13 @@ class DictFrameStack(gym.Wrapper):
                 )
             
             self.observations[k].append(observation)        
-        return self._get_obs(obs), reward, done, infos
+        
+        if len(step_output) == 4:
+            return self._get_obs(obs), reward, done, infos
+        elif len(step_output) == 5:
+            return self._get_obs(obs), reward, done, truncated, infos
+        else:
+            raise NotImplementedError
 
 
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
@@ -3153,7 +3188,13 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
         return env_output
 
     def step(self, action):
-        obs, reward, done, info = super(PeriodicVideoRecorderWrapper, self).step(action)
+        step_output = super(PeriodicVideoRecorderWrapper, self).step(action)
+        if len(step_output) == 4:
+            obs, reward, done, info = step_output
+        elif len(step_output) == 5:
+            obs, reward, done, truncated, info = step_output
+        else:
+            raise NotImplementedError
         if self.is_video_enabled:
             frame = None
             if self.record_obs:
@@ -3166,7 +3207,12 @@ class PeriodicVideoRecorderWrapper(gym.Wrapper):
             #self.video_recorder.capture_frame(frame=frame)
             self.frames.append(frame)
 
-        return obs, reward, done, info
+        if len(step_output) == 4:
+            return obs, reward, done, info
+        elif len(step_output) == 5:
+            return obs, reward, done, truncated, info
+        else:
+            raise NotImplementedError
 
 class DictObservationSelectionWrapper(gym.Wrapper):
     """
@@ -3215,11 +3261,16 @@ class DictObservationSelectionWrapper(gym.Wrapper):
         return new_observations, infos 
     
     def step(self, action):
-        next_observations, reward, done, next_infos = self.env.step(action)        
+        step_output = self.env.step(action)
+        if len(step_output) == 4:
+            next_observations, reward, done, next_infos = step_output
+        elif len(step_output) == 5:
+            next_observations, reward, done, truncated, next_infos = step_output
+        else:
+            raise NotImplementedError
         if isinstance(next_infos, dict):
             next_observations = [next_observations]
             reward = [reward]
-            done = done
             next_infos = [next_infos]
 
         nbr_agent = len(next_infos)
@@ -3233,7 +3284,12 @@ class DictObservationSelectionWrapper(gym.Wrapper):
                 if k==self.selected_key:  continue
                 next_infos[agent_idx][k] = v
         
-        return new_next_observations, reward, done, next_infos
+        if len(step_output) == 4:
+            return new_next_observations, reward, done, next_infos
+        elif len(step_output) == 5:
+            return new_next_observations, reward, done, truncated, next_infos
+        else:
+            raise NotImplementedError
 
     def render(self, mode='human', **kwargs):
         env = self.unwrapped
@@ -3318,7 +3374,8 @@ except Exception as e:
 
 from typing import Any, Callable
 
-from gym import spaces
+#from gym import spaces
+from gymnasium import spaces
 
 
 def check_if_no_duplicate(duplicate_list: list) -> bool:
@@ -3793,7 +3850,13 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
         return obs, infos 
     
     def step(self, action):
-        next_observation, reward, done, next_infos = self.env.step(action)
+        step_output = self.env.step(action)
+        if len(step_output) == 4:
+            next_observation, reward, done, next_infos = step_output
+        elif len(step_output) == 5:
+            next_observation, reward, done, truncated, next_infos = step_output
+        else:
+            raise NotImplementedError
         
         if hasattr(self.unwrapped, 'agent'):
             self.agent_poses.append(self.unwrapped.agent.pos)
@@ -3836,7 +3899,12 @@ class CoverageManipulationMetricWrapper(gym.Wrapper):
             next_infos['metrics']['episode_length'] = self.episode_length
             if wandb.run is not None: wandb.log(next_infos['metrics'], commit=False)
 
-        return next_observation, reward, done, next_infos
+        if len(step_output) == 4:
+            return next_observation, reward, done, next_infos
+        elif len(step_output) == 5:
+            return next_observation, reward, done, truncated, next_infos
+        else:
+            raise NotImplementedError
 
 
 class LanguageGuidedCuriosityWrapper(gym.Wrapper):
@@ -3932,7 +4000,13 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         return obs, infos 
     
     def step(self, action):
-        next_observation, reward, done, next_infos = self.env.step(action)
+        step_output = self.env.step(action)
+        if len(step_output) == 4:
+            next_observation, reward, done, next_infos = step_output
+        elif len(step_output) == 5:
+            next_observation, reward, done, truncated, next_infos = step_output
+        else:
+            raise NotImplementedError
         next_state_description = next_observation['visible_entities']
         
         if not self.densify:
@@ -3991,7 +4065,12 @@ class LanguageGuidedCuriosityWrapper(gym.Wrapper):
         next_infos['extrinsic_reward'] = reward
         reward = self.extrinsic_weight*reward+self.intrinsic_reward*self.intrinsic_weight
         
-        return next_observation, reward, done, next_infos
+        if len(step_output) == 4:
+            return next_observation, reward, done, next_infos
+        elif len(step_output) == 5:
+            return next_observation, reward, done, truncated, next_infos
+        else:
+            raise NotImplementedError
 
 
 def baseline_ther_wrapper(
@@ -4036,6 +4115,9 @@ def baseline_ther_wrapper(
     **kwargs,
     ):
     
+    if _patch_env is not None:
+        env = _patch_env(env)
+    
     if miniworld_entity_visibility_oracle \
     or (observe_achieved_pickup_goal and 'MiniWorld' in env.unwrapped.spec.id):
         from miniworld.wrappers import EntityVisibilityOracleWrapper
@@ -4061,7 +4143,8 @@ def baseline_ther_wrapper(
             as_obs=True,
         )
 
-    env = Gymnasium2GymWrapper(env=env)
+    #env = Gymnasium2GymWrapper(env=env)
+    
     if time_limit>0:
         env = TimeLimit(env, max_episode_steps=time_limit)
     #if hasattr(env.unwrapped, 'max_steps'):

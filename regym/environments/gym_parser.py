@@ -1,7 +1,10 @@
 import itertools
 import numpy as np
 import gym
+import gymnasium
 from gym.spaces import Box, Discrete, MultiDiscrete, Tuple, Dict, MultiBinary
+import gymnasium.spaces
+
 from .task import Task, EnvType
 
 
@@ -20,7 +23,7 @@ def parse_gym_environment(env: gym.Env, env_type: EnvType, name: str = None) -> 
     :param name: Str defining the name to give to the task, if needs be.
     :returns: Task created from :param: env named :param: name
     '''
-    if name is None:    name = env.spec.id
+    if name is None:    name = env.unwrapped.spec.id
     action_dims, action_type = get_action_dimensions_and_type(env)
     observation_shape, observation_type = get_observation_dimensions_and_type(env)
     state_space_size = env.state_space_size if hasattr(env, 'state_space_size') else None
@@ -47,12 +50,18 @@ def parse_gym_environment(env: gym.Env, env_type: EnvType, name: str = None) -> 
 
 
 def parse_dimension_space(space, key="observation"):
-    if isinstance(space, Discrete): return space.n, 'Discrete' # One neuron is enough to take any Discrete space
-    if isinstance(space, MultiDiscrete): return space.nvec, 'MultiDiscrete' # One neuron is enough to take any Discrete space
-    if isinstance(space, MultiBinary): return space.n, 'MultiBinary' # One neuron is enough to take any Discrete space
-    elif isinstance(space, Box): return space.shape, 'Continuous'
-    elif isinstance(space, Tuple): return sum([parse_dimension_space(s)[0] for s in space.spaces]), parse_dimension_space(space.spaces[0])[1]
-    elif isinstance(space, Dict):
+    if isinstance(space, Discrete) \
+    or isinstance(space, gymnasium.spaces.Discrete): return space.n, 'Discrete' # One neuron is enough to take any Discrete space
+    if isinstance(space, MultiDiscrete) \
+    or isinstance(space, gymnasium.spaces.MultiDiscrete): return space.nvec, 'MultiDiscrete' # One neuron is enough to take any Discrete space
+    if isinstance(space, MultiBinary) \
+    or isinstance(space, gymnasium.spaces.MultiBinary): return space.n, 'MultiBinary' # One neuron is enough to take any Discrete space
+    elif isinstance(space, Box) \
+    or isinstance(space, gymnasium.spaces.Box): return space.shape, 'Continuous'
+    elif isinstance(space, Tuple) \
+    or isinstance(space, gymnasium.spaces.Tuple): return sum([parse_dimension_space(s)[0] for s in space.spaces]), parse_dimension_space(space.spaces[0])[1]
+    elif isinstance(space, Dict) \
+    or isinstance(space, gymnasium.spaces.Dict):
         if key in space.spaces.keys():
             return parse_dimension_space(space.spaces[key])
         else:
@@ -73,9 +82,12 @@ def get_goal_dimensions_and_type(env):
 
 def get_action_dimensions_and_type(env):
     def parse_dimension_space(space):
-        if isinstance(space, Discrete): return space.n, 'Discrete'
-        elif isinstance(space, MultiDiscrete): return compute_multidiscrete_space_size(space.nvec), 'Discrete'
-        elif isinstance(space, Box): return space.shape[0], 'Continuous'
+        if isinstance(space, Discrete) \
+        or isinstance(space, gymnasium.spaces.Discrete): return space.n, 'Discrete'
+        elif isinstance(space, MultiDiscrete) \
+        or isinstance(space, gymnasium.spaces.MultiDiscrete): return compute_multidiscrete_space_size(space.nvec), 'Discrete'
+        elif isinstance(space, Box) \
+        or isinstance(space, gymnasium.spaces.Box): return space.shape[0], 'Continuous'
         else: raise ValueError('Unknown action space: {}'.format(space))
 
     if hasattr(env.action_space, 'spaces'): return parse_dimension_space(env.action_space.spaces[0]) # Multi agent environment
